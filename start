@@ -1,0 +1,10 @@
+<?php
+
+/**
+ * 本服务需要shell_exec支持
+ * 如果您没有配置php命令,则需要在下面手动修改php命令的路径
+ */
+
+echo "正在为您开启服务...\n";
+#开启web服务器,路径为public/
+shell_exec("php -S localhost:8000 -t public/");

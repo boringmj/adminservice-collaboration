@@ -1,0 +1,13 @@
+{
+    "name": "boringmj/adminservice-collaboration",
+    "type": "project",
+    "description": "AdminService 合作开发",
+
+    "require": {
+        
+    },
+
+    "autoload": {
+        
+    }
+}

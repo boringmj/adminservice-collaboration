@@ -27,7 +27,7 @@ final class Main {
         try{
             $route_load=$route->load();
             Request::params($route_load['params']);
-            $route->run();
+            Request::requestExit($route->run());
         } catch(Exception $e) {
             Request::requestExit($e->getMessage());
         }

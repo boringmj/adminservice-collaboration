@@ -6,10 +6,10 @@ use bash\Controller;
 
 class Index extends Controller {
     public function index() {
-        echo "Hello World!";
+        return "Hello World!";
     }
 
     public function test() {
-        echo "Hi ".$this->param(0)."!";
+        return "Hi ".$this->param(0)."!";
     }
 }

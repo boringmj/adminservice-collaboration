@@ -55,10 +55,11 @@ final class Route extends BashRoute {
         // 如果没有数据则要求进行初始化
         if(empty($this->uri))
             $this->init();
+        // 这里具体的路由规则将来会随着配置文件的更新而更新,所以现在先这样
         return array(
-            "app"=>isset($this->uri[0])?$this->uri[0]:Config::get('route.default.app'),
-            "controller"=>isset($this->uri[1])?$this->uri[1]:Config::get('route.default.controller'),
-            "action"=>isset($this->uri[2])?$this->uri[2]:Config::get('route.default.action'),
+            "app"=>ucfirst(isset($this->uri[0])?$this->uri[0]:Config::get('route.default.app')),
+            "controller"=>ucfirst(isset($this->uri[1])?$this->uri[1]:Config::get('route.default.controller')),
+            "action"=>lcfirst(isset($this->uri[2])?$this->uri[2]:Config::get('route.default.action')),
             "params"=>array_slice($this->uri,3)
         );
     }

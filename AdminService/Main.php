@@ -25,7 +25,9 @@ final class Main {
         // 路由
         $route=new Route();
         try{
-            $route=$route->load();
+            $route_load=$route->load();
+            Request::params($route_load['params']);
+            $route->run();
         } catch(Exception $e) {
             Request::requestExit($e->getMessage());
         }

@@ -4,6 +4,9 @@ namespace AdminService;
 
 final class Config {
 
+    /**
+     * 配置信息
+     */
     static private $configs;
 
     /**
@@ -14,7 +17,7 @@ final class Config {
      * @return Config
      */
     final public function __construct(array $configs) {
-        Config::$configs=$configs;
+        self::$configs=$configs;
         return $this;
     }
 
@@ -27,7 +30,7 @@ final class Config {
      */
     final static public function get(string $key) {
         $keys=explode(".", $key);
-        $configs=Config::$configs;
+        $configs=self::$configs;
         foreach ($keys as $key) {
             if (isset($configs[$key])) {
                 $configs=$configs[$key];

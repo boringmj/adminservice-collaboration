@@ -4,6 +4,9 @@ namespace bash;
 
 abstract class Exception extends \Exception {
 
+    /**
+     * 额外数据
+     */
     private $data;
 
     /**

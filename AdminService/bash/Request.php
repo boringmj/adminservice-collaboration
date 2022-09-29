@@ -31,7 +31,7 @@ class Request {
     /**
      * 结束时输出内容
      */
-    final static function requestEcho(string $message='') {
+    final static function requestEcho() {
         echo self::$data_exit['message'];
     }
 

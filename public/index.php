@@ -15,3 +15,5 @@ use AdminService\Main;
 # 初始化服务
 $Main=new Main();
 $Main->init();
+
+?>

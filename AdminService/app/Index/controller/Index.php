@@ -2,14 +2,14 @@
 
 namespace app\Index\controller;
 
-use bash\Request;
+use bash\Controller;
 
-class Index {
+class Index extends Controller {
     public function index() {
         echo "Hello World!";
     }
 
     public function test() {
-        echo "Hi ".Request::get(0)."!";
+        echo "Hi ".$this->param(0)."!";
     }
 }

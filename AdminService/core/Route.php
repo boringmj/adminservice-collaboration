@@ -77,3 +77,5 @@ final class Route extends BashRoute {
         return $method();
     }
 }
+
+?>

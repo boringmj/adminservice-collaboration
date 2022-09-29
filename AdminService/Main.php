@@ -7,6 +7,7 @@ use AdminService\Route;
 use AdminService\Exception;
 
 final class Main {
+    
     /**
      * 初始化
      * 

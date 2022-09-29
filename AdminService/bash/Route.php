@@ -58,6 +58,10 @@ abstract class Route {
      * 通过路由路径组加载控制器
      */
     abstract public function load();
+
+    /**
+     * 获取路由相关配置
+     */
 }
 
 ?>

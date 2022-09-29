@@ -3,8 +3,11 @@
 namespace AdminService;
 
 use bash\Route as BashRoute;
+use AdminService\Config;
+use AdminService\Exception;
 
-class Route extends BashRoute {
+final class Route extends BashRoute {
+
     /**
      * 通过路由路径组返回控制器
      * 
@@ -25,11 +28,13 @@ class Route extends BashRoute {
                 return true;
             }
             else
-                return false;
-            return true;
-        } else {
-            return false;
-        }
+                throw new Exception("Method is not defined.",-405,array(
+                    'method'=>$route_info['action']
+                ));
+        } else
+            throw new Exception("Controller Not Found.",-404,array(
+                'controller'=>$route_info['controller']
+            ));
     }
 
     /**
@@ -43,9 +48,9 @@ class Route extends BashRoute {
         if(empty($this->uri))
             $this->init();
         return array(
-            "app"=>isset($this->uri[0])?$this->uri[0]:"Index",
-            "controller"=>isset($this->uri[1])?$this->uri[1]:"Index",
-            "action"=>isset($this->uri[2])?$this->uri[2]:"index",
+            "app"=>isset($this->uri[0])?$this->uri[0]:Config::get('route.default.app'),
+            "controller"=>isset($this->uri[1])?$this->uri[1]:Config::get('route.default.controller'),
+            "action"=>isset($this->uri[2])?$this->uri[2]:Config::get('route.default.action'),
             "params"=>array_slice($this->uri,3)
         );
     }

@@ -2,14 +2,15 @@
 
 namespace AdminService;
 
+use bash\Request;
 use AdminService\Route;
 use AdminService\Exception;
-
 
 final class Main {
     /**
      * 初始化
      * 
+     * @access public
      * @return void
      */
     public function init() {
@@ -17,14 +18,25 @@ final class Main {
         // error_reporting(0);
         date_default_timezone_set('PRC');
         register_shutdown_function($this->end());
+        $GLOBALS['AdminService']=array();
+        // 加载配置文件
+        $GLOBALS['AdminService']['config']=require_once __DIR__.'/config.php';
+        new Config($GLOBALS['AdminService']['config']);
         // 路由
         $route=new Route();
-        if($route=$route->load())
-            return true;
-        else
-            throw new Exception("404 Not Found",404);
+        try{
+            $route=$route->load();
+        } catch(Exception $e) {
+            Request::requestExit($e->getMessage());
+        }
     }
 
+    /**
+     * 用于注册结束运行的事件,这里用于捕获异常
+     * 
+     * @access private
+     * @return callable
+     */
     private function end() {
         return function() {
             // 捕获致命错误

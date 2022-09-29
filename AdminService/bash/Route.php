@@ -18,6 +18,7 @@ abstract class Route {
         $uri=$uri[0];
         $uri=explode("/", $uri);
         array_shift($uri);
+        $uri=array_values($uri);
         return $uri;
     }
 

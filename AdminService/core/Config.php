@@ -16,9 +16,21 @@ final class Config {
      * @param array $configs
      * @return Config
      */
-    final public function __construct(array $configs) {
-        self::$configs=$configs;
+    final public function __construct(array $configs=array()) {
+        if(!empty($configs))
+            self::set($configs);
         return $this;
+    }
+
+    /**
+     * 设置配置
+     * 
+     * @access public
+     * @param string $configs
+     * @return void
+     */
+    final static public function set($configs) {
+        self::$configs=$configs;
     }
 
     /**

@@ -23,7 +23,12 @@ final class Route extends BashRoute {
     public function load(array $route_info=array()) {
         if(empty($route_info))
             $route_info=$this->getRouteInfo();
-        $controller_path=__DIR__.'/../app/'.$route_info['app']."/"."controller/".$route_info['controller'].'.php';
+        $app_path=Config::get('app.path').'/'.$route_info['app'];
+        if(!is_dir($app_path))
+            throw new Exception('App not found',-403,array(
+                'app'=>$route_info['app']
+            ));
+        $controller_path=$app_path.'/'.'controller/'.$route_info['controller'].'.php';
         if (file_exists($controller_path)) {
             require_once $controller_path;
             $controller_name='app\\'.$route_info['app'].'\\controller\\'.$route_info['controller'];
@@ -40,8 +45,10 @@ final class Route extends BashRoute {
                     'method'=>$route_info['action']
                 ));
         } else
-            throw new Exception("Controller Not Found.",-404,array(
-                'controller'=>$route_info['controller']
+            throw new Exception("Controller not found.",-404,array(
+                'controller'=>$route_info['controller'],
+                'app'=>$route_info['app'],
+                'path'=>$controller_path
             ));
     }
 
@@ -49,7 +56,7 @@ final class Route extends BashRoute {
      * 通过路由路径组返回路由信息(调用该方法会自动初始化路由信息)
      * 
      * access public
-     * @return bool
+     * @return array
      */
     public function getRouteInfo() {
         // 如果没有数据则要求进行初始化
@@ -57,9 +64,9 @@ final class Route extends BashRoute {
             $this->init();
         // 这里具体的路由规则将来会随着配置文件的更新而更新,所以现在先这样
         return array(
-            "app"=>ucfirst(isset($this->uri[0])?$this->uri[0]:Config::get('route.default.app')),
-            "controller"=>ucfirst(isset($this->uri[1])?$this->uri[1]:Config::get('route.default.controller')),
-            "action"=>lcfirst(isset($this->uri[2])?$this->uri[2]:Config::get('route.default.action')),
+            "app"=>ucfirst($this->uri[0]?$this->uri[0]:Config::get('route.default.app')),
+            "controller"=>ucfirst($this->uri[1]??Config::get('route.default.controller')),
+            "action"=>lcfirst($this->uri[2]??Config::get('route.default.action')),
             "params"=>array_slice($this->uri,3)
         );
     }

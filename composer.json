@@ -10,7 +10,7 @@
     "autoload": {
         "psr-4": {
             "bash\\": "AdminService/bash/",
-            "AdminService\\": "AdminService/src/"
+            "AdminService\\": "AdminService/core/"
         },
         "files": [
             "AdminService/Main.php"

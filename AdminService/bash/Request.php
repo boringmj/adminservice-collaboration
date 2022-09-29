@@ -5,6 +5,11 @@ namespace bash;
 class Request {
 
     /**
+     * 结束前的数据
+     */
+    static private $data_exit;
+
+    /**
      * 请求参数
      */
     static private $request_params;
@@ -17,7 +22,17 @@ class Request {
      * @return void
      */
     final static function requestExit(string $message='') {
-        exit($message);
+        self::$data_exit=array(
+            'message'=>$message
+        );
+        exit();
+    }
+
+    /**
+     * 结束时输出内容
+     */
+    final static function requestEcho(string $message='') {
+        echo self::$data_exit['message'];
     }
 
     /**

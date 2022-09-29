@@ -15,7 +15,7 @@ final class Main {
      */
     public function init() {
         // 调整环境
-        // error_reporting(0);
+        error_reporting(0);
         date_default_timezone_set('PRC');
         register_shutdown_function($this->end());
         $GLOBALS['AdminService']=array();
@@ -46,9 +46,14 @@ final class Main {
             if (!empty($error)) {
                 //通过正则表达式匹配出错误原因(in 前面的内容)
                 preg_match('/^(.*?: .*?) in.*/',$error['message'],$matches);
-                $Exception=new Exception($matches[1],-1);
+                if(isset($matches[1]))
+                    $error['message']=$matches[1];
+                $Exception=new Exception($error['message'],-1);
                 $Exception->echo();
             }
+            // 如果没有异常则正常结束并输出内容
+            Request::requestEcho();
+            exit();
         };
     }
 }

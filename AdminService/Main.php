@@ -21,7 +21,7 @@ final class Main {
         $GLOBALS['AdminService']=array();
         // 加载配置文件
         $GLOBALS['AdminService']['config']=require_once __DIR__.'/config.php';
-        new Config($GLOBALS['AdminService']['config']);
+        (new Config())->set($GLOBALS['AdminService']['config']);
         // 路由
         $route=new Route();
         try{

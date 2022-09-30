@@ -32,8 +32,8 @@ final class Route extends BashRoute {
         if (file_exists($controller_path)) {
             $controller_name='app\\'.$route_info['app'].'\\controller\\'.$route_info['controller'];
             $controller=new $controller_name();
-            if(method_exists($controller,$route_info['action'])) {
-                $this->method=array($controller,$route_info['action']);
+            if(method_exists($controller,$route_info['method'])) {
+                $this->method=array($controller,$route_info['method']);
                 return array(
                     'method'=>$this->method,
                     'params'=>$route_info['params']
@@ -41,7 +41,7 @@ final class Route extends BashRoute {
             }
             else
                 throw new Exception("Method is not defined.",-405,array(
-                    'method'=>$route_info['action'],
+                    'method'=>$route_info['method'],
                     'controller'=>$route_info['controller'],
                     'app'=>$route_info['app'],
                     'path'=>$route_info['path']
@@ -68,7 +68,7 @@ final class Route extends BashRoute {
         return array(
             "app"=>ucfirst($this->uri[0]?$this->uri[0]:Config::get('route.default.app')),
             "controller"=>ucfirst($this->uri[1]??Config::get('route.default.controller')),
-            "action"=>lcfirst($this->uri[2]??Config::get('route.default.action')),
+            "method"=>lcfirst($this->uri[2]??Config::get('route.default.method')),
             "params"=>array_slice($this->uri,3)
         );
     }

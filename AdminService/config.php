@@ -13,7 +13,7 @@ return array(
         'default'=>array(
             'app'=>'Index',
             'controller'=>'Index',
-            'action'=>'index'
+            'method'=>'index'
         )
     )
 );

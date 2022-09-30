@@ -19,11 +19,11 @@ php start
 4. 访问 `localhost:8000`, 至此,您已经可以正常进行开发了
 
 ## 路由
-默认路由继承至`bash\Route`基类,使用`AdminService/Route`实现, 请先配置您的 `webserver` 支持该路由形式
+默认路由继承至`bash\Route`基类,使用`AdminService\Route`实现, 请先配置您的 `webserver` 支持该路由形式
 ```
 http[s]?://domain/app/controller/method[/param1,/param2...]?
 ```
-您可以在`AdminService/Main`中查看路由的引用
+您可以在`AdminService/Main.php`中查看路由的引用
 ```
 // 路由
 $route=new Route();
@@ -35,7 +35,7 @@ try{
     Request::requestExit($e->getMessage());
 }
 ```
-如果默认路由并不适用于您的项目,你可以自由创建一个适用的路由类,并在`AdminService/Main`中引入您的类,并实例化
+如果默认路由并不适用于您的项目,你可以自由创建一个适用的路由类,并在`AdminService/Main.php`中引入您的类,并实例化
 ## 未来
 我们将逐步构建出一个完善的轻量级快速响应框架,这可能需要非常久的时间\
 我们由衷的希望大家提出意见,也由衷的欢迎大家加入到我们的开发之中\

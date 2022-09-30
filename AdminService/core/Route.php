@@ -29,8 +29,8 @@ final class Route extends BashRoute {
                 'app'=>$route_info['app']
             ));
         $controller_path=$app_path.'/'.'controller/'.$route_info['controller'].'.php';
-        if (file_exists($controller_path)) {
-            $controller_name='app\\'.$route_info['app'].'\\controller\\'.$route_info['controller'];
+        $controller_name='app\\'.$route_info['app'].'\\controller\\'.$route_info['controller'];
+        if (file_exists($controller_path)&&class_exists($controller_name)) {
             $controller=new $controller_name();
             if(method_exists($controller,$route_info['method'])) {
                 $this->method=array($controller,$route_info['method']);

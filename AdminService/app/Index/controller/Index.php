@@ -13,3 +13,5 @@ class Index extends Controller {
         return "Hi ".$this->param(0)."!";
     }
 }
+
+?>

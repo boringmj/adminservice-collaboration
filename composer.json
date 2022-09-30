@@ -1,7 +1,7 @@
 {
     "name": "boringmj/adminservice-collaboration",
     "type": "project",
-    "description": "AdminService 合作开发",
+    "description": "A PHP lightweight fast response framework under development, mainly for the back-end API interface",
 
     "require": {
         

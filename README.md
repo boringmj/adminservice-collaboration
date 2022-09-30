@@ -16,7 +16,8 @@ composer install
 // 需要配置php环境变量且php>=5.4.0
 php start
 ```
-4. 访问 `localhost:8000`, 至此,您已经可以正常进行开发了
+4. 访问 `localhost:8000`, 至此,您已经可以正常进行开发了\
+如果您需要更多帮助,可以前往[Wiki](https://github.com/boringmj/adminservice-collaboration/wiki/准备), 在那里有更加详细的教程和文档
 
 ## 路由
 默认路由继承至`bash\Route`基类,使用`AdminService\Route`实现, 请先配置您的 `webserver` 支持该路由形式

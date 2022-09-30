@@ -41,7 +41,10 @@ final class Route extends BashRoute {
             }
             else
                 throw new Exception("Method is not defined.",-405,array(
-                    'method'=>$route_info['action']
+                    'method'=>$route_info['action'],
+                    'controller'=>$route_info['controller'],
+                    'app'=>$route_info['app'],
+                    'path'=>$route_info['path']
                 ));
         } else
             throw new Exception("Controller not found.",-404,array(

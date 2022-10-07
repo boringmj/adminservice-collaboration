@@ -22,7 +22,8 @@ return array(
             'rule'=>array(
                 'app'=>'/^[A-Z_][a-zA-Z0-9_\-]+$/',
                 'controller'=>'/^[A-Z_][a-zA-Z0-9_\-]+$/',
-                'method'=>'/^[a-z_][a-zA-Z0-9_\-]+$/'
+                'method'=>'/^[a-z_][a-zA-Z0-9_\-]+$/',
+                'get'=>'/^[a-zA-Z0-9_]+$/'
             )
         )
     )

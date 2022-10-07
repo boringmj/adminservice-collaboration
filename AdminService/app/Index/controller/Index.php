@@ -3,7 +3,6 @@
 namespace app\Index\controller;
 
 use bash\Controller;
-use bash\Request;
 
 class Index extends Controller {
     public function index() {

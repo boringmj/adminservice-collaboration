@@ -25,10 +25,13 @@ final class Main {
         $GLOBALS['AdminService']['config']=require_once __DIR__.'/config.php';
         (new Config())->set($GLOBALS['AdminService']['config']);
         // 路由
+        $_POST['a']=1;
+        $_COOKIE['b']=2;
+        $_GET['c']=3;
         $route=new Route();
         try{
-            $route_load=$route->load();
-            Request::params($route_load['params']);
+            $route->load();
+            Request::init();
             Request::requestExit($route->run());
         } catch(Exception $e) {
             Request::requestExit($e->getMessage());

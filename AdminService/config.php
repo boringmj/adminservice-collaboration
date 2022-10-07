@@ -14,6 +14,16 @@ return array(
             'app'=>'Index',
             'controller'=>'Index',
             'method'=>'index'
+        ),
+        'params'=>array(
+            'toget'=>array(
+                'model'=>'auto' // auto, value, list, value-list, list-value (default: auto)
+            ),
+            'rule'=>array(
+                'app'=>'/^[A-Z_][a-zA-Z0-9_\-]+$/',
+                'controller'=>'/^[A-Z_][a-zA-Z0-9_\-]+$/',
+                'method'=>'/^[a-z_][a-zA-Z0-9_\-]+$/'
+            )
         )
     )
 );

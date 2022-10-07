@@ -5,6 +5,7 @@ namespace AdminService;
 use bash\Route as BashRoute;
 use AdminService\Config;
 use AdminService\Exception;
+use bash\Request;
 
 final class Route extends BashRoute {
 
@@ -23,6 +24,22 @@ final class Route extends BashRoute {
     public function load(array $route_info=array()) {
         if(empty($route_info))
             $route_info=$this->getRouteInfo();
+        // 判断是否符合配置文件中的路由规则
+        if(Config::get('route.params.rule.app') && !preg_match(Config::get('route.params.rule.app'),$route_info['app']))
+            throw new Exception('App parameter does not meet the rules.',-402,array(
+                'rule'=>Config::get('route.params.rule.app'),
+                'param'=>$route_info['app']
+            ));
+        if(Config::get('route.params.rule.controller') && !preg_match(Config::get('route.params.rule.controller'),$route_info['controller']))
+            throw new Exception('Controller parameter does not meet the rules',-401,array(
+                'rule'=>Config::get('route.params.rule.controller.'),
+                'param'=>$route_info['controller']
+            ));
+        if(Config::get('route.params.rule.method') && !preg_match(Config::get('route.params.rule.method'),$route_info['method']))
+            throw new Exception('Method parameter does not meet the rules.',-400,array(
+                'rule'=>Config::get('route.params.rule.method'),
+                'param'=>$route_info['method']
+            ));
         $app_path=Config::get('app.path').'/'.$route_info['app'];
         if(!is_dir($app_path))
             throw new Exception('App not found',-403,array(
@@ -34,6 +51,8 @@ final class Route extends BashRoute {
             $controller=new $controller_name();
             if(method_exists($controller,$route_info['method'])) {
                 $this->method=array($controller,$route_info['method']);
+                // 转化为get参数
+                $this->toGet($route_info['params']);
                 return array(
                     'method'=>$this->method,
                     'params'=>$route_info['params']
@@ -84,6 +103,34 @@ final class Route extends BashRoute {
             $this->load();
         $method=$this->method;
         return $method();
+    }
+
+    /**
+     * 将路由参数转换为GET参数
+     * 
+     * access private
+     * @param array $params 路由参数
+     * @return void
+     */
+    private function toGet($params) {
+        $config=Config::get('route.params.toget.model');
+        if(!in_array($config,array('value','list','value-list','list-value')))
+            $config='list-value';
+        $config_list=explode('-',$config);
+        foreach($config_list as $key=>$value)
+        {
+            if($value=='value')
+                // 键从0开始,逐一赋值
+                foreach($params as $k=>$v)
+                    $_GET[$k]=$v;
+            else if($value=='list')
+            {
+                // 将前面的参数作为键,后面的参数作为值(没有后面的参数则为空)
+                $count=count($params);
+                for($i=0;$i<$count;$i+=2)
+                    $_GET[$params[$i]]=$params[$i+1]??'';
+            }
+        }
     }
 }
 

@@ -31,8 +31,8 @@ final class Route extends BashRoute {
                 'param'=>$route_info['app']
             ));
         if(Config::get('route.params.rule.controller') && !preg_match(Config::get('route.params.rule.controller'),$route_info['controller']))
-            throw new Exception('Controller parameter does not meet the rules',-401,array(
-                'rule'=>Config::get('route.params.rule.controller.'),
+            throw new Exception('Controller parameter does not meet the rules.',-401,array(
+                'rule'=>Config::get('route.params.rule.controller'),
                 'param'=>$route_info['controller']
             ));
         if(Config::get('route.params.rule.method') && !preg_match(Config::get('route.params.rule.method'),$route_info['method']))
@@ -42,7 +42,7 @@ final class Route extends BashRoute {
             ));
         $app_path=Config::get('app.path').'/'.$route_info['app'];
         if(!is_dir($app_path))
-            throw new Exception('App not found',-403,array(
+            throw new Exception('App not found.',-403,array(
                 'app'=>$route_info['app']
             ));
         $controller_path=$app_path.'/'.'controller/'.$route_info['controller'].'.php';

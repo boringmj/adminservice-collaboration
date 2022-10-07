@@ -12,7 +12,7 @@ class Request {
     /**
      * 请求参数
      */
-    static public $request_params;
+    static private $request_params;
 
     /**
      * 构造方法
@@ -229,7 +229,7 @@ class Request {
      * 返回所有请求参数的键值
      * 
      * @access public
-     * @param string $type 参数类型(all|get|post)
+     * @param string $type 参数类型(all|get|post|cookie)
      * @return array
      */
     static public function keys($type='all')
@@ -240,6 +240,8 @@ class Request {
             return array_keys(self::$request_params['_GET']);
         else if($type=='post')
             return array_keys(self::$request_params['_POST']);
+        else if($type=='cookie')
+            return array_keys(self::$request_params['_COOKIE']);
         else
             return array();
     }

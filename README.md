@@ -1,5 +1,8 @@
 # AdminService-Collaboration
 ## 该如何开始?
+在开始之前,您应该需要注意\
+本项目使用了 `PHP 8.0.0` 的语法结构, 所以您需要保证您的 PHP 版本不低于 `8.0.0`\
+\
 1. 您应该先下载或 `clone`(推荐) 本项目至本地
 ```
 git clone https://github.com/boringmj/adminservice-collaboration.git

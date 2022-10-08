@@ -16,14 +16,13 @@ final class Main {
      * @return void
      */
     public function init() {
+        // 判断PHP版本
+        if (version_compare(PHP_VERSION, '8.0.0', '<'))
+            exit('无法兼容您的PHP版本('.PHP_VERSION.'),需要PHP8.0.0及以上版本');
         // 调整环境
         error_reporting(0);
         date_default_timezone_set('PRC');
         register_shutdown_function($this->end());
-        // 判断PHP版本
-        if (version_compare(PHP_VERSION, '8.0.0', '<')) {
-            throw new Exception('无法兼容您的版本,需要PHP8.0.0及以上版本');
-        }
         $GLOBALS['AdminService']=array();
         // 加载配置文件
         $GLOBALS['AdminService']['config']=require_once __DIR__.'/config.php';

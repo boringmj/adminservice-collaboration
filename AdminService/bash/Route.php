@@ -15,7 +15,7 @@ abstract class Route {
     private function route() {
         $uri=$_SERVER['REQUEST_URI'];
         $uri=explode("?", $uri);
-        $uri=$uri[0];
+        $uri=$uri[1]??$uri[0];
         $uri=explode("/", $uri);
         array_shift($uri);
         $uri=array_values($uri);

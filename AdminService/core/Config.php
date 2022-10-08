@@ -26,10 +26,10 @@ final class Config {
      * 设置配置
      * 
      * @access public
-     * @param string $configs
+     * @param array $configs
      * @return void
      */
-    final static public function set($configs) {
+    final static public function set(array $configs) {
         self::$configs=$configs;
     }
 

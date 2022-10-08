@@ -14,6 +14,9 @@ final class Exception extends BashException {
      */
     public function echo(): void {
         echo $this->error_code.':'.$this->getMessage()."<br>\n";
+        echo "File: ".$this->getFile()."<br>\n";
+        echo "Line: ".$this->getLine()."<br>\n";
+        echo "Trace: ".$this->getTraceAsString()."<br>\n";
         print_r($this->getData());
     }
 

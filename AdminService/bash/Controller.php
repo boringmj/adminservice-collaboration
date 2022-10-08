@@ -19,10 +19,12 @@ abstract class Controller {
      * 
      * @access public
      * @param int|string $param 参数
+     * @param mixed $default 默认值
      * @return mixed
      */
-    final public function param(int|string $param): mixed {
-        return Request::get($param);
+    final public function param(int|string $param,mixed $default): mixed {
+        $value=Request::get($param);
+        return $value==''?$default:$value;
     }
 }
 

@@ -12,7 +12,7 @@ final class Route extends BashRoute {
     /**
      * 控制器方法
      */
-    private callable $method;
+    private mixed $method;
 
     /**
      * 通过路由路径组返回控制器

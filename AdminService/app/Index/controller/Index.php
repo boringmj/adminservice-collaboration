@@ -10,7 +10,7 @@ class Index extends Controller {
     }
 
     public function test() {
-        return "Hi ".$this->param(0)."!";
+        return "Hi ".$this->param('name','AdminService')."!";
     }
 }
 

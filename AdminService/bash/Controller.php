@@ -21,7 +21,7 @@ abstract class Controller {
      * @param int|string $param 参数
      * @return mixed
      */
-    final public function param(int|string $param) {
+    final public function param(int|string $param): mixed {
         return Request::get($param);
     }
 }

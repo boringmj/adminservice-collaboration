@@ -12,8 +12,9 @@ final class Exception extends BashException {
      * @access public
      * @return void
      */
-    public function echo() {
+    public function echo(): void {
         echo $this->error_code.':'.$this->getMessage()."<br>\n";
+        print_r($this->getData());
     }
 
     /**
@@ -22,7 +23,7 @@ final class Exception extends BashException {
      * @param callable $callback 回调事件
      * @return mixed
      */
-    public function trigger(callable $callback) {
+    public function trigger(callable $callback): mixed {
         return $callback($this);
     }
 
@@ -31,7 +32,7 @@ final class Exception extends BashException {
      * @access public
      * @return array
      */
-    public function returnError() {
+    public function returnError(): array {
         return array(
             'error_code'=>$this->error_code,
             'message'=>$this->getMessage()

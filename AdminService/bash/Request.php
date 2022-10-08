@@ -7,22 +7,20 @@ class Request {
     /**
      * 结束前的数据
      */
-    static private $data_exit;
+    static private array $data_exit;
 
     /**
      * 请求参数
      */
-    static private $request_params;
+    static private array $request_params;
 
     /**
      * 构造方法
      * 
      * @access public
-     * @return Request
      */
     final public function __construct() {
         $this->init();
-        return $this;
     }
 
     /**
@@ -31,7 +29,7 @@ class Request {
      * @access public
      * @return void
      */
-    final static public function init() {
+    final static public function init(): void {
         // 初始化请求参数
         self::$request_params=array(
             '_GET'=>$_GET,
@@ -57,7 +55,7 @@ class Request {
      * @param string $message
      * @return void
      */
-    final static public function requestExit(string $message='') {
+    final static public function requestExit(string $message=''): void {
         self::$data_exit=array(
             'message'=>$message
         );
@@ -67,7 +65,7 @@ class Request {
     /**
      * 结束时输出内容
      */
-    final static public function requestEcho() {
+    final static public function requestEcho(): void {
         echo self::$data_exit['message'];
     }
 
@@ -79,8 +77,7 @@ class Request {
      * @param mixed $value 值(不为空则设置)
      * @return mixed
      */
-    static public function params(int|string|array $params,mixed $value='')
-    {
+    static public function params(int|string|array $params,mixed $value=''): mixed {
         if(is_array($params))
             self::$request_params=array_merge(self::$request_params,$params);
         else if(empty($value))
@@ -96,8 +93,7 @@ class Request {
      * @param int|string $params 参数
      * @return mixed
      */
-    static public function get(int|string $params)
-    {
+    static public function get(int|string $params): mixed {
         return self::$request_params[$params]??'';
     }
 
@@ -109,8 +105,7 @@ class Request {
      * @param mixed $value 值
      * @return void
      */
-    static public function set(int|string|array $params, mixed $value='')
-    {
+    static public function set(int|string|array $params, mixed $value=''): void {
         if(is_array($params))
             self::$request_params=array_merge(self::$request_params,$params);
         else
@@ -126,8 +121,7 @@ class Request {
      * @param bool $enforce 是否与 params() 方法同步
      * @return mixed
      */
-    static public function getParams(int|string|array $params,mixed $value='',bool $enforce=false)
-    {
+    static public function getParams(int|string|array $params,mixed $value='',bool $enforce=false): mixed {
         if(is_array($params))
             self::$request_params['_GET']=array_merge(self::$request_params['_GET'],$params);
         else if(empty($value))
@@ -146,8 +140,7 @@ class Request {
      * @param int|string $params 参数
      * @return mixed
      */
-    static public function getGet(int|string $params)
-    {
+    static public function getGet(int|string $params): mixed {
         return self::$request_params['_GET'][$params]??'';
     }
 
@@ -160,8 +153,7 @@ class Request {
      * @param bool $enforce 是否与 params() 方法同步
      * @return void
      */
-    static public function setGet(int|string|array $params, mixed $value='',bool $enforce=false)
-    {
+    static public function setGet(int|string|array $params, mixed $value='',bool $enforce=false): void {
         if(is_array($params))
             self::$request_params['_GET']=array_merge(self::$request_params['_GET'],$params);
         else
@@ -180,8 +172,7 @@ class Request {
      * @param bool $enforce 是否与 params() 方法同步
      * @return mixed
      */
-    static public function postParams(int|string|array $params,mixed $value='',bool $enforce=false)
-    {
+    static public function postParams(int|string|array $params,mixed $value='',bool $enforce=false): mixed {
         if(is_array($params))
             self::$request_params['_POST']=array_merge(self::$request_params['_POST'],$params);
         else if(empty($value))
@@ -200,8 +191,7 @@ class Request {
      * @param int|string $params 参数
      * @return mixed
      */
-    static public function getPost(int|string $params)
-    {
+    static public function getPost(int|string $params): mixed {
         return self::$request_params['_POST'][$params]??'';
     }
 
@@ -214,8 +204,7 @@ class Request {
      * @param bool $enforce 是否与 params() 方法同步
      * @return void
      */
-    static public function setPost(int|string|array $params, mixed $value='',bool $enforce=false)
-    {
+    static public function setPost(int|string|array $params, mixed $value='',bool $enforce=false): void {
         if(is_array($params))
             self::$request_params['_POST']=array_merge(self::$request_params['_POST'],$params);
         else
@@ -232,8 +221,7 @@ class Request {
      * @param string $type 参数类型(all|get|post|cookie)
      * @return array
      */
-    static public function keys($type='all')
-    {
+    static public function keys($type='all'): array {
         if($type=='all')
             return array_keys(self::$request_params);
         else if($type=='get')

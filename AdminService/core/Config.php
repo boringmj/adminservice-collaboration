@@ -7,14 +7,13 @@ final class Config {
     /**
      * 配置信息
      */
-    static private $configs;
+    static private array $configs;
 
     /**
      * 构造方法
      * 
      * @access public
      * @param array $configs
-     * @return Config
      */
     final public function __construct(array $configs=array()) {
         if(!empty($configs))
@@ -29,7 +28,7 @@ final class Config {
      * @param array $configs
      * @return void
      */
-    final static public function set(array $configs) {
+    final static public function set(array $configs): void {
         self::$configs=$configs;
     }
 
@@ -40,7 +39,7 @@ final class Config {
      * @param string $key
      * @return mixed
      */
-    final static public function get(string $key) {
+    final static public function get(string $key): mixed {
         $keys=explode(".", $key);
         $configs=self::$configs;
         foreach ($keys as $key) {

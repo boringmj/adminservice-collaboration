@@ -12,7 +12,7 @@ final class Route extends BashRoute {
     /**
      * 控制器方法
      */
-    private $method;
+    private callable $method;
 
     /**
      * 通过路由路径组返回控制器
@@ -21,7 +21,7 @@ final class Route extends BashRoute {
      * @param array $route_info 路由信息
      * @return array (callable method, array params)
      */
-    public function load(array $route_info=array()) {
+    public function load(array $route_info=array()): array {
         if(empty($route_info))
             $route_info=$this->getRouteInfo();
         // 判断是否符合配置文件中的路由规则(规则为空则不判断)
@@ -78,7 +78,7 @@ final class Route extends BashRoute {
      * access public
      * @return array
      */
-    public function getRouteInfo() {
+    public function getRouteInfo(): array {
         // 如果没有数据则要求进行初始化
         if(empty($this->uri))
             $this->init();
@@ -97,7 +97,7 @@ final class Route extends BashRoute {
      * access public
      * @return mixed
      */
-    public function run() {
+    public function run(): mixed {
         // 先判断是否已经初始化
         if(empty($this->method))
             $this->load();
@@ -112,7 +112,7 @@ final class Route extends BashRoute {
      * @param array $params 路由参数
      * @return void
      */
-    private function toGet($params) {
+    private function toGet($params): void {
         $config=Config::get('route.params.toget.model');
         if(!in_array($config,array('value','list','value-list','list-value')))
             $config='list-value';

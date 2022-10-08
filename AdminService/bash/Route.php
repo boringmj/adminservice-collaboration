@@ -4,7 +4,7 @@ namespace bash;
 
 abstract class Route {
 
-    public $uri;
+    public array $uri;
 
     /**
      * 获取路由路径组
@@ -12,7 +12,7 @@ abstract class Route {
      * @access private
      * @return array
      */
-    private function route() {
+    private function route(): array {
         $uri=$_SERVER['REQUEST_URI'];
         $uri=explode("?", $uri);
         $uri=$uri[1]??$uri[0];
@@ -26,7 +26,6 @@ abstract class Route {
      * 构造方法
      * 
      * @access public
-     * @return Route
      */
     final public function __construct() {
         $this->uri=array();
@@ -39,7 +38,7 @@ abstract class Route {
      * @access public
      * @return Route
      */
-    final public function init() {
+    final public function init(): Route {
         $this->uri=$this->route();
         return $this;
     }
@@ -50,14 +49,18 @@ abstract class Route {
      * @access public
      * @return array
      */
-    final public function get() {
+    final public function get(): array {
         return $this->uri;
     }
 
     /**
      * 通过路由路径组加载控制器
+     * 
+     * @access public
+     * @param array $route_info 路由路径组
+     * @return array
      */
-    abstract public function load();
+    abstract public function load(array $route_info=array()): array;
 }
 
 ?>

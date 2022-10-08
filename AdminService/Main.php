@@ -15,7 +15,7 @@ final class Main {
      * @access public
      * @return void
      */
-    public function init() {
+    public function init(): void {
         // 判断PHP版本
         if (version_compare(PHP_VERSION, '8.0.0', '<'))
             exit('无法兼容您的PHP版本('.PHP_VERSION.'),需要PHP8.0.0及以上版本');
@@ -44,7 +44,7 @@ final class Main {
      * @access private
      * @return callable
      */
-    private function end() {
+    private function end(): callable {
         return function() {
             // 捕获致命错误
             $error=error_get_last();

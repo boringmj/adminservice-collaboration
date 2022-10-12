@@ -17,7 +17,7 @@ return array(
         ),
         'params'=>array(
             'toget'=>array(
-                'model'=>'auto' // auto, value, list, value-list, list-value (default: auto)
+                'model'=>'auto' // value, list, value-list, list-value (default: list-value)
             ),
             'rule'=>array(
                 'app'=>'/^[A-Z_][a-zA-Z0-9_\-]+$/',

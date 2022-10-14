@@ -22,9 +22,9 @@ abstract class Controller {
      * @param mixed $default 默认值
      * @return mixed
      */
-    final public function param(int|string $param,mixed $default): mixed {
+    final public function param(int|string $param,mixed $default=null): mixed {
         $value=Request::get($param);
-        return $value==''?$default:$value;
+        return $value==null?$default:$value;
     }
 }
 

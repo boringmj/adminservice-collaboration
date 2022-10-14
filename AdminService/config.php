@@ -26,6 +26,15 @@ return array(
                 'get'=>'/^[a-zA-Z0-9_]+$/'
             )
         )
+    ),
+
+    // data 相关配置
+    'data'=>array(
+        'path'=>__DIR__.'/data', // 该目录需要可写权限
+        'rule'=>array(
+            'file'=>'/^[a-zA-Z0-9_\-]+$/',
+            'key'=>'/^[a-zA-Z0-9_\-]+$/'
+        )
     )
 );
 

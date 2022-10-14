@@ -77,13 +77,14 @@ class Request {
      * @param mixed $value 值(不为空则设置)
      * @return mixed
      */
-    static public function params(int|string|array $params,mixed $value=''): mixed {
+    static public function params(int|string|array $params,mixed $value=null): mixed {
         if(is_array($params))
             self::$request_params=array_merge(self::$request_params,$params);
-        else if(empty($value))
-            return self::$request_params[$params]??'';
+        else if($value===null)
+            return self::$request_params[$params]??null;
         else
             self::$request_params[$params]=$value;
+        return 1;
     }
 
     /**
@@ -94,7 +95,7 @@ class Request {
      * @return mixed
      */
     static public function get(int|string $params): mixed {
-        return self::$request_params[$params]??'';
+        return self::$request_params[$params]??null;
     }
 
     /**
@@ -105,7 +106,7 @@ class Request {
      * @param mixed $value 值
      * @return void
      */
-    static public function set(int|string|array $params, mixed $value=''): void {
+    static public function set(int|string|array $params, mixed $value=null): void {
         if(is_array($params))
             self::$request_params=array_merge(self::$request_params,$params);
         else
@@ -121,16 +122,17 @@ class Request {
      * @param bool $enforce 是否与 params() 方法同步
      * @return mixed
      */
-    static public function getParams(int|string|array $params,mixed $value='',bool $enforce=false): mixed {
+    static public function getParams(int|string|array $params,mixed $value=null,bool $enforce=false): mixed {
         if(is_array($params))
             self::$request_params['_GET']=array_merge(self::$request_params['_GET'],$params);
-        else if(empty($value))
-            return self::$request_params['_GET'][$params]??'';
+        else if($value===null)
+            return self::$request_params['_GET'][$params]??null;
         else
             self::$request_params['_GET'][$params]=$value;
         // 强制通过 params() 方法设置一次参数
         if($enforce)
             self::params($params,$value);
+        return 1;
     }
 
     /**
@@ -141,7 +143,7 @@ class Request {
      * @return mixed
      */
     static public function getGet(int|string $params): mixed {
-        return self::$request_params['_GET'][$params]??'';
+        return self::$request_params['_GET'][$params]??null;
     }
 
     /**
@@ -153,7 +155,7 @@ class Request {
      * @param bool $enforce 是否与 params() 方法同步
      * @return void
      */
-    static public function setGet(int|string|array $params, mixed $value='',bool $enforce=false): void {
+    static public function setGet(int|string|array $params, mixed $value=null,bool $enforce=false): void {
         if(is_array($params))
             self::$request_params['_GET']=array_merge(self::$request_params['_GET'],$params);
         else
@@ -172,16 +174,17 @@ class Request {
      * @param bool $enforce 是否与 params() 方法同步
      * @return mixed
      */
-    static public function postParams(int|string|array $params,mixed $value='',bool $enforce=false): mixed {
+    static public function postParams(int|string|array $params,mixed $value=null,bool $enforce=false): mixed {
         if(is_array($params))
             self::$request_params['_POST']=array_merge(self::$request_params['_POST'],$params);
-        else if(empty($value))
-            return self::$request_params['_POST'][$params]??'';
+        else if($value===null)
+            return self::$request_params['_POST'][$params]??null;
         else
             self::$request_params['_POST'][$params]=$value;
         // 强制通过 params() 方法设置一次参数
         if($enforce)
             self::params($params,$value);
+        return 1;
     }
 
     /**
@@ -192,7 +195,7 @@ class Request {
      * @return mixed
      */
     static public function getPost(int|string $params): mixed {
-        return self::$request_params['_POST'][$params]??'';
+        return self::$request_params['_POST'][$params]??null;
     }
 
     /**
@@ -204,7 +207,7 @@ class Request {
      * @param bool $enforce 是否与 params() 方法同步
      * @return void
      */
-    static public function setPost(int|string|array $params, mixed $value='',bool $enforce=false): void {
+    static public function setPost(int|string|array $params, mixed $value=null,bool $enforce=false): void {
         if(is_array($params))
             self::$request_params['_POST']=array_merge(self::$request_params['_POST'],$params);
         else

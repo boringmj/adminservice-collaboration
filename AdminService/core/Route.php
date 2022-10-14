@@ -131,7 +131,7 @@ final class Route extends BashRoute {
                 {
                     // 清除不符合规则的键值对(规则为空则不清除)
                     if(empty(Config::get('route.params.rule.get')) || preg_match(Config::get('route.params.rule.get'),$params[$i]))
-                        $_GET[$params[$i]]=$params[$i+1]??'';
+                        $_GET[$params[$i]]=$params[$i+1]??null;
                 }
             }
         }

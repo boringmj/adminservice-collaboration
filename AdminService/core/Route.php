@@ -49,7 +49,8 @@ final class Route extends BashRoute {
         $controller_name='app\\'.$route_info['app'].'\\controller\\'.$route_info['controller'];
         if (file_exists($controller_path)&&class_exists($controller_name)) {
             $controller=new $controller_name();
-            if(method_exists($controller,$route_info['method'])) {
+            // 判断类方法是否存在且是否为public
+            if(method_exists($controller,$route_info['method'])&&is_callable(array($controller,$route_info['method']))) {
                 $this->method=array($controller,$route_info['method']);
                 // 转化为get参数
                 $this->toGet($route_info['params']);

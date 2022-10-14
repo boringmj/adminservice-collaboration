@@ -26,6 +26,7 @@ abstract class Controller {
         $value=Request::get($param);
         return $value==null?$default:$value;
     }
+    
 }
 
 ?>

@@ -17,7 +17,7 @@ final class Main {
      */
     public function init(): void {
         // 判断PHP版本
-        if (version_compare(PHP_VERSION, '8.0.0', '<'))
+        if (version_compare(PHP_VERSION,'8.0.0','<'))
             exit('无法兼容您的PHP版本('.PHP_VERSION.'),需要PHP8.0.0及以上版本');
         // 调整环境
         // error_reporting(0);
@@ -61,6 +61,7 @@ final class Main {
             exit();
         };
     }
+
 }
 
 ?>

@@ -40,7 +40,7 @@ final class Config {
      * @return mixed
      */
     final static public function get(string $key): mixed {
-        $keys=explode(".", $key);
+        $keys=explode(".",$key);
         $configs=self::$configs;
         foreach ($keys as $key) {
             if (isset($configs[$key])) {
@@ -51,6 +51,7 @@ final class Config {
         }
         return $configs;
     }
+
 }
 
 ?>

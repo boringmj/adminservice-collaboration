@@ -14,9 +14,9 @@ abstract class Route {
      */
     private function route(): array {
         $uri=$_SERVER['REQUEST_URI'];
-        $uri=explode("?", $uri);
+        $uri=explode("?",$uri);
         $uri=$uri[1]??$uri[0];
-        $uri=explode("/", $uri);
+        $uri=explode("/",$uri);
         array_shift($uri);
         $uri=array_values($uri);
         return $uri;
@@ -61,6 +61,7 @@ abstract class Route {
      * @return array
      */
     abstract public function load(array $route_info=array()): array;
+
 }
 
 ?>

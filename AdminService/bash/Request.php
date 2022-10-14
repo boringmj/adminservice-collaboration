@@ -103,7 +103,7 @@ class Request {
      * @param mixed $value 值
      * @return void
      */
-    static public function set(int|string|array $params, mixed $value=null): void {
+    static public function set(int|string|array $params,mixed $value=null): void {
         if(is_array($params))
             self::$request_params=array_merge(self::$request_params,$params);
         else
@@ -148,7 +148,7 @@ class Request {
      * @param bool $enforce 是否与 params() 方法同步
      * @return void
      */
-    static public function setGet(int|string|array $params, mixed $value=null,bool $enforce=false): void {
+    static public function setGet(int|string|array $params,mixed $value=null,bool $enforce=false): void {
         if(is_array($params))
             self::$request_params['_GET']=array_merge(self::$request_params['_GET'],$params);
         else
@@ -196,7 +196,7 @@ class Request {
      * @param bool $enforce 是否与 params() 方法同步
      * @return void
      */
-    static public function setPost(int|string|array $params, mixed $value=null,bool $enforce=false): void {
+    static public function setPost(int|string|array $params,mixed $value=null,bool $enforce=false): void {
         if(is_array($params))
             self::$request_params['_POST']=array_merge(self::$request_params['_POST'],$params);
         else
@@ -225,6 +225,7 @@ class Request {
         else
             return array();
     }
+
 }
 
 ?>

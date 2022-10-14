@@ -26,6 +26,7 @@ abstract class Data {
         $this->store_type='file';
         $this->data=array();
     }
+    
 }
 
 ?>

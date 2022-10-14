@@ -78,13 +78,10 @@ class Request {
      * @return mixed
      */
     static public function params(int|string|array $params,mixed $value=null): mixed {
-        if(is_array($params))
-            self::$request_params=array_merge(self::$request_params,$params);
-        else if($value===null)
-            return self::$request_params[$params]??null;
-        else
-            self::$request_params[$params]=$value;
-        return 1;
+        if(is_array($params)||$value!==null) {
+            return self::set($params,$value);
+        }
+        return self::get($params);
     }
 
     /**
@@ -123,16 +120,12 @@ class Request {
      * @return mixed
      */
     static public function getParams(int|string|array $params,mixed $value=null,bool $enforce=false): mixed {
-        if(is_array($params))
-            self::$request_params['_GET']=array_merge(self::$request_params['_GET'],$params);
-        else if($value===null)
-            return self::$request_params['_GET'][$params]??null;
-        else
-            self::$request_params['_GET'][$params]=$value;
-        // 强制通过 params() 方法设置一次参数
-        if($enforce)
-            self::params($params,$value);
-        return 1;
+        if(is_array($params)||$value!==null) {
+            if($enforce)
+                self::params($params,$value);
+            return self::setGet($params,$value);
+        }
+        return self::getGet($params);
     }
 
     /**
@@ -175,16 +168,12 @@ class Request {
      * @return mixed
      */
     static public function postParams(int|string|array $params,mixed $value=null,bool $enforce=false): mixed {
-        if(is_array($params))
-            self::$request_params['_POST']=array_merge(self::$request_params['_POST'],$params);
-        else if($value===null)
-            return self::$request_params['_POST'][$params]??null;
-        else
-            self::$request_params['_POST'][$params]=$value;
-        // 强制通过 params() 方法设置一次参数
-        if($enforce)
-            self::params($params,$value);
-        return 1;
+        if(is_array($params)||$value!==null) {
+            if($enforce)
+                self::params($params,$value);
+            return self::setPost($params,$value);
+        }
+        return self::getPost($params);
     }
 
     /**

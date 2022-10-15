@@ -112,10 +112,13 @@ class File {
      * @access public
      * @param string $key 键名
      * @param mixed $value 值
+     * @param bool $save 是否立即保存
      * @return void
      */
-    public function set(string $key,$value): void {
+    public function set(string $key,mixed $value,bool $save=false): void {
         $this->data[$key]=$value;
+        if($save)
+            $this->write();
     }
 
     /**

@@ -3,7 +3,7 @@
 namespace bash;
 
 use AdminService\Config;
-use bash\Exception;
+use AdminService\Exception;
 
 class File {
 
@@ -37,7 +37,7 @@ class File {
      */
     public function init(string $file_name=null): void {
         if($file_name===null)
-            $this->file_path=Config::get("data.path").'/cache'.time().Config::get("data.ext_name");
+            $this->file_path=Config::get("data.path").'/cache_'.\AdminService\common\uuid().Config::get("data.ext_name");
         else
             $this->file_path=Config::get("data.path").'/'.$file_name.Config::get("data.ext_name");
         // 补全目录
@@ -98,11 +98,12 @@ class File {
      * 
      * @access public
      * @param string $key 键名
+     * @param mixed $default 默认值
      * @return mixed
      */
-    public function get(string $key): mixed {
+    public function get(string $key,mixed $default): mixed {
         if(!isset($this->data[$key]))
-            return null;
+            return $default;
         return $this->data[$key];
     }
 

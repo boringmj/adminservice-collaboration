@@ -189,4 +189,17 @@ class File {
             ));
     }
 
+    /**
+     * 返回全部数据
+     * 
+     * @access public
+     * @param bool $only_key 是否只返回键名
+     * @return array
+     */
+    public function all(bool $only_key=false): array {
+        if($only_key)
+            return array_keys($this->data);
+        return $this->data;
+    }
+
 }

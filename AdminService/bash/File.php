@@ -127,22 +127,27 @@ class File {
      * 
      * @access public
      * @param string $key 键名
+     * @param bool $save 是否立即保存
      * @return void
      */
-    public function delete(string $key): void {
-        if(!isset($this->data[$key]))
-            return;
-        unset($this->data[$key]);
+    public function delete(string $key,bool $save=false): void {
+        if(isset($this->data[$key]))
+            unset($this->data[$key]);
+        if($save)
+            $this->write();
     }
 
     /**
      * 清空数据
      * 
      * @access public
+     * @param bool $save 是否立即保存
      * @return void
      */
-    public function clear(): void {
+    public function clear(bool $save=false): void {
         $this->data=array();
+        if($save)
+            $this->write();
     }
 
     /**

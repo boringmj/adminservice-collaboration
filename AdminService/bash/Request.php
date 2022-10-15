@@ -2,17 +2,20 @@
 
 namespace bash;
 
-class Request {
+use AdminService\Exception;
+use AdminService\Config;
 
-    /**
-     * 结束前的数据
-     */
-    static private array $data_exit;
+class Request {
 
     /**
      * 请求参数
      */
     static private array $request_params;
+
+    /**
+     * 返回数据的信息
+     */
+    static private array $request_info;
 
     /**
      * 构造方法
@@ -46,19 +49,54 @@ class Request {
             self::$request_params['_COOKIE'],
             self::$request_params
         );
+        // 设置默认返回数据信息
+        self::$request_info=array(
+            'return_type'=>Config::get('request.default.type','html'),
+            'return_header'=>array(),
+            'code'=>Config::get('request.default.json.code',1),
+            'msg'=>Config::get('request.default.json.msg','success'),
+            'data'=>array(),
+            'return_data'=>null
+        );
+        if(self::$request_info['return_type']==='json')
+            self::$request_info['return_header']=Config::get('request.json.header');
+        else
+            self::$request_info['return_header']=Config::get('request.html.header');
     }
 
     /**
      * 结束运行
      * 
      * @access public
-     * @param string $message
+     * @param mixed $data 数据
      * @return void
      */
-    final static public function requestExit(?string $message=''): void {
-        self::$data_exit=array(
-            'message'=>$message
-        );
+    final static public function requestExit(mixed $data=null): void {
+        // 加载Header
+        foreach(self::$request_info['return_header'] as $name=>$value)
+            self::setHeader($name,$value);
+        //根据返回类型返回数据
+        if(self::$request_info['return_type']=='json') {
+            if(is_array($data))
+                self::$request_info['return_data']=json_encode(array(
+                    'code'=>$data['code']??self::$request_info['code'],
+                    'msg'=>$data['msg']??self::$request_info['msg'],
+                    'data'=>$data['data']??self::$request_info['data']
+                ));
+            else
+                self::$request_info['return_data']=json_encode(array(
+                    'code'=>self::$request_info['code'],
+                    'msg'=>self::$request_info['msg'],
+                    'data'=>$data
+                ));
+        }
+        else
+            if(is_string($data)||is_null($data))
+                self::$request_info['return_data']=$data;
+            else
+                throw new Exception('Return data type is not string|null!',100202,array(
+                    'data'=>$data
+                ));
         exit();
     }
 
@@ -66,7 +104,7 @@ class Request {
      * 结束时输出内容
      */
     final static public function requestEcho(): void {
-        echo self::$data_exit['message'];
+        echo self::$request_info['return_data'];
     }
 
     /**
@@ -226,6 +264,39 @@ class Request {
             return array();
     }
 
+    /**
+     * 设置Header
+     * 
+     * @access public
+     * @param string $name 名称
+     * @param string $value 值
+     * @return void
+     */
+    static public function setHeader(string $name,string $value): void {
+        header($name.': '.$value);
+    }
+
+    /**
+     * 设置返回类型
+     * 
+     * @access public
+     * @param string $type 数据类型(html|json,default:html)
+     * @return void
+     */
+    static public function setReturnType(string $type): void {
+        if($type==='json')
+        {
+            self::$request_info['return_type']='json';
+            $header=Config::get('request.json.header');
+        }
+        else
+        {
+            self::$request_info['return_type']='html';
+            $header=Config::get('request.html.header');
+        }
+        // 合并Header,如果冲突保留后面数组的值
+        self::$request_info['return_header']=array_merge(self::$request_info['return_header'],$header);
+    }
 }
 
 ?>

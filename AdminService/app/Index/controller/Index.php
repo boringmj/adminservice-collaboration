@@ -4,7 +4,7 @@ namespace app\Index\controller;
 
 use bash\Controller;
 
-// count() count() method dependencies
+// count() method dependencies
 use bash\Exception;
 use bash\File;
 

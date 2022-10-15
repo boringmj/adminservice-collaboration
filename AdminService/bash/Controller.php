@@ -10,10 +10,10 @@ use bash\Request;
  * @access public
  * @abstract
  * @package bash
- * @version 1.0.0
+ * @version 1.0.1
  */
 abstract class Controller {
-    
+
     /**
      * 获取参数
      * 
@@ -26,6 +26,31 @@ abstract class Controller {
         $value=Request::get($param);
         return $value==null?$default:$value;
     }
+
+    /**
+     * 设置Header
+     * 
+     * @access public
+     * @param string $name 名称
+     * @param string $value 值
+     * @return void
+     */
+    final public function header(string $name,string $value): void {
+        Request::setHeader($name,$value);
+    }
+
+    /**
+     * 设置返回的数据类型
+     * 
+     * @access public
+     * @param string $type 数据类型(html|json,default:html)
+     * @return void
+     */
+    final public function type(string $type): void {
+        Request::setReturnType($type);
+    }
+
+
 
 }
 

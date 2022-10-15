@@ -45,6 +45,27 @@ return array(
         'loader'=>array(
             'uuid'
         )
+    ),
+
+    // request 相关配置
+    'request'=>array(
+        'default'=>array( // 该项允许缺省
+            'type'=>'html', //html, json (default: html) 
+            'json'=>array(
+                'code'=>1, // default: 1
+                'msg'=>'success' // default: success
+            )
+        ),
+        'html'=>array(
+            'header'=>array(
+                'Content-Type'=>'text/html;charset=utf-8'
+            )
+        ),
+        'json'=>array(
+            'header'=>array(
+                'Content-Type'=>'application/json;charset=utf-8'
+            )
+        ),
     )
 );
 

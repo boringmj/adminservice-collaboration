@@ -36,18 +36,18 @@ final class Config {
      * 获取配置
      * 
      * @access public
-     * @param string $key
+     * @param string $key 配置键
+     * @param mixed $default 默认值
      * @return mixed
      */
-    final static public function get(string $key): mixed {
+    final static public function get(string $key,mixed $default=null): mixed {
         $keys=explode(".",$key);
         $configs=self::$configs;
         foreach ($keys as $key) {
-            if (isset($configs[$key])) {
+            if (isset($configs[$key]))
                 $configs=$configs[$key];
-            } else {
-                return null;
-            }
+            else
+                return $default;
         }
         return $configs;
     }

@@ -15,7 +15,12 @@ abstract class Data {
     /**
      * 数据
      */
-    public array $data;
+    private array $data;
+
+    /**
+     * 数据存储名(默认为类名,如果是文件则为文件名,如果是数据库则为表名)
+     */
+    public string $store_name;
 
     /**
      * 构造方法

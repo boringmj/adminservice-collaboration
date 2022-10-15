@@ -31,9 +31,19 @@ return array(
     // data 相关配置
     'data'=>array(
         'path'=>__DIR__.'/data', // 该目录需要可写权限
+        'ext_name'=>'.data.json', // 文件扩展名
+        'dir_mode'=>0644, // 目录权限(Windows下无效)
         'rule'=>array(
             'file'=>'/^[a-zA-Z0-9_\-]+$/',
             'key'=>'/^[a-zA-Z0-9_\-]+$/'
+        )
+    ),
+
+    // function 相关配置
+    'function'=>array(
+        'path'=>__DIR__.'/common',
+        'loader'=>array(
+            'uuid'
         )
     )
 );

@@ -41,7 +41,7 @@ final class Exception extends BashException {
             'message'=>$this->getMessage()
         );
     }
-    
+
 }
 
 ?>

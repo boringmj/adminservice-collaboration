@@ -31,7 +31,7 @@ abstract class Exception extends \Exception {
     final public function getData(): array {
         return $this->data;
     }
-    
+
 }
 
 ?>

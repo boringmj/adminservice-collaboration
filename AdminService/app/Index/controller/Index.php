@@ -3,6 +3,7 @@
 namespace app\Index\controller;
 
 use bash\Controller;
+use bash\File;
 
 class Index extends Controller {
 
@@ -13,7 +14,7 @@ class Index extends Controller {
     public function test() {
         return "Hi ".$this->param('name','AdminService')."!";
     }
-    
+
 }
 
 ?>

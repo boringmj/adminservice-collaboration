@@ -11,7 +11,7 @@
         "psr-4": {
             "bash\\": "AdminService/bash/",
             "AdminService\\": "AdminService/core/",
-            "AdminService\\model": "AdminService/model/"
+            "AdminService\\model\\": "AdminService/model/"
         },
         "files": [
             "AdminService/Main.php"

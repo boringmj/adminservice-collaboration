@@ -101,7 +101,7 @@ class File {
      * @param mixed $default 默认值
      * @return mixed
      */
-    public function get(string $key,mixed $default): mixed {
+    public function get(string $key,mixed $default=null): mixed {
         if(!isset($this->data[$key]))
             return $default;
         return $this->data[$key];

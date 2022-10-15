@@ -55,7 +55,7 @@ class Request {
      * @param string $message
      * @return void
      */
-    final static public function requestExit(string $message=''): void {
+    final static public function requestExit(?string $message=''): void {
         self::$data_exit=array(
             'message'=>$message
         );

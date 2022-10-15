@@ -58,9 +58,9 @@ abstract class Route {
      * 
      * @access public
      * @param array $route_info 路由路径组
-     * @return array
+     * @return self
      */
-    abstract public function load(array $route_info=array()): array;
+    abstract public function load(array $route_info=array()): self;
 
 }
 

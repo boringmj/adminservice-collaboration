@@ -49,19 +49,6 @@ class Request {
             self::$request_params['_COOKIE'],
             self::$request_params
         );
-        // 设置默认返回数据信息
-        self::$request_info=array(
-            'return_type'=>Config::get('request.default.type','html'),
-            'return_header'=>array(),
-            'code'=>Config::get('request.default.json.code',1),
-            'msg'=>Config::get('request.default.json.msg','success'),
-            'data'=>array(),
-            'return_data'=>null
-        );
-        if(self::$request_info['return_type']==='json')
-            self::$request_info['return_header']=Config::get('request.json.header');
-        else
-            self::$request_info['return_header']=Config::get('request.html.header');
     }
 
     /**
@@ -73,10 +60,10 @@ class Request {
      */
     final static public function requestExit(mixed $data=null): void {
         // 加载Header
-        foreach(self::$request_info['return_header'] as $name=>$value)
+        foreach(self::$request_info['return_header']??array() as $name=>$value)
             self::setHeader($name,$value);
         //根据返回类型返回数据
-        if(self::$request_info['return_type']=='json') {
+        if((self::$request_info['return_type']??null)=='json') {
             if(is_array($data))
                 self::$request_info['return_data']=json_encode(array(
                     'code'=>$data['code']??self::$request_info['code'],
@@ -104,7 +91,7 @@ class Request {
      * 结束时输出内容
      */
     final static public function requestEcho(): void {
-        echo self::$request_info['return_data'];
+        echo self::$request_info['return_data']??null;
     }
 
     /**

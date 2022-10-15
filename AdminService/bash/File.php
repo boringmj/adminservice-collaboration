@@ -97,11 +97,11 @@ class File {
      * 获取数据
      * 
      * @access public
-     * @param string $key 键名
+     * @param string|int $key 键名
      * @param mixed $default 默认值
      * @return mixed
      */
-    public function get(string $key,mixed $default=null): mixed {
+    public function get(string|int $key,mixed $default=null): mixed {
         if(!isset($this->data[$key]))
             return $default;
         return $this->data[$key];
@@ -111,12 +111,12 @@ class File {
      * 设置数据
      * 
      * @access public
-     * @param string $key 键名
+     * @param string|int $key 键名
      * @param mixed $value 值
      * @param bool $save 是否立即保存
      * @return void
      */
-    public function set(string $key,mixed $value,bool $save=false): void {
+    public function set(string|int $key,mixed $value,bool $save=false): void {
         $this->data[$key]=$value;
         if($save)
             $this->write();
@@ -126,11 +126,11 @@ class File {
      * 删除数据
      * 
      * @access public
-     * @param string $key 键名
+     * @param string|int $key 键名
      * @param bool $save 是否立即保存
      * @return void
      */
-    public function delete(string $key,bool $save=false): void {
+    public function delete(string|int $key,bool $save=false): void {
         if(isset($this->data[$key]))
             unset($this->data[$key]);
         if($save)

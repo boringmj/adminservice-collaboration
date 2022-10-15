@@ -15,13 +15,18 @@ final class Route extends BashRoute {
     private mixed $method;
 
     /**
+     * 是否已经加载request
+     */
+    private bool $isLoadRequest;
+
+    /**
      * 通过路由路径组返回控制器
      * 
      * access public
      * @param array $route_info 路由信息
-     * @return array (callable method, array params)
+     * @return self
      */
-    public function load(array $route_info=array()): array {
+    public function load(array $route_info=array()): self {
         if(empty($route_info))
             $route_info=$this->getRouteInfo();
         // 判断是否符合配置文件中的路由规则(规则为空则不判断)
@@ -54,10 +59,7 @@ final class Route extends BashRoute {
                 $this->method=array($controller,$route_info['method']);
                 // 转化为get参数
                 $this->toGet($route_info['params']);
-                return array(
-                    'method'=>$this->method,
-                    'params'=>$route_info['params']
-                );
+                return $this;
             }
             else
                 throw new Exception("Method is not defined.",-405,array(
@@ -93,12 +95,27 @@ final class Route extends BashRoute {
     }
 
     /**
+     * 加载请求信息
+     * 
+     * access public
+     * @return self
+     */
+    public function request(): self {
+        Request::init();
+        $this->isLoadRequest=true;
+        return $this;
+    }
+
+    /**
      * 开始运行控制器
      * 
      * access public
      * @return mixed
      */
     public function run(): mixed {
+        // 如果没有加载request则加载
+        if(!$this->isLoadRequest)
+            $this->request();
         // 先判断是否已经初始化
         if(empty($this->method))
             $this->load();

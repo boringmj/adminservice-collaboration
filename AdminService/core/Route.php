@@ -3,12 +3,8 @@
 namespace AdminService;
 
 use base\Route as BaseRoute;
-use base\Request as BaseRequest;
-use base\Cookie as BaseCookie;
 use AdminService\Config;
 use AdminService\Exception;
-use AdminService\Request;
-use AdminService\Cookie;
 
 final class Route extends BaseRoute {
 
@@ -25,11 +21,12 @@ final class Route extends BaseRoute {
     /**
      * 通过路由路径组返回控制器
      * 
-     * access public
+     * @access public
      * @param array $route_info 路由信息
      * @return self
      */
     public function load(array $route_info=array()): self {
+        $this->checkInit();
         if(empty($route_info))
             $route_info=$this->getRouteInfo();
         // 判断是否符合配置文件中的路由规则(规则为空则不判断)
@@ -56,7 +53,7 @@ final class Route extends BaseRoute {
         $controller_path=$app_path.'/'.'controller/'.$route_info['controller'].'.php';
         $controller_name='app\\'.$route_info['app'].'\\controller\\'.$route_info['controller'];
         if (file_exists($controller_path)&&class_exists($controller_name)) {
-            $controller=new $controller_name();
+            $controller=new $controller_name($this->request);
             // 判断类方法是否存在且是否为public
             if(method_exists($controller,$route_info['method'])&&is_callable(array($controller,$route_info['method']))) {
                 $this->method=array($controller,$route_info['method']);
@@ -79,15 +76,12 @@ final class Route extends BaseRoute {
     }
 
     /**
-     * 通过路由路径组返回路由信息(调用该方法会自动初始化路由信息)
+     * 通过路由路径组返回路由信息(调用此方法前请先调用 checkInit() 方法)
      * 
-     * access public
+     * @access private
      * @return array
      */
-    public function getRouteInfo(): array {
-        // 如果没有数据则要求进行初始化
-        if(empty($this->uri))
-            $this->init();
+    private function getRouteInfo(): array {
         // 这里具体的路由规则将来会随着配置文件的更新而更新,所以现在先这样
         return array(
             "app"=>ucfirst($this->uri[0]?$this->uri[0]:Config::get('route.default.app')),
@@ -98,30 +92,13 @@ final class Route extends BaseRoute {
     }
 
     /**
-     * 加载请求信息
+     * 开始运行控制器(如果没有加载路由则会自动加载)
      * 
-     * access public
-     * @param object $request Request对象
-     * @param object $cookie Cookie对象
-     * @return self
-     */
-    public function request(BaseRequest $request=(new Request()),BaseCookie $cookie=(new Cookie())): self {
-        $request->init($cookie);
-        $this->isLoadRequest=true;
-        return $this;
-    }
-
-    /**
-     * 开始运行控制器
-     * 
-     * access public
+     * @access public
      * @return mixed
      */
     public function run(): mixed {
-        // 如果没有加载request则加载
-        if(!$this->isLoadRequest)
-            $this->request();
-        // 先判断是否已经初始化
+        // 先判断是否已经加载 load() 方法
         if(empty($this->method))
             $this->load();
         $method=$this->method;
@@ -131,7 +108,7 @@ final class Route extends BaseRoute {
     /**
      * 将路由参数转换为GET参数
      * 
-     * access private
+     * @access private
      * @param array $params 路由参数
      * @return void
      */
@@ -140,7 +117,7 @@ final class Route extends BaseRoute {
         if(!in_array($config,array('value','list','value-list','list-value')))
             $config='list-value';
         $config_list=explode('-',$config);
-        foreach($config_list as $key=>$value) {
+        foreach($config_list as $value) {
             if($value=='value')
                 // 键从0开始,逐一赋值
                 foreach($params as $k=>$v)

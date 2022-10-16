@@ -5,6 +5,7 @@ namespace AdminService;
 use AdminService\Request;
 use AdminService\Route;
 use AdminService\Config;
+use AdminService\Cookie;
 use AdminService\Exception;
 
 final class Main {
@@ -29,6 +30,8 @@ final class Main {
         (new Config())->set($GLOBALS['AdminService']['config']);
         // 加载函数库
         $this->loadFunction();
+        // 初始化请求
+        Request::init(new Cookie());
         return $this;
     }
 
@@ -76,16 +79,17 @@ final class Main {
     }
 
     /**
-     * 加载路由(开始运行程序)
+     * 开始运行
      * 
      * @access public
      * @return void
      */
     public function run(): void {
-        // 路由
-        $route=new Route();
         try{
-            $route->load()->request();
+            // 路由
+            $route=new Route();
+            $request=new Request();
+            $route->init($request);
             Request::requestExit($route->run());
         } catch(Exception $e) {
             Request::requestExit($e->getMessage());

@@ -2,9 +2,25 @@
 
 namespace base;
 
+use base\Request;
+use AdminService\Exception;
+
 abstract class Route {
 
-    public array $uri;
+    /**
+     * 请求对象
+     */
+    protected Request $request;
+
+    /**
+     * 路由路径组
+     */
+    protected array $uri;
+
+    /**
+     * 是否已经初始化
+     */
+    protected bool $is_init;
 
     /**
      * 获取路由路径组
@@ -23,23 +39,29 @@ abstract class Route {
     }
 
     /**
-     * 构造方法
+     * 构造方法(如果有传入请求对象则会自动初始化)
      * 
      * @access public
+     * @param Request $request 请求对象
      */
-    final public function __construct() {
+    final public function __construct(?Request $request=null) {
+        $this->is_init=false;
         $this->uri=array();
-        return $this->init();
+        if($request!==null)
+            return $this->init($request);
     }
 
     /**
      * 初始化路由
      * 
      * @access public
-     * @return Route
+     * @param Request $request 请求对象
+     * @return self
      */
-    final public function init(): Route {
+    final public function init(Request $request): self {
+        $this->request=$request;
         $this->uri=$this->route();
+        $this->is_init=true;
         return $this;
     }
 
@@ -50,7 +72,19 @@ abstract class Route {
      * @return array
      */
     final public function get(): array {
+        $this->checkInit();
         return $this->uri;
+    }
+
+    /**
+     * 检查是否已经初始化
+     * 
+     * @access protected
+     * @return void
+     */
+    protected function checkInit(): void {
+        if(!$this->is_init)
+            throw new Exception('Route is not initialized.',-406);
     }
 
     /**

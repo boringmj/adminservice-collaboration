@@ -22,6 +22,7 @@ final class Exception extends BaseException {
 
     /**
      * 错误事件触发器
+     * 
      * @access public
      * @param callable $callback 回调事件
      * @return mixed
@@ -32,6 +33,7 @@ final class Exception extends BaseException {
 
     /**
      * 返回错误信息
+     * 
      * @access public
      * @return array
      */

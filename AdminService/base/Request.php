@@ -5,7 +5,6 @@ namespace base;
 use base\Cookie as BaseCookie;
 use AdminService\Cookie;
 use AdminService\Config;
-use AdminService\Exception;
 
 abstract class Request {
 
@@ -49,6 +48,16 @@ abstract class Request {
      * @return void
      */
     abstract static public function requestEcho(): void;
+
+    /**
+     * 设置Header
+     * 
+     * @access public
+     * @param string $name 名称
+     * @param string $value 值
+     * @return void
+     */
+    abstract static public function setHeader(string $name,string $value): void;
 
     /**
      * 初始化请求参数

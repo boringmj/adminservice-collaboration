@@ -2,8 +2,7 @@
 
 namespace base;
 
-use base\Cookie as BaseCookie;
-use AdminService\Cookie;
+use base\Cookie;
 use AdminService\Config;
 
 abstract class Request {
@@ -21,7 +20,7 @@ abstract class Request {
     /**
      * Cookie对象
      */
-    static protected object $cookie;
+    static protected Cookie $cookie;
 
     /**
      * 设置返回类型
@@ -60,15 +59,38 @@ abstract class Request {
     abstract static public function setHeader(string $name,string $value): void;
 
     /**
-     * 初始化请求参数
+     * 初始化请求
      * 
      * @access public
      * @param object $cookie Cookie对象
      * @return void
      */
-    final static public function init(BaseCookie $cookie=(new Cookie())): void {
+    final static public function init(Cookie $cookie): void {
         // 初始化Cookie
         self::$cookie=$cookie;
+        // 设置默认返回数据信息
+        self::$request_info=array(
+            'return_type'=>Config::get('request.default.type','html'),
+            'return_header'=>array(),
+            'code'=>Config::get('request.default.json.code',1),
+            'msg'=>Config::get('request.default.json.msg','success'),
+            'data'=>array(),
+            'cookie'=>array(),
+            'return_data'=>null
+        );
+        if(self::$request_info['return_type']==='json')
+            self::$request_info['return_header']=Config::get('request.json.header');
+        else
+            self::$request_info['return_header']=Config::get('request.html.header');
+    }
+
+    /**
+     * 初始化请求参数
+     * 
+     * @access public
+     * @return void
+     */
+    final static public function paramsInit(): void {
         // 初始化请求参数
         self::$request_params=array(
             '_GET'=>$_GET,
@@ -85,20 +107,6 @@ abstract class Request {
             self::$request_params['_COOKIE'],
             self::$request_params
         );
-        // 设置默认返回数据信息
-        self::$request_info=array(
-            'return_type'=>Config::get('request.default.type','html'),
-            'return_header'=>array(),
-            'code'=>Config::get('request.default.json.code',1),
-            'msg'=>Config::get('request.default.json.msg','success'),
-            'data'=>array(),
-            'cookie'=>array(),
-            'return_data'=>null
-        );
-        if(self::$request_info['return_type']==='json')
-            self::$request_info['return_header']=Config::get('request.json.header');
-        else
-            self::$request_info['return_header']=Config::get('request.html.header');
     }
 
     /**

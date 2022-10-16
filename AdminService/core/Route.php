@@ -14,11 +14,6 @@ final class Route extends BaseRoute {
     private mixed $method;
 
     /**
-     * 是否已经加载request
-     */
-    private bool $isLoadRequest;
-
-    /**
      * 通过路由路径组返回控制器
      * 
      * @access public
@@ -59,6 +54,7 @@ final class Route extends BaseRoute {
                 $this->method=array($controller,$route_info['method']);
                 // 转化为get参数
                 $this->toGet($route_info['params']);
+                $this->request->paramsInit();
                 return $this;
             }
             else

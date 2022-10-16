@@ -1,6 +1,6 @@
 <?php
 
-namespace bash;
+namespace base;
 
 abstract class Exception extends \Exception {
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace bash;
+namespace base;
 
 abstract class Route {
 

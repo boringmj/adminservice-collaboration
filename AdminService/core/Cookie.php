@@ -2,9 +2,10 @@
 
 namespace AdminService;
 
+use base\Cookie as BaseCookie;
 use AdminService\Config;
 
-final class Cookie {
+final class Cookie extends BaseCookie {
     
         /**
          * 通过数组的方式设置cookie
@@ -13,17 +14,20 @@ final class Cookie {
          * @param array $data 数据
          * @return void
          */
-        public function setByArray(array $data): void {
+        static public function setByArray(array $data): void {
             foreach($data as $key=>$value)
-                $this->set(
-                    $key,
-                    $value['value']??'',
-                    $value['expire']??null,
-                    $value['path']??null,
-                    $value['domain']??null,
-                    $value['secure']??null,
-                    $value['httponly']??null
-                );
+                if(is_array($value))
+                    self::set(
+                        $key,
+                        $value['value']??'',
+                        $value['expire']??null,
+                        $value['path']??null,
+                        $value['domain']??null,
+                        $value['secure']??null,
+                        $value['httponly']??null
+                    );
+                else
+                    self::set($key,$value);
         }
 
         /**
@@ -39,29 +43,22 @@ final class Cookie {
         * @param bool $httponly 是否仅http
         * @return void
         */
-        public static function set(
+        static public function set(
             string $name,mixed $value,
             ?int $expire=null,?string $path=null,?string $domain=null,
             ?bool $secure=null,?bool $httponly=null
         ): void {
-                $default=array(
-                    'prefix'=>Config::get('cookie.prefix'),
-                    'expire'=>Config::get("cookie.expire",3600),
-                    'path'=>Config::get("cookie.path",""),
-                    'domain'=>Config::get("cookie.domain",""),
-                    'secure'=>Config::get("cookie.secure",false),
-                    'httponly'=>Config::get("cookie.httponly",false),
-                );
             setcookie(
-                $default['prefix'].$name,
+                Config::get('cookie.prefix').$name,
                 $value,
-                $expire??$default['expire'],
-                $path??$default['path'],
-                $domain??$default['domain'],
-                $secure??$default['secure'],
-                $httponly??$default['httponly']
+                time()+($expire??Config::get('cookie.expire',3600)),
+                $path??Config::get('cookie.path',''),
+                $domain??Config::get('cookie.domain',''),
+                $secure??Config::get('cookie.secure',false),
+                $httponly??Config::get('cookie.httponly',false)
             );
         }
+
 }
 
 ?>

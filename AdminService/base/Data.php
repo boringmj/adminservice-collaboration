@@ -1,6 +1,6 @@
 <?php
 
-namespace bash;
+namespace base;
 
 use AdminService\Config;
 use AdminService\Exception;

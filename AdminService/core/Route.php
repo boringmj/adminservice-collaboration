@@ -2,12 +2,15 @@
 
 namespace AdminService;
 
-use bash\Route as BashRoute;
+use base\Route as BaseRoute;
+use base\Request as BaseRequest;
+use base\Cookie as BaseCookie;
 use AdminService\Config;
 use AdminService\Exception;
 use AdminService\Request;
+use AdminService\Cookie;
 
-final class Route extends BashRoute {
+final class Route extends BaseRoute {
 
     /**
      * 控制器方法
@@ -98,10 +101,12 @@ final class Route extends BashRoute {
      * 加载请求信息
      * 
      * access public
+     * @param object $request Request对象
+     * @param object $cookie Cookie对象
      * @return self
      */
-    public function request(): self {
-        Request::init();
+    public function request(BaseRequest $request=(new Request()),BaseCookie $cookie=(new Cookie())): self {
+        $request->init($cookie);
         $this->isLoadRequest=true;
         return $this;
     }

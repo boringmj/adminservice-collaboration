@@ -2,9 +2,9 @@
 
 namespace AdminService;
 
-use bash\Exception as BashException;
+use base\Exception as BaseException;
 
-final class Exception extends BashException {
+final class Exception extends BaseException {
 
     /**
      * 输出错误信息

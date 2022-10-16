@@ -65,7 +65,17 @@ return array(
             'header'=>array(
                 'Content-Type'=>'application/json;charset=utf-8'
             )
-        ),
+        )
+    ),
+
+    // cookie
+    'cookie'=>array(    // 该项允许缺省
+        'prefix'=>'', // 前缀
+        'expire'=>3600, // 过期时间 default: 3600
+        'path'=>'', // 路径
+        'domain'=>'', // 域名 default: ''
+        'secure'=>false, // 是否仅仅通过安全的 HTTPS 连接传给客户端 default: false
+        'httponly'=>false // 是否仅可通过 HTTP 协议访问 default: false
     )
 );
 

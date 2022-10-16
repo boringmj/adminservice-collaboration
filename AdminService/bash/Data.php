@@ -3,7 +3,7 @@
 namespace bash;
 
 use AdminService\Config;
-use bash\Exception;
+use AdminService\Exception;
 
 abstract class Data {
     

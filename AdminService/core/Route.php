@@ -5,7 +5,7 @@ namespace AdminService;
 use bash\Route as BashRoute;
 use AdminService\Config;
 use AdminService\Exception;
-use bash\Request;
+use AdminService\Request;
 
 final class Route extends BashRoute {
 

@@ -1,11 +1,11 @@
 <?php
 
-namespace bash;
+namespace AdminService;
 
 use AdminService\Config;
 use AdminService\Exception;
 
-class File {
+final class File {
 
     /**
      * 文件绝对路径
@@ -23,9 +23,9 @@ class File {
      * @access public
      * @param string $file_name 文件名称(不含扩展名和多余的路径,完全信任)
      */
-    final public function __construct(string $file_name=null) {
-            if($file_name!==null)
-                $this->init($file_name);
+    public function __construct(string $file_name=null) {
+        if($file_name!==null)
+            $this->init($file_name);
     }
 
     /**

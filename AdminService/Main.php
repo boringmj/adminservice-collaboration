@@ -2,7 +2,7 @@
 
 namespace AdminService;
 
-use bash\Request;
+use AdminService\Request;
 use AdminService\Route;
 use AdminService\Config;
 use AdminService\Exception;

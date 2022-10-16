@@ -2,7 +2,7 @@
 
 namespace bash;
 
-use bash\Request;
+use AdminService\Request;
 
 /**
  * 控制器基类

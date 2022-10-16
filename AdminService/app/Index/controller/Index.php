@@ -5,8 +5,8 @@ namespace app\Index\controller;
 use bash\Controller;
 
 // count() method dependencies
-use bash\Exception;
-use bash\File;
+use AdminService\Exception;
+use AdminService\File;
 
 class Index extends Controller {
 

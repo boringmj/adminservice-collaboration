@@ -9,7 +9,7 @@ use base\Request;
  * 
  * @access public
  * @abstract
- * @package bash
+ * @package base
  * @version 1.0.1
  */
 abstract class Controller {

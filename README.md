@@ -29,11 +29,12 @@ http[s]?://domain/app/controller/method[/param1,/param2...]?
 ```
 您可以在`AdminService/Main.php`中查看路由的引用
 ```
+// 初始化请求
+Request::init(new Cookie());
 // 路由
-$route=new Route();
 try{
-    $route_load=$route->load();
-    Request::params($route_load['params']);
+    // 路由
+    $route=new Route(new Request());
     Request::requestExit($route->run());
 } catch(Exception $e) {
     Request::requestExit($e->getMessage());

@@ -87,9 +87,7 @@ final class Main {
     public function run(): void {
         try{
             // 路由
-            $route=new Route();
-            $request=new Request();
-            $route->init($request);
+            $route=new Route(new Request());
             Request::requestExit($route->run());
         } catch(Exception $e) {
             Request::requestExit($e->getMessage());

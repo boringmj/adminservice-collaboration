@@ -7,8 +7,6 @@ use base\Controller;
 // count() method dependencies
 use AdminService\Exception;
 use AdminService\File;
-use AdminService\Request;
-use AdminService\Cookie;
 
 class Index extends Controller {
 

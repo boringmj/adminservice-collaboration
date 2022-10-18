@@ -18,10 +18,10 @@ final class File {
     private array $data;
 
     /**
-     * 构造方法(安全警告: 本方法完全信任传入的参数,请勿传入危险路径,如果有传入路径,则将会自动初始化)
+     * 构造方法(如果有传入路径,则将会自动初始化)
      * 
      * @access public
-     * @param string $file_name 文件名称(不含扩展名和多余的路径,完全信任)
+     * @param string $file_name 文件名称(不含扩展名和多余的路径)
      */
     public function __construct(string $file_name=null) {
         if($file_name!==null)
@@ -32,14 +32,15 @@ final class File {
      * 初始化方法
      * 
      * @access public
-     * @param string $file_name 文件名称(不含扩展名和多余的路径,完全信任)
+     * @param string $file_name 文件名称(不含扩展名和多余的路径)
      * @return void
      */
     public function init(string $file_name=null): void {
         if($file_name===null)
-            $this->file_path=Config::get("data.path").'/cache_'.\AdminService\common\uuid().Config::get("data.ext_name");
-        else
-            $this->file_path=Config::get("data.path").'/'.$file_name.Config::get("data.ext_name");
+            $file_name='cache_'.\AdminService\common\uuid();
+        if(!preg_match('/^[a-zA-Z0-9_-]+$/',$file_name))
+            throw new Exception('File name is invalid',-1);
+        $this->file_path=Config::get("data.path").'/'.$file_name.Config::get("data.ext_name");
         // 补全目录
         $dir=dirname($this->file_path);
         if(!is_dir($dir))

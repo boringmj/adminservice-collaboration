@@ -15,7 +15,9 @@ class Index extends Controller {
     }
 
     public function test() {
-        return "Hi ".$this->param('name','AdminService')."!";
+        return $this->view('hi',array(
+            'name'=>$this->param('name','AdminService')
+        ));
     }
 
     public function count() {

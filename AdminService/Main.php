@@ -2,6 +2,7 @@
 
 namespace AdminService;
 
+use AdminService\View;
 use AdminService\Request;
 use AdminService\Route;
 use AdminService\Config;
@@ -50,8 +51,16 @@ final class Main {
                 preg_match('/^(.*?: .*?) in.*/',$error['message'],$matches);
                 if(isset($matches[1]))
                     $error['message']=$matches[1];
-                $Exception=new Exception($error['message'],-1);
-                $Exception->echo();
+                // 取消输出缓冲
+                while(ob_get_level()>0)
+                    ob_end_clean();
+                // 输出错误信息
+                echo "<div>
+                    <h1>致命错误</h1>
+                    <p>错误信息: {$error['message']}</p>
+                    <p>错误文件: {$error['file']}</p>
+                    <p>错误行数: {$error['line']}</p>
+                </div>";
                 exit();
             }
             // 如果没有异常则正常结束并输出内容
@@ -87,9 +96,10 @@ final class Main {
     public function run(): void {
         try{
             // 路由
-            $route=new Route(new Request());
+            $route=new Route(new Request(),new View());
             Request::requestExit($route->run());
         } catch(Exception $e) {
+            $e->echo();
             Request::requestExit($e->getMessage());
         }
     }

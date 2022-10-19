@@ -3,6 +3,9 @@
 namespace base;
 
 use base\Request;
+use base\View;
+use base\Route;
+use AdminService\Config;
 
 /**
  * 控制器基类
@@ -20,14 +23,28 @@ abstract class Controller {
     private Request $request;
 
     /**
+     * 视图对象
+     */
+    private View $view;
+
+    /**
+     * 路由对象
+     */
+    private Route $route;
+
+    /**
      * 构造方法
      * 
      * @access public
      * @param Request $request 请求对象
+     * @param View $view 视图对象
+     * @param Route $route 路由对象
      * @return void
      */
-    final public function __construct(Request $request) {
+    final public function __construct(Request $request,View $view,Route $route) {
         $this->request=$request;
+        $this->view=$view;
+        $this->route=$route;
     }
 
     /**
@@ -65,7 +82,20 @@ abstract class Controller {
         $this->request::setReturnType($type);
     }
 
-
+    /**
+     * 显示模板
+     * 
+     * @access public
+     * @param string $template 模板
+     * @param array $data 数据
+     * @return string
+     */
+    final public function view(string $template,array $data=array()): string {
+        $route=$this->route->getRouteInfo();
+        $template=Config::get('app.path').'/'.$route['app'].'/view'.'/'.$template.'.html';
+        $this->view->init($template,$data);
+        return $this->view->render();
+    }
 
 }
 

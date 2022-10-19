@@ -48,7 +48,7 @@ final class Route extends BaseRoute {
         $controller_path=$app_path.'/'.'controller/'.$route_info['controller'].'.php';
         $controller_name='app\\'.$route_info['app'].'\\controller\\'.$route_info['controller'];
         if (file_exists($controller_path)&&class_exists($controller_name)) {
-            $controller=new $controller_name($this->request);
+            $controller=new $controller_name($this->request,$this->view,$this);
             // 判断类方法是否存在且是否为public
             if(method_exists($controller,$route_info['method'])&&is_callable(array($controller,$route_info['method']))) {
                 $this->method=array($controller,$route_info['method']);
@@ -74,10 +74,10 @@ final class Route extends BaseRoute {
     /**
      * 通过路由路径组返回路由信息(调用此方法前请先调用 checkInit() 方法)
      * 
-     * @access private
+     * @access public
      * @return array
      */
-    private function getRouteInfo(): array {
+    public function getRouteInfo(): array {
         // 这里具体的路由规则将来会随着配置文件的更新而更新,所以现在先这样
         return array(
             "app"=>ucfirst($this->uri[0]?$this->uri[0]:Config::get('route.default.app')),

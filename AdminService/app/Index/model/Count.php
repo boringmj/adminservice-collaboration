@@ -32,7 +32,7 @@ class Count extends Model {
      */
     public function add(): int {
         try {
-            $file=new File('count');
+            $file=$this->file;
             $count=$file->get('count',0);
             $file->set('count',$count+1,true);
             return $file->get('count',0);

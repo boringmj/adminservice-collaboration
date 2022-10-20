@@ -19,7 +19,9 @@ class Index extends Controller {
 
     public function count() {
         $count=new Count();
-        return "Count: ".$count->add();
+        return $this->view('count', array(
+            'count'=>$count->add()
+        ));
     }
 
 }

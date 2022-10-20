@@ -39,7 +39,6 @@ abstract class Controller {
      * @param Request $request 请求对象
      * @param View $view 视图对象
      * @param Route $route 路由对象
-     * @return void
      */
     final public function __construct(Request $request,View $view,Route $route) {
         $this->request=$request;

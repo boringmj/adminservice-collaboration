@@ -11,7 +11,7 @@ return array(
     // route 相关配置
     'route'=>array(
         'default'=>array(
-            'app'=>'Index',
+            'app'=>'index',
             'controller'=>'Index',
             'method'=>'index'
         ),
@@ -20,7 +20,7 @@ return array(
                 'model'=>'auto' // value, list, value-list, list-value (default: list-value)
             ),
             'rule'=>array(
-                'app'=>'/^[A-Z_][a-zA-Z0-9_\-]+$/',
+                'app'=>'/^[a-z_][a-zA-Z0-9_\-]+$/',
                 'controller'=>'/^[A-Z_][a-zA-Z0-9_\-]+$/',
                 'method'=>'/^[a-z_][a-zA-Z0-9_\-]+$/',
                 'get'=>'/^[a-zA-Z0-9_]+$/'

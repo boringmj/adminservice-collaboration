@@ -92,7 +92,7 @@ abstract class Controller {
      */
     final public function view(string $template,array $data=array()): string {
         $route=$this->route->getRouteInfo();
-        $template=Config::get('app.path').'/'.$route['app'].'/view'.'/'.$template.'.html';
+        $template=Config::get('app.path').'/'.$route['app'].'/view'.'/'.$route['controller'].'/'.$template.'.html';
         $this->view->init($template,$data);
         return $this->view->render();
     }

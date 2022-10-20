@@ -83,15 +83,21 @@ abstract class Controller {
     }
 
     /**
-     * 显示模板
+     * 显示视图
      * 
      * @access public
-     * @param string $template 模板
+     * @param string|array $template 视图名称或数据(如果传入数组则为数据)
      * @param array $data 数据
      * @return string
      */
-    final public function view(string $template,array $data=array()): string {
+    final public function view(string|array $template=null,array $data=array()): string {
         $route=$this->route->getRouteInfo();
+        if(is_array($template)) {
+            $data=$template;
+            $template=null;
+        }
+        if($template===null)
+            $template=$route['method'];
         $template=Config::get('app.path').'/'.$route['app'].'/view'.'/'.$route['controller'].'/'.$template.'.html';
         $this->view->init($template,$data);
         return $this->view->render();

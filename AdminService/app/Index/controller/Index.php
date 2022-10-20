@@ -15,7 +15,7 @@ class Index extends Controller {
     }
 
     public function test() {
-        return $this->view('hi',array(
+        return $this->view(array(
             'name'=>$this->param('name','AdminService')
         ));
     }

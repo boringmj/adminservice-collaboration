@@ -99,7 +99,6 @@ final class Main {
             $route=new Route(new Request(),new View());
             Request::requestExit($route->run());
         } catch(Exception $e) {
-            $e->echo();
             Request::requestExit($e->getMessage());
         }
     }

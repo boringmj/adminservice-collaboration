@@ -9,16 +9,19 @@ abstract class Data {
     
     /**
      * 以何种形式存储数据
+     * @var string
      */
     public string $store_type;
 
     /**
      * 数据
+     * @var array
      */
     private array $data;
 
     /**
      * 数据存储名(默认为类名,如果是文件则为文件名,如果是数据库则为表名)
+     * @var string
      */
     public string $store_name;
 

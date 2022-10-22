@@ -9,16 +9,19 @@ abstract class Request {
 
     /**
      * 请求参数
+     * @var array
      */
     static protected array $request_params;
 
     /**
      * 返回数据的信息
+     * @var array
      */
     static protected array $request_info;
 
     /**
      * Cookie对象
+     * @var \base\Cookie
      */
     static protected Cookie $cookie;
 

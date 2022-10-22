@@ -6,11 +6,13 @@ abstract class View {
 
     /**
      * 模板文件路径
+     * @var string
      */
     protected string $template_path;
 
     /**
      * 需要传递给模板的数据
+     * @var array
      */
     protected array $data;
 

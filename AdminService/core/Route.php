@@ -10,6 +10,7 @@ final class Route extends BaseRoute {
 
     /**
      * 控制器方法
+     * @var mixed
      */
     private mixed $method;
 

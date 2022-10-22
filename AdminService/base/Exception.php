@@ -6,6 +6,7 @@ abstract class Exception extends \Exception {
 
     /**
      * 额外数据
+     * @var array
      */
     private array $data;
 

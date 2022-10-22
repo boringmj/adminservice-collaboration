@@ -19,16 +19,19 @@ abstract class Controller {
 
     /**
      * 请求对象
+     * @var \base\Request
      */
     private Request $request;
 
     /**
      * 视图对象
+     * @var \base\View
      */
     private View $view;
 
     /**
      * 路由对象
+     * @var \base\Route
      */
     private Route $route;
 

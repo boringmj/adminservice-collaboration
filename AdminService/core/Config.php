@@ -6,6 +6,7 @@ final class Config {
 
     /**
      * 配置信息
+     * @var array
      */
     static private array $configs;
 

@@ -10,21 +10,25 @@ abstract class Route {
 
     /**
      * 请求对象
+     * @var \base\Request
      */
     protected Request $request;
 
     /**
      * 视图对象
+     * @var \base\View
      */
     protected View $view;
 
     /**
      * 路由路径组
+     * @var array
      */
     protected array $uri;
 
     /**
      * 是否已经初始化
+     * @var bool
      */
     protected bool $is_init;
 

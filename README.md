@@ -1,7 +1,7 @@
 # AdminService-Collaboration
 ## 该如何开始?
 在开始之前,您应该需要注意\
-本项目使用了 `PHP 8.0.0` 的语法结构, 所以您需要保证您的 PHP 版本不低于 `8.0.0`
+本项目使用了 `PHP 8.0.0` 的语法结构, 所以您需要保证您的 PHP 版本不低于 `8.0.0`\
 如果您在开发中有新增文件, 请确保您已经使用 [composer](https://www.phpcomposer.com/) 更新 `composer update`, 新增的文件如果没有及时更新, 新增的程序将无法通过 autoload 自动加载
 
 1. 您应该先下载或 `clone`(推荐) 本项目至本地

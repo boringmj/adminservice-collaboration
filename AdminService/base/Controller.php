@@ -33,8 +33,8 @@ abstract class Controller {
      * 构造方法
      * 
      * @access public
-     * @param Request $request 请求对象
-     * @param View $view 视图对象
+     * @param \base\Request $request 请求对象
+     * @param \base\View $view 视图对象
      */
     final public function __construct(?Request $request=null,?View $view=null) {
         $this->request=$request??App::get('Request');

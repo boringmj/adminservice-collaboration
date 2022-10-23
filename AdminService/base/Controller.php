@@ -4,7 +4,6 @@ namespace base;
 
 use base\Request;
 use base\View;
-use base\Router;
 use AdminService\Config;
 use AdminService\App;
 
@@ -31,20 +30,13 @@ abstract class Controller {
     private View $view;
 
     /**
-     * 路由对象
-     * @var \base\Route
-     */
-    private Router $route;
-
-    /**
      * 构造方法
      * 
      * @access public
      * @param Request $request 请求对象
      * @param View $view 视图对象
-     * @param Router $router 路由对象
      */
-    final public function __construct(?Request $request=null,?View $view=null,?Router $router=null) {
+    final public function __construct(?Request $request=null,?View $view=null) {
         $this->request=$request??App::get('Request');
         $this->view=$view??App::get('View');
         $this->router=$router??App::get('Router');
@@ -94,14 +86,13 @@ abstract class Controller {
      * @return string
      */
     final public function view(string|array $template=null,array $data=array()): string {
-        $router=$this->router->getRouteInfo();
         if(is_array($template)) {
             $data=$template;
             $template=null;
         }
         if($template===null)
-            $template=$router['method'];
-        $template=Config::get('app.path').'/'.$router['app'].'/view'.'/'.$router['controller'].'/'.$template.'.html';
+            $template=App::getMethodName();
+        $template=Config::get('app.path').'/'.App::getAppName().'/view'.'/'.App::getControllerName().'/'.$template.'.html';
         $this->view->init($template,$data);
         return $this->view->render();
     }

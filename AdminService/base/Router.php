@@ -2,7 +2,6 @@
 
 namespace base;
 
-use base\View;
 use base\Request;
 use AdminService\Exception;
 use AdminService\App;
@@ -77,7 +76,6 @@ abstract class Router {
      * 
      * @access public
      * @param Request $request 请求对象
-     * @param View $view 视图对象
      * @return self
      */
     final public function init(?Request $request=null): self {

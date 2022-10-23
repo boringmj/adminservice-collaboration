@@ -5,20 +5,15 @@ namespace base;
 use base\View;
 use base\Request;
 use AdminService\Exception;
+use AdminService\App;
 
-abstract class Route {
+abstract class Router {
 
     /**
      * 请求对象
      * @var \base\Request
      */
     protected Request $request;
-
-    /**
-     * 视图对象
-     * @var \base\View
-     */
-    protected View $view;
 
     /**
      * 路由路径组
@@ -70,15 +65,11 @@ abstract class Route {
      * 
      * @access public
      * @param Request $request 请求对象
-     * @param View $view 视图对象
      */
-    final public function __construct(?Request $request=null,?View $view=null) {
+    final public function __construct(?Request $request=null) {
         $this->is_init=false;
         $this->uri=array();
-        $this->request=$request;
-        $this->view=$view;
-        if($request!==null&&$view!==null)
-            return $this->init();
+        return $this->init($request);
     }
 
     /**
@@ -89,16 +80,8 @@ abstract class Route {
      * @param View $view 视图对象
      * @return self
      */
-    final public function init(?Request $request=null,?View $view=null): self {
-        if($request===null)
-            $request=$this->request;
-        if($view===null)
-            $view=$this->view;
-        if($request===null||$view===null)
-            throw new Exception("Request or View is null",500,array(
-                "request"=>$request===null?"null":"not null",
-                "view"=>$view===null?"null":"not null"
-            ));
+    final public function init(?Request $request=null): self {
+        $this->request=$request??App::get('Request');
         $this->uri=$this->route();
         $this->is_init=true;
         return $this;

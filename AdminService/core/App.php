@@ -4,7 +4,7 @@ namespace AdminService;
 
 use base\Container;
 
-final class APP extends Container {
+final class App extends Container {
 
     /**
      * 初始化
@@ -13,11 +13,9 @@ final class APP extends Container {
      * @param array $classes 需要初始化的类
      * @return void
      */
-    static public function init(?array $classes=null): void {
-        if($classes===null)
-            $classes=array();
+    static public function init(array $classes=array()): void {
         $classes=array(
-            'Router'=>$classes['Router']??Router::class,,
+            'Router'=>$classes['Router']??Router::class,
             'View'=>$classes['View']??View::class,
             'Controller'=>$classes['Controller']??Controller::class,
             'Model'=>$classes['Model']??Model::class,

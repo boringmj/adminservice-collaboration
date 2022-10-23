@@ -89,7 +89,7 @@ final class File {
                 throw new Exception("File write failed: {$this->file_path}, please check the file permission.",100103,array(
                     'file_path'=>$this->file_path
                 ));
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             throw new Exception("File write failed: {$this->file_path}, please check the file permission.",100103,array(
                 'file_path'=>$this->file_path
             ));

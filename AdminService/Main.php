@@ -2,12 +2,11 @@
 
 namespace AdminService;
 
-use AdminService\View;
-use AdminService\Request;
-use AdminService\Route;
-use AdminService\Config;
-use AdminService\Cookie;
 use AdminService\Exception;
+use AdminService\App;
+use AdminService\Request;
+use AdminService\Router;
+use AdminService\Config;
 
 final class Main {
     
@@ -31,8 +30,10 @@ final class Main {
         (new Config())->set($GLOBALS['AdminService']['config']);
         // 加载函数库
         $this->loadFunction();
+        // App初始化
+        App::init();
         // 初始化请求
-        Request::init(new Cookie());
+        Request::init();
         return $this;
     }
 
@@ -94,10 +95,10 @@ final class Main {
      * @return void
      */
     public function run(): void {
-        try{
+        try {
             // 路由
-            $route=new Route(new Request(),new View());
-            Request::requestExit($route->run());
+            $router=new Router();
+            Request::requestExit($router->run());
         } catch(Exception $e) {
             Request::requestExit($e->getMessage());
         }

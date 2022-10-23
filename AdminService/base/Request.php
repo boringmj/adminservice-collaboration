@@ -4,6 +4,7 @@ namespace base;
 
 use base\Cookie;
 use AdminService\Config;
+use AdminService\App;
 
 abstract class Request {
 
@@ -65,10 +66,12 @@ abstract class Request {
      * 初始化请求
      * 
      * @access public
-     * @param object $cookie Cookie对象
+     * @param Cookie $cookie Cookie对象
      * @return void
      */
-    final static public function init(Cookie $cookie): void {
+    final static public function init(?Cookie $cookie=null): void {
+        if($cookie===null)
+            $cookie=App::get('Cookie');
         // 初始化Cookie
         self::$cookie=$cookie;
         // 设置默认返回数据信息

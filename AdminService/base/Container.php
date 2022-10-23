@@ -29,7 +29,7 @@ abstract class Container {
      * @param array $classes 需要初始化的类
      * @return void
      */
-    abstract static public function init(?array $classes=null): void;
+    abstract static public function init(array $classes=array()): void;
 
     /**
      * 获取对象(如果不存在则自动实例化,自动实例化的前提是构造函数不含任何参数且在类容器中存在)

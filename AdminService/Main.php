@@ -97,7 +97,7 @@ final class Main {
     public function run(): void {
         try {
             // 路由
-            $router=new Router();
+            $router=App::get('Router');
             Request::requestExit($router->run());
         } catch(Exception $e) {
             Request::requestExit($e->getMessage());

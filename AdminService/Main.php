@@ -4,8 +4,6 @@ namespace AdminService;
 
 use AdminService\Exception;
 use AdminService\App;
-use AdminService\Request;
-use AdminService\Router;
 use AdminService\Config;
 
 final class Main {

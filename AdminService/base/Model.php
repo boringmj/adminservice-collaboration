@@ -2,6 +2,8 @@
 
 namespace base;
 
+use base\Database;
+
 /**
  * 模型基类
  * 
@@ -10,9 +12,9 @@ namespace base;
  * @package base
  * @version 1.0.0
  */
-abstract class Model {
+abstract class Model extends Database {
 
-    // 未来将会实现
+
 
 }
 

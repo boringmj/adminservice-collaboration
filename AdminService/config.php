@@ -68,7 +68,7 @@ return array(
         )
     ),
 
-    // cookie
+    // cookie 相关配置
     'cookie'=>array(    // 该项允许缺省
         'prefix'=>'', // 前缀
         'expire'=>3600, // 过期时间 default: 3600
@@ -76,7 +76,22 @@ return array(
         'domain'=>'', // 域名 default: ''
         'secure'=>false, // 是否仅仅通过安全的 HTTPS 连接传给客户端 default: false
         'httponly'=>false // 是否仅可通过 HTTP 协议访问 default: false
+    ),
+
+    // database 相关配置
+    'database'=>array(
+        'default'=>array( // 无默认值不允许缺省
+            'type'=>'mysql', // default: mysql
+            'host'=>'localhost', // 数据库地址 default: localhost
+            'port'=>3306, // 数据库端口 default: 3306
+            'user'=>'', // 数据库用户名
+            'password'=>'', // 数据库密码
+            'dbname'=>'', // 数据库名
+            'charset'=>'utf8', // 数据库编码 default: utf8
+            'prefix'=>'' // 数据表前缀 default: ''
+        )
     )
+
 );
 
 ?>

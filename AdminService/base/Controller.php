@@ -71,10 +71,11 @@ abstract class Controller {
      * 
      * @access public
      * @param string $type 数据类型(html|json,default:html)
-     * @return void
+     * @return self
      */
-    final public function type(string $type): void {
+    final public function type(string $type): self {
         $this->request::setReturnType($type);
+        return $this;
     }
 
     /**

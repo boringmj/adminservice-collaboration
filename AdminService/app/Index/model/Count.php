@@ -8,7 +8,6 @@ use AdminService\Exception;
 
 class Count extends Model {
 
-
     /**
      * 文件对象
      */

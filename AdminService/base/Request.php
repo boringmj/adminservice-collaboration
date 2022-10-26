@@ -63,6 +63,17 @@ abstract class Request {
     abstract static public function setHeader(string $name,string $value): void;
 
     /**
+     * 设置或获取COOKIE请求参数(设置Cookie时Cookie将会在本次以及后续请求中生效)
+     * 
+     * @access public
+     * @param int|string|array $params 参数
+     * @param mixed $value 值(不为空则设置)
+     * @param bool $enforce 是否与 params() 方法同步
+     * @return mixed
+     */
+    abstract static public function cookieParams(int|string|array $params,mixed $value=null,bool $enforce=false): mixed;
+
+    /**
      * 初始化请求
      * 
      * @access public

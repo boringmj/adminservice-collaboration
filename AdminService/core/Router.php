@@ -50,15 +50,14 @@ final class Router extends BaseRouter {
         $controller_name='app\\'.$route_info['app'].'\\controller\\'.$route_info['controller'];
         if (file_exists($controller_path)&&class_exists($controller_name)) {
             $controller=new $controller_name();
-            // 判断类方法是否存在且是否为public
-            if(method_exists($controller,$route_info['method'])&&is_callable(array($controller,$route_info['method']))) {
+            // 判断类方法是否存在且是否为public,且排除构造方法
+            if(method_exists($controller,$route_info['method'])&&is_callable(array($controller,$route_info['method']))&&$route_info['method']!='__construct') {
                 $this->method=array($controller,$route_info['method']);
                 // 转化为get参数
                 $this->toGet($route_info['params']);
                 $this->request->paramsInit();
                 return $this;
-            }
-            else
+            } else
                 throw new Exception("Method is not defined.",-405,array(
                     'method'=>$route_info['method'],
                     'controller'=>$route_info['controller'],

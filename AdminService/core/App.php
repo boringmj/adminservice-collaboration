@@ -33,7 +33,7 @@ final class App extends Container {
      * @access public
      * @return string
      */
-    static public function getAppName(): string {
+    static public function getAppName(): ?string {
         self::initRouteInfo();
         if(self::getData('route_info')!==null)
             return self::getData('route_info')['app']??null;
@@ -43,7 +43,7 @@ final class App extends Container {
     /**
      * 获取当前控制器名称
      */
-    static public function getControllerName(): string {
+    static public function getControllerName(): ?string {
         self::initRouteInfo();
         if(self::getData('route_info')!==null)
             return self::getData('route_info')['controller']??null;
@@ -53,7 +53,7 @@ final class App extends Container {
     /**
      * 获取当前方法名称
      */
-    static public function getMethodName(): string {
+    static public function getMethodName(): ?string {
         self::initRouteInfo();
         if(self::getData('route_info')!==null)
             return self::getData('route_info')['method']??null;

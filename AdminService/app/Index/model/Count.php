@@ -35,8 +35,7 @@ class Count extends Model {
             $count=$file->get('count',0);
             $file->set('count',$count+1,true);
             return $file->get('count',0);
-        }
-        catch(Exception $e) {
+        } catch(Exception) {
             return -1;
         }
     }

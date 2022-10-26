@@ -14,8 +14,6 @@ use base\Database;
  */
 abstract class Model extends Database {
 
-
-
 }
 
 ?>

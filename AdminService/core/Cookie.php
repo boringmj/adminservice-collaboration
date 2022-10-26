@@ -49,7 +49,7 @@ final class Cookie extends BaseCookie {
             ?bool $secure=null,?bool $httponly=null
         ): void {
             setcookie(
-                Config::get('cookie.prefix').$name,
+                Config::get('cookie.prefix','').$name,
                 $value,
                 time()+($expire??Config::get('cookie.expire',3600)),
                 $path??Config::get('cookie.path',''),

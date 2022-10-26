@@ -4,10 +4,13 @@ namespace app\index\controller;
 
 use base\Controller;
 use app\index\model\Count;
+use app\index\model\Test;
 
 class Index extends Controller {
 
     public function index() {
+        $test=new Test();
+        return $test->a();
         return "Hello World!";
     }
 

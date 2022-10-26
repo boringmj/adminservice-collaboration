@@ -22,7 +22,7 @@ final class App extends Container {
             'Request'=>$classes['Request']??Request::class,
             'File'=>$classes['File']??File::class,
             'Exception'=>$classes['Exception']??Exception::class,
-            'Cookie'=>$classes['Cookie']??Cookie::class,
+            'Cookie'=>$classes['Cookie']??Cookie::class
         );
         parent::$class_container=$classes;
     }

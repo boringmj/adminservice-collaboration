@@ -4,6 +4,8 @@
 本项目使用了 `PHP 8.0.0` 的语法结构, 所以您需要保证您的 PHP 版本不低于 `8.0.0`\
 如果您在开发中有新增文件, 请确保您已经使用 [composer](https://www.phpcomposer.com/) 更新 `composer update`, 新增的文件如果没有及时更新, 新增的程序将无法通过 autoload 自动加载
 
+您可以简单阅读下面的内容, 或者点击 [我该如何开始?](wiki/准备) 阅读更详细的信息, 并帮助你编写第一个程序!
+
 1. 您应该先下载或 `clone`(推荐) 本项目至本地
 ```
 git clone https://github.com/boringmj/adminservice-collaboration.git

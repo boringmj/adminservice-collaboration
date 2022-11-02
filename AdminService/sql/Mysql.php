@@ -148,8 +148,8 @@ final class Mysql extends SqlDrive {
         $rule=Config::get('database.rule.fields');
         if(preg_match($rule,$key))
             return;
-        new Exception('Key is illegal',100402,array(
-            'key'=>$key,
+        throw new Exception('Field is illegal.',100402,array(
+            'field'=>$key,
             'rule'=>$rule
         ));
     }

@@ -17,7 +17,7 @@ abstract class Database {
      * 数据库表名
      * @var string
      */
-    public string $table;
+    public string $table_name;
 
     /**
      * 数据库类型
@@ -100,9 +100,11 @@ abstract class Database {
      * @param string $table 数据库表名
      * @return object
      */
-    final public function table(string $table): object {
-        $this->table=Config::get('database.default.prefix','').$table;
-        return $this->db_object->table($this->table);
+    final public function table(string $table=null): object {
+        if($table===null)
+            return $this->db_object->table();
+        $this->table_name=Config::get('database.default.prefix','').$table;
+        return $this->db_object->table($this->table_name);
     }
 
     /**
@@ -126,7 +128,7 @@ abstract class Database {
         if(in_array($this->db_type,$support_type_key)) {
             $this->db_class=$support_type[$this->db_type];
             $this->link();
-            $this->db_object=new $this->db_class($this->db,$this->table??null);
+            $this->db_object=new $this->db_class($this->db,$this->table_name??null);
         } else
             throw new Exception('Unsupported database type.',100301,array(
                 'type'=>$this->db_type

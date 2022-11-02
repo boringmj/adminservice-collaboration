@@ -138,23 +138,6 @@ final class Mysql extends SqlDrive {
     }
 
     /**
-     * 检查键值是合法
-     * 
-     * @access private
-     * @param string $key 键值
-     * @return void
-     */
-    private function check_key(string $key): void {
-        $rule=Config::get('database.rule.fields');
-        if(preg_match($rule,$key))
-            return;
-        throw new Exception('Field is illegal.',100402,array(
-            'field'=>$key,
-            'rule'=>$rule
-        ));
-    }
-
-    /**
      * 检查是否已经连接数据库且是否已经开启事务
      * 
      * @access protected

@@ -105,6 +105,24 @@ abstract class SqlDrive implements Sql {
         return $this;
     }
 
+    /**
+     * 检查键值是合法
+     * 
+     * @access protected
+     * @param string $key 键值
+     * @return void
+     */
+    protected function check_key(string $key): void {
+        $rule=Config::get('database.rule.fields');
+        if(preg_match($rule,$key))
+            return;
+        throw new Exception('Field is illegal.',100402,array(
+            'field'=>$key,
+            'rule'=>$rule
+        ));
+    }
+
+
 }
 
 ?>

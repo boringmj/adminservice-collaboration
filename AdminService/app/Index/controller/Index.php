@@ -29,7 +29,9 @@ class Index extends Controller {
         // 预览 Demo, 该方法随时可能被删除
         $this->type('json');
         $test=new Sql();
-        return $test->test();
+        return array(
+            'data'=>$test->test()
+        );
     }
 
 }

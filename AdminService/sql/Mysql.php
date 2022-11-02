@@ -29,30 +29,7 @@ final class Mysql extends SqlDrive {
      * @return mixed
      */
     public function select(string|array $fields='*'): mixed {
-        $fields_string='';
-        if(is_array($fields)) {
-            foreach($fields as $value) {
-                $this->check_key($value);
-                $fields_string.=$fields_string===''? $value:','.$value;
-            }
-        } else {
-            if($fields==='*')
-                $fields_string='*';
-            else {
-                $this->check_key($fields);
-                $fields_string=$fields;
-            }
-        }
-        $this->check_connect();
-        $sql='SELECT '.$fields_string.' FROM '.$this->table;
-        if(!empty($this->where_array)) {
-            $sql.=' WHERE ';
-            foreach($this->where_array as $key=>$value) {
-                $sql.='`'.$key.'` '.$value['operator'].' ? AND ';
-            }
-            $sql=substr($sql,0,-4);
-        }
-        $sql.=';';
+        $sql=$this->build('select',$fields);
         $stmt=$this->db->prepare($sql);
         if($stmt===false)
             throw new Exception('SQL prepare error.',100405,array(
@@ -64,11 +41,56 @@ final class Mysql extends SqlDrive {
             $stmt->bindValue($i,$value['value']);
             $i++;
         }
-        $stmt->execute();
-        $result=$stmt->fetchAll(\PDO::FETCH_ASSOC);
-        $stmt->closeCursor();
-        $this->where_array=array();
-        return $result;
+        if($stmt->execute())
+        {
+            $result=$stmt->fetchAll(\PDO::FETCH_ASSOC);
+            $stmt->closeCursor();
+            $this->where_array=array();
+            return $result;
+        }
+        throw new Exception('SQL execute error.',100406,array(
+            'sql'=>$sql,
+            'error'=>$stmt->errorInfo()
+        ));
+    }
+
+    /**
+     * 构造SQl语句
+     * 
+     * @access private
+     * @param string $type SQL类型
+     * @param mixed $data 数据
+     * @return string
+     */
+    private function build(string $type,mixed $data=null): string {
+        if($type==='select') {
+            $fields=$data;
+            $fields_string='';
+            if(is_array($fields)) {
+                foreach($fields as $value) {
+                    $this->check_key($value);
+                    $fields_string.=$fields_string===''? ('`'.$value.'`'):(',`'.$value.'`');
+                }
+            } else {
+                if($fields==='*')
+                    $fields_string='*';
+                else {
+                    $this->check_key($fields);
+                    $fields_string='`'.$fields.'`';
+                }
+            }
+            $this->check_connect();
+            $sql='SELECT '.$fields_string.' FROM '.$this->table;
+            if(!empty($this->where_array)) {
+                $sql.=' WHERE ';
+                foreach($this->where_array as $key=>$value) {
+                    $sql.='`'.$key.'` '.$value['operator'].' ? AND ';
+                }
+                $sql=substr($sql,0,-4);
+            }
+            $sql.=';';
+            return $sql;
+        }
     }
 
     /**

@@ -4,6 +4,7 @@ namespace app\index\controller;
 
 use base\Controller;
 use app\index\model\Count;
+use app\index\model\Sql;
 
 class Index extends Controller {
 
@@ -22,6 +23,13 @@ class Index extends Controller {
         return $this->view('count', array(
             'count'=>$count->add()
         ));
+    }
+
+    public function sql() {
+        // 预览 Demo, 该方法随时可能被删除
+        $this->type('json');
+        $test=new Sql();
+        return $test->test();
     }
 
 }

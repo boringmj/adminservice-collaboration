@@ -9,8 +9,9 @@ interface Sql {
      * 
      * @access public
      * @param \PDO $db 数据库连接对象
+     * @param string $table 数据库表名
      */
-    public function __construct(?\PDO $db=null);
+    public function __construct(?\PDO $db=null,?string $table=null);
 
     /**
      * 传入数据库连接对象
@@ -38,5 +39,14 @@ interface Sql {
      * @return self
      */
     public function where(string|array $where): self;
+
+    /**
+     * 设置数据库表名
+     * 
+     * @access public
+     * @param string $table 数据库表名
+     * @return self
+     */
+    public function table(string $table): self;
 
 }

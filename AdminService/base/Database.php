@@ -100,9 +100,9 @@ abstract class Database {
      * @param string $table 数据库表名
      * @return object
      */
-    final public function setTable(string $table): object {
+    final public function table(string $table): object {
         $this->table=Config::get('database.default.prefix','').$table;
-        return $this->db_object;
+        return $this->db_object->table($this->table);
     }
 
     /**
@@ -114,14 +114,19 @@ abstract class Database {
      */
     final protected function init(array $config=array()): void {
         $this->config($config);
+        // 判断PDO是否支持该数据库类型
+        if(!in_array($this->db_type,\PDO::getAvailableDrivers()))
+            throw new Exception('PDO does not support this database type.',100302,array(
+                'type'=>$this->db_type
+            ));
         // 判断数据库是否受到支持
         $support_type=Config::get('database.support_type',array());
         // 判断数据库类型是否在 $support_type 的 key 中存在
         $support_type_key=array_keys($support_type);
         if(in_array($this->db_type,$support_type_key)) {
             $this->db_class=$support_type[$this->db_type];
-            $this->db_object=new $this->db_class();
             $this->link();
+            $this->db_object=new $this->db_class($this->db,$this->table??null);
         } else
             throw new Exception('Unsupported database type.',100301,array(
                 'type'=>$this->db_type

@@ -96,6 +96,10 @@ return array(
             'charset'=>'utf8', // 数据库编码 default: utf8
             'prefix'=>'' // 数据表前缀 default: ''
         ),
+        'rule'=>array(
+            'fields'=>'/^[A-Za-z0-9_]{2,32}$/', // 数据库字段名规则
+            'table'=>'/^[A-Za-z0-9_]{2,32}$/' // 数据库表名规则
+        ),
         'support_type'=>array(
             'mysql'=>\AdminService\sql\Mysql::class // Mysql类型的数据库支持
         )

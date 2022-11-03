@@ -10,7 +10,39 @@ class Sql extends Model {
 
     public function test() {
         // 使用 $table_name 作为表名
-        return $this->where('id',1)->select(array('id','app_key'));
+
+        # 查询全部
+        $this->select();
+        $this->select('*');
+        # 查询指定字段
+        $this->select('id');
+        $this->select(array('id','name'));
+        $this->select(['id','name']);
+        # 查询指定条件(链式)
+        $this->where('id',1)->select();
+        $this->where('id',1,'=')->select();
+        $this->where('name','admin','LIKE')->select();
+        $this->where('id',1)->where('name','admin','LIKE')->select();
+        $this->where(array(
+            'id'=>1,
+            'name'=>'admin'
+        ));
+        $this->where(array(
+            'id'=>array(1,'='),
+            'name'=>array('admin','LIKE')
+        ));
+        $this->where(array(
+            'id'=>1,
+            'name'=>array('admin','LIKE')
+        ),null,'=');
+        $this->where(
+            array('id',1),
+            array('name','admin','LIKE')
+        );
+        # 查询指定条件(非链式)
+        $this->where('id',1);
+        $this->select();
+
     }
 
     public function demo() {

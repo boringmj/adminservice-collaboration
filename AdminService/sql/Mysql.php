@@ -113,12 +113,27 @@ final class Mysql extends SqlDrive {
         if(is_array($where)) {
             // 如果传入的 $where 是数组则忽略 $data
             foreach($where as $key=>$value) {
+                // 先判断 $key 是否为数字, 如果是数字则 $value 必须符合数组格式
+                if(is_int($key)) {
+                    $key=$value['key']??$value[0]??null;
+                    if($key!==null) {
+                        $this->where_array[$value[0]]=array(
+                            'value'=>$value['value']??$value[1]??null,
+                            'operator'=>$value['operator']??$value[2]??$operator
+                        );
+                    } else {
+                        throw new Exception('SQL where error.',100407,array(
+                            'where'=>$where
+                        ));
+                    }
+                    continue;
+                }
                 $this->check_key($key);
                 // 这里还需要判断 $value 是否是数组
                 if(is_array($value))
                     $this->where_array[$key]=array(
-                        'value'=>$value['value']??null,
-                        'operator'=>$value['operator']??$operator
+                        'value'=>$value['value']??$value[0]??null,
+                        'operator'=>$value['operator']??$value[1]??$operator
                     );
                 else
                     $this->where_array[$key]=array(

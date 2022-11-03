@@ -44,6 +44,12 @@ abstract class Database {
     protected array $db_config;
 
     /**
+     * 是否已经传递了表名
+     * @var bool
+     */
+    protected bool $is_table_name;
+
+    /**
      * 连接数据库
      * 
      * @access protected
@@ -106,6 +112,7 @@ abstract class Database {
             return $this;
         $table_name=($prefix?Config::get('database.default.prefix',''):'').$table;
         $this->db_object->table($table_name);
+        $this->is_table_name=true;
         return $this;
     }
 
@@ -117,6 +124,7 @@ abstract class Database {
      * @return void
      */
     final protected function init(array $config=array()): void {
+        $this->is_table_name=false;
         $this->config($config);
         // 判断PDO是否支持该数据库类型
         if(!in_array($this->db_type,\PDO::getAvailableDrivers()))
@@ -155,7 +163,10 @@ abstract class Database {
      * @return mixed
      */
     public function select(string|array $fields='*'): mixed {
-        return $this->table($this->table_name??null)->db_object->select($fields);
+        if(!$this->is_table_name)
+            $this->db_object->table($this->table_name??null);
+        $this->is_table_name=false;
+        return $this->db_object->select($fields);
     }
 
     /**

@@ -26,19 +26,19 @@ class Sql extends Model {
         $this->where(array(
             'id'=>1,
             'name'=>'admin'
-        ));
+        ))->select();
         $this->where(array(
             'id'=>array(1,'='),
             'name'=>array('admin','LIKE')
-        ));
+        ))->select();
         $this->where(array(
             'id'=>1,
             'name'=>array('admin','LIKE')
-        ),null,'=');
+        ),null,'=')->select();
         $this->where(
             array('id',1),
             array('name','admin','LIKE')
-        );
+        )->select();
         # 查询指定条件(非链式)
         $this->where('id',1);
         $this->select();

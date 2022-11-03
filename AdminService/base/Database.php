@@ -103,9 +103,10 @@ abstract class Database {
      */
     final public function table(string $table=null,bool $prefix=true): object {
         if($table===null)
-            return $this->db_object->table();
+            return $this;
         $table_name=($prefix?Config::get('database.default.prefix',''):'').$table;
-        return $this->db_object->table($table_name);
+        $this->db_object->table($table_name);
+        return $this;
     }
 
     /**
@@ -145,6 +146,32 @@ abstract class Database {
     public function __construct(array $config=array()) {
         $this->init($config);
     }
+
+    /**
+     * 查询数据
+     * 
+     * @access public
+     * @param string|array $fields 查询字段(默认为*)
+     * @return mixed
+     */
+    public function select(string|array $fields='*'): mixed {
+        return $this->table($this->table_name??null)->db_object->select($fields);
+    }
+
+    /**
+     * 根据条件查询数据
+     * 
+     * @access public
+     * @param string|array $where 字段名称或者数据数组
+     * @param mixed $data 查询数据
+     * @param string $operator 操作符
+     * @return self
+     */
+    public function where(string|array $where,mixed $data=null,?string $operator='='): self {
+        $this->db_object->where($where,$data,$operator);
+        return $this;
+    }
+
 
 }
 

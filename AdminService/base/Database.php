@@ -98,13 +98,14 @@ abstract class Database {
      * 
      * @access public
      * @param string $table 数据库表名
+     * @param bool $prefix 是否自动添加表前缀(默认添加)
      * @return object
      */
-    final public function table(string $table=null): object {
+    final public function table(string $table=null,bool $prefix=true): object {
         if($table===null)
             return $this->db_object->table();
-        $this->table_name=Config::get('database.default.prefix','').$table;
-        return $this->db_object->table($this->table_name);
+        $table_name=($prefix?Config::get('database.default.prefix',''):'').$table;
+        return $this->db_object->table($table_name);
     }
 
     /**

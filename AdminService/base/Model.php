@@ -22,7 +22,7 @@ abstract class Model extends Database {
      * @return mixed
      */
     public function select(string|array $fields='*'): mixed {
-        return $this->db_object->select();
+        return $this->table($this->table_name??null)->select($fields);
     }
 
     /**

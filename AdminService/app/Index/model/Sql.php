@@ -6,15 +6,16 @@ use base\Model;
 
 class Sql extends Model {
 
-    public string $table_name='admin_service_system_info'; // 完整表名(含前缀)
+    public string $table_name='system_info'; // 数据表名(不包含前缀)
 
     public function test() {
-        return $this->where('app_id','thisdemo')->select(array('id','app_key'));
+        // 使用 $table_name 作为表名
+        return $this->where('id',1)->select(array('id','app_key'));
     }
 
     public function demo() {
-        // 注意, 当这里传递入表名后, 后续请求的表名将会被覆盖
-        return $this->table('system_info')->where('app_id','thisdemo')->select(array('id','app_key'));
+        // 传入表名,且自动添加前缀
+        return $this->table('system_info')->where('id',1)->select(array('id','app_key'));
     }
 }
 

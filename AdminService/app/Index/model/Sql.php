@@ -12,7 +12,7 @@ class Sql extends Model {
         // 使用 $table_name 作为表名
 
         # 查询全部
-        // return $this->select();
+        return $this->select();
         // return $this->select('*');
         # 查询指定字段
         // return $this->select('id');

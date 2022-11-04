@@ -163,8 +163,12 @@ abstract class Database {
      * @return mixed
      */
     public function select(string|array $fields='*'): mixed {
-        if(!$this->is_table_name)
+        if(!$this->is_table_name) {
+            // 原则上默认是不启用自动添加表前缀的
+            # $table_name=Config::get('database.default.prefix','').$this->table_name;
+            $table_name=$this->table_name;
             $this->db_object->table($this->table_name??null);
+        }
         $this->is_table_name=false;
         return $this->db_object->select($fields);
     }

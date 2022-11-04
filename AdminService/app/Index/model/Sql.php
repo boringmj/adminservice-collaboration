@@ -6,42 +6,49 @@ use base\Model;
 
 class Sql extends Model {
 
-    public string $table_name='system_info'; // 数据表名(不包含前缀)
+    public string $table_name='admin_service_system_info'; // 数据表名(默认不启用自动添加数据表前缀)
 
     public function test() {
         // 使用 $table_name 作为表名
 
         # 查询全部
-        $this->select();
-        $this->select('*');
+        // return $this->select();
+        // return $this->select('*');
         # 查询指定字段
-        $this->select('id');
-        $this->select(array('id','name'));
-        $this->select(['id','name']);
+        // return $this->select('id');
+        // return $this->select(array('id','app_id'));
+        // return $this->select(['id','app_id']);
         # 查询指定条件(链式)
-        $this->where('id',1)->select();
-        $this->where('id',1,'=')->select();
-        $this->where('name','admin','LIKE')->select();
-        $this->where('id',1)->where('name','admin','LIKE')->select();
-        $this->where(array(
+        // return $this->where('id',1)->select();
+        // return $this->where('id',1,'>=')->select();
+        // return $this->where('app_id','oP%','LIKE')->select();
+        // return $this->where('id',1)->where('app_id','oP%','LIKE')->select();
+        /* return $this->where(array(
             'id'=>1,
-            'name'=>'admin'
-        ))->select();
-        $this->where(array(
+            'app_id'=>'oPxovtNTFoK3Tazcs1JWYY1662356577'
+        ))->select(); */
+        /* return $this->where(array(
             'id'=>array(1,'='),
-            'name'=>array('admin','LIKE')
-        ))->select();
-        $this->where(array(
+            'app_id'=>array('oP%','LIKE')
+        ))->select(); */
+        /* return $this->where(array(
             'id'=>1,
-            'name'=>array('admin','LIKE')
-        ),null,'=')->select();
-        $this->where(
+            'app_id'=>array('oP%','LIKE')
+        ),null,'=')->select(); */
+        /* return $this->where(
+            array(
+                array('id',1),
+                array('app_id','oP%','LIKE')
+            )
+        )->select(); */
+        /* // 这种写法还在考虑是否支持,我们不推荐使用这种写法,您可以使用上面的写法完成同样的功能
+        return $this->where(
             array('id',1),
-            array('name','admin','LIKE')
-        )->select();
+            array('app_id','oP%','LIKE')
+        )->select(); */
         # 查询指定条件(非链式)
-        $this->where('id',1);
-        $this->select();
+        /* $this->where('id',1);
+        return $this->select(); */
 
     }
 
@@ -50,5 +57,3 @@ class Sql extends Model {
         return $this->table('system_info')->where('id',1)->select(array('id','app_key'));
     }
 }
-
-?>

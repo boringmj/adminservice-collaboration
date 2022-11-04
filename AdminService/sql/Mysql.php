@@ -83,9 +83,8 @@ final class Mysql extends SqlDrive {
             $sql='SELECT '.$fields_string.' FROM '.$this->table;
             if(!empty($this->where_array)) {
                 $sql.=' WHERE ';
-                foreach($this->where_array as $key=>$value) {
+                foreach($this->where_array as $key=>$value)
                     $sql.='`'.$key.'` '.$value['operator'].' ? AND ';
-                }
                 $sql=substr($sql,0,-4);
             }
             $sql.=';';
@@ -113,11 +112,12 @@ final class Mysql extends SqlDrive {
         if(is_array($where)) {
             // 如果传入的 $where 是数组则忽略 $data
             foreach($where as $key=>$value) {
-                // 先判断 $key 是否为数字, 如果是数字则 $value 必须符合数组格式
-                if(is_int($key)) {
-                    $key=$value['key']??$value[0]??null;
-                    if($key!==null) {
-                        $this->where_array[$value[0]]=array(
+                // 先判断 $key 是否为数字, 且 $value 是否为数组
+                if(is_int($key)&&is_array($value)) {
+                    $key_tmp=$value['key']??$value[0]??null;
+                    $this->check_key($key_tmp);
+                    if($key_tmp!==null) {
+                        $this->where_array[$key_tmp]=array(
                             'value'=>$value['value']??$value[1]??null,
                             'operator'=>$value['operator']??$value[2]??$operator
                         );

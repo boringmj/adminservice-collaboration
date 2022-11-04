@@ -117,6 +117,22 @@ abstract class Database {
     }
 
     /**
+     * 自动判断是否需要传递表名(如果没有传递则传递)
+     * 
+     * @access private
+     * @return void
+     */
+    private function autoTable(): void {
+        if(!$this->is_table_name) {
+            // 原则上默认是不启用自动添加表前缀的
+            # $table_name=isset($this->table_name)?(Config::get('database.default.prefix','').$this->table_name):null;
+            $table_name=$this->table_name??null;
+            $this->db_object->table($table_name);
+        }
+        $this->is_table_name=false;
+    }
+
+    /**
      * 初始化
      * 
      * @access protected
@@ -193,13 +209,7 @@ abstract class Database {
      * @return mixed
      */
     public function select(string|array $fields='*'): mixed {
-        if(!$this->is_table_name) {
-            // 原则上默认是不启用自动添加表前缀的
-            # $table_name=Config::get('database.default.prefix','').$this->table_name;
-            $table_name=$this->table_name;
-            $this->db_object->table($this->table_name??null);
-        }
-        $this->is_table_name=false;
+        $this->autoTable();
         return $this->db_object->select($fields);
     }
 
@@ -225,6 +235,7 @@ abstract class Database {
      * @return bool
      */
     public function insert(...$data): bool {
+        $this->autoTable();
         return $this->db_object->insert(...$data);
     }
 

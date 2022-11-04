@@ -11,9 +11,10 @@ class Sql extends Model {
     public function test() {
         // 使用 $table_name 作为表名
 
-        # 插入数据
+        # 开启事务
         $this->beginTransaction();
         try {
+            # 插入数据
             $this->insert(
                 array(
                     'app_id'=>time(),
@@ -26,21 +27,33 @@ class Sql extends Model {
                     'timestamp'=>time()
                 )
             );
+            # 通过主键更新数据(默认主键为id,暂不支持自定义主键)
+            // 由于疫情原因提早下班了,这个更新还会有一些问题,请等待下一个版本修复
+            // $this->update(
+            //     array(
+            //         'id'=>1, // 主键
+            //         'app_id'=>time(),
+            //         'app_key'=>md5(time()),
+            //         'timestamp'=>time()
+            //     )
+            // );
         } catch(\AdminService\Exception $e) {
+            # 回滚事务
             $this->rollBack();
             return $e->getMessage();
         }
+        # 提交事务
         $this->commit();
 
         # 查询全部
-        return $this->select();
+        // return $this->select();
         // return $this->select('*');
         # 查询指定字段
         // return $this->select('id');
         // return $this->select(array('id','app_id'));
         // return $this->select(['id','app_id']);
         # 查询指定条件(链式)
-        // return $this->where('id',1)->select();
+        return $this->where('id',1)->select();
         // return $this->where('id',1,'>=')->select();
         // return $this->where('app_id','oP%','LIKE')->select();
         // return $this->where('id',1)->where('app_id','oP%','LIKE')->select();

@@ -92,22 +92,22 @@ abstract class Database {
     /**
      * 获取数据库连接对象
      * 
-     * @access public
+     * @access protected
      * @return \PDO
      */
-    final public function getDb(): \PDO {
+    final protected function getDb(): \PDO {
         return $this->db;
     }
 
     /**
      * 设置数据库表名
      * 
-     * @access public
+     * @access protected
      * @param string $table 数据库表名
      * @param bool $prefix 是否自动添加表前缀(默认添加)
      * @return self
      */
-    final public function table(string $table=null,bool $prefix=true): self {
+    final protected function table(string $table=null,bool $prefix=true): self {
         if($table===null)
             return $this;
         $table_name=($prefix?Config::get('database.default.prefix',''):'').$table;
@@ -174,41 +174,41 @@ abstract class Database {
     /**
      * 开启事务
      * 
-     * @access public
+     * @access protected
      * @return void
      */
-    public function beginTransaction(): void {
+    protected function beginTransaction(): void {
         $this->db_object->beginTransaction();
     }
 
     /**
      * 提交事务
      * 
-     * @access public
+     * @access protected
      * @return void
      */
-    public function commit(): void {
+    protected function commit(): void {
         $this->db_object->commit();
     }
 
     /**
      * 回滚事务
      * 
-     * @access public
+     * @access protected
      * @return void
      */
-    public function rollBack(): void {
+    protected function rollBack(): void {
         $this->db_object->rollBack();
     }
 
     /**
      * 查询数据
      * 
-     * @access public
+     * @access protected
      * @param string|array $fields 查询字段(默认为*)
      * @return mixed
      */
-    public function select(string|array $fields='*'): mixed {
+    protected function select(string|array $fields='*'): mixed {
         $this->autoTable();
         return $this->db_object->select($fields);
     }
@@ -216,13 +216,13 @@ abstract class Database {
     /**
      * 根据条件查询数据
      * 
-     * @access public
+     * @access protected
      * @param string|array $where 字段名称或者数据数组
      * @param mixed $data 查询数据
      * @param string $operator 操作符
      * @return self
      */
-    public function where(string|array $where,mixed $data=null,?string $operator='='): self {
+    protected function where(string|array $where,mixed $data=null,?string $operator='='): self {
         $this->db_object->where($where,$data,$operator);
         return $this;
     }
@@ -230,14 +230,27 @@ abstract class Database {
     /**
      * 插入数据
      * 
-     * @access public
+     * @access protected
      * @param array ...$data 数据
      * @return bool
      */
-    public function insert(...$data): bool {
+    protected function insert(...$data): bool {
         $this->autoTable();
         return $this->db_object->insert(...$data);
     }
+
+    /**
+     * 更新数据
+     * 
+     * @access protected
+     * @param array ...$data 数据
+     * @return bool
+     */
+    protected function update(...$data): bool {
+        $this->autoTable();
+        return $this->db_object->update(...$data);
+    }
+
 
 }
 

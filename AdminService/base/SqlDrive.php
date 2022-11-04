@@ -62,10 +62,19 @@ abstract class SqlDrive implements Sql {
      * 插入数据
      * 
      * @access public
-     * @param array ...$data 数据
+     * @param mixed ...$data 数据
      * @return bool
      */
     abstract public function insert(...$data): bool;
+
+    /**
+     * 更新数据
+     * 
+     * @access public
+     * @param mixed ...$data 数据
+     * @return bool
+     */
+    abstract public function update(...$data): bool;
 
     /**
      * 开启事务

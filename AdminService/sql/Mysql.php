@@ -22,6 +22,34 @@ final class Mysql extends SqlDrive {
     private array $where_array;
 
     /**
+     * 临时where条件
+     * @var array
+     */
+    private array $where_temp;
+
+    /**
+     * 将各种数据格式转换为指定格式
+     * 
+     * @access private
+     * @param mixed ...$data 数据
+     * @return array
+     */
+    private function format_data(...$data): array {
+        $data_temp=[];
+        foreach($data as $key=>$value) {
+            if(is_int($key)&&is_array($value))
+                $data_temp[]=$value;
+            else if (is_string($key)) {
+                if(isset($data_temp[0]))
+                    $data_temp[0]=array();
+                $data_temp[0][$key]=$value;
+            } else
+                throw new Exception('invalid $data.',100409);
+        }
+        return $data_temp;
+    }
+
+    /**
      * 构造SQl语句
      * 
      * @access private
@@ -30,6 +58,7 @@ final class Mysql extends SqlDrive {
      * @return string
      */
     private function build(string $type,mixed $data=null): string {
+        $this->check_connect();
         switch($type) {
             case 'select':
                 $fields=$data;
@@ -47,12 +76,10 @@ final class Mysql extends SqlDrive {
                         $fields_string='`'.$fields.'`';
                     }
                 }
-                $this->check_connect();
                 $sql='SELECT '.$fields_string.' FROM '.$this->table.$this->build('where');
                 $sql.=';';
                 return $sql;
             case 'insert':
-                $this->check_connect();
                 $sql='INSERT INTO '.$this->table.' (';
                 $fields_string='';
                 $values_string='';
@@ -65,17 +92,38 @@ final class Mysql extends SqlDrive {
                 }
                 $sql.=$fields_string.') VALUES ('.$values_string.');';
                 return $sql;
+            case 'update':
+                $sql='UPDATE '.$this->table.' SET ';
+                $fields_string='';
+                foreach($data as $key=>$value) {
+                    // 这里的 id 是主键, 主键是不需要更新的, 而且需要将主键加入到 where 条件中
+                    if($key==='id') {
+                        $this->where_temp[$key]=array(
+                            'value'=>$value,
+                            'operator'=>'='
+                        );
+                        continue;
+                    }
+                    $this->check_key($key);
+                    $fields_string.=$fields_string===''? ('`'.$key.'`=?'):(',`'.$key.'`=?');
+                }
+                if(empty($this->where_array)&&empty($this->where_temp))
+                    throw new Exception('Update must have where condition.',100431);
+                $sql.=$fields_string.$this->build('where').';';
+                return $sql;
             case 'where':
                 $sql='';
-                if(!empty($this->where_array)) {
+                // 合并临时where条件,如果冲突则保留临时条件
+                $where=array_merge($this->where_array,$this->where_temp);
+                if(!empty($where)) {
                     $sql.=' WHERE ';
                     foreach($this->where_array as $key=>$value)
-                        $sql.='`'.$key.'` '.$value['operator'].' ? AND ';
-                    $sql=substr($sql,0,-4);
+                        $sql.='`'.$key.'`'.$value['operator'].'? AND ';
+                    $sql=substr($sql,0,-5);
                 }
                 return $sql;
             default:
-                throw new Exception('SQL not build.',100408);
+                throw new Exception('SQL not build.',100430);
         }
     }
 
@@ -103,6 +151,7 @@ final class Mysql extends SqlDrive {
         {
             $result=$stmt->fetchAll(\PDO::FETCH_ASSOC);
             $stmt->closeCursor();
+            // 重置where条件
             $this->where_array=array();
             return $result;
         }
@@ -116,11 +165,13 @@ final class Mysql extends SqlDrive {
      * 插入数据
      * 
      * @access public
-     * @param array ...$data 数据
+     * @param mixed ...$data 数据
      * @return bool
      */
     public function insert(...$data): bool {
         $result=true;
+        // 先检查传入数据是否有效
+        $data=$this->format_data(...$data);
         foreach($data as $temp) {
             if(!is_array($temp))
                 throw new Exception('Insert $data not is array.',100422);
@@ -145,6 +196,57 @@ final class Mysql extends SqlDrive {
                 ));
             }
         }
+        // 重置where条件
+        $this->where_array=array();
+        return $result;
+    }
+
+    /**
+     * 更新数据
+     * 
+     * @access public
+     * @param mixed ...$data 数据
+     * @return bool
+     */
+    public function update(...$data): bool {
+        $result=true;
+        // 先检查传入数据是否有效
+        $data=$this->format_data(...$data);
+        foreach($data as $temp) {
+            if(!is_array($temp))
+                throw new Exception('Update $data not is array.',100423);
+            $sql=$this->build('update',$temp);
+            echo $sql;
+            $stmt=$this->db->prepare($sql);
+            if($stmt===false)
+                throw new Exception('SQL prepare error.',100424,array(
+                    'sql'=>$sql,
+                    'error'=>$this->db->errorInfo()
+                ));
+            $i=1;
+            foreach($temp as $value) {
+                $stmt->bindValue($i,$value);
+                $i++;
+            }
+            // 合并临时where条件,如果冲突则保留临时条件
+            $where=array_merge($this->where_array,$this->where_temp);
+            foreach($where as $value) {
+                $stmt->bindValue($i,$value['value']);
+                $i++;
+            }
+            // 重置where临时条件
+            $this->where_temp=array();
+            if(!$stmt->execute()) {
+                $result=false;
+                throw new Exception('SQL execute error.',100408,array(
+                    'sql'=>$sql,
+                    'data'=>$temp,
+                    'error'=>$stmt->errorInfo()
+                ));
+            }
+        }
+        // 重置where条件
+        $this->where_array=array();
         return $result;
     }
 
@@ -221,9 +323,12 @@ final class Mysql extends SqlDrive {
         // 检查是否已经传递了数据库表名
         if($this->table===null)
             throw new Exception('Database table name is not set, please use table() to set.',100404);
-        // 判断where是否已经初始化
+        // 判断where_array是否已经初始化
         if(empty($this->where_array))
             $this->where_array=array();
+        // 判断where_temp是否已经初始化
+        if(empty($this->where_temp))
+            $this->where_temp=array();
     }
 
 }

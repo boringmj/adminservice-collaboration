@@ -50,4 +50,7 @@ try{
 ## 未来
 我们将逐步构建出一个完善的轻量级快速响应框架,这可能需要非常久的时间\
 我们由衷的希望大家提出意见,也由衷的欢迎大家加入到我们的开发之中\
-如果您有疑问或其他事宜,请向`wuliaodemoji@wuliaomj.com`发送邮件,我们会在我们的能力范围内尽力为您解决问题
+如果您有疑问或其他事宜,请向`wuliaodemoji@wuliaomj.com`发送邮件,我们会在我们的能力范围内尽力为您解决问题\
+\
+Sorry, we are unable to provide additional language support due to limited language proficiency, but we welcome you to contact us and join us for additional support in your language\
+Email: `wuliaodemoji@wuliaomj.com`

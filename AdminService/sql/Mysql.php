@@ -11,7 +11,7 @@ use AdminService\Config;
  * 
  * @access public
  * @package sql
- * @version 1.0.0
+ * @version 1.0.2
  */
 final class Mysql extends SqlDrive {
 
@@ -20,6 +20,64 @@ final class Mysql extends SqlDrive {
      * @var array
      */
     private array $where_array;
+
+    /**
+     * 构造SQl语句
+     * 
+     * @access private
+     * @param string $type SQL类型
+     * @param mixed $data 数据
+     * @return string
+     */
+    private function build(string $type,mixed $data=null): string {
+        switch($type) {
+            case 'select':
+                $fields=$data;
+                $fields_string='';
+                if(is_array($fields)) {
+                    foreach($fields as $value) {
+                        $this->check_key($value);
+                        $fields_string.=$fields_string===''? ('`'.$value.'`'):(',`'.$value.'`');
+                    }
+                } else {
+                    if($fields==='*')
+                        $fields_string='*';
+                    else {
+                        $this->check_key($fields);
+                        $fields_string='`'.$fields.'`';
+                    }
+                }
+                $this->check_connect();
+                $sql='SELECT '.$fields_string.' FROM '.$this->table.$this->build('where');
+                $sql.=';';
+                return $sql;
+            case 'insert':
+                $this->check_connect();
+                $sql='INSERT INTO '.$this->table.' (';
+                $fields_string='';
+                $values_string='';
+                $i=1;
+                foreach($data as $key=>$value) {
+                    $this->check_key($key);
+                    $fields_string.=$fields_string===''? ('`'.$key.'`'):(',`'.$key.'`');
+                    $values_string.=$values_string===''? ('?'):(',?');
+                    $i++;
+                }
+                $sql.=$fields_string.') VALUES ('.$values_string.');';
+                return $sql;
+            case 'where':
+                $sql='';
+                if(!empty($this->where_array)) {
+                    $sql.=' WHERE ';
+                    foreach($this->where_array as $key=>$value)
+                        $sql.='`'.$key.'` '.$value['operator'].' ? AND ';
+                    $sql=substr($sql,0,-4);
+                }
+                return $sql;
+            default:
+                throw new Exception('SQL not build.',100408);
+        }
+    }
 
     /**
      * 查询数据
@@ -32,7 +90,7 @@ final class Mysql extends SqlDrive {
         $sql=$this->build('select',$fields);
         $stmt=$this->db->prepare($sql);
         if($stmt===false)
-            throw new Exception('SQL prepare error.',100405,array(
+            throw new Exception('SQL prepare error.',100420,array(
                 'sql'=>$sql,
                 'error'=>$this->db->errorInfo()
             ));
@@ -55,41 +113,39 @@ final class Mysql extends SqlDrive {
     }
 
     /**
-     * 构造SQl语句
+     * 插入数据
      * 
-     * @access private
-     * @param string $type SQL类型
-     * @param mixed $data 数据
-     * @return string
+     * @access public
+     * @param array ...$data 数据
+     * @return bool
      */
-    private function build(string $type,mixed $data=null): string {
-        if($type==='select') {
-            $fields=$data;
-            $fields_string='';
-            if(is_array($fields)) {
-                foreach($fields as $value) {
-                    $this->check_key($value);
-                    $fields_string.=$fields_string===''? ('`'.$value.'`'):(',`'.$value.'`');
-                }
-            } else {
-                if($fields==='*')
-                    $fields_string='*';
-                else {
-                    $this->check_key($fields);
-                    $fields_string='`'.$fields.'`';
-                }
+    public function insert(...$data): bool {
+        $result=true;
+        foreach($data as $temp) {
+            if(!is_array($temp))
+                throw new Exception('Insert $data not is array.',100422);
+            $sql=$this->build('insert',$temp);
+            $stmt=$this->db->prepare($sql);
+            if($stmt===false)
+                throw new Exception('SQL prepare error.',100421,array(
+                    'sql'=>$sql,
+                    'error'=>$this->db->errorInfo()
+                ));
+            $i=1;
+            foreach($temp as $value) {
+                $stmt->bindValue($i,$value);
+                $i++;
             }
-            $this->check_connect();
-            $sql='SELECT '.$fields_string.' FROM '.$this->table;
-            if(!empty($this->where_array)) {
-                $sql.=' WHERE ';
-                foreach($this->where_array as $key=>$value)
-                    $sql.='`'.$key.'` '.$value['operator'].' ? AND ';
-                $sql=substr($sql,0,-4);
+            if(!$stmt->execute()) {
+                $result=false;
+                throw new Exception('SQL execute error.',100407,array(
+                    'sql'=>$sql,
+                    'data'=>$temp,
+                    'error'=>$stmt->errorInfo()
+                ));
             }
-            $sql.=';';
-            return $sql;
         }
+        return $result;
     }
 
     /**
@@ -105,7 +161,7 @@ final class Mysql extends SqlDrive {
         $this->check_connect();
         // 判断$options是在允许的范围内
         $operator=strtoupper($operator);
-        if(!in_array($operator,array('=','>','<','>=','<=','!=','LIKE','NOT LIKE','IN','NOT IN','BETWEEN','NOT BETWEEN')))
+        if(!in_array($operator,array('=','>','<','>=','<=','!=','LIKE','NOT LIKE')))
             throw new Exception('SQL operator error.',100406,array(
                 'operator'=>$operator
             ));
@@ -153,7 +209,7 @@ final class Mysql extends SqlDrive {
     }
 
     /**
-     * 检查是否已经连接数据库且是否已经开启事务
+     * 检查是否已经连接数据库
      * 
      * @access protected
      * @return void
@@ -165,9 +221,6 @@ final class Mysql extends SqlDrive {
         // 检查是否已经传递了数据库表名
         if($this->table===null)
             throw new Exception('Database table name is not set, please use table() to set.',100404);
-        // 判断是否在事务中,如果不在事务中则开启事务
-        if(!$this->db->inTransaction())
-            $this->db->beginTransaction();
         // 判断where是否已经初始化
         if(empty($this->where_array))
             $this->where_array=array();

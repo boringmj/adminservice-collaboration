@@ -49,4 +49,37 @@ interface Sql {
      */
     public function table(string $table): self;
 
+    /**
+     * 插入数据
+     * 
+     * @access public
+     * @param array ...$data 数据
+     * @return bool
+     */
+    public function insert(...$data): bool;
+
+    /**
+     * 开启事务
+     * 
+     * @access public
+     * @return void
+     */
+    public function beginTransaction(): void;
+
+    /**
+     * 提交事务
+     * 
+     * @access public
+     * @return void
+     */
+    public function commit(): void;
+
+    /**
+     * 回滚事务
+     * 
+     * @access public
+     * @return void
+     */
+    public function rollBack(): void;
+
 }

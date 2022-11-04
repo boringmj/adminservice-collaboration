@@ -105,9 +105,9 @@ abstract class Database {
      * @access public
      * @param string $table 数据库表名
      * @param bool $prefix 是否自动添加表前缀(默认添加)
-     * @return object
+     * @return self
      */
-    final public function table(string $table=null,bool $prefix=true): object {
+    final public function table(string $table=null,bool $prefix=true): self {
         if($table===null)
             return $this;
         $table_name=($prefix?Config::get('database.default.prefix',''):'').$table;
@@ -156,6 +156,36 @@ abstract class Database {
     }
 
     /**
+     * 开启事务
+     * 
+     * @access public
+     * @return void
+     */
+    public function beginTransaction(): void {
+        $this->db_object->beginTransaction();
+    }
+
+    /**
+     * 提交事务
+     * 
+     * @access public
+     * @return void
+     */
+    public function commit(): void {
+        $this->db_object->commit();
+    }
+
+    /**
+     * 回滚事务
+     * 
+     * @access public
+     * @return void
+     */
+    public function rollBack(): void {
+        $this->db_object->rollBack();
+    }
+
+    /**
      * 查询数据
      * 
      * @access public
@@ -187,6 +217,16 @@ abstract class Database {
         return $this;
     }
 
+    /**
+     * 插入数据
+     * 
+     * @access public
+     * @param array ...$data 数据
+     * @return bool
+     */
+    public function insert(...$data): bool {
+        return $this->db_object->insert(...$data);
+    }
 
 }
 

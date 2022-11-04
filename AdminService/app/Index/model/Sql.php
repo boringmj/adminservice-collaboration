@@ -11,6 +11,27 @@ class Sql extends Model {
     public function test() {
         // 使用 $table_name 作为表名
 
+        # 插入数据
+        $this->beginTransaction();
+        try {
+            $this->insert(
+                array(
+                    'app_id'=>time(),
+                    'app_key'=>md5(time()),
+                    'timestamp'=>time()
+                ),
+                array(
+                    'app_id'=>'a'.time(),
+                    'app_key'=>md5(time()),
+                    'timestamp'=>time()
+                )
+            );
+        } catch(\AdminService\Exception $e) {
+            $this->rollBack();
+            return $e->getMessage();
+        }
+        $this->commit();
+
         # 查询全部
         return $this->select();
         // return $this->select('*');
@@ -41,7 +62,7 @@ class Sql extends Model {
                 array('app_id','oP%','LIKE')
             )
         )->select(); */
-        /* // 这种写法还在考虑是否支持,我们不推荐使用这种写法,您可以使用上面的写法完成同样的功能
+        /* // 这种写法还在考虑是否需要支持,我们不推荐使用这种写法,您可以使用上面的写法完成同样的功能
         return $this->where(
             array('id',1),
             array('app_id','oP%','LIKE')

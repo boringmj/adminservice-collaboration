@@ -11,7 +11,7 @@ use AdminService\Config;
  * 
  * @access public
  * @package base
- * @version 1.0.0
+ * @version 1.0.1
  */
 abstract class SqlDrive implements Sql {
 
@@ -57,6 +57,55 @@ abstract class SqlDrive implements Sql {
      * @return self
      */
     abstract public function where(string|array $where,mixed $data=null,?string $operator='='): self;
+
+    /**
+     * 插入数据
+     * 
+     * @access public
+     * @param array ...$data 数据
+     * @return bool
+     */
+    abstract public function insert(...$data): bool;
+
+    /**
+     * 开启事务
+     * 
+     * @access public
+     * @return void
+     */
+    public function beginTransaction(): void {
+        $this->check_connect();
+        // 判断是否已经开启事务
+        if ($this->db->inTransaction())
+            throw new Exception('Transaction has been started.',100410);
+        $this->db->beginTransaction();
+    }
+
+    /**
+     * 提交事务
+     * 
+     * @access public
+     * @return void
+     */
+    public function commit(): void {
+        $this->check_connect();
+        if(!$this->db->inTransaction())
+            throw new Exception('Transaction has not been started.',100411);
+        $this->db->commit();
+    }
+
+    /**
+     * 回滚事务
+     * 
+     * @access public
+     * @return void
+     */
+    public function rollBack(): void {
+        $this->check_connect();
+        if(!$this->db->inTransaction())
+            throw new Exception('Transaction has not been started.',100412);
+        $this->db->rollBack();
+    }
 
     /**
      * 构造函数

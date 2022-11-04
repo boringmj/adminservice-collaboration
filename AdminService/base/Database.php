@@ -231,7 +231,7 @@ abstract class Database {
      * 插入数据
      * 
      * @access protected
-     * @param array ...$data 数据
+     * @param mixed ...$data 数据
      * @return bool
      */
     protected function insert(...$data): bool {
@@ -243,7 +243,7 @@ abstract class Database {
      * 更新数据
      * 
      * @access protected
-     * @param array ...$data 数据
+     * @param mixed ...$data 数据
      * @return bool
      */
     protected function update(...$data): bool {

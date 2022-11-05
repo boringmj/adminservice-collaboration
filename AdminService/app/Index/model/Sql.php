@@ -43,10 +43,15 @@ class Sql extends Model {
                     'timestamp'=>time()
                 )
             );
-            # 通过where条件更新数据
+            # 通过where条件更新数据(值得说明,where会对下一个update的所有数据生效,但如果有数据包含主键,则会优先使用主键)
             $this->where('id',2)->update(
                 array(
                     'app_id'=>time(),
+                    'app_key'=>md5(time()),
+                    'timestamp'=>time()
+                ),
+                array(
+                    'app_id'=>'a'.time(),
                     'app_key'=>md5(time()),
                     'timestamp'=>time()
                 )

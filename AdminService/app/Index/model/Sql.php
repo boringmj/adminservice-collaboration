@@ -15,7 +15,7 @@ class Sql extends Model {
          * 
          * 1. 数据库事务非强制开启, 如需使用请自行开启
          * 2. 所有方法均可能抛出 \PDOException 异常和 \AdminService\Exception 异常
-         * 3. 更新 和 删除(未完成) 均需提供 where 条件 或 包含主键的数据, 否则会抛出异常
+         * 3. 更新 和 删除 均需提供 where 条件 或 包含主键的数据, 否则会抛出异常
          */
 
         # 开启事务

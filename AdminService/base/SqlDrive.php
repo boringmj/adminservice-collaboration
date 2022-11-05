@@ -62,7 +62,7 @@ abstract class SqlDrive implements Sql {
      * 插入数据
      * 
      * @access public
-     * @param mixed ...$data 数据
+     * @param array ...$data 数据
      * @return bool
      */
     abstract public function insert(...$data): bool;
@@ -71,7 +71,7 @@ abstract class SqlDrive implements Sql {
      * 更新数据
      * 
      * @access public
-     * @param mixed ...$data 数据
+     * @param array ...$data 数据
      * @return bool
      */
     abstract public function update(...$data): bool;

@@ -11,6 +11,13 @@ class Sql extends Model {
     public function test() {
         // 使用 $table_name 作为表名
 
+        /** 简单说明
+         * 
+         * 1. 数据库事务非强制开启, 如需使用请自行开启
+         * 2. 所有方法均可能抛出 \PDOException 异常和 \AdminService\Exception 异常
+         * 3. 更新 和 删除(未完成) 均需提供 where 条件 或 包含主键的数据, 否则会抛出异常
+         */
+
         # 开启事务
         $this->beginTransaction();
         try {
@@ -28,15 +35,22 @@ class Sql extends Model {
                 )
             );
             # 通过主键更新数据(默认主键为id,暂不支持自定义主键)
-            // 由于疫情原因提早下班了,这个更新还会有一些问题,请等待下一个版本修复
-            // $this->update(
-            //     array(
-            //         'id'=>1, // 主键
-            //         'app_id'=>time(),
-            //         'app_key'=>md5(time()),
-            //         'timestamp'=>time()
-            //     )
-            // );
+            $this->update(
+                array(
+                    'id'=>1, // 主键
+                    'app_id'=>time(),
+                    'app_key'=>md5(time()),
+                    'timestamp'=>time()
+                )
+            );
+            # 通过where条件更新数据
+            $this->where('id',2)->update(
+                array(
+                    'app_id'=>time(),
+                    'app_key'=>md5(time()),
+                    'timestamp'=>time()
+                )
+            );
         } catch(\AdminService\Exception $e) {
             # 回滚事务
             $this->rollBack();
@@ -53,7 +67,7 @@ class Sql extends Model {
         // return $this->select(array('id','app_id'));
         // return $this->select(['id','app_id']);
         # 查询指定条件(链式)
-        return $this->where('id',1)->select();
+        return $this->where('id',2,'<=')->select();
         // return $this->where('id',1,'>=')->select();
         // return $this->where('app_id','oP%','LIKE')->select();
         // return $this->where('id',1)->where('app_id','oP%','LIKE')->select();
@@ -75,15 +89,15 @@ class Sql extends Model {
                 array('app_id','oP%','LIKE')
             )
         )->select(); */
-        /* // 这种写法还在考虑是否需要支持,我们不推荐使用这种写法,您可以使用上面的写法完成同样的功能
+         # 查询指定条件(非链式)
+        /* $this->where('id',1);
+        return $this->select(); */
+
+        /* // 这种写法我们不会支持, 因为这将与其他写法产生不必要的冲突
         return $this->where(
             array('id',1),
             array('app_id','oP%','LIKE')
         )->select(); */
-        # 查询指定条件(非链式)
-        /* $this->where('id',1);
-        return $this->select(); */
-
     }
 
     public function demo() {

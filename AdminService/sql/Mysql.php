@@ -113,11 +113,11 @@ final class Mysql extends SqlDrive {
                 return $sql;
             case 'where':
                 $sql='';
-                // 合并临时where条件,如果冲突则保留临时条件
+                // 合并临时where条件, 如果冲突则保留临时条件
                 $where=array_merge($this->where_array,$this->where_temp);
                 if(!empty($where)) {
                     $sql.=' WHERE ';
-                    foreach($this->where_array as $key=>$value)
+                    foreach($where as $key=>$value)
                         $sql.='`'.$key.'`'.$value['operator'].'? AND ';
                     $sql=substr($sql,0,-5);
                 }
@@ -165,7 +165,7 @@ final class Mysql extends SqlDrive {
      * 插入数据
      * 
      * @access public
-     * @param mixed ...$data 数据
+     * @param array ...$data 数据
      * @return bool
      */
     public function insert(...$data): bool {
@@ -205,7 +205,7 @@ final class Mysql extends SqlDrive {
      * 更新数据
      * 
      * @access public
-     * @param mixed ...$data 数据
+     * @param array ...$data 数据
      * @return bool
      */
     public function update(...$data): bool {
@@ -216,7 +216,6 @@ final class Mysql extends SqlDrive {
             if(!is_array($temp))
                 throw new Exception('Update $data not is array.',100423);
             $sql=$this->build('update',$temp);
-            echo $sql;
             $stmt=$this->db->prepare($sql);
             if($stmt===false)
                 throw new Exception('SQL prepare error.',100424,array(
@@ -224,11 +223,15 @@ final class Mysql extends SqlDrive {
                     'error'=>$this->db->errorInfo()
                 ));
             $i=1;
-            foreach($temp as $value) {
+            // 先绑定更新数据
+            foreach($temp as $key=>$value) {
+                // 这里的 id 是主键, 主键是不需要更新的, 而且需要将主键加入到 where 条件中
+                if($key==='id')
+                    continue;
                 $stmt->bindValue($i,$value);
                 $i++;
             }
-            // 合并临时where条件,如果冲突则保留临时条件
+            // 再绑定where条件, 合并临时where条件, 如果冲突则保留临时条件
             $where=array_merge($this->where_array,$this->where_temp);
             foreach($where as $value) {
                 $stmt->bindValue($i,$value['value']);

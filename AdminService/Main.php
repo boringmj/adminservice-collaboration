@@ -86,8 +86,8 @@ final class Main {
                 if(isset($matches[1]))
                     $error['message']=$matches[1];
                 // 取消输出缓冲
-                while(ob_get_level()>0)
-                    ob_end_clean();
+                // while(ob_get_level()>0)
+                //     ob_end_clean();
                 // 输出错误信息
                 echo "<div>
                     <h1>致命错误</h1>

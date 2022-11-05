@@ -111,15 +111,40 @@ final class Mysql extends SqlDrive {
                     throw new Exception('Update must have where condition.',100431);
                 $sql.=$fields_string.$this->build('where').';';
                 return $sql;
+            case 'delete':
+                $sql='DELETE FROM '.$this->table;
+                // 先处理where条件
+                if(empty($this->where_array)&&empty($data))
+                    throw new Exception('Delete must have where condition.',100432);
+                $sql.=$this->build('where',true);
+                // 然后使用 OR 拼接全部 id
+                if(!empty($data)) {
+                    if(!empty($this->where_array))
+                        $sql.=' OR ';
+                    else
+                        $sql.=' WHERE ';
+                    $sql.='(`id` IN (';
+                    $id_string='';
+                    foreach($data as $value) {
+                        $id_string.=$id_string===''? ('?'):(',?');
+                    }
+                    $sql.=$id_string.'))';
+                }
+                $sql.=';';
+                return $sql;
             case 'where':
                 $sql='';
                 // 合并临时where条件, 如果冲突则保留临时条件
                 $where=array_merge($this->where_array,$this->where_temp);
                 if(!empty($where)) {
                     $sql.=' WHERE ';
+                    if($data===true)
+                        $sql.='(';
                     foreach($where as $key=>$value)
                         $sql.='`'.$key.'`'.$value['operator'].'? AND ';
                     $sql=substr($sql,0,-5);
+                    if($data===true)
+                        $sql.=')';
                 }
                 return $sql;
             default:
@@ -247,6 +272,59 @@ final class Mysql extends SqlDrive {
                     'error'=>$stmt->errorInfo()
                 ));
             }
+        }
+        // 重置where条件
+        $this->where_array=array();
+        return $result;
+    }
+
+    /**
+     * 删除数据
+     * 
+     * @access public
+     * @param int|string|array|null $data 主键或者组件组
+     * @return bool
+     */
+    public function delete(int|string|array|null $data=null): bool {
+        $result=true;
+        $data_temp=array();
+        // 先判断传入的数据类型
+        if(is_array($data)) {
+            foreach($data as $value) {
+                if(is_int($value)||is_string($value))
+                    $data_temp[]=$value;
+                else
+                    throw new Exception('Delete $data value not is int or string.',100425);
+            }
+        } else if(is_int($data)||is_string($data))
+            $data_temp[]=$data;
+        else if($data!==null)
+            throw new Exception('Delete $data not is int, array, null or string.',100426);
+        $sql=$this->build('delete',$data_temp);
+        $stmt=$this->db->prepare($sql);
+        if($stmt===false)
+            throw new Exception('SQL prepare error.',100427,array(
+                'sql'=>$sql,
+                'error'=>$this->db->errorInfo()
+            ));
+        $i=1;
+        // 先绑定 where 条件
+        foreach($this->where_array as $value) {
+            $stmt->bindValue($i,$value['value']);
+            $i++;
+        }
+        // 再绑定主键
+        foreach($data_temp as $value) {
+            $stmt->bindValue($i,$value);
+            $i++;
+        }
+        if(!$stmt->execute()) {
+            $result=false;
+            throw new Exception('SQL execute error.',100428,array(
+                'sql'=>$sql,
+                'data'=>$data_temp,
+                'error'=>$stmt->errorInfo()
+            ));
         }
         // 重置where条件
         $this->where_array=array();

@@ -56,6 +56,11 @@ class Sql extends Model {
                     'timestamp'=>time()
                 )
             );
+            # 通过主键删除数据(默认主键为id,暂不支持自定义主键)
+            $this->delete(3);
+            $this->delete(array(4,5));
+            # 通过where条件删除数据
+            $this->where('id',6,'>=')->delete();
         } catch(\AdminService\Exception $e) {
             # 回滚事务
             $this->rollBack();
@@ -65,14 +70,14 @@ class Sql extends Model {
         $this->commit();
 
         # 查询全部
-        // return $this->select();
+        return $this->select();
         // return $this->select('*');
         # 查询指定字段
         // return $this->select('id');
         // return $this->select(array('id','app_id'));
         // return $this->select(['id','app_id']);
         # 查询指定条件(链式)
-        return $this->where('id',2,'<=')->select();
+        //return $this->where('id',2,'<=')->select();
         // return $this->where('id',1,'>=')->select();
         // return $this->where('app_id','oP%','LIKE')->select();
         // return $this->where('id',1)->where('app_id','oP%','LIKE')->select();

@@ -68,6 +68,15 @@ interface Sql {
     public function update(...$data): bool;
 
     /**
+     * 删除数据
+     * 
+     * @access public
+     * @param int|string|array|null $data 主键或者组件组
+     * @return bool
+     */
+    public function delete(int|string|array|null $data=null): bool;
+
+    /**
      * 开启事务
      * 
      * @access public

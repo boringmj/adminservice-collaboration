@@ -17,13 +17,15 @@ final class App extends Container {
         $classes=array(
             'Router'=>$classes['Router']??Router::class,
             'View'=>$classes['View']??View::class,
-            'Controller'=>$classes['Controller']??Controller::class,
-            'Model'=>$classes['Model']??Model::class,
             'Request'=>$classes['Request']??Request::class,
             'File'=>$classes['File']??File::class,
             'Exception'=>$classes['Exception']??Exception::class,
             'Cookie'=>$classes['Cookie']??Cookie::class
         );
+        // 遍历类是否存在
+        foreach($classes as $class)
+            if(!class_exists($class))
+                throw new Exception('Class "'.$class.'" not found.');
         parent::$class_container=$classes;
     }
 

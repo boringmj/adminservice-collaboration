@@ -82,6 +82,9 @@ abstract class Container {
      * @return void
      */
     static public function setClass(string $name,string $class): void {
+        // 如果类不存在则抛出异常
+        if(!class_exists($class))
+            throw new Exception('Class "'.$name.'" not found.');
         self::$class_container[$name]=$class;
     }
 

@@ -48,8 +48,10 @@ return array(
     // function 相关配置
     'function'=>array(
         'path'=>__DIR__.'/common', // 公共函数目录
-        'loader'=>array(
-            'uuid' // 需要自动加载的函数文件名(不含扩展名)
+        'loader'=>array( // 需要自动加载的函数文件名(不含扩展名)
+            'uuid', // uuid函数
+            'helper', // 通用助手函数
+            'controller_helper' // 控制器助手函数
         )
     ),
 

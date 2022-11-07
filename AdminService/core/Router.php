@@ -49,9 +49,9 @@ final class Router extends BaseRouter {
             ));
         $controller_path=$app_path.'/'.'controller/'.$route_info['controller'].'.php';
         $controller_name='app\\'.$route_info['app'].'\\controller\\'.$route_info['controller'];
-        // 将控制器类名存入容器
-        App::setClass('Controller',$controller_name);
         if (file_exists($controller_path)&&class_exists($controller_name)) {
+            // 将控制器类名存入容器
+            App::setClass('Controller',$controller_name);
             $controller=new $controller_name();
             // 将控制器实例存入容器
             App::set('Controller',$controller);

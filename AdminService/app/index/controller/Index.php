@@ -2,9 +2,16 @@
 
 namespace app\index\controller;
 
+// 控制器基类
 use base\Controller;
+
+// 模型
 use app\index\model\Count;
 use app\index\model\Sql;
+
+// 控制器助手函数
+use function AdminService\common\view;
+use function AdminService\common\json;
 
 class Index extends Controller {
 
@@ -20,18 +27,17 @@ class Index extends Controller {
 
     public function count() {
         $count=new Count();
-        return $this->view('count', array(
+        return view('count', array(
             'count'=>$count->add()
         ));
     }
 
     public function sql() {
         // 预览 Demo, 该方法随时可能被删除
-        $this->type('json');
         $test=new Sql();
-        return array(
+        return json(array(
             'data'=>$test->test()
-        );
+        ));
     }
 
 }

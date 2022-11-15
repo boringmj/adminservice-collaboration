@@ -16,6 +16,7 @@ class Sql extends Model {
          * 1. 数据库事务非强制开启, 如需使用请自行开启
          * 2. 所有方法均可能抛出 \PDOException 异常和 \AdminService\Exception 异常
          * 3. 更新 和 删除 均需提供 where 条件 或 包含主键的数据, 否则会抛出异常
+         * 4. 目前会有一个bug,同一个字段不支持多个where设置查询条件,最后一次会覆盖之前的条件(注意是同一个字段)
          */
 
         # 开启事务
@@ -43,7 +44,7 @@ class Sql extends Model {
                     'timestamp'=>time()
                 )
             );
-            # 通过where条件更新数据(值得说明,where会对下一个update的所有数据生效,但如果有数据包含主键,则会优先使用主键)
+            # 通过where条件更新数据(值得说明,where会对下一个update的所有数据生效,但如果有数据包含主键,则同样会使用主键,且主键优先级高于where中的主键)
             $this->where('id',2)->update(
                 array(
                     'app_id'=>time(),

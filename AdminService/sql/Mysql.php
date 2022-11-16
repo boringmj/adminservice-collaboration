@@ -98,7 +98,8 @@ final class Mysql extends SqlDrive {
                 foreach($data as $key=>$value) {
                     // 这里的 id 是主键, 主键是不需要更新的, 而且需要将主键加入到 where 条件中
                     if($key==='id') {
-                        $this->where_temp[$key]=array(
+                        $this->where_temp[]=array(
+                            'key'=>$key,
                             'value'=>$value,
                             'operator'=>'='
                         );
@@ -140,8 +141,8 @@ final class Mysql extends SqlDrive {
                     $sql.=' WHERE ';
                     if($data===true)
                         $sql.='(';
-                    foreach($where as $key=>$value)
-                        $sql.='`'.$key.'`'.$value['operator'].'? AND ';
+                    foreach($where as $value)
+                        $sql.='`'.$value['key'].'`'.$value['operator'].'? AND ';
                     $sql=substr($sql,0,-5);
                     if($data===true)
                         $sql.=')';
@@ -356,7 +357,8 @@ final class Mysql extends SqlDrive {
                     $key_tmp=$value['key']??$value[0]??null;
                     $this->check_key($key_tmp);
                     if($key_tmp!==null) {
-                        $this->where_array[$key_tmp]=array(
+                        $this->where_array[]=array(
+                            'key'=>$key_tmp,
                             'value'=>$value['value']??$value[1]??null,
                             'operator'=>$value['operator']??$value[2]??$operator
                         );
@@ -370,12 +372,14 @@ final class Mysql extends SqlDrive {
                 $this->check_key($key);
                 // 这里还需要判断 $value 是否是数组
                 if(is_array($value))
-                    $this->where_array[$key]=array(
+                    $this->where_array[]=array(
+                        'key'=>$key,
                         'value'=>$value['value']??$value[0]??null,
                         'operator'=>$value['operator']??$value[1]??$operator
                     );
                 else
-                    $this->where_array[$key]=array(
+                    $this->where_array[]=array(
+                        'key'=>$key,
                         'value'=>$value,
                         'operator'=>$operator
                     );
@@ -383,7 +387,8 @@ final class Mysql extends SqlDrive {
         } else {
             // 如果传入的 $where 是字符串则使用 $data
             $this->check_key($where);
-            $this->where_array[$where]=array(
+            $this->where_array[]=array(
+                'key'=>$where,
                 'value'=>$data,
                 'operator'=>$operator
             );

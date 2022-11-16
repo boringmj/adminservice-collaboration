@@ -76,11 +76,11 @@ final class Mysql extends SqlDrive {
                         $fields_string='`'.$fields.'`';
                     }
                 }
-                $sql='SELECT '.$fields_string.' FROM '.$this->table.$this->build('where');
+                $sql='SELECT '.$fields_string.' FROM `'.$this->table.'`'.$this->build('where');
                 $sql.=';';
                 return $sql;
             case 'insert':
-                $sql='INSERT INTO '.$this->table.' (';
+                $sql='INSERT INTO `'.$this->table.'` (';
                 $fields_string='';
                 $values_string='';
                 $i=1;
@@ -93,7 +93,7 @@ final class Mysql extends SqlDrive {
                 $sql.=$fields_string.') VALUES ('.$values_string.');';
                 return $sql;
             case 'update':
-                $sql='UPDATE '.$this->table.' SET ';
+                $sql='UPDATE `'.$this->table.'` SET ';
                 $fields_string='';
                 foreach($data as $key=>$value) {
                     // 这里的 id 是主键, 主键是不需要更新的, 而且需要将主键加入到 where 条件中
@@ -113,7 +113,7 @@ final class Mysql extends SqlDrive {
                 $sql.=$fields_string.$this->build('where').';';
                 return $sql;
             case 'delete':
-                $sql='DELETE FROM '.$this->table;
+                $sql='DELETE FROM `'.$this->table.'`';
                 // 先处理where条件
                 if(empty($this->where_array)&&empty($data))
                     throw new Exception('Delete must have where condition.',100432);

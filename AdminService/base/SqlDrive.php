@@ -42,6 +42,15 @@ abstract class SqlDrive implements Sql {
     abstract public function select(string|array $fields='*'): mixed;
 
     /**
+     * 查询一条数据
+     * 
+     * @access public
+     * @param string|array $fields 查询字段
+     * @return mixed
+     */
+    abstract public function find(string|array $fields='*'): mixed;
+
+    /**
      * 检查是否已经连接数据库且是否已经开启事务
      * 
      * @access protected

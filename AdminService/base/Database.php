@@ -214,6 +214,18 @@ abstract class Database {
     }
 
     /**
+     * 查询一条数据
+     * 
+     * @access protected
+     * @param string|array $fields 查询字段(默认为*)
+     * @return mixed
+     */
+    protected function find(string|array $fields='*'): mixed {
+        $this->autoTable();
+        return $this->db_object->find($fields);
+    }
+
+    /**
      * 根据条件查询数据
      * 
      * @access protected

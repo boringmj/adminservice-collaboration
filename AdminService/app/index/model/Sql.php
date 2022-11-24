@@ -72,15 +72,18 @@ class Sql extends Model {
         # 提交事务
         $this->commit();
 
+        # 查询一条数据(find 方法同样支持 select 方法的所有功能, 但是只会返回一条数据)
+        return $this->find();
+
         # 查询全部
-        return $this->select();
+        //return $this->select();
         // return $this->select('*');
         # 查询指定字段
         // return $this->select('id');
         // return $this->select(array('id','app_id'));
         // return $this->select(['id','app_id']);
         # 查询指定条件(链式)
-        //return $this->where('id',2,'<=')->select();
+        //return $this->where('id',1)->select();
         // return $this->where('id',1,'>=')->select();
         // return $this->where('app_id','oP%','LIKE')->select();
         // return $this->where('id',1)->where('app_id','oP%','LIKE')->select();

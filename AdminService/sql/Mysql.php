@@ -79,6 +79,11 @@ final class Mysql extends SqlDrive {
                 $sql='SELECT '.$fields_string.' FROM `'.$this->table.'`'.$this->build('where');
                 $sql.=';';
                 return $sql;
+            case 'find':
+                $sql=$this->build('select',$data);
+                $sql=substr($sql,0,-1);
+                $sql.=' LIMIT 1;';
+                return $sql;
             case 'insert':
                 $sql='INSERT INTO `'.$this->table.'` (';
                 $fields_string='';
@@ -176,6 +181,40 @@ final class Mysql extends SqlDrive {
         if($stmt->execute())
         {
             $result=$stmt->fetchAll(\PDO::FETCH_ASSOC);
+            $stmt->closeCursor();
+            // 重置where条件
+            $this->where_array=array();
+            return $result;
+        }
+        throw new Exception('SQL execute error.',100406,array(
+            'sql'=>$sql,
+            'error'=>$stmt->errorInfo()
+        ));
+    }
+
+    /**
+     * 查询一条数据
+     * 
+     * @access public
+     * @param string|array $fields 查询字段
+     * @return mixed
+     */
+    public function find(string|array $fields='*'): mixed {
+        $sql=$this->build('find',$fields);
+        $stmt=$this->db->prepare($sql);
+        if($stmt===false)
+            throw new Exception('SQL prepare error.',100420,array(
+                'sql'=>$sql,
+                'error'=>$this->db->errorInfo()
+            ));
+        $i=1;
+        foreach($this->where_array as $value) {
+            $stmt->bindValue($i,$value['value']);
+            $i++;
+        }
+        if($stmt->execute())
+        {
+            $result=$stmt->fetch(\PDO::FETCH_ASSOC);
             $stmt->closeCursor();
             // 重置where条件
             $this->where_array=array();

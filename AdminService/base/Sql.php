@@ -32,6 +32,15 @@ interface Sql {
     public function select(string|array $fields='*'): mixed;
 
     /**
+     * 查询一条数据
+     * 
+     * @access public
+     * @param string|array $fields 查询字段
+     * @return mixed
+     */
+    public function find(string|array $fields='*'): mixed;
+
+    /**
      * 根据条件查询数据
      * 
      * @access public

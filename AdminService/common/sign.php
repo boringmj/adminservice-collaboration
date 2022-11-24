@@ -8,8 +8,7 @@ namespace AdminService\common;
  * @param array $data 需要签名的数据
  * @return string
  */
-function sign($data)
-{
+function sign($data) {
     krsort($data);
     $sign_string='';
     foreach($data as $key=>$value)

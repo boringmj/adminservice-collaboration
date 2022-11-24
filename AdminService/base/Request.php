@@ -117,11 +117,11 @@ abstract class Request {
         $_GET=array();
         $_POST=array();
         $_COOKIE=array();
-        // 按GPC顺序初始化请求参数
+        // 按CGP顺序初始化请求参数
         self::$request_params=array_merge(
+            self::$request_params['_COOKIE'],
             self::$request_params['_GET'],
             self::$request_params['_POST'],
-            self::$request_params['_COOKIE'],
             self::$request_params
         );
     }

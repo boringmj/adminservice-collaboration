@@ -215,6 +215,9 @@ final class Mysql extends SqlDrive {
         if($stmt->execute())
         {
             $result=$stmt->fetch(\PDO::FETCH_ASSOC);
+            // 如果$fields不是数组, 则返回对应字段的值
+            if(!is_array($fields))
+                $result=$result[$fields];
             $stmt->closeCursor();
             // 重置where条件
             $this->where_array=array();

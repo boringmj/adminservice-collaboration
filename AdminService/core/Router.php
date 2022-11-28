@@ -85,7 +85,7 @@ final class Router extends BaseRouter {
     public function getRouteInfo(): array {
         // 这里具体的路由规则将来会随着配置文件的更新而更新,所以现在先这样
         return array(
-            "app"=>lcfirst($this->uri[0]?$this->uri[0]:Config::get('route.default.app')),
+            "app"=>lcfirst(isset($this->uri[0])?$this->uri[0]:Config::get('route.default.app')),
             "controller"=>ucfirst($this->uri[1]??Config::get('route.default.controller')),
             "method"=>lcfirst($this->uri[2]??Config::get('route.default.method')),
             "params"=>array_slice($this->uri,3)

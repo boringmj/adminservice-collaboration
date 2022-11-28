@@ -90,7 +90,7 @@ final class Main {
                     ob_end_clean();
                 // 输出错误信息
                 echo "<div>
-                    <h1>致命错误</h1>
+                    <h1>发生错误或警告</h1>
                     <p>错误信息: {$error['message']}</p>
                     <p>错误文件: {$error['file']}</p>
                     <p>错误行数: {$error['line']}</p>

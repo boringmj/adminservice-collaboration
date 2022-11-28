@@ -19,17 +19,26 @@ function view(string|array $template=null,array $data=array()): string {
 }
 
 /**
- * 设置输出类型为json,且原样返回数据
+ * 设置输出类型为json,返回标准json数组
  * 
+ * @param int $code 状态码
+ * @param string $msg 提示信息
  * @param mixed $data 数据
- * @return mixed
+ * @return array
  */
-function json(mixed $data): mixed {
+function json(?int $code=null,?string $msg=null,mixed $data=null): array {
     $ref=new \ReflectionClass(App::get('Controller'));
     $method=$ref->getMethod('type');
     $method->setAccessible(true);
     $method->invoke(App::get('Controller'),'json');
-    return $data;
+    $return_data=array();
+    if($code!==null)
+        $return_data['code']=$code;
+    if($msg!==null)
+        $return_data['msg']=$msg;
+    if($data!==null)
+        $return_data['data']=$data;
+    return $return_data;
 }
 
 ?>

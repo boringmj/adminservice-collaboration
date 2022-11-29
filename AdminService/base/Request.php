@@ -114,6 +114,21 @@ abstract class Request {
             '_POST'=>$_POST,
             '_COOKIE'=>$_COOKIE
         );
+        // 获取 Content-Type 请求头
+        $content_type=isset($_SERVER['CONTENT_TYPE'])?$_SERVER['CONTENT_TYPE']:'';
+        // 判断是否为 application/json
+        if(strpos($content_type,'application/json')!==false) {
+            // 获取请求数据
+            $request_data=file_get_contents('php://input');
+            // 判断是否为json数据
+            if($request_data!==false&&$request_data!=='') {
+                // 解析json数据
+                $request_data=json_decode($request_data,true);
+                // 判断是否解析成功
+                if($request_data!==null)
+                    self::$request_params['_POST']=$request_data;
+            }
+        }
         $_GET=array();
         $_POST=array();
         $_COOKIE=array();

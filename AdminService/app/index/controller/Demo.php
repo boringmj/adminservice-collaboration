@@ -35,9 +35,7 @@ class Demo extends Controller {
     public function sql() {
         // 预览 Demo, 该方法随时可能被删除
         $test=new Sql();
-        return json(array(
-            'data'=>$test->test()
-        ));
+        return json(null,null,$test->test());
     }
 
 }

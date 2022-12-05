@@ -4,7 +4,6 @@ namespace AdminService\sql;
 
 use base\SqlDrive;
 use AdminService\Exception;
-use AdminService\Config;
 
 /**
  * Mysql 驱动类

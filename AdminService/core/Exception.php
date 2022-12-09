@@ -3,8 +3,31 @@
 namespace AdminService;
 
 use base\Exception as BaseException;
+use AdminService\App;
 
 final class Exception extends BaseException {
+
+    /**
+     * 构造方法
+     * 
+     * @access public
+     * @param string $message
+     * @param int $error_code
+     */
+    final public function __construct(string $message,int $error_code=0,array $data=array()) {
+        $this->error_code=$error_code;
+        $this->message=$message;
+        $this->data=$data;
+        //写入日志
+        App::get('Log')->write(
+            'Error({error_code}): {message} | data: {data}',
+            array(
+                'message'=>$message,
+                'error_code'=>$error_code,
+                'data'=>json_encode($data)
+            )
+        );
+    }
 
     /**
      * 输出错误信息

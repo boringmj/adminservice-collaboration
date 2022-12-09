@@ -5,6 +5,7 @@ namespace AdminService;
 use AdminService\Exception;
 use AdminService\App;
 use AdminService\Config;
+use AdminService\Log;
 
 final class Main {
     
@@ -95,6 +96,20 @@ final class Main {
                     <p>错误文件: {$error['file']}</p>
                     <p>错误行数: {$error['line']}</p>
                 </div>";
+                // 记录日志
+                try {
+                    $Log=new Log();
+                    $Log->write(
+                        '发生错误或警告: {message} in {file} on line {line}',
+                        array(
+                            'message'=>$error['message'],
+                            'file'=>$error['file'],
+                            'line'=>$error['line']
+                        )
+                    );
+                } catch(\Exception $e) {
+                    echo "<br>日志记录失败: {$e->getMessage()}";
+                }
                 exit();
             }
             // 如果没有异常则正常结束并输出内容

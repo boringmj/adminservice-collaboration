@@ -8,7 +8,13 @@ abstract class Exception extends \Exception {
      * 额外数据
      * @var array
      */
-    private array $data;
+    protected array $data;
+
+    /**
+     * 错误码
+     * @var int
+     */
+    protected int $error_code;
 
     /**
      * 构造方法
@@ -17,7 +23,7 @@ abstract class Exception extends \Exception {
      * @param string $message
      * @param int $error_code
      */
-    final public function __construct(string $message,int $error_code=0,array $data=array()) {
+    public function __construct(string $message,int $error_code=0,array $data=array()) {
         $this->error_code=$error_code;
         $this->message=$message;
         $this->data=$data;

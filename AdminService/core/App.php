@@ -20,7 +20,9 @@ final class App extends Container {
             'Request'=>$classes['Request']??Request::class,
             'File'=>$classes['File']??File::class,
             'Exception'=>$classes['Exception']??Exception::class,
-            'Cookie'=>$classes['Cookie']??Cookie::class
+            'Cookie'=>$classes['Cookie']??Cookie::class,
+            'Config'=>$classes['Config']??Config::class,
+            'Log'=>$classes['Log']??Log::class
         );
         // 遍历类是否存在
         foreach($classes as $class)

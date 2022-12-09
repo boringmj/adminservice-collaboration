@@ -9,6 +9,7 @@ namespace AdminService;
  */
 
 return array(
+
     // app 相关配置
     'app'=>array(
         'path'=>__DIR__.'/app',
@@ -38,7 +39,7 @@ return array(
     'data'=>array(
         'path'=>__DIR__.'/data', // 该目录需要可写权限
         'ext_name'=>'.data.json', // 文件扩展名
-        'dir_mode'=>0644, // 目录权限(Windows下无效)
+        'dir_mode'=>0644, // 自动创建的目录权限(Windows下无效)
         'rule'=>array(
             'file'=>'/^[a-zA-Z0-9_\-]+$/', // 文件名规则(暂未生效)
             'key'=>'/^[a-zA-Z0-9_\-]+$/' // 数据的键名规则(暂未生效)
@@ -106,6 +107,19 @@ return array(
         'support_type'=>array(
             'mysql'=>\AdminService\sql\Mysql::class // Mysql类型的数据库支持
         )
+        ),
+
+    // log 相关配置
+    'log'=>array(
+        'path'=>__DIR__.'/log', // 该文件需要可写权限
+        'ext_name'=>'.log', // 文件扩展名
+        'dir_mode'=>0644, // 自动创建的目录权限(Windows下无效)
+        'max_size'=>104857600, // 单个日志文件最大尺寸(单位: 字节),默认100M (default: 104857600)
+        'rule'=>array(
+            'file'=>'/^[a-zA-Z0-9_\-]+$/' // 文件名规则(暂未生效)
+        ),
+        'row'=>'[{date}-{time}] {msg}', // 日志行格式,支持的变量有: {data}日期,{time}时间, {msg}日志内容
+        'default_file'=>'{date}', // 默认日志文件名,支持的变量有: {data}日期, 系统不会检查文件名是否符合规则,请自行保证
     )
 
 );

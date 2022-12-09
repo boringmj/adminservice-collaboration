@@ -3,6 +3,7 @@
 namespace AdminService;
 
 use base\Container;
+use AdminService\Exception;
 
 final class App extends Container {
 

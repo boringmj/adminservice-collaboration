@@ -60,7 +60,7 @@ final class Log {
         // 如果日志格式不为空,则进行变量绑定
         $content=$this->bind($format,array(
             'date'=>date('Y-m-d',time()),
-            'time'=>date('Y-m-d H:i:s',time()),
+            'time'=>date('H:i:s',time()),
             'msg'=>$this->bind($content,$vars)
         ));
         // 写入日志

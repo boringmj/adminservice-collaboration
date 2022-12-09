@@ -20,11 +20,13 @@ final class Exception extends BaseException {
         $this->data=$data;
         //写入日志
         App::get('Log')->write(
-            'Error({error_code}): {message} | data: {data}',
+            'Error({error_code}): {message} | data: {data} in {file} on line {line}',
             array(
                 'message'=>$message,
                 'error_code'=>$error_code,
-                'data'=>json_encode($data)
+                'data'=>json_encode($data),
+                'file'=>$this->getFile(),
+                'line'=>$this->getLine()
             )
         );
     }

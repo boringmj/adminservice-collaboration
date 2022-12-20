@@ -5,10 +5,10 @@ namespace AdminService\common;
 /**
  * 生成UUID
  * 
- * @param string $use_time 是否使用时间戳
+ * @param bool $use_time 是否使用时间戳
  * @return string
  */
-function uuid($use_time=false): string {
+function uuid(bool $use_time=false): string {
     $charid=strtoupper(md5(uniqid(mt_rand(),true)));
     $server_time=dechex(time());
     $server_time=str_pad(substr($server_time,-8),8,'0',STR_PAD_LEFT);

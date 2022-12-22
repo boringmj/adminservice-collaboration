@@ -121,7 +121,7 @@ final class Log {
             return $string;
         // 遍历变量
         foreach($vars as $key=>$value) {
-            if(is_array($value))
+            if(!is_string($value))
                 $value=json_encode($value,JSON_UNESCAPED_UNICODE);
             $string=str_replace('{'.$key.'}',$value,$string);
         }

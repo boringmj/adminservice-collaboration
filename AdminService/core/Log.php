@@ -78,7 +78,7 @@ final class Log {
         if(!is_file($this->log_path))
             file_put_contents($this->log_path,'');
         // 判断日志文件大小是否超过最大值
-        if(filesize($this->log_path)>Config::get('log.max_size')) {
+        if(filesize($this->log_path)>Config::get('log.max_size',104857600)) {
             $log_path_info=pathinfo($this->log_path);
             $log_path=$log_path_info['dirname'].'/'.$log_path_info['filename'];
             $log_ext_name=$log_path_info['extension'];

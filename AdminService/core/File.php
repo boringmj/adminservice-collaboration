@@ -25,7 +25,7 @@ final class File {
      * @access public
      * @param string $file_name 文件名称(不含扩展名和多余的路径)
      */
-    public function __construct(string $file_name=null) {
+    public function __construct(?string $file_name=null) {
         if($file_name!==null)
             $this->init($file_name);
     }
@@ -37,7 +37,7 @@ final class File {
      * @param string $file_name 文件名称(不含扩展名和多余的路径)
      * @return void
      */
-    public function init(string $file_name=null): void {
+    public function init(?string $file_name=null): void {
         if($file_name===null)
             $file_name='cache_'.\AdminService\common\uuid();
         if(!preg_match('/^[a-zA-Z0-9_-]+$/',$file_name))

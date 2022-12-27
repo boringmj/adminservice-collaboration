@@ -64,8 +64,8 @@ abstract class Database {
             .';charset='.$this->db_config['charset'];
         $this->db=new \PDO(
             $dsn,
-            $config['user']??$this->db_config['user'],
-            $config['password']??$this->db_config['password']
+            $this->db_config['user'],
+            $this->db_config['password']
         );
     }
 

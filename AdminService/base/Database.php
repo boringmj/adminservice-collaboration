@@ -275,7 +275,6 @@ abstract class Database {
         return $this->db_object->delete($data);
     }
 
-
 }
 
 ?>

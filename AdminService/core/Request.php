@@ -291,7 +291,6 @@ final class Request extends BaseRequest {
         header($name.': '.$value);
     }
 
-
 }
 
 ?>

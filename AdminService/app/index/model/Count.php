@@ -20,7 +20,7 @@ class Count extends Model {
      * @param File $file 文件对象
      */
     public function __construct(File $file=(new File('count'))) {
-        $this->file=$file;       
+        $this->file=$file;
     }
 
     /**

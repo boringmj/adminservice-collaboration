@@ -128,6 +128,7 @@ final class Log {
         // 返回替换后的字符串
         return $string;
     }
+
 }
 
 ?>

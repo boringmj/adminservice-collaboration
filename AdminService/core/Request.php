@@ -2,6 +2,7 @@
 
 namespace AdminService;
 
+use AdminService\Config;
 use base\Request as BaseRequest;
 
 /**

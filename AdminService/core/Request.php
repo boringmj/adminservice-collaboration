@@ -116,7 +116,7 @@ final class Request extends BaseRequest {
         if(is_array($params)||$value!==null) {
             return self::setCookie($params,$value,$enforce);
         }
-        return self::getCookie($params);
+        return self::getCookie(Config::get('cookie.prefix','').$params);
     }
 
     /**
@@ -128,7 +128,7 @@ final class Request extends BaseRequest {
      * @return mixed
      */
     static public function getCookie(int|string $params,mixed $default=null): mixed {
-        return self::$request_params['_COOKIE'][$params]??$default;
+        return self::$request_params['_COOKIE'][Config::get('cookie.prefix','').$params]??$default;
     }
 
     /**

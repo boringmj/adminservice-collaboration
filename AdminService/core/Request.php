@@ -239,14 +239,17 @@ final class Request extends BaseRequest {
                     'msg'=>self::$request_info['msg'],
                     'data'=>$data
                 ));
-        }
-        else
+        } else if((self::$request_info['return_type']??null)=='html') {
             if(is_string($data)||is_null($data))
                 self::$request_info['return_data']=$data;
             else
                 throw new Exception('Return data type is not string|null!',100202,array(
                     'data'=>$data
                 ));
+        } else {
+            if(is_string($data)||is_null($data))
+                self::$request_info['return_data']=$data;
+        }
         exit();
     }
 
@@ -261,20 +264,15 @@ final class Request extends BaseRequest {
     }
 
     /**
-     * 设置返回类型
+     * 设置返回类型(需要注意,每次设置都会引入对应的Header,如果已经设置过Header,则会覆盖)
      * 
      * @access public
-     * @param string $type 数据类型(html|json,default:html)
+     * @param string $type 数据类型(*,default:html)
      * @return void
      */
     final static public function setReturnType(string $type): void {
-        if($type==='json') {
-            self::$request_info['return_type']='json';
-            $header=Config::get('request.json.header');
-        } else {
-            self::$request_info['return_type']='html';
-            $header=Config::get('request.html.header');
-        }
+        self::$request_info['return_type']=$type;
+        $header=Config::get('request.'.$type.'.header',array());
         // 合并Header,如果冲突保留后面数组的值
         self::$request_info['return_header']=array_merge(self::$request_info['return_header'],$header);
     }

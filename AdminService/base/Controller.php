@@ -13,7 +13,7 @@ use AdminService\App;
  * @access public
  * @abstract
  * @package base
- * @version 1.0.1
+ * @version 1.0.2
  */
 abstract class Controller {
 
@@ -21,13 +21,13 @@ abstract class Controller {
      * 请求对象
      * @var \base\Request
      */
-    private Request $request;
+    protected Request $request;
 
     /**
      * 视图对象
      * @var \base\View
      */
-    private View $view;
+    protected View $view;
 
     /**
      * 构造方法
@@ -66,10 +66,10 @@ abstract class Controller {
     }
 
     /**
-     * 设置返回的数据类型
+     * 设置返回的数据类型(需要注意,每次设置都会引入对应的Header,如果已经设置过Header,则会覆盖)
      * 
      * @access protected
-     * @param string $type 数据类型(html|json,default:html)
+     * @param string $type 数据类型(*,default:html)
      * @return self
      */
     final protected function type(string $type): self {

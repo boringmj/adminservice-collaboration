@@ -95,10 +95,7 @@ abstract class Request {
             'cookie'=>array(),
             'return_data'=>null
         );
-        if(self::$request_info['return_type']==='json')
-            self::$request_info['return_header']=Config::get('request.json.header');
-        else
-            self::$request_info['return_header']=Config::get('request.html.header');
+        self::$request_info['return_header']=Config::get('request.'.self::$request_info['return_type'].'.header',array());
     }
 
     /**

@@ -148,6 +148,45 @@ abstract class Container {
             self::setData($name,$data);
     }
 
+    /**
+     * 自动化依赖注入(本方法不会对构造函自动注入,所以需要传入对象),请注意,系统类不支持自动注入,
+     * 需要注入的类不支持需要传参的构造函数
+     * 
+     * @access public
+     * @param object $object 对象
+     * @param string $method 方法名
+     * @return mixed
+     */
+    static public function autoInject(object $object,string $method): mixed {
+        // 获取方法参数
+        $reflection=new \ReflectionMethod($object,$method);
+        $params=$reflection->getParameters();
+        // 如果方法参数为空则直接执行方法
+        if(empty($params))
+            return $object->$method();
+        // 依赖注入
+        $args=[];
+        foreach($params as $param) {
+            // 获取参数类型
+            $type=$param->getType();
+            if(is_object($type)&&class_exists($type)) {
+                // 如果参数类型为类则实例化该类
+                $type=(string)$type;
+                $args[]=new $type;
+            } else {
+                // 判断是否有默认值
+                if($param->isDefaultValueAvailable())
+                    $args[]=$param->getDefaultValue();
+                if($param->allowsNull())
+                    $args[]=null;
+                else
+                    throw new Exception('Unsupported form of dependency injection.');
+            }
+        }
+        // 执行方法
+        return $reflection->invokeArgs($object,$args);
+    }
+
 }
 
 ?>

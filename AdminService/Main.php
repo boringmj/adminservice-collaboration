@@ -23,12 +23,8 @@ final class Main {
         // error_reporting(0);
         date_default_timezone_set('PRC');
         register_shutdown_function($this->end());
-        $GLOBALS['AdminService']=array();
         // 加载配置文件
-        $GLOBALS['AdminService']['config']=require_once __DIR__.'/config.php';
-        // 将 .env 文件中的配置信息写入到配置文件中
-        $this->env();
-        (new Config())->set($GLOBALS['AdminService']['config']);
+        Config::load();
         // 加载函数库
         $this->loadFunction();
         // App初始化
@@ -36,39 +32,6 @@ final class Main {
         // 初始化请求
         Request::init();
         return $this;
-    }
-
-    /**
-     * 加载 .env 文件中的配置信息
-     * 
-     * @access private
-     * @return void
-     */
-    private function env(): void {
-        $env_file=__DIR__.'/../.env';
-        if(file_exists($env_file)) {
-            $env_file=file_get_contents($env_file);
-            $env_file=explode("\n",$env_file);
-            foreach($env_file as $env) {
-                // 清除空格
-                $env=trim($env);
-                // 判断是否是注释或者为空
-                if(substr($env,0,1)==='#'||$env==='')
-                    continue;
-                $env=explode('=',$env);
-                $name=strtolower($env[0])??0;
-                $value=$env[1]??null;
-                // 将name转为数组并赋值
-                $name=explode('.',$name);
-                $config=&$GLOBALS['AdminService']['config'];
-                foreach($name as $n) {
-                    if(!isset($config[$n]))
-                        $config[$n]=array();
-                    $config=&$config[$n];
-                }
-                $config=$value;
-            }
-        }
     }
 
     /**

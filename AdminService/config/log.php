@@ -4,7 +4,7 @@ namespace AdminService\config;
 
 // log 相关配置
 return array(
-    'path'=>__DIR__.'/log', // 该文件需要可写权限
+    'path'=>__DIR__.'/../log', // 该文件需要可写权限
     'ext_name'=>'.log', // 文件扩展名
     'dir_mode'=>0644, // 自动创建的目录权限(Windows下无效)
     'max_size'=>104857600, // 单个日志文件最大尺寸(单位: 字节),默认100M (default: 104857600)

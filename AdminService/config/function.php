@@ -3,7 +3,7 @@
 namespace AdminService\config;
 
 // function 相关配置
-array(
+return array(
     'path'=>__DIR__.'/../common', // 公共函数目录
     'loader'=>array( // 需要自动加载的函数文件名(不含扩展名)
         'uuid', // uuid函数

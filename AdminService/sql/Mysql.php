@@ -214,11 +214,8 @@ final class Mysql extends SqlDrive {
         if($stmt->execute())
         {
             $result=$stmt->fetch(\PDO::FETCH_ASSOC);
-            // 如果结果为false, 则原样返回false
-            if($result===false)
-                return false;
             // 如果$fields不是数组且不为*, 则返回对应字段的值
-            if(!is_array($fields)&&$fields!=='*')
+            if((!is_array($fields)&&$fields!=='*')&&isset($result[$fields]))
                 $result=$result[$fields];
             $stmt->closeCursor();
             // 重置where条件

@@ -266,11 +266,11 @@ abstract class Database {
     /**
      * 删除数据
      * 
-     * @access public
+     * @access protected
      * @param int|string|array|null $data 主键或者组件组
      * @return bool
      */
-    public function delete(int|string|array|null $data=null): bool {
+    protected function delete(int|string|array|null $data=null): bool {
         $this->autoTable();
         return $this->db_object->delete($data);
     }

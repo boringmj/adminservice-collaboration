@@ -27,6 +27,19 @@ final class Mysql extends SqlDrive {
     private array $where_temp;
 
     /**
+     * 重置查询状态
+     * 
+     * @access protected
+     * @return self
+     */
+    public function reset(): self {
+        $this->where_array=array();
+        $this->where_temp=array();
+        $this->iterator=false;
+        return $this;
+    }
+
+    /**
      * 将各种数据格式转换为指定格式
      * 
      * @access private
@@ -179,16 +192,38 @@ final class Mysql extends SqlDrive {
         }
         if($stmt->execute())
         {
-            $result=$stmt->fetchAll(\PDO::FETCH_ASSOC);
-            $stmt->closeCursor();
-            // 重置where条件
-            $this->where_array=array();
-            return $result;
+            // 判断是否需要返回迭代器
+            if($this->iterator) {
+                return $this->iterator_select($stmt);
+            } else {
+                $result=$stmt->fetchAll(\PDO::FETCH_ASSOC);
+                $stmt->closeCursor();
+                // 重置查询状态
+                $this->reset();
+                return $result;
+            }
         }
         throw new Exception('SQL execute error.',100406,array(
             'sql'=>$sql,
             'error'=>$stmt->errorInfo()
         ));
+    }
+
+    /**
+     * 通过迭代器查询数据
+     * 
+     * @access public
+     * @param object $stmt PDOStatement对象
+     * @return mixed
+     */
+    private function iterator_select(object $stmt): mixed {
+        $this->iterator=false;
+        // 逐条读取数据
+        while($row=$stmt->fetch(\PDO::FETCH_ASSOC))
+            yield $row;
+        $stmt->closeCursor();
+        // 重置查询状态
+        $this->reset();
     }
 
     /**
@@ -218,8 +253,8 @@ final class Mysql extends SqlDrive {
             if((!is_array($fields)&&$fields!=='*')&&(!is_bool($result))&&isset($result[$fields]))
                 $result=$result[$fields];
             $stmt->closeCursor();
-            // 重置where条件
-            $this->where_array=array();
+            // 重置查询状态
+            $this->reset();
             return $result;
         }
         throw new Exception('SQL execute error.',100406,array(
@@ -263,8 +298,8 @@ final class Mysql extends SqlDrive {
                 ));
             }
         }
-        // 重置where条件
-        $this->where_array=array();
+        // 重置查询状态
+        $this->reset();
         return $result;
     }
 
@@ -304,10 +339,9 @@ final class Mysql extends SqlDrive {
                 $stmt->bindValue($i,$value['value']);
                 $i++;
             }
-            // 重置where临时条件
-            $this->where_temp=array();
             if(!$stmt->execute()) {
-                $result=false;
+                // 重置查询条件
+                $this->reset();
                 throw new Exception('SQL execute error.',100408,array(
                     'sql'=>$sql,
                     'data'=>$temp,
@@ -315,8 +349,8 @@ final class Mysql extends SqlDrive {
                 ));
             }
         }
-        // 重置where条件
-        $this->where_array=array();
+        // 重置查询条件
+        $this->reset();
         return $result;
     }
 
@@ -368,8 +402,8 @@ final class Mysql extends SqlDrive {
                 'error'=>$stmt->errorInfo()
             ));
         }
-        // 重置where条件
-        $this->where_array=array();
+        // 重置查询状态
+        $this->reset();
         return $result;
     }
 

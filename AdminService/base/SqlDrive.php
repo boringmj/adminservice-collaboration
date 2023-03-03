@@ -32,6 +32,12 @@ abstract class SqlDrive implements Sql {
      */
     protected string $table;
 
+     /**
+     * 是否以迭代器形式返回
+     * @var bool
+     */
+    protected bool $iterator;
+
     /**
      * 查询数据
      * 
@@ -93,6 +99,14 @@ abstract class SqlDrive implements Sql {
      * @return bool
      */
     abstract public function delete(int|string|array|null $data=null): bool;
+
+    /**
+     * 重置查询状态
+     * 
+     * @access protected
+     * @return self
+     */
+    abstract public function reset(): self;
 
     /**
      * 开启事务
@@ -158,6 +172,7 @@ abstract class SqlDrive implements Sql {
     final public function db(\PDO $db): self {
         $this->db=$db;
         $this->is_connect=true;
+        $this->iterator=false;
         return $this;
     }
 
@@ -196,6 +211,17 @@ abstract class SqlDrive implements Sql {
             'field'=>$key,
             'rule'=>$rule
         ));
+    }
+
+    /**
+     * 设置下一次返回数据为迭代器(仅对 select 生效)
+     * 
+     * @access public
+     * @return self
+     */
+    public function iterator(): self {
+        $this->iterator=true;
+        return $this;
     }
 
 }

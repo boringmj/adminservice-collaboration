@@ -275,6 +275,29 @@ abstract class Database {
         return $this->db_object->delete($data);
     }
 
+    /**
+     * 设置下一次返回数据为迭代器(仅对 select 生效)
+     * 
+     * @access public
+     * @return self
+     */
+    public function iterator(): self {
+        $this->db_object->iterator();
+        return $this;
+    }
+
+    /**
+     * 重置查询状态
+     * 
+     * @access public
+     * @return self
+     */
+    public function reset(): self {
+        $this->db_object->reset();
+        return $this;
+    }
+
+
 }
 
 ?>

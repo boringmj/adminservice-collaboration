@@ -76,8 +76,10 @@ class Sql extends Model {
         return $this->find();
 
         # 查询全部
-        //return $this->select();
+        // return $this->select();
         // return $this->select('*');
+        # 反回迭代器
+        // return $this->iterator()->select();
         # 查询指定字段
         // return $this->select('id');
         // return $this->select(array('id','app_id'));

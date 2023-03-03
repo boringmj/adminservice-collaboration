@@ -109,6 +109,22 @@ interface Sql {
      */
     public function rollBack(): void;
 
+    /**
+     * 设置下一次返回数据为迭代器(仅对 select 生效)
+     * 
+     * @access public
+     * @return self
+     */
+    public function iterator(): self;
+
+    /**
+     * 重置查询状态
+     * 
+     * @access protected
+     * @return self
+     */
+    public function reset(): self;
+
 }
 
 ?>

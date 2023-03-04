@@ -67,6 +67,9 @@ abstract class Database {
             $this->db_config['user'],
             $this->db_config['password']
         );
+        // 这是为了防止 PDO::FETCH_ASSOC 返回的数据类型为 string
+        $this->db->setAttribute(\PDO::ATTR_STRINGIFY_FETCHES, false);
+        $this->db->setAttribute(\PDO::ATTR_EMULATE_PREPARES, false);
     }
 
     /**

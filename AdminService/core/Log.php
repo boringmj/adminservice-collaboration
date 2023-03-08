@@ -63,6 +63,12 @@ final class Log {
             'time'=>date('H:i:s',time()),
             'msg'=>$this->bind($content,$vars)
         ));
+        // 将换行符替换为"\\n"
+        $eol=array(
+            "\\"=>"\\\\",
+            "\n"=>"\\n",
+            "\r"=>"\\r"
+        );
         // 写入日志
         file_put_contents($this->log_path,$content.PHP_EOL,FILE_APPEND);
     }

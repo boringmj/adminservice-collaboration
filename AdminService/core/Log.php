@@ -69,6 +69,7 @@ final class Log {
             "\n"=>"\\n",
             "\r"=>"\\r"
         );
+        $content=str_replace(array_keys($eol),array_values($eol),$content);
         // 写入日志
         file_put_contents($this->log_path,$content.PHP_EOL,FILE_APPEND);
     }

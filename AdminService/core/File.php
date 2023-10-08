@@ -38,12 +38,13 @@ final class File {
      * @return void
      */
     public function init(?string $file_name=null): void {
-        if($file_name===null)
+        if($file_name===null) {
             $file_name_cycle=Config::get("data.name_cycle");
             if($file_name_cycle>0)
                 $file_name='cache_'.floor(time()/$file_name_cycle);
             else
                 $file_name='cache_'.\AdminService\common\uuid();
+        }
         if(!preg_match('/^[a-zA-Z0-9_-]+$/',$file_name))
             throw new Exception('File name is invalid',-1);
         $this->file_path=Config::get("data.path").'/'.$file_name.Config::get("data.ext_name");

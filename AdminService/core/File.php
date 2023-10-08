@@ -26,8 +26,7 @@ final class File {
      * @param string $file_name 文件名称(不含扩展名和多余的路径)
      */
     public function __construct(?string $file_name=null) {
-        if($file_name!==null)
-            $this->init($file_name);
+        $this->init($file_name);
     }
 
     /**

@@ -12,13 +12,11 @@
             "base\\": "AdminService/base/",
             "AdminService\\": "AdminService/core/",
             "AdminService\\model\\": "AdminService/model/",
-            "AdminService\\sql\\": "AdminService/sql/"
+            "AdminService\\sql\\": "AdminService/sql/",
+            "app\\": "AdminService/app/"
         },
         "files": [
             "AdminService/Main.php"
-        ],
-        "classmap": [
-            "AdminService/app"
         ]
     }
 }

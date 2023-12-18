@@ -59,6 +59,14 @@ interface Sql {
     public function table(string $table): self;
 
     /**
+     * 获取上一次执行的SQL语句
+     * 
+     * @access public
+     * @return string
+     */
+    public function getLastSql(): string;
+
+    /**
      * 插入数据
      * 
      * @access public

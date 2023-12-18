@@ -78,7 +78,7 @@ class Sql extends Model {
         # 查询全部
         // return $this->select();
         // return $this->select('*');
-        # 反回迭代器
+        # 反回迭代器(当数据量过大时,建议使用迭代器,否则可能会导致内存溢出)
         // return $this->iterator()->select();
         # 查询指定字段
         // return $this->select('id');
@@ -110,6 +110,24 @@ class Sql extends Model {
          # 查询指定条件(非链式)
         /* $this->where('id',1);
         return $this->select(); */
+
+        # 使用order排序(仅对 select 和 find 生效)
+        // return $this->order('id')->select();
+        # 目前是支持使用“`”符号的
+        // return $this->order('`id`')->select();
+        # 自定义排序方式 ASC DESC,请注意必须使用单个空格分隔
+        // return $this->order('id DESC')->select();
+        # 多个排序方式
+        // return $this->order(array('id','DESC'),array('app_id','ASC'))->select();
+        // return $this->order('id DESC','app_id ASC')->select();
+        // return $this->order('`id` DESC',array('`app_id`','ASC'))->select();
+        
+        # 使用limit限制(仅对 select 生效)
+        // return $this->limit(1)->select();
+        // return $this->limit(1,2)->select();
+
+        # 获取最后一次执行的SQL语句
+        // return $this->getLastSql();
 
         /* // 这种写法我们不会支持, 因为这将与其他写法产生不必要的冲突
         return $this->where(

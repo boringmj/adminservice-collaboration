@@ -243,6 +243,16 @@ abstract class Database {
     }
 
     /**
+     * 获取上一次执行的SQL语句
+     * 
+     * @access protected
+     * @return string
+     */
+    protected function getLastSql(): string {
+        return $this->db_object->getLastSql();
+    }
+
+    /**
      * 插入数据
      * 
      * @access protected

@@ -51,6 +51,12 @@ abstract class SqlDrive implements Sql {
     protected array $order;
 
     /**
+     * 上一次执行的SQL语句
+     * @var string
+     */
+    protected string $lastsql;
+
+    /**
      * 查询数据
      * 
      * @access public
@@ -225,6 +231,14 @@ abstract class SqlDrive implements Sql {
         $this->table=$table;
         return $this;
     }
+
+    /**
+     * 获取上一次执行的SQL语句
+     * 
+     * @access public
+     * @return string
+     */
+    abstract public function getLastSql(): string;
 
     /**
      * 检查键值是合法

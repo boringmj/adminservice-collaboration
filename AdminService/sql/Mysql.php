@@ -35,6 +35,8 @@ final class Mysql extends SqlDrive {
     public function reset(): self {
         $this->where_array=array();
         $this->where_temp=array();
+        $this->limit=array();
+        $this->order=array();
         $this->iterator=false;
         return $this;
     }
@@ -196,6 +198,29 @@ final class Mysql extends SqlDrive {
     }
 
     /**
+     * 获取上一次执行的SQL语句
+     * 
+     * @access public
+     * @return string
+     */
+    public function getLastSql(): string {
+        return $this->lastsql??'';
+    }
+
+    /**
+     * 准备sql语句
+     * 
+     * @access public
+     * @param string $sql SQL语句
+     * @return mixed
+     */
+    public function prepare(string $sql): mixed {
+        $this->check_connect();
+        $this->lastsql=$sql;
+        return $this->db->prepare($sql);
+    }
+
+    /**
      * 查询数据
      * 
      * @access public
@@ -204,7 +229,7 @@ final class Mysql extends SqlDrive {
      */
     public function select(string|array $fields='*'): mixed {
         $sql=$this->build('select',$fields);
-        $stmt=$this->db->prepare($sql);
+        $stmt=$this->prepare($sql);
         if($stmt===false)
             throw new Exception('SQL prepare error.',100420,array(
                 'sql'=>$sql,
@@ -260,7 +285,7 @@ final class Mysql extends SqlDrive {
      */
     public function find(string|array $fields='*'): mixed {
         $sql=$this->build('find',$fields);
-        $stmt=$this->db->prepare($sql);
+        $stmt=$this->prepare($sql);
         if($stmt===false)
             throw new Exception('SQL prepare error.',100420,array(
                 'sql'=>$sql,
@@ -303,7 +328,7 @@ final class Mysql extends SqlDrive {
             if(!is_array($temp))
                 throw new Exception('Insert $data not is array.',100422);
             $sql=$this->build('insert',$temp);
-            $stmt=$this->db->prepare($sql);
+            $stmt=$this->prepare($sql);
             if($stmt===false)
                 throw new Exception('SQL prepare error.',100421,array(
                     'sql'=>$sql,
@@ -343,7 +368,7 @@ final class Mysql extends SqlDrive {
             if(!is_array($temp))
                 throw new Exception('Update $data not is array.',100423);
             $sql=$this->build('update',$temp);
-            $stmt=$this->db->prepare($sql);
+            $stmt=$this->prepare($sql);
             if($stmt===false)
                 throw new Exception('SQL prepare error.',100424,array(
                     'sql'=>$sql,
@@ -472,7 +497,7 @@ final class Mysql extends SqlDrive {
         else if($data!==null)
             throw new Exception('Delete $data not is int, array, null or string.',100426);
         $sql=$this->build('delete',$data_temp);
-        $stmt=$this->db->prepare($sql);
+        $stmt=$this->prepare($sql);
         if($stmt===false)
             throw new Exception('SQL prepare error.',100427,array(
                 'sql'=>$sql,

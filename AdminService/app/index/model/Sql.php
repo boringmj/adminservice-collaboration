@@ -23,8 +23,11 @@ class Sql extends Model {
         
 
         # 查询一条数据(find 方法同样支持 select 方法的所有功能, 但是只会返回一条数据)
+        // return $this->find(); 
+
+        // 补充说明, 下面是一条极其复杂的SQL语句, 解释了诸多新特性, 可以尝试修改并查看SQL语句的变化
         return array(
-            'data'=>$this->order('id DESC')->limit(1)->find(),
+            'data'=>$this->order('id DESC')->limit(2,1)->limit(1)->order('id')->where('id',1)->find('app_id'),
             'sql'=>$this->getLastSql()
         );
 
@@ -64,7 +67,7 @@ class Sql extends Model {
         /* $this->where('id',1);
         return $this->select(); */
 
-        # 使用order排序(仅对 select 和 find 生效)
+        # 使用order排序(仅对 select 和 find 生效),可以多次调用
         // return $this->order('id')->select();
         # 目前是支持使用“`”符号的
         // return $this->order('`id`')->select();
@@ -75,7 +78,7 @@ class Sql extends Model {
         // return $this->order('id DESC','app_id ASC')->select();
         // return $this->order('`id` DESC',array('`app_id`','ASC'))->select();
         
-        # 使用limit限制(仅对 select 生效)
+        # 使用limit限制(仅对 select 生效)且仅生效最后一个limit
         // return $this->limit(1)->select();
         // return $this->limit(1,2)->select();
 

@@ -20,60 +20,13 @@ class Sql extends Model {
          * 5. 目前还不知道怎么写 OR 关系, OR 和 AND 混用必然会出现一个控制优先级和结合性的问题, 目前还没有想到好的解决方案
          */
 
-        # 开启事务
-        $this->beginTransaction();
-        try {
-            # 插入数据
-            $this->insert(
-                array(
-                    'app_id'=>time(),
-                    'app_key'=>md5(time()),
-                    'timestamp'=>time()
-                ),
-                array(
-                    'app_id'=>'a'.time(),
-                    'app_key'=>md5(time()),
-                    'timestamp'=>time()
-                )
-            );
-            # 通过主键更新数据(默认主键为id,暂不支持自定义主键)
-            $this->update(
-                array(
-                    'id'=>1, // 主键
-                    'app_id'=>time(),
-                    'app_key'=>md5(time()),
-                    'timestamp'=>time()
-                )
-            );
-            # 通过where条件更新数据(值得说明,where会对下一个update的所有数据生效,但如果有数据包含主键,则同样会使用主键作为条件)
-            $this->where('id',2,'>=')->where('id',3,'<')->update(
-                array(
-                    'id'=>2, // 主键,与where条件是 AND 关系
-                    'app_id'=>time(),
-                    'app_key'=>md5(time()),
-                    'timestamp'=>time()
-                ),
-                array(
-                    'app_id'=>'a'.time(),
-                    'app_key'=>md5(time()),
-                    'timestamp'=>time()
-                )
-            );
-            # 通过主键删除数据(默认主键为id,暂不支持自定义主键)
-            $this->delete(3);
-            $this->delete(array(4,5));
-            # 通过where条件删除数据
-            $this->where('id',6,'>=')->delete();
-        } catch(\AdminService\Exception $e) {
-            # 回滚事务
-            $this->rollBack();
-            return $e->getMessage();
-        }
-        # 提交事务
-        $this->commit();
+        
 
         # 查询一条数据(find 方法同样支持 select 方法的所有功能, 但是只会返回一条数据)
-        return $this->find();
+        return array(
+            'data'=>$this->order('id DESC')->limit(1)->find(),
+            'sql'=>$this->getLastSql()
+        );
 
         # 查询全部
         // return $this->select();

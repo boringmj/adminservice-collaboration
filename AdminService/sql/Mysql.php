@@ -69,9 +69,10 @@ final class Mysql extends SqlDrive {
      * @access private
      * @param string $type SQL类型
      * @param mixed $data 数据
+     * @param mixed $options 选项(辅助参数)
      * @return string
      */
-    private function build(string $type,mixed $data=null): string {
+    private function build(string $type,mixed $data=null,mixed $options=null): string {
         $this->check_connect();
         switch($type) {
             case 'select':
@@ -91,14 +92,15 @@ final class Mysql extends SqlDrive {
                     }
                 }
                 $sql='SELECT '.$fields_string.' FROM `'.$this->table.'`'.$this->build('where');
+                if($options==='find')
+                    return $sql;
                 // 添加排序和限制
                 $sql.=$this->build('order');
                 $sql.=$this->build('limit');
                 $sql.=';';
                 return $sql;
             case 'find':
-                $sql=$this->build('select',$data);
-                $sql=substr($sql,0,-1);
+                $sql=$this->build('select',$data,'find');
                 // 添加排序
                 $sql.=$this->build('order');
                 $sql.=' LIMIT 1;';

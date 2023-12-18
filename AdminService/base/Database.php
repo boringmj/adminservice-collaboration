@@ -267,6 +267,30 @@ abstract class Database {
     }
 
     /**
+     * 设置limit限制(仅对 select 生效)
+     * 
+     * @access public
+     * @param ...$data limit限制
+     * @return self
+     */
+    protected function limit(...$data): self {
+        $this->db_object->limit(...$data);
+        return $this;
+    }
+
+    /**
+     * 设置order排序(仅对 select 和 find 生效)
+     * 
+     * @access public
+     * @param ...$data order排序
+     * @return self
+     */
+    protected function order(...$data): self {
+        $this->db_object->order(...$data);
+        return $this;
+    }
+
+    /**
      * 删除数据
      * 
      * @access protected

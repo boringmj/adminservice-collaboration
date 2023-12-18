@@ -89,11 +89,16 @@ final class Mysql extends SqlDrive {
                     }
                 }
                 $sql='SELECT '.$fields_string.' FROM `'.$this->table.'`'.$this->build('where');
+                // 添加排序和限制
+                $sql.=$this->build('order');
+                $sql.=$this->build('limit');
                 $sql.=';';
                 return $sql;
             case 'find':
                 $sql=$this->build('select',$data);
                 $sql=substr($sql,0,-1);
+                // 添加排序
+                $sql.=$this->build('order');
                 $sql.=' LIMIT 1;';
                 return $sql;
             case 'insert':
@@ -164,6 +169,26 @@ final class Mysql extends SqlDrive {
                     if($data===true)
                         $sql.=')';
                 }
+                return $sql;
+            case 'limit':
+                $sql=' LIMIT ';
+                // 判断是否为空
+                if(empty($this->limit))
+                    return '';
+                // 取出第一个参数
+                $sql.=$this->limit[0];
+                // 判断是否存在第二个参数
+                if(!empty($this->limit[1]))
+                    $sql.=','.$this->limit[1];
+                return $sql;
+            case 'order':
+                $sql=' ORDER BY ';
+                // 判断是否为空
+                if(empty($this->order))
+                    return '';
+                foreach($this->order as $value)
+                    $sql.='`'.$value[0].'` '.$value[1].',';
+                $sql=substr($sql,0,-1);
                 return $sql;
             default:
                 throw new Exception('SQL not build.',100430);
@@ -352,6 +377,76 @@ final class Mysql extends SqlDrive {
         // 重置查询条件
         $this->reset();
         return $result;
+    }
+
+    /**
+     * 设置limit限制
+     * 
+     * @access public
+     * @param ...$data limit限制
+     * @return self
+     */
+    public function limit(...$data): self {
+        // 先判断传入的数据长度
+        if(count($data)>2||count($data)<1)
+            throw new Exception('Limit $data length error.',100429);
+        // 判断传入的数据类型
+        if(is_int($data[0])) {
+            if(isset($data[1])&&is_int($data[1]))
+                $this->limit=array($data[0],$data[1]);
+            else
+                $this->limit=array($data[0]);
+        } else
+            throw new Exception('Limit $data error.',100430);
+        return $this;
+    }
+
+    /**
+     * 设置order排序
+     * 
+     * @access public
+     * @param ...$data order排序
+     * @return self
+     */
+    public function order(...$data): self {
+        // 先判断传入的数据类型
+        foreach($data as $value) {
+            if(is_string($value)) {
+                // 判断是否可以通过空格分割为两个字符串
+                $temp=explode(' ',$value);
+                if(count($temp)>2)
+                    throw new Exception('Order $data length error.',100431);
+                // 将第一个字符左右的`去除
+                $temp[0]=trim($temp[0],'`');
+                // 判断第一个字符串是否为字段名
+                $this->check_key($temp[0]);
+                // 判断是否有第二个字符串,如果有则判断是否为 ASC 或 DESC, 如果没有则默认为 ASC
+                if(isset($temp[1])) {
+                    $temp[1]=strtoupper($temp[1]);
+                    if($temp[1]!=='ASC'&&$temp[1]!=='DESC')
+                        throw new Exception('Order $data error.',100432);
+                    $this->order[]=array($temp[0],$temp[1]);
+                } else
+                    $this->order[]=array($temp[0],'ASC');
+            } elseif (is_array($value)) {
+                if(count($value)>2||count($value)<1)
+                    throw new Exception('Order $data length error.',100431);
+                // 将第一个字符左右的`去除
+                $value[0]=trim($value[0],'`');
+                // 判断第一个字符串是否为字段名
+                $this->check_key($value[0]);
+                // 判断是否有第二个字符串,如果有则判断是否为 ASC 或 DESC, 如果没有则默认为 ASC
+                if(isset($value[1])) {
+                    $value[1]=strtoupper($value[1]);
+                    if($value[1]!=='ASC'&&$value[1]!=='DESC')
+                        throw new Exception('Order $data error.',100432);
+                    $this->order[]=array($value[0],$value[1]);
+                } else
+                    $this->order[]=array($value[0],'ASC');
+            } else
+                throw new Exception('Order $data error.',100433);
+        }
+        return $this;
     }
 
     /**

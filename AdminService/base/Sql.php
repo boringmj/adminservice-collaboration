@@ -77,6 +77,24 @@ interface Sql {
     public function update(...$data): bool;
 
     /**
+     * 设置limit限制
+     * 
+     * @access public
+     * @param ...$data limit限制
+     * @return self
+     */
+    public function limit(...$data): self;
+
+    /**
+     * 设置order排序
+     * 
+     * @access public
+     * @param ...$data order排序
+     * @return self
+     */
+    public function order(...$data): self;
+
+    /**
      * 删除数据
      * 
      * @access public

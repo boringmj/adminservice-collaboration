@@ -16,18 +16,78 @@ class Sql extends Model {
          * 1. 数据库事务非强制开启, 如需使用请自行开启
          * 2. 所有方法均可能抛出 \PDOException 异常和 \AdminService\Exception 异常
          * 3. 更新 和 删除 均需提供 where 条件 或 包含主键的数据, 否则会抛出异常
-         * 4. 现在, 同一个字段已经支持多个where了, 他们是 AND 关系
-         * 5. 目前还不知道怎么写 OR 关系, OR 和 AND 混用必然会出现一个控制优先级和结合性的问题, 目前还没有想到好的解决方案
+         * 4. 现在已经支持 order 和 limit 了
+         * 5. 现在已经可以通过更加复杂的 whereEx 构造复合型 where 了,同时也支持构造 OR 语句
+         * 6. 需要注意的是, whereEx 为了更方便以及更合理, 参数由 (<字段>,<值>,[操作符]) 改为 (<字段>,<值/操作符>,[操作符:<值>])
+         *      例如 where 的 ("id",$id,"=") 在 whereEx 中你可以这样写: ("id",$id) 或者 ("id","=",$id)
          */
 
-        
+        # 开启事务
+        $this->beginTransaction();
+        try {
+            # 插入数据
+            $this->insert(
+                array(
+                    'app_id'=>time(),
+                    'app_key'=>md5(time()),
+                    'timestamp'=>time()
+                ),
+                array(
+                    'app_id'=>'a'.time(),
+                    'app_key'=>md5(time()),
+                    'timestamp'=>time()
+                )
+            );
+            # 通过主键更新数据(默认主键为id,暂不支持自定义主键)
+            $this->update(
+                array(
+                    'id'=>1, // 主键
+                    'app_id'=>time(),
+                    'app_key'=>md5(time()),
+                    'timestamp'=>time()
+                )
+            );
+            # 通过where条件更新数据(值得说明,where会对下一个update的所有数据生效,但如果有数据包含主键,则同样会使用主键作为条件)
+            $this->where('id',2,'>=')->where('id',3,'<')->update(
+                array(
+                    'id'=>2, // 主键,与where条件是 AND 关系
+                    'app_id'=>time(),
+                    'app_key'=>md5(time()),
+                    'timestamp'=>time()
+                ),
+                array(
+                    'app_id'=>'a'.time(),
+                    'app_key'=>md5(time()),
+                    'timestamp'=>time()
+                )
+            );
+            # 通过主键删除数据(默认主键为id,暂不支持自定义主键)
+            $this->delete(3);
+            $this->delete(array(4,5));
+            # 通过where条件删除数据
+            $this->where('id',6,'>=')->delete();
+        } catch(\AdminService\Exception $e) {
+            # 回滚事务
+            $this->rollBack();
+            return $e->getMessage();
+        }
+        # 提交事务
+        $this->commit();
 
         # 查询一条数据(find 方法同样支持 select 方法的所有功能, 但是只会返回一条数据)
         // return $this->find(); 
 
         // 补充说明, 下面是一条极其复杂的SQL语句, 解释了诸多新特性, 可以尝试修改并查看SQL语句的变化
         return array(
-            'data'=>$this->order('id DESC')->limit(2,1)->limit(1)->order('id')->where('id',1)->find('app_id'),
+            'data'=>$this->where('id',1)->whereEx(array('app_id','LIKE','op%'))->whereEx(array(
+                array('id',2),
+                array('app_key','LIKE','op%'),
+                array(
+                    array('id',3),
+                    array('app_key','LIKE','op%')
+                ),
+                'OR'
+            ))->order('id DESC')->limit(1,1)->select(),
             'sql'=>$this->getLastSql()
         );
 

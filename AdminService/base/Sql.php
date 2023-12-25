@@ -50,6 +50,15 @@ interface Sql {
     public function where(string|array $where): self;
 
     /**
+     * 高级查询
+     * 
+     * @access public
+     * @param array ...$data 高级查询条件
+     * @return self
+     */
+    public function whereEx(array ...$data): self;
+
+    /**
      * 设置数据库表名
      * 
      * @access public

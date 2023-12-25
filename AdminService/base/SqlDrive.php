@@ -32,23 +32,11 @@ abstract class SqlDrive implements Sql {
      */
     protected string $table;
 
-     /**
+    /**
      * 是否以迭代器形式返回
      * @var bool
      */
     protected bool $iterator;
-
-    /**
-     * limlt限制
-     * @var array
-     */
-    protected array $limit;
-
-    /**
-     * order排序
-     * @var array
-     */
-    protected array $order;
 
     /**
      * 上一次执行的SQL语句
@@ -90,6 +78,15 @@ abstract class SqlDrive implements Sql {
      * @return self
      */
     abstract public function where(string|array $where,mixed $data=null,?string $operator='='): self;
+
+    /**
+     * 高级查询
+     * 
+     * @access public
+     * @param array ...$data 高级查询条件
+     * @return self
+     */
+    abstract public function whereEx(array ...$data): self;
 
     /**
      * 插入数据

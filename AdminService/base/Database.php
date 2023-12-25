@@ -243,6 +243,18 @@ abstract class Database {
     }
 
     /**
+     * 高级查询
+     * 
+     * @access public
+     * @param array ...$data 高级查询条件
+     * @return self
+     */
+    public function whereEx(array ...$data): self {
+        $this->db_object->whereEx(...$data);
+        return $this;
+    }
+
+    /**
      * 获取上一次执行的SQL语句
      * 
      * @access protected

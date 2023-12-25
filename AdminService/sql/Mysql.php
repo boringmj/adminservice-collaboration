@@ -21,10 +21,34 @@ final class Mysql extends SqlDrive {
     private array $where_array;
 
     /**
+     * limlt限制
+     * @var array
+     */
+    private array $limit;
+
+    /**
+     * order排序
+     * @var array
+     */
+    private array $order;
+
+    /**
      * 临时where条件
      * @var array
      */
     private array $where_temp;
+
+    /**
+     * 高级where条件
+     * @var array
+     */
+    private array $where_ex;
+
+    /**
+     * 高级where条件的值
+     * @var array
+     */
+    private array $where_ex_value;
 
     /**
      * 重置查询状态
@@ -37,6 +61,8 @@ final class Mysql extends SqlDrive {
         $this->where_temp=array();
         $this->limit=array();
         $this->order=array();
+        $this->where_ex=array();
+        $this->where_ex_value=array();
         $this->iterator=false;
         return $this;
     }
@@ -132,21 +158,21 @@ final class Mysql extends SqlDrive {
                         continue;
                     }
                     $this->check_key($key);
-                    $fields_string.=$fields_string===''? ('`'.$key.'`=?'):(',`'.$key.'`=?');
+                    $fields_string.=$fields_string===''? ('`'.$key.'` = ?'):(',`'.$key.'` = ?');
                 }
-                if(empty($this->where_array)&&empty($this->where_temp))
+                if(empty($this->where_array)&&empty($this->where_temp)&&empty($this->where_ex))
                     throw new Exception('Update must have where condition.',100431);
                 $sql.=$fields_string.$this->build('where').';';
                 return $sql;
             case 'delete':
                 $sql='DELETE FROM `'.$this->table.'`';
                 // 先处理where条件
-                if(empty($this->where_array)&&empty($data))
+                if(empty($this->where_array)&&empty($data)&&empty($this->where_ex))
                     throw new Exception('Delete must have where condition.',100432);
                 $sql.=$this->build('where',true);
                 // 然后使用 OR 拼接全部 id
                 if(!empty($data)) {
-                    if(!empty($this->where_array))
+                    if(!empty($this->where_array)||!empty($this->where_ex))
                         $sql.=' OR ';
                     else
                         $sql.=' WHERE ';
@@ -168,10 +194,51 @@ final class Mysql extends SqlDrive {
                     if($data===true)
                         $sql.='(';
                     foreach($where as $value)
-                        $sql.='`'.$value['key'].'`'.$value['operator'].'? AND ';
-                    $sql=substr($sql,0,-5);
+                        $sql.='`'.$value['key'].'` '.$value['operator'].' ? AND ';
+                    // 判断是否存在其他where条件
+                    if(empty($this->where_ex))
+                        $sql=substr($sql,0,-5);
+                    else
+                        $sql.=$this->build('where_ex');
                     if($data===true)
                         $sql.=')';
+                }else {
+                    // 判断是否存在其他where条件
+                    if(empty($this->where_ex))
+                        return '';
+                    if($data===true)
+                        $sql.='(';
+                    $sql.=' WHERE ';
+                    $sql.=$this->build('where_ex');
+                    if($data===true)
+                        $sql.=')';
+                }
+                return $sql;
+            case 'where_ex':
+                $sql='';
+                // 判断是否存在其他where条件
+                if(empty($data))
+                    $data=$this->where_ex;
+                // 判断data是否为空
+                if(empty($data)) {
+                    if(!empty($this->where_array)||!empty($this->where_temp))
+                        return '';
+                    return '';
+                }
+                foreach($data as $value) {
+                    // 判断是否有where,有则需要继续遍历
+                    if(!empty($value['where'])) {
+                        $temp=$this->build('where_ex',$value['where'],$value['operator']);
+                        $sql.='('.$temp.')';
+                    } else {
+                        // 直接构造
+                        $sql.='`'.$value['key'].'` '.$value['operator'].' ?';
+                        // 将值存入数组
+                        $this->where_ex_value[]=$value['value'];
+                    }
+                    // 如果不为最后一个元素,则添加连接符号
+                    if($value!==end($data))
+                        $sql.=($options==='OR'?' OR ':' AND ');
                 }
                 return $sql;
             case 'limit':
@@ -237,9 +304,15 @@ final class Mysql extends SqlDrive {
                 'sql'=>$sql,
                 'error'=>$this->db->errorInfo()
             ));
+        // 传入where条件的值
         $i=1;
         foreach($this->where_array as $value) {
             $stmt->bindValue($i,$value['value']);
+            $i++;
+        }
+        // 传入高级where条件的值
+        foreach($this->where_ex_value as $value) {
+            $stmt->bindValue($i,$value);
             $i++;
         }
         if($stmt->execute())
@@ -293,9 +366,15 @@ final class Mysql extends SqlDrive {
                 'sql'=>$sql,
                 'error'=>$this->db->errorInfo()
             ));
+        // 传入where条件的值
         $i=1;
         foreach($this->where_array as $value) {
             $stmt->bindValue($i,$value['value']);
+            $i++;
+        }
+        // 传入高级where条件的值
+        foreach($this->where_ex_value as $value) {
+            $stmt->bindValue($i,$value);
             $i++;
         }
         if($stmt->execute())
@@ -389,6 +468,11 @@ final class Mysql extends SqlDrive {
             $where=array_merge($this->where_array,$this->where_temp);
             foreach($where as $value) {
                 $stmt->bindValue($i,$value['value']);
+                $i++;
+            }
+            // 最后绑定高级where条件
+            foreach($this->where_ex_value as $value) {
+                $stmt->bindValue($i,$value);
                 $i++;
             }
             if(!$stmt->execute()) {
@@ -511,7 +595,12 @@ final class Mysql extends SqlDrive {
             $stmt->bindValue($i,$value['value']);
             $i++;
         }
-        // 再绑定主键
+        // 然后绑定高级 where 条件
+        foreach($this->where_ex_value as $value) {
+            $stmt->bindValue($i,$value);
+            $i++;
+        }
+        // 最后绑定主键
         foreach($data_temp as $value) {
             $stmt->bindValue($i,$value);
             $i++;
@@ -594,6 +683,86 @@ final class Mysql extends SqlDrive {
     }
 
     /**
+     * 高级查询
+     * 
+     * @access public
+     * @param array ...$data 高级查询条件
+     * @return self
+     */
+    public function whereEx(array ...$data): self {
+        foreach($data as $where) {
+            // 判断 $where 是否为数组
+            if(!is_array($where))
+                throw new Exception('SQL whereEx error.',100434,array(
+                    'where'=>$where
+                ));
+            $this->where_ex[]=$this->whereExBuild($where);
+        }
+        return $this;
+    }
+
+    /**
+     * 将数组递归为多层where条件
+     * 
+     * @access private
+     * @param array $where where条件
+     * @return array
+     */
+    public function whereExBuild(array $where): array {
+        // 判断数组长度是否大于等于2
+        if(count($where)<2)
+            throw new Exception('SQL whereEx error.',100435,array(
+                'where'=>$where
+            ));
+        // 取出数组的最后一个元素,判断是否为“or”,“and”(转为大写后判断)
+        $last=array_pop($where);
+        // 如果是字符串,则转为大写
+        if(is_string($last))
+            $last=strtoupper($last);
+        if($last!=='OR'&&$last!=='AND'&&is_string($where[0])) {
+            // 如果末尾没有连接符号或连接符错误,且第一个元素为字符串,则视为该层为最后一层,返回结果
+            $operator='=';
+            $value='';
+            // 判断是否存在第三个参数,如果存在,则使用第三个参数作为值,如果不存在,则使用第二个参数作为值
+            if(isset($where[1])) {
+                $operator=strtoupper($where[1]);
+                $value=$last;
+            } else
+                $value=$last;
+            // 判断操作符是否在允许的范围内
+            if(!in_array($operator,array('=','>','<','>=','<=','!=','LIKE','NOT LIKE')))
+                throw new Exception('SQL operator error.',100438,array(
+                    'operator'=>$operator
+                ));
+            return array(
+                'key'=>$where[0],
+                'value'=>$value,
+                'operator'=>$operator,
+            );
+        }
+        // 如果末尾有连接符号,则视为该层为中间层,继续向后遍历
+        // 判断末尾是否为数组,如果是则加回去
+        if(is_array($last)) {
+            $where[]=$last;
+            $last='AND';
+        }
+        $result=array(
+            'operator'=>$last==='OR'?'OR':'AND',
+            'where'=>array()
+        );
+        foreach($where as $value) {
+            // 判断是否为数组
+            if(is_array($value))
+                $result['where'][]=$this->whereExBuild($value);
+            else
+                throw new Exception('SQL whereEx error.',100437,array(
+                    'where'=>$where
+                ));
+        }
+        return $result;
+    }
+
+    /**
      * 检查是否已经连接数据库
      * 
      * @access protected
@@ -612,6 +781,18 @@ final class Mysql extends SqlDrive {
         // 判断where_temp是否已经初始化
         if(empty($this->where_temp))
             $this->where_temp=array();
+        // 判断where_ex是否已经初始化
+        if(empty($this->where_ex))
+            $this->where_ex=array();
+        // 判断where_ex_value是否已经初始化
+        if(empty($this->where_ex_value))
+            $this->where_ex_value=array();
+        // 判断limit是否已经初始化
+        if(empty($this->limit))
+            $this->limit=array();
+        // 判断order是否已经初始化
+        if(empty($this->order))
+            $this->order=array();
     }
 
 }

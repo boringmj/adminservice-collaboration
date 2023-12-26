@@ -8,11 +8,7 @@ use AdminService\Log;
 class Index extends Controller {
 
     /**
-     * 目前依赖注入的问题非常多,特别是兼容性问题,所以暂时不推荐使用
-     * 
-     * 已经支持的依赖注入:
-     * 1. 无参数的构造方法
-     * 2. 无类型且存在默认值的变量
+     * 依赖注入相比之前有了不少进步,但依旧不能保证兼容性,所以请谨慎使用
      */
     public function index(Log $log,$name="World") {
         $log->write("Hello {$name}!");
@@ -20,5 +16,6 @@ class Index extends Controller {
     }
 
 }
+
 
 ?>

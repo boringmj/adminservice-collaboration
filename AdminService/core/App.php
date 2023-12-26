@@ -136,7 +136,7 @@ final class App extends Container {
      * @return DynamicProxy
      */
     static public function proxy(string $name,array $args=array()): DynamicProxy {
-        return new DynamicProxy($name,$args);
+        return new DynamicProxy($name,...$args);
     }
 
     /**

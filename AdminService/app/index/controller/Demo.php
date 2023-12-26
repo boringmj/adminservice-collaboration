@@ -7,7 +7,6 @@ use base\Controller;
 
 // 系统核心类
 use AdminService\App;
-use AdminService\Log;
 
 // 模型
 use app\index\model\Count;
@@ -43,12 +42,9 @@ class Demo extends Controller {
     }
 
     public function log() {
-        // 通过手动实例化日志类记录日志(优点是可以自定义日志文件名,缺点是需要手动实例化)
-        $log=new Log("debug");
-        $log->write("This is a debug message.");
-        // 通过App类记录日志(优点是不需要手动实例化,缺点是日志文件名依赖于配置 “log.default_file” )
-        App::get("Log")->write("This is a debug message in {name}.",array(
-            'name'=>'App class'
+        // 通过 App::get() 传入自定义参数(如果不传入则会尝试自动注入,如果注入失败则会抛出异常)
+        App::get("Log",'debug')->write("This is a debug message in {app}.",array(
+            'app'=>App::getAppName()
         ));
         // 输出日志文件路径
         return "日志存放目录: ".\AdminService\Config::get('log.path');

@@ -62,18 +62,27 @@ final class App extends Container {
      * @access public
      * @param string $name 对象名
      * @param bool $is_force 是否强制实例化
+     * @param array $falgs 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
      * @throws Exception
      * @return object
      */
-    static public function make(string $name,bool $is_force=false): object {
+    static public function make(string $name,bool $is_force=false,array &$flags=array()): object {
         // 判断类是否存在,如果不存在则在容器中寻找
         if(!class_exists($name))
             $name=parent::getClass($name);
         // 如果不强制实例化且父容器中存在该对象则直接返回
         if(!$is_force&&isset(parent::$container[$name]))
             return parent::get($name);
+        //判断是否在实例化中要求传入过该对象,如果传入则抛出异常
+        if(in_array($name,$flags))
+            throw new Exception('Circular dependency injection detected.',0,array(
+                'class'=>$name
+            ));
+        // 将当前对象添加到标识中
+        $flags[]=$name;
         $ref=new \ReflectionClass($name);
         $constructor=$ref->getConstructor();
+        $object=null;
         if($constructor!==null) {
             $params=$constructor->getParameters();
             $args=array();
@@ -81,7 +90,7 @@ final class App extends Container {
                 $type=$param->getType();
                 if(is_object($type)&&class_exists($type)) {
                     // 如果参数类型为对象则通过自动依赖注入实例化一个新的对象
-                    $object=self::make((string)$type);
+                    $object=self::make((string)$type,false,$flags);
                     $args[]=$object;
                 } else {
                     // 其他类型判断是否有默认值,如果有则使用默认值,没有则抛出异常
@@ -93,14 +102,16 @@ final class App extends Container {
                             'parameter'=>$param->getName()
                         ));
                 }
-                // 传入构造函数参数实例化一个新的对象
-                $object=$ref->newInstanceArgs($args);
             }
+            // 传入构造函数参数实例化一个新的对象
+            $object=$ref->newInstanceArgs($args);
         } else
             // 如果没有构造函数则直接实例化一个新的对象
             $object=$ref->newInstance();
         // 将对象添加到父容器中
         parent::set($name,$object);
+        // 移出标识中的当前对象
+        array_pop($flags);
         return $object;
     }
 

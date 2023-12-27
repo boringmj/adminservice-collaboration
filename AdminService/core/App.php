@@ -75,49 +75,7 @@ final class App extends Container {
         // 获取方法参数
         $ref=new \ReflectionMethod($object,$method);
         $params=$ref->getParameters();
-        $args_temp=array();
-        foreach($params as $param) {
-            $type=$param->getType();
-            $type=(string)$type;
-            $name=$param->getName();
-            // 先尝试在参数数组通过参数名查找
-            if(isset($args[$name])) {
-                $args_temp[]=$args[$name];
-                unset($args[$name]);
-                continue;
-            }
-            // 判断是否存在索引为0的参数
-            if(isset($args[0])) {
-                $args_temp[]=$args[0];
-                unset($args[0]);
-                continue;
-            }
-            if(class_exists($type)) {
-                // 通过反射判断是否可以实例化该类
-                $ref_type=new \ReflectionClass($type);
-                if($ref_type->isInstantiable()) {
-                    // 如果参数类型为类则通过自动依赖注入实例化一个新的对象
-                    $args_temp[]=self::make($type);
-                } else {
-                    // 如果参数类型为抽象类或接口则抛出异常
-                    throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" constructor is not valid.',0,array(
-                        'class'=>$param,
-                        'parameter'=>$param->getName()
-                    ));
-                }
-            } else {
-                // 其他类型判断是否有默认值,如果有则使用默认值,没有则抛出异常
-                if($param->isDefaultValueAvailable())
-                    $args_temp[]=$param->getDefaultValue();
-                else if($param->allowsNull())
-                    $args_temp[]=null;
-                else
-                    throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" constructor is not valid.',0,array(
-                        'class'=>$param,
-                        'parameter'=>$param->getName()
-                    ));
-            }
-        }
+        $args_temp=self::mergeParams($params,$args);
         // 调用方法
         return $ref->invokeArgs($object,$args_temp);
     }
@@ -134,20 +92,34 @@ final class App extends Container {
         // 获取函数参数
         $ref=new \ReflectionFunction($function);
         $params=$ref->getParameters();
-        $args_temp=array();
+        $args_temp=self::mergeParams($params,$args);
+        // 调用函数
+        return $ref->invokeArgs($args_temp);
+    }
+
+    /**
+     * 整理和合并参数
+     * 
+     * @access private
+     * @param array $params 参数
+     * @param array $args 参数
+     * @return array
+     */
+    static private function mergeParams(array $params,array $args): array {
+        $params_temp=array();
         foreach($params as $param) {
             $type=$param->getType();
             $type=(string)$type;
             $name=$param->getName();
             // 先尝试在参数数组通过参数名查找
             if(isset($args[$name])) {
-                $args_temp[]=$args[$name];
+                $params_temp[]=$args[$name];
                 unset($args[$name]);
                 continue;
             }
             // 判断是否存在索引为0的参数
             if(isset($args[0])) {
-                $args_temp[]=$args[0];
+                $params_temp[]=$args[0];
                 unset($args[0]);
                 continue;
             }
@@ -156,7 +128,7 @@ final class App extends Container {
                 $ref_type=new \ReflectionClass($type);
                 if($ref_type->isInstantiable()) {
                     // 如果参数类型为类则通过自动依赖注入实例化一个新的对象
-                    $args_temp[]=self::make($type);
+                    $params_temp[]=self::make($type);
                 } else {
                     // 如果参数类型为抽象类或接口则抛出异常
                     throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" constructor is not valid.',0,array(
@@ -167,9 +139,9 @@ final class App extends Container {
             } else {
                 // 其他类型判断是否有默认值,如果有则使用默认值,没有则抛出异常
                 if($param->isDefaultValueAvailable())
-                    $args_temp[]=$param->getDefaultValue();
+                    $params_temp[]=$param->getDefaultValue();
                 else if($param->allowsNull())
-                    $args_temp[]=null;
+                    $params_temp[]=null;
                 else
                     throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" constructor is not valid.',0,array(
                         'class'=>$param,
@@ -177,10 +149,8 @@ final class App extends Container {
                     ));
             }
         }
-        // 调用方法
-        return $ref->invokeArgs($args_temp);
+        return $params_temp;
     }
-
 
     /**
      * 生成一个类的代理实例

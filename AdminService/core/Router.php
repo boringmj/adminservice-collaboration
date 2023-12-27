@@ -104,7 +104,7 @@ final class Router extends BaseRouter {
             $this->load();
         $method=$this->method;
         //return $method();
-        return App::autoInject($method[0],$method[1]);
+        return App::exec_class_function($method[0],$method[1]);
     }
 
     /**

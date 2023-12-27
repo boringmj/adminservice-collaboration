@@ -235,56 +235,6 @@ abstract class Container {
         return $object;
     }
 
-    /**
-     * 自动化依赖注入
-     * 
-     * @access public
-     * @param object $object 对象
-     * @param string $method 方法名
-     * @return mixed
-     */
-    static public function autoInject(object $object,string $method): mixed {
-        // 先实例化对象
-        $object=self::make(get_class($object));
-        // 获取方法参数
-        $ref=new \ReflectionMethod($object,$method);
-        $params=$ref->getParameters();
-        $args=array();
-        foreach($params as $param) {
-            $type=$param->getType();
-            $type=(string)$type;
-            // 删除参数类型中的问号
-            $type=str_replace('?','',$type);
-            if(class_exists($type)) {
-                // 通过反射判断是否可以实例化该类
-                $ref_type=new \ReflectionClass($type);
-                if($ref_type->isInstantiable()) {
-                    // 如果参数类型为类则通过自动依赖注入实例化一个新的对象
-                    $args[]=self::make($type);
-                } else {
-                    // 如果参数类型为抽象类或接口则抛出异常
-                    throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" constructor is not valid.',0,array(
-                        'class'=>$param,
-                        'parameter'=>$param->getName()
-                    ));
-                }
-            } else {
-                // 其他类型判断是否有默认值,如果有则使用默认值,没有则抛出异常
-                if($param->isDefaultValueAvailable())
-                    $args[]=$param->getDefaultValue();
-                else if($param->allowsNull())
-                    $args[]=null;
-                else
-                    throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" constructor is not valid.',0,array(
-                        'class'=>$param,
-                        'parameter'=>$param->getName()
-                    ));
-            }
-        }
-        // 调用方法
-        return $ref->invokeArgs($object,$args);
-    }
-
 }
 
 ?>

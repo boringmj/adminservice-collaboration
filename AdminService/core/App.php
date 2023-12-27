@@ -58,6 +58,131 @@ final class App extends Container {
     }
 
     /**
+     * 执行类或对象的方法
+     * 
+     * @access public
+     * @param object|string $object 对象或者类名
+     * @param string $method 方法名
+     * @param array $args 方法参数(如果为关系型数组,则会将key作为参数名,value作为参数值,如果索引数组,则会逐一赋值,没有赋值的参数会使用默认值)
+     * @return mixed
+     */
+    static public function exec_class_function(object|string $object,string $method,array $args=array()): mixed {
+        // 判断是否为类名
+        if(is_string($object)) {
+            // 如果是类名则通过自动依赖注入实例化一个对象
+            $object=self::make($object);
+        }
+        // 获取方法参数
+        $ref=new \ReflectionMethod($object,$method);
+        $params=$ref->getParameters();
+        $args_temp=array();
+        foreach($params as $param) {
+            $type=$param->getType();
+            $type=(string)$type;
+            $name=$param->getName();
+            // 先尝试在参数数组通过参数名查找
+            if(isset($args[$name])) {
+                $args_temp[]=$args[$name];
+                unset($args[$name]);
+                continue;
+            }
+            // 判断是否存在索引为0的参数
+            if(isset($args[0])) {
+                $args_temp[]=$args[0];
+                unset($args[0]);
+                continue;
+            }
+            if(class_exists($type)) {
+                // 通过反射判断是否可以实例化该类
+                $ref_type=new \ReflectionClass($type);
+                if($ref_type->isInstantiable()) {
+                    // 如果参数类型为类则通过自动依赖注入实例化一个新的对象
+                    $args_temp[]=self::make($type);
+                } else {
+                    // 如果参数类型为抽象类或接口则抛出异常
+                    throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" constructor is not valid.',0,array(
+                        'class'=>$param,
+                        'parameter'=>$param->getName()
+                    ));
+                }
+            } else {
+                // 其他类型判断是否有默认值,如果有则使用默认值,没有则抛出异常
+                if($param->isDefaultValueAvailable())
+                    $args_temp[]=$param->getDefaultValue();
+                else if($param->allowsNull())
+                    $args_temp[]=null;
+                else
+                    throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" constructor is not valid.',0,array(
+                        'class'=>$param,
+                        'parameter'=>$param->getName()
+                    ));
+            }
+        }
+        // 调用方法
+        return $ref->invokeArgs($object,$args_temp);
+    }
+
+    /**
+     * 执行函数
+     * 
+     * @access public
+     * @param string $function 函数名
+     * @param array $args 函数参数(如果为关系型数组,则会将key作为参数名,value作为参数值,如果索引数组,则会逐一赋值,没有赋值的参数会使用默认值)
+     * @return mixed
+     */
+    static public function exec_function(string $function,array $args=array()): mixed {
+        // 获取函数参数
+        $ref=new \ReflectionFunction($function);
+        $params=$ref->getParameters();
+        $args_temp=array();
+        foreach($params as $param) {
+            $type=$param->getType();
+            $type=(string)$type;
+            $name=$param->getName();
+            // 先尝试在参数数组通过参数名查找
+            if(isset($args[$name])) {
+                $args_temp[]=$args[$name];
+                unset($args[$name]);
+                continue;
+            }
+            // 判断是否存在索引为0的参数
+            if(isset($args[0])) {
+                $args_temp[]=$args[0];
+                unset($args[0]);
+                continue;
+            }
+            if(class_exists($type)) {
+                // 通过反射判断是否可以实例化该类
+                $ref_type=new \ReflectionClass($type);
+                if($ref_type->isInstantiable()) {
+                    // 如果参数类型为类则通过自动依赖注入实例化一个新的对象
+                    $args_temp[]=self::make($type);
+                } else {
+                    // 如果参数类型为抽象类或接口则抛出异常
+                    throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" constructor is not valid.',0,array(
+                        'class'=>$param,
+                        'parameter'=>$param->getName()
+                    ));
+                }
+            } else {
+                // 其他类型判断是否有默认值,如果有则使用默认值,没有则抛出异常
+                if($param->isDefaultValueAvailable())
+                    $args_temp[]=$param->getDefaultValue();
+                else if($param->allowsNull())
+                    $args_temp[]=null;
+                else
+                    throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" constructor is not valid.',0,array(
+                        'class'=>$param,
+                        'parameter'=>$param->getName()
+                    ));
+            }
+        }
+        // 调用方法
+        return $ref->invokeArgs($args_temp);
+    }
+
+
+    /**
      * 生成一个类的代理实例
      * 
      * @access public

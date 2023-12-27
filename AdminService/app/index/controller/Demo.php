@@ -7,7 +7,7 @@ use base\Controller;
 
 // 系统核心类
 use AdminService\App;
-
+use AdminService\Log;
 // 模型
 use app\index\model\Count;
 use app\index\model\Sql;
@@ -53,6 +53,21 @@ class Demo extends Controller {
         ));
         // 输出日志文件路径
         return "日志存放目录: ".realpath(\AdminService\Config::get('log.path'));
+    }
+
+    public function exec() {
+        // 调用类方法(如果第一个参数是类名则会自动实例化,如果是对象会直接调用)
+        App::exec_class_function(Log::class,'write',array(
+            'This is a debug message in {app} demo1.',
+            array(
+                'app'=>App::getAppName()
+            )
+        ));
+        // 
+        return App::exec_function('AdminService\common\json',array(
+            "msg"=>"Hello World!", // 指定参数名
+            200, // 顺位参数(指定参数不暂用顺位参数位置)
+        ));
     }
 
 }

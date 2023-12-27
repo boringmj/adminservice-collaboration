@@ -128,14 +128,14 @@ final class Router extends BaseRouter {
             if($value=='value')
                 // 键从0开始,逐一赋值
                 foreach($params as $k=>$v)
-                    $_GET[$k]=$v;
+                    $_GET[$k]=urldecode($v);
             else if($value=='list') {
                 // 将前面的参数作为键,后面的参数作为值(没有后面的参数则为空)
                 $count=count($params);
                 for($i=0;$i<$count;$i+=2) {
                     // 清除不符合规则的键值对(规则为空则不清除)
                     if(empty(Config::get('route.params.rule.get')) || preg_match(Config::get('route.params.rule.get'),$params[$i]))
-                        $_GET[$params[$i]]=$params[$i+1]??null;
+                        $_GET[$params[$i]]=urldecode($params[$i+1]??null);
                 }
             }
         }

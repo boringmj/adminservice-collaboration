@@ -39,12 +39,19 @@ abstract class Container {
      * @return object
      */
     static public function get(string $name): object {
-        if(!isset(self::$container[$name]))
-            if(isset(self::$class_container[$name])) {
-                $class=self::$class_container[$name];
-                self::$container[$name]=new $class();
-            } else
-                throw new Exception('Object "'.$name.'" not found.');
+        if(isset(self::$class_container[$name]))
+            $name=self::$class_container[$name];
+        if(!isset(self::$container[$name])) {
+            // 如果不存在则判断是否存在该类
+            if(!class_exists($name))
+                throw new Exception('Class "'.$name.'" not found.');
+            // 如果存在则判断是否可以实例化
+            $ref=new \ReflectionClass($name);
+            if(!$ref->isInstantiable())
+                throw new Exception('Class "'.$name.'" is not instantiable.');
+            // 如果可以实例化则实例化一个新的对象
+            self::$container[$name]=$ref->newInstance();
+        }
         return self::$container[$name];
     }
 
@@ -57,6 +64,8 @@ abstract class Container {
      * @return void
      */
     static public function set(string $name,object $object): void {
+        if(isset(self::$class_container[$name]))
+            $name=self::$class_container[$name];
         self::$container[$name]=$object;
     }
 

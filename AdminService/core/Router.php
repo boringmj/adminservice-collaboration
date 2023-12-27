@@ -104,7 +104,12 @@ final class Router extends BaseRouter {
             $this->load();
         $method=$this->method;
         //return $method();
-        return App::exec_class_function($method[0],$method[1]);
+        $args=$this->request->getAllGet();
+        // 提取出全部key不为数字的参数
+        foreach($args as $k=>$v)
+            if(is_numeric($k))
+                unset($args[$k]);
+        return App::exec_class_function($method[0],$method[1],$args);
     }
 
     /**

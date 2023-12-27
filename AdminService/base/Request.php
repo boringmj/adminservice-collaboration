@@ -180,6 +180,16 @@ abstract class Request {
             self::$request_params[$params]=$value;
     }
 
+    /**
+     * 返回全部Get参数
+     * 
+     * @access public
+     * @return array
+     */
+    final static public function getAllGet(): array {
+        return self::$request_params['_GET'];
+    }
+
 }
 
 ?>

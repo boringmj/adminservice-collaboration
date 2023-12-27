@@ -112,13 +112,13 @@ final class App extends Container {
             $type=(string)$type;
             $name=$param->getName();
             // 先尝试在参数数组通过参数名查找
-            if(isset($args[$name])) {
+            if((isset($args[$name])&&$type==gettype($args[$name])||isset($args[$name])&&$type=='')) {
                 $params_temp[]=$args[$name];
                 unset($args[$name]);
                 continue;
             }
             // 判断是否存在索引为0的参数
-            if(isset($args[0])) {
+            if(isset($args[0])&&$type==gettype($args[0])||isset($args[0])&&$type=='') {
                 $params_temp[]=$args[0];
                 unset($args[0]);
                 continue;

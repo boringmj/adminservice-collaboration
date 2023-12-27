@@ -56,6 +56,8 @@ class Demo extends Controller {
     }
 
     public function exec() {
+        // 补充说明: 如果形参要求了类型,但传入参数不符合该类型,则会跳过该参数并采用默认值,如果没有默认值则会抛出异常
+        // 如果传入的是顺位参数,则该参数不计入顺位参数的位置
         // 调用类方法(如果第一个参数是类名则会自动实例化,如果是对象会直接调用)
         App::exec_class_function(Log::class,'write',array(
             'This is a debug message in {app} demo1.',
@@ -63,7 +65,7 @@ class Demo extends Controller {
                 'app'=>App::getAppName()
             )
         ));
-        // 
+        // 调用函数
         return App::exec_function('AdminService\common\json',array(
             "msg"=>"Hello World!", // 指定参数名
             200, // 顺位参数(指定参数不暂用顺位参数位置)

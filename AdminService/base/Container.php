@@ -42,7 +42,7 @@ abstract class Container {
         if(!isset(self::$container[$name]))
             if(isset(self::$class_container[$name])) {
                 $class=self::$class_container[$name];
-                self::$container[$name]=new $class();
+                self::$container[$class]=new $class();
             } else
                 throw new Exception('Object "'.$name.'" not found.');
         return self::$container[$name];
@@ -57,6 +57,8 @@ abstract class Container {
      * @return void
      */
     static public function set(string $name,object $object): void {
+        if(isset(self::$class_container[$name]))
+            $name=self::$class_container[$name];
         self::$container[$name]=$object;
     }
 

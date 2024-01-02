@@ -53,6 +53,9 @@ abstract class Router {
         $uri=$_SERVER['REQUEST_URI'];
         $uri=explode("?",$uri);
         $uri=$uri[1]??$uri[0];
+        // 判断是不是index.php
+        if($uri==='/index.php')
+            $uri='/';
         $uri=explode("/",$uri);
         array_shift($uri);
         $uri=array_values($uri);

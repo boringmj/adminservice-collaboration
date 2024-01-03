@@ -1,0 +1,14 @@
+
+<!-- 遍历支持一 -->
+<ul>
+    {{foreach $list1 as $value}}
+        <li>{{$value}}</li>
+    {{/foreach}}
+</ul>
+<!-- 遍历支持二 -->
+<ul>
+    {{foreach $list2 as $value}}
+        <!-- 调用$value里面的元素必须使用$value["xxx"]的形式,注意是双引号且没有多余空格 -->
+        <li>{{$value["value"]}} => {{name}}</li>
+    {{/foreach}}
+</ul>

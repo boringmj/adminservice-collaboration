@@ -72,6 +72,24 @@ class Demo extends Controller {
         ));
     }
 
+    public function foreach_view() {
+        // 这里展示视图中的foreach语法,目前只支持两个遍历形式:一维索引数组和二维关联数组
+        return $this->view('foreach',array(
+            'name'=>'AdminService',
+            'list1'=>array(
+                'list1.demo1','list1.demo2'
+            ),
+            'list2'=>array(
+                array(
+                    'value'=>'list2.demo1'
+                ),
+                array(
+                    'value'=>'list2.demo2'
+                )
+            )
+        ));
+    }
+
 }
 
 ?>

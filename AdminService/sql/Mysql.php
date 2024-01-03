@@ -714,21 +714,16 @@ final class Mysql extends SqlDrive {
             throw new Exception('SQL whereEx error.',100435,array(
                 'where'=>$where
             ));
-        // 取出数组的最后一个元素,判断是否为“or”,“and”(转为大写后判断)
-        $last=array_pop($where);
-        // 如果是字符串,则转为大写
-        if(is_string($last))
-            $last=strtoupper($last);
-        if($last!=='OR'&&$last!=='AND'&&is_string($where[0])) {
-            // 如果末尾没有连接符号或连接符错误,且第一个元素为字符串,则视为该层为最后一层,返回结果
+        if(is_string($where[0])) {
+            // 第一个元素为字符串,则视为该层为最后一层,返回结果
             $operator='=';
             $value='';
             // 判断是否存在第三个参数,如果存在,则使用第三个参数作为值,如果不存在,则使用第二个参数作为值
-            if(isset($where[1])) {
+            if(isset($where[2])) {
                 $operator=strtoupper($where[1]);
-                $value=$last;
+                $value=$where[2];
             } else
-                $value=$last;
+                $value=$where[1];
             // 判断操作符是否在允许的范围内
             if(!in_array($operator,array('=','>','<','>=','<=','!=','LIKE','NOT LIKE')))
                 throw new Exception('SQL operator error.',100438,array(
@@ -740,7 +735,11 @@ final class Mysql extends SqlDrive {
                 'operator'=>$operator,
             );
         }
-        // 如果末尾有连接符号,则视为该层为中间层,继续向后遍历
+        // 如果第一个元素不为字符串,则取出数组的最后一个元素,判断是否为“or”,“and”(转为大写后判断)
+        $last=array_pop($where);
+        // 如果是字符串,则转为大写
+        if(is_string($last))
+            $last=strtoupper($last);
         // 判断末尾是否为数组,如果是则加回去
         if(is_array($last)) {
             $where[]=$last;

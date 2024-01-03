@@ -709,12 +709,17 @@ final class Mysql extends SqlDrive {
      * @return array
      */
     public function whereExBuild(array $where): array {
-        // 判断数组长度是否大于等于2
-        if(count($where)<2)
-            throw new Exception('SQL whereEx error.',100435,array(
+        // 判断数组是否为空
+        if(empty($where))
+            throw new Exception('SQL whereEx error.',100436,array(
                 'where'=>$where
             ));
         if(is_string($where[0])) {
+            // 判断数组长度是否大于等于2
+            if(count($where)<2)
+            throw new Exception('SQL whereEx error.',100435,array(
+                'where'=>$where
+            ));
             // 第一个元素为字符串,则视为该层为最后一层,返回结果
             $operator='=';
             $value='';

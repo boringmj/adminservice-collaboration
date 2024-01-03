@@ -134,8 +134,12 @@ final class Router extends BaseRouter {
                 $count=count($params);
                 for($i=0;$i<$count;$i+=2) {
                     // 清除不符合规则的键值对(规则为空则不清除)
-                    if(empty(Config::get('route.params.rule.get')) || preg_match(Config::get('route.params.rule.get'),$params[$i]))
-                        $_GET[$params[$i]]=urldecode($params[$i+1]??null);
+                    if(empty(Config::get('route.params.rule.get')) || preg_match(Config::get('route.params.rule.get'),$params[$i])) {
+                        $_GET[$params[$i]]=$params[$i+1]??null;
+                        // 如果不为null则解码
+                        if(!is_null($_GET[$params[$i]]))
+                            $_GET[$params[$i]]=urldecode($_GET[$params[$i]]);
+                    }
                 }
             }
         }

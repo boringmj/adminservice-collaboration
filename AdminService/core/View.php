@@ -37,10 +37,12 @@ final class View extends BaseView {
         $content=file_get_contents($this->template_path);
         // 提取出遍历结构
         $content=preg_replace_callback('/{{foreach\s+\$(\w+)\s+as\s+\$(\w+)}}(.*?){{\/foreach}}/s',function($matches){
-            $content=$matches[3];
             $temp='';
+            // 判断变量是否存在
+            if(!isset($this->data[$matches[1]]))
+                return $temp;
             foreach($this->data[$matches[1]] as $value) {
-                $str=$content;
+                $str=$matches[3];
                 // 判断$value是否为字符串和数字,如果是则替换
                 if(is_string($value)||is_numeric($value))
                     $str=str_replace('{{$'.$matches[2].'}}',$value,$str);

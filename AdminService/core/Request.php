@@ -214,6 +214,9 @@ final class Request extends BaseRequest {
      */
     static public function requestExit(mixed $data=null): void {
         // 加载Header
+        $config_header=Config::get('request.'.self::$request_info['return_type'].'.header',array());
+        // 合并Header,如果冲突保留程序中设置的值
+        self::$request_info['return_header']=array_merge($config_header,self::$request_info['return_header']);
         foreach(self::$request_info['return_header']??array() as $name=>$value)
             self::setHeader($name,$value);
         // 设置Cookie

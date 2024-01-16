@@ -95,7 +95,6 @@ abstract class Request {
             'cookie'=>array(),
             'return_data'=>null
         );
-        self::$request_info['return_header']=Config::get('request.'.self::$request_info['return_type'].'.header',array());
     }
 
     /**

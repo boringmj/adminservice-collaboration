@@ -189,6 +189,26 @@ abstract class Request {
         return self::$request_params['_GET'];
     }
 
+    /**
+     * 返回全部Post参数
+     * 
+     * @access public
+     * @return array
+     */
+    final static public function getAllPost(): array {
+        return self::$request_params['_POST'];
+    }
+
+    /**
+     * 返回全部Cookie参数
+     * 
+     * @access public
+     * @return array
+     */
+    final static public function getAllCookie(): array {
+        return self::$request_params['_COOKIE'];
+    }
+
 }
 
 ?>

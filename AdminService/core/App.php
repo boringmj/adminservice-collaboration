@@ -107,6 +107,7 @@ final class App extends Container {
      */
     static private function mergeParams(array $params,array $args): array {
         $params_temp=array();
+        $arg_count=0;
         foreach($params as $param) {
             $type=$param->getType();
             $type=(string)$type;
@@ -117,10 +118,12 @@ final class App extends Container {
                 unset($args[$name]);
                 continue;
             }
-            // 判断是否存在索引为0的参数
-            if(isset($args[0])&&$type==gettype($args[0])||isset($args[0])&&$type=='') {
-                $params_temp[]=$args[0];
-                unset($args[0]);
+            // 判断是否存在顺位参数
+            if(isset($args[$arg_count])&&$type==gettype($args[$arg_count])||isset($args[$arg_count])&&$type=='') {
+                $params_temp[]=$args[$arg_count];
+                unset($args[$arg_count]);
+                // 顺位参数自增
+                $arg_count++;
                 continue;
             }
             if(class_exists($type)) {

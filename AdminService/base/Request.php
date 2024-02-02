@@ -108,14 +108,15 @@ abstract class Request {
         self::$request_params=array(
             '_GET'=>$_GET,
             '_POST'=>$_POST,
-            '_COOKIE'=>$_COOKIE
+            '_COOKIE'=>$_COOKIE,
+            '_INPUT'=>file_get_contents('php://input'),
         );
         // 获取 Content-Type 请求头
         $content_type=isset($_SERVER['CONTENT_TYPE'])?$_SERVER['CONTENT_TYPE']:'';
         // 判断是否为 application/json
         if(strpos($content_type,'application/json')!==false) {
             // 获取请求数据
-            $request_data=file_get_contents('php://input');
+            $request_data=self::$request_params['_INPUT'];
             // 判断是否为json数据
             if($request_data!==false&&$request_data!=='') {
                 // 解析json数据
@@ -207,6 +208,26 @@ abstract class Request {
      */
     final static public function getAllCookie(): array {
         return self::$request_params['_COOKIE'];
+    }
+
+    /**
+     * 返回全部请求参数
+     * 
+     * @access public
+     * @return array
+     */
+    final static public function getAllParams(): array {
+        return self::$request_params;
+    }
+
+    /**
+     * 返回请求体
+     * 
+     * @access public
+     * @return string
+     */
+    final static public function getInput(): string {
+        return self::$request_params['_INPUT'];
     }
 
 }

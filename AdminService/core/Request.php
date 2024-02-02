@@ -267,7 +267,7 @@ final class Request extends BaseRequest {
     }
 
     /**
-     * 设置返回类型(需要注意,每次设置都会引入对应的Header,如果已经设置过Header,则会覆盖)
+     * 设置返回类型
      * 
      * @access public
      * @param string $type 数据类型(*,default:html)
@@ -275,9 +275,6 @@ final class Request extends BaseRequest {
      */
     final static public function setReturnType(string $type): void {
         self::$request_info['return_type']=$type;
-        $header=Config::get('request.'.$type.'.header',array());
-        // 合并Header,如果冲突保留后面数组的值
-        self::$request_info['return_header']=array_merge(self::$request_info['return_header'],$header);
     }
 
     /**

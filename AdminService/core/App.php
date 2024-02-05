@@ -210,7 +210,7 @@ final class App extends Container {
         // 检查是否存在缓存
         if(self::getData('route_info')===null) {
             // 获取路由信息
-            $route_info=parent::get('Router')->getRouteInfo();
+            $route_info=parent::get('Route')->getRouteInfo();
             // 缓存路由信息
             parent::setData('route_info',$route_info);
         }

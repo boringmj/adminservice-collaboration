@@ -108,8 +108,8 @@ final class Main {
     public function run(): void {
         try {
             // 路由
-            $router=App::get('Router');
-            Request::requestExit($router->run());
+            $route=App::get('Route');
+            Request::requestExit($route->run());
         } catch(Exception $e) {
             Request::requestExit($e->getMessage());
         }

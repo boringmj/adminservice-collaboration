@@ -6,7 +6,7 @@ namespace AdminService\config;
 return array(
     'path'=>__DIR__.'/../app', // app 目录
     'classes'=>array( // 需要初始化的类,这些类会自动绑定到容器中(这些类必须可以直接实例化,不需要传入构造函数参数)
-        'Router'=>\AdminService\Router::class,
+        'Route'=>\AdminService\Route::class,
         'View'=>\AdminService\View::class,
         'Request'=>\AdminService\Request::class,
         'File'=>\AdminService\File::class,

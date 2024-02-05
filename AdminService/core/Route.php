@@ -2,12 +2,12 @@
 
 namespace AdminService;
 
-use base\Router as BaseRouter;
+use base\Route as BaseRoute;
 use AdminService\Config;
 use AdminService\Exception;
 use AdminService\App;
 
-final class Router extends BaseRouter {
+final class Route extends BaseRoute {
 
     /**
      * 控制器方法

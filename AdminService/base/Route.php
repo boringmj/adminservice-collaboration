@@ -6,7 +6,7 @@ use base\Request;
 use AdminService\Exception;
 use AdminService\App;
 
-abstract class Router {
+abstract class Route {
 
     /**
      * 请求对象

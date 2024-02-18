@@ -35,10 +35,16 @@ final class Request extends BaseRequest {
         $temp=$_FILES[$name];
         // 如果上传的文件是单个文件,则将其转换为数组
         if(!is_array($temp['name']))
-            $temp=array($temp);
+            $temp=array(
+                'name'=>array($temp['name']),
+                'type'=>array($temp['type']),
+                'tmp_name'=>array($temp['tmp_name']),
+                'error'=>array($temp['error']),
+                'size'=>array($temp['size'])
+            );
         // 处理上传的文件
         $file_list=array();
-        $file_count=count($_FILES[$name]['name']);
+        $file_count=count($temp['name']);
         for($i=0;$i<$file_count;$i++) {
             $file=array(
                 'name'=>$temp['name'][$i],

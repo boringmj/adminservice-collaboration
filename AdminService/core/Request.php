@@ -32,20 +32,25 @@ final class Request extends BaseRequest {
         // 判断该字段是否存在
         if(!isset($_FILES[$name]))
             return array();
+        $temp=$_FILES[$name];
+        // 如果上传的文件是单个文件,则将其转换为数组
+        if(!is_array($temp['name']))
+            $temp=array($temp);
         // 处理上传的文件
         $file_list=array();
         $file_count=count($_FILES[$name]['name']);
         for($i=0;$i<$file_count;$i++) {
-            $file_list[]=array(
-                'name'=>$_FILES[$name]['name'][$i],
-                'type'=>$_FILES[$name]['type'][$i],
-                'tmp_name'=>$_FILES[$name]['tmp_name'][$i],
-                'error'=>$_FILES[$name]['error'][$i],
-                'size'=>$_FILES[$name]['size'][$i],
-                'md5'=>md5_file($_FILES[$name]['tmp_name'][$i]),
-                'sha1'=>sha1_file($_FILES[$name]['tmp_name'][$i]),
-                'ext'=>pathinfo($_FILES[$name]['name'][$i],PATHINFO_EXTENSION)
+            $file=array(
+                'name'=>$temp['name'][$i],
+                'type'=>$temp['type'][$i],
+                'tmp_name'=>$temp['tmp_name'][$i],
+                'error'=>$temp['error'][$i],
+                'size'=>$temp['size'][$i],
+                'md5'=>md5_file($temp['tmp_name'][$i]),
+                'sha1'=>sha1_file($temp['tmp_name'][$i]),
+                'ext'=>pathinfo($temp['name'][$i],PATHINFO_EXTENSION)
             );
+            $file_list[]=$file;
         }
         // 缓存文件信息
         self::$file_info[$name]=$file_list;

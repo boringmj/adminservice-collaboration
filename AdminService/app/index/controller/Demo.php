@@ -101,7 +101,7 @@ class Demo extends Controller {
         // 处理上传的文件
         foreach($files as $file) {
             print_r($file);
-            // 保存文件
+            // 保存文件(文件名为sha1值,后缀为文件后缀)
             $path=$file['sha1'].'.'.$file['ext'];
             // 请注意,如果不指定具体路径则会保存到运行目录下(默认运行目录是public目录)
             move_uploaded_file($file['tmp_name'],$path);

@@ -18,7 +18,7 @@ final class Request extends BaseRequest {
     static protected array $file_info=array();
 
     /**
-     * 获取上传的文件信息
+     * 获取上传的文件信息(仅返回error为0的文件信息)
      * 
      * @access public
      * @param string $name 字段名
@@ -34,7 +34,10 @@ final class Request extends BaseRequest {
             return array();
         $temp=$_FILES[$name];
         // 如果上传的文件是单个文件,则将其转换为数组
-        if(!is_array($temp['name']))
+        if(!is_array($temp['name'])) {
+            // 判断是否为上传错误
+            if($temp['error']!=0)
+                return array();
             $temp=array(
                 'name'=>array($temp['name']),
                 'type'=>array($temp['type']),
@@ -42,10 +45,14 @@ final class Request extends BaseRequest {
                 'error'=>array($temp['error']),
                 'size'=>array($temp['size'])
             );
+        }
         // 处理上传的文件
         $file_list=array();
         $file_count=count($temp['name']);
         for($i=0;$i<$file_count;$i++) {
+            // 判断是否为上传错误
+            if($temp['error'][$i]!=0)
+                continue;
             $file=array(
                 'name'=>$temp['name'][$i],
                 'type'=>$temp['type'][$i],

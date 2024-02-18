@@ -91,6 +91,23 @@ class Demo extends Controller {
         ));
     }
 
+    public function upload() {
+        // 这里展示文件上传,支持多文件上传和单文件上传
+        $files=$this->request->getUploadFile('files');
+        // 判断是否有文件被上传,如果没有则返回上传页面
+        if(empty($files)) {
+            return $this->view('upload');
+        }
+        // 处理上传的文件
+        foreach($files as $file) {
+            print_r($file);
+            // 保存文件
+            $path=$file['sha1'].'.'.$file['ext'];
+            // 请注意,如果不指定具体路径则会保存到运行目录下(默认运行目录是public目录)
+            move_uploaded_file($file['tmp_name'],$path);
+        }
+    }
+
 }
 
 ?>

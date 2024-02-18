@@ -139,11 +139,11 @@ class Log {
      * @return string
      */
     protected function filter(string $content):string {
-       // 将换行符替换为"\\n"
-       $eol=array(
-        "\\"=>"\\\\",
-        "\n"=>"\\n",
-        "\r"=>"\\r"
+        // 将换行符替换为"\\n"
+        $eol=array(
+            "\\"=>"\\\\",
+            "\n"=>"\\n",
+            "\r"=>"\\r"
         );
         $content=str_replace(array_keys($eol),array_values($eol),$content);
         // 返回过滤后的日志内容

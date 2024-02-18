@@ -74,6 +74,15 @@ abstract class Request {
     abstract static public function cookieParams(int|string|array $params,mixed $value=null,bool $enforce=false): mixed;
 
     /**
+     * 获取上传的文件
+     * 
+     * @access public
+     * @param string $name 字段名
+     * @return array
+     */
+    abstract static public function getUploadFile(string $name): array;
+
+    /**
      * 初始化请求
      * 
      * @access public

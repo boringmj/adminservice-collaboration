@@ -5,13 +5,13 @@ namespace AdminService;
 use AdminService\Config;
 use \Exception;
 
-final class Log {
+class Log {
     
     /**
     * 日志文件路径
     * @var string
     */
-    private string $log_path;
+    protected string $log_path;
 
     /**
     * 构造方法
@@ -63,13 +63,8 @@ final class Log {
             'time'=>date('H:i:s',time()),
             'msg'=>$this->bind($content,$vars)
         ));
-        // 将换行符替换为"\\n"
-        $eol=array(
-            "\\"=>"\\\\",
-            "\n"=>"\\n",
-            "\r"=>"\\r"
-        );
-        $content=str_replace(array_keys($eol),array_values($eol),$content);
+        // 过滤日志内容
+        $content=$this->filter($content);
         // 写入日志
         file_put_contents($this->log_path,$content.PHP_EOL,FILE_APPEND);
     }
@@ -77,10 +72,10 @@ final class Log {
     /**
      * 检查日志文件是否存在,可写饥和大小是否超过最大值
      * 
-     * @access private
+     * @access protected
      * @return void
      */
-    private function check() {
+    protected function check() {
         // 判断日志文件是否存在,如果不存在,则创建日志文件
         if(!is_file($this->log_path))
             file_put_contents($this->log_path,'');
@@ -117,12 +112,12 @@ final class Log {
     /**
      * 字符串与变量绑定
      * 
-     * @access private
+     * @access protected
      * @param string $string 字符串
      * @param array $vars 变量
      * @return string
      */
-    private function bind(string $string,array $vars):string {
+    protected function bind(string $string,array $vars):string {
         // 如果变量为空,则直接返回字符串
         if(empty($vars))
             return $string;
@@ -134,6 +129,25 @@ final class Log {
         }
         // 返回替换后的字符串
         return $string;
+    }
+
+    /**
+     * 过滤日志内容
+     * 
+     * @access protected
+     * @param string $content 日志内容
+     * @return string
+     */
+    protected function filter(string $content):string {
+       // 将换行符替换为"\\n"
+       $eol=array(
+        "\\"=>"\\\\",
+        "\n"=>"\\n",
+        "\r"=>"\\r"
+        );
+        $content=str_replace(array_keys($eol),array_values($eol),$content);
+        // 返回过滤后的日志内容
+        return $content;
     }
 
 }

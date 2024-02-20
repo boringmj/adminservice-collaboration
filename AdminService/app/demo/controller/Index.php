@@ -1,6 +1,6 @@
 <?php
 
-namespace app\index\controller;
+namespace app\demo\controller;
 
 // 控制器基类
 use base\Controller;
@@ -9,22 +9,22 @@ use base\Controller;
 use AdminService\App;
 use AdminService\Log;
 // 模型
-use app\index\model\Count;
-use app\index\model\Sql;
+use app\demo\model\Count;
+use app\demo\model\Sql;
 
 // 控制器助手函数
 use function AdminService\common\view;
 use function AdminService\common\json;
 
-class Demo extends Controller {
+class Index extends Controller {
 
     public function index() {
-        // 返回字符串
+        // 返回组字符串
         return "Hello World!";
     }
 
     public function test() {
-        // 返回视图
+        // 返回视图,默认视图路径为 AdminService/app/demo/view/控制器名/方法名.html
         return $this->view(array(
             'name'=>$this->param('name','AdminService')
         ));

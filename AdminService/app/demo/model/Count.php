@@ -1,6 +1,6 @@
 <?php
 
-namespace app\index\model;
+namespace app\demo\model;
 
 use base\Model;
 use AdminService\File;

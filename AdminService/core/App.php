@@ -111,15 +111,36 @@ final class App extends Container {
         foreach($params as $param) {
             $type=$param->getType();
             $type=(string)$type;
+            // 清除类型前缀
+            $type=str_replace('?','',$type);
+            // 将类型转为gettype()返回的类型
+            $list=array(
+                'int'=>'integer',
+                'bool'=>'boolean',
+                'float'=>'double'
+            );
+            if(isset($list[$type]))
+                $type=$list[$type];
+            // 获取参数名
             $name=$param->getName();
             // 先尝试在参数数组通过参数名查找
-            if((isset($args[$name])&&$type==gettype($args[$name])||isset($args[$name])&&$type=='')) {
+            if(
+                isset($args[$name])&&$type==gettype($args[$name])||
+                isset($args[$name])&&$type==''||
+                // 当gettype()返回的类型为object时,获取参数类型是否为类且与type相同
+                gettype($args[$name])=='object'&&class_exists($type)&&$args[$name] instanceof $type
+            ) {
                 $params_temp[]=$args[$name];
                 unset($args[$name]);
                 continue;
             }
             // 判断是否存在顺位参数
-            if(isset($args[$arg_count])&&$type==gettype($args[$arg_count])||isset($args[$arg_count])&&$type=='') {
+            if(
+                isset($args[$arg_count])&&$type==gettype($args[$arg_count])||
+                isset($args[$arg_count])&&$type==''||
+                // 当gettype()返回的类型为object时,获取参数类型是否为类且与type相同
+                gettype($args[$arg_count])=='object'&&class_exists($type)&&$args[$arg_count] instanceof $type
+                ) {
                 $params_temp[]=$args[$arg_count];
                 unset($args[$arg_count]);
                 // 顺位参数自增

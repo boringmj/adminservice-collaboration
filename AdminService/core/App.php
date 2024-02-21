@@ -125,10 +125,12 @@ final class App extends Container {
             $name=$param->getName();
             // 先尝试在参数数组通过参数名查找
             if(
-                isset($args[$name])&&$type==gettype($args[$name])||
-                isset($args[$name])&&$type==''||
-                // 当gettype()返回的类型为object时,获取参数类型是否为类且与type相同
-                gettype($args[$name])=='object'&&class_exists($type)&&$args[$name] instanceof $type
+                isset($args[$name])&&(
+                    $type==gettype($args[$name])||
+                    $type==''||
+                    // 当gettype()返回的类型为object时,获取参数类型是否为类且与type相同
+                    gettype($args[$name])=='object'&&class_exists($type)&&$args[$name] instanceof $type
+                )
             ) {
                 $params_temp[]=$args[$name];
                 unset($args[$name]);
@@ -136,17 +138,20 @@ final class App extends Container {
             }
             // 判断是否存在顺位参数
             if(
-                isset($args[$arg_count])&&$type==gettype($args[$arg_count])||
-                isset($args[$arg_count])&&$type==''||
-                // 当gettype()返回的类型为object时,获取参数类型是否为类且与type相同
-                gettype($args[$arg_count])=='object'&&class_exists($type)&&$args[$arg_count] instanceof $type
-                ) {
+                isset($args[$arg_count])&&(
+                    $type==gettype($args[$arg_count])||
+                    $type==''||
+                    // 当gettype()返回的类型为object时,获取参数类型是否为类且与type相同
+                    gettype($args[$arg_count])=='object'&&class_exists($type)&&$args[$arg_count] instanceof $type
+                )
+            ) {
                 $params_temp[]=$args[$arg_count];
                 unset($args[$arg_count]);
                 // 顺位参数自增
                 $arg_count++;
                 continue;
             }
+            // 判断是否为一个存在的类
             if(class_exists($type)) {
                 // 通过反射判断是否可以实例化该类
                 $ref_type=new \ReflectionClass($type);

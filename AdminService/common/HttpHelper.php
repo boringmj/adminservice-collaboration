@@ -27,12 +27,22 @@ class HttpHelper {
      * @param int $timeout 超时时间
      * @return void
      */
-    public function __construct(?string $url=null,?string $method=null,?array $headers=null,?string $body=null,int $timeout=30){
+    public function __construct(
+        ?string $url=null,
+        ?string $method=null,
+        ?array $headers=null,
+        ?string $body=null,
+        int $timeout=30
+    ){
         $this->request['url']=$url??'';
         $this->request['method']=$method??'';
         $this->request['headers']=$headers??array();
         $this->request['body']=$body??'';
         $this->request['timeout']=$timeout;
+        $this->response['stream']=array(
+            'open'=>false,
+            'callback'=>null
+        );
     }
 
     /**
@@ -96,6 +106,19 @@ class HttpHelper {
     }
 
     /**
+     * 设置流式请求(仅生效一次,请求完成后会自动关闭)
+     * 
+     * @access public
+     * @param callable $callback 回调函数
+     * @return self
+     */
+    public function setStream(callable $callback){
+        $this->response['stream']['open']=true;
+        $this->response['stream']['callback']=$callback;
+        return $this;
+    }
+
+    /**
      * 执行请求
      * 
      * @access public
@@ -103,14 +126,23 @@ class HttpHelper {
      */
     public function execute(){
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $this->request['url']);
+        curl_setopt($ch,CURLOPT_URL,$this->request['url']);
         $method=strtoupper($this->request['method']);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $this->request['headers']);
+        curl_setopt($ch,CURLOPT_CUSTOMREQUEST,$method);
+        curl_setopt($ch,CURLOPT_HTTPHEADER,$this->request['headers']);
         if($method=='POST')
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $this->request['body']);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, $this->request['timeout']);
+            curl_setopt($ch,CURLOPT_POSTFIELDS,$this->request['body']);
+        curl_setopt($ch,CURLOPT_RETURNTRANSFER,true);
+        curl_setopt($ch,CURLOPT_TIMEOUT,$this->request['timeout']);
+        // 判断是否为流式请求
+        if($this->response['stream']['open']) {
+            $callback = $this->response['stream']['callback'];
+            curl_setopt($ch,CURLOPT_WRITEFUNCTION,function($ch,$data) use ($callback){
+                // 执行回调函数
+                call_user_func($callback,$data);
+                return strlen($data);
+            });
+        }
         $response = curl_exec($ch);
         $this->response['status_code']=curl_getinfo($ch,CURLINFO_HTTP_CODE);
         $this->response['headers']=curl_getinfo($ch);

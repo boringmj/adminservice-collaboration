@@ -39,8 +39,7 @@ abstract class Container {
      * @return object
      */
     static public function get(string $name): object {
-        if(isset(self::$class_container[$name]))
-            $name=self::$class_container[$name];
+        $name=self::getRealClass($name);
         if(!isset(self::$container[$name])) {
             // 如果不存在则判断是否存在该类
             if(!class_exists($name))
@@ -64,8 +63,7 @@ abstract class Container {
      * @return void
      */
     static public function set(string $name,object $object): void {
-        if(isset(self::$class_container[$name]))
-            $name=self::$class_container[$name];
+        $name=self::getRealClass($name);
         self::$container[$name]=$object;
     }
 
@@ -76,6 +74,7 @@ abstract class Container {
      * @param string $name 类名
      */
     static public function getClass(string $name): string {
+        $name=self::getRealClass($name);
         // 如果类容器中不存在该类则抛出异常
         if(!isset(self::$class_container[$name]))
             throw new Exception('Class "'.$name.'" not found.');
@@ -83,7 +82,20 @@ abstract class Container {
     }
 
     /**
-     * 设置或添加未被实例化的类
+     * 获取名称在容器中实际的类名(如果不存在则返回原类名)
+     * 
+     * @access public
+     * @param string $name 类名
+     * @return string
+     */
+    static public function getRealClass(string $name): string {
+        if(isset(self::$class_container[$name]))
+            return self::$class_container[$name];
+        return $name;
+    }
+
+    /**
+     * 设置或添加未被实例化的类(会覆盖已存在的别名等)
      * 
      * @access public
      * @param string $name 类名
@@ -187,29 +199,26 @@ abstract class Container {
             $args=array();
             foreach($params as $param) {
                 $type=$param->getType();
-                // 判断是否允许为null
-                if($param->allowsNull()) {
-                    // 如果允许为null则直接添加null
-                    $args[]=null;
-                    continue;
-                }
                 $type=(string)$type;
                 // 删除参数类型中的问号
                 $type=str_replace('?','',$type);
-                if(class_exists($type)) {
+                $class_name=self::getRealClass($type);
+                if(class_exists($class_name)) {
                     // 通过反射判断是否可以实例化该类
-                    $ref_type=new \ReflectionClass($type);
-                    if($ref_type->isInstantiable()) {
-                        // 如果参数类型为类则通过自动依赖注入实例化一个新的对象
-                        $object=self::make($type,false,$flags);
-                        $args[]=$object;
-                    } else {
-                        // 如果参数类型为抽象类或接口则抛出异常
-                        throw new Exception('Parameter "'.$param->getName().'" of "'.$name.'" constructor is not valid.',0,array(
-                            'class'=>$name,
-                            'parameter'=>$param->getName()
-                        ));
+                    $ref_type=new \ReflectionClass($class_name);
+                    if(!$ref_type->isInstantiable()) {
+                        // 如果参数类型为抽象类或接口则判断是否可以获取到子类
+                        $class_name=self::findSubClass($class_name);
+                        if(empty($class_name)||!class_exists($class_name))
+                            throw new Exception('Parameter "'.$param->getName().'" of "'.$name.'" constructor is not valid.',0,array(
+                                'name'=>$name,
+                                'class'=>$class_name,
+                                'parameter'=>$param->getName()
+                            ));
                     }
+                    // 如果参数类型为类则通过自动依赖注入实例化一个新的对象
+                    $object=self::make($class_name,false,$flags);
+                    $args[]=$object;
                 } else {
                     // 其他类型判断是否有默认值,如果有则使用默认值,没有则抛出异常
                     if($param->isDefaultValueAvailable())
@@ -233,6 +242,26 @@ abstract class Container {
         // 移出标识中的当前对象
         array_pop($flags);
         return $object;
+    }
+
+    /**
+     * 寻找一个类的可实例化的子类(不使用别名)
+     * 
+     * @access public
+     * @param string $class 类名
+     * @return ?string
+     */
+    static public function findSubClass(string $class): ?string {
+        // 判断类是否存在
+        if(!class_exists($class))
+            return null;
+        // 获取所有子类
+        $sub_classes=get_declared_classes();
+        $sub_classes=array_filter($sub_classes,function($sub_class) use ($class) {
+            return is_subclass_of($sub_class,$class);
+        });
+        // 返回第一个子类
+        return array_shift($sub_classes);
     }
 
 }

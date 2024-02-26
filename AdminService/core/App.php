@@ -17,6 +17,8 @@ final class App extends Container {
      * @return void
      */
     static public function init(array $classes=array()): void {
+        // 获取配置文件中的别名
+        $classes=array_merge($classes,Config::get('app.alias',array()));
         // 获取配置文件中的类
         $classes=array_merge($classes,Config::get('app.classes',array()));
         // 遍历类是否存在
@@ -121,6 +123,17 @@ final class App extends Container {
             );
             if(isset($list[$type]))
                 $type=$list[$type];
+            $type=parent::getRealClass($type);
+            // 判断类是否存在,如果存在则判断是否是抽象类或接口
+            if(class_exists($type)) {
+                $ref_type=new \ReflectionClass($type);
+                if(!$ref_type->isInstantiable()) {
+                    // 尝试获取是否存在子类
+                    $sub_class=parent::findSubClass($type);
+                    if($sub_class!==null&&class_exists($sub_class))
+                        $type=$sub_class;
+                }
+            }
             // 获取参数名
             $name=$param->getName();
             // 先尝试在参数数组通过参数名查找

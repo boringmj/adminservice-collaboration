@@ -2,10 +2,10 @@
 
 namespace base;
 
-use base\Request;
 use base\View;
-use AdminService\Config;
+use base\Request;
 use AdminService\App;
+use AdminService\Config;
 
 /**
  * 控制器基类

@@ -31,7 +31,7 @@ final class App extends Container {
     /**
      * 获取对象
      * 
-     * 注意: 依赖不支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
+     * 注意: 依赖简单支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
      * 这种情况请先使用App::set(Class::class,new Class())添加到容器中
      * 
      * @access public

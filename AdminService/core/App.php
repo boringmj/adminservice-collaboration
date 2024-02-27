@@ -221,6 +221,9 @@ final class App extends Container {
 
     /**
      * 获取当前控制器名称
+     * 
+     * @access public
+     * @return string
      */
     static public function getControllerName(): ?string {
         self::initRouteInfo();
@@ -231,6 +234,9 @@ final class App extends Container {
 
     /**
      * 获取当前方法名称
+     * 
+     * @access public
+     * @return string
      */
     static public function getMethodName(): ?string {
         self::initRouteInfo();

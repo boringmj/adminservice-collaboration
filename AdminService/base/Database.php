@@ -346,7 +346,6 @@ abstract class Database {
         return $this;
     }
 
-
 }
 
 ?>

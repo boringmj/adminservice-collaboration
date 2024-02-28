@@ -32,7 +32,6 @@ final class View extends BaseView {
      * @return string
      */
     public function render(): string {
-        // ob_start();
         // 将文件读取到变量中
         $content=file_get_contents($this->template_path);
         // 提取出遍历结构
@@ -64,7 +63,6 @@ final class View extends BaseView {
             if(is_string($value)||is_numeric($value))
                 $content=str_replace('{{'.$key.'}}',$value,$content);
         }
-        // ob_end_clean();
         return $content;
     }
 

@@ -56,7 +56,6 @@ final class App extends Container {
             // 如果不存在则通过自动依赖注入实例化一个对象
             return parent::make($name);
         }
-
     }
 
     /**

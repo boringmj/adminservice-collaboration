@@ -8,6 +8,8 @@ use AdminService\Config;
 use AdminService\Log;
 
 final class Main {
+
+    static private $init_finish;
     
     /**
      * 初始化
@@ -16,6 +18,8 @@ final class Main {
      * @return self
      */
     public function init(): self {
+        // 初始化状态
+        self::$init_finish=false;
         // 判断PHP版本
         if (version_compare(PHP_VERSION,'8.0.0','<'))
             exit('无法兼容您的PHP版本('.PHP_VERSION.'),需要PHP8.0.0及以上版本');
@@ -31,6 +35,8 @@ final class Main {
         App::init();
         // 初始化请求
         Request::init();
+        // 初始化完成
+        self::$init_finish=true;
         return $this;
     }
 
@@ -60,18 +66,20 @@ final class Main {
                     <p>错误行数: {$error['line']}</p>
                 </div>";
                 // 记录日志
-                try {
-                    $Log=new Log();
-                    $Log->write(
-                        '发生错误或警告: {message} in {file} on line {line}',
-                        array(
-                            'message'=>$error['message'],
-                            'file'=>$error['file'],
-                            'line'=>$error['line']
-                        )
-                    );
-                } catch(\Exception $e) {
-                    echo "<br>日志记录失败: {$e->getMessage()}";
+                if(self::$init_finish) {
+                    try {
+                        $Log=new Log();
+                        $Log->write(
+                            '发生错误或警告: {message} in {file} on line {line}',
+                            array(
+                                'message'=>$error['message'],
+                                'file'=>$error['file'],
+                                'line'=>$error['line']
+                            )
+                        );
+                    } catch(\Exception $e) {
+                        echo "<br>日志记录失败: {$e->getMessage()}";
+                    }
                 }
                 exit();
             }

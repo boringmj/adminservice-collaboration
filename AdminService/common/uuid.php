@@ -14,9 +14,9 @@ function uuid(bool $use_time=false): string {
     $server_time=str_pad(substr($server_time,-8),8,'0',STR_PAD_LEFT);
     $hyphen=chr(45);
     $uuid=($use_time?$server_time:substr($charid,0,8)).$hyphen
-        .substr($charid, 8, 4).$hyphen
-        .substr($charid,12, 4).$hyphen
-        .substr($charid,16, 4).$hyphen
+        .substr($charid,8,4).$hyphen
+        .substr($charid,12,4).$hyphen
+        .substr($charid,16,4).$hyphen
         .substr($charid,20,12);
     // 转为全小写
     $uuid=strtolower($uuid);

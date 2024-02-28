@@ -125,7 +125,7 @@ class HttpHelper {
      * @return self
      */
     public function execute(){
-        $ch = curl_init();
+        $ch=curl_init();
         curl_setopt($ch,CURLOPT_URL,$this->request['url']);
         $method=strtoupper($this->request['method']);
         curl_setopt($ch,CURLOPT_CUSTOMREQUEST,$method);
@@ -136,14 +136,14 @@ class HttpHelper {
         curl_setopt($ch,CURLOPT_TIMEOUT,$this->request['timeout']);
         // 判断是否为流式请求
         if($this->response['stream']['open']) {
-            $callback = $this->response['stream']['callback'];
+            $callback=$this->response['stream']['callback'];
             curl_setopt($ch,CURLOPT_WRITEFUNCTION,function($ch,$data) use ($callback){
                 // 执行回调函数
                 call_user_func($callback,$data);
                 return strlen($data);
             });
         }
-        $response = curl_exec($ch);
+        $response=curl_exec($ch);
         $this->response['status_code']=curl_getinfo($ch,CURLINFO_HTTP_CODE);
         $this->response['headers']=curl_getinfo($ch);
         $this->response['body']=$response;

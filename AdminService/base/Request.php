@@ -123,7 +123,7 @@ abstract class Request {
         // 获取 Content-Type 请求头
         $content_type=isset($_SERVER['CONTENT_TYPE'])?$_SERVER['CONTENT_TYPE']:'';
         // 判断是否为 application/json
-        if(strpos($content_type,'application/json')!==false) {
+        if(strpos(strtolower($content_type),'application/json')!==false) {
             // 获取请求数据
             $request_data=self::$request_params['_INPUT'];
             // 判断是否为json数据

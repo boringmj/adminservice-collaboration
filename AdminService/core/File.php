@@ -178,13 +178,12 @@ final class File {
     public function destroy(): void {
         if(empty($this->file_path))
             throw new Exception("File not destroyed, please use init() to initialize.",100105);
-        if(is_file($this->file_path))
-        {
+        if(is_file($this->file_path)) {
             try {
                 unlink($this->file_path);
                 $this->file_path=null;
                 $this->data=array();
-            } catch(\Throwable $e) {
+            } catch(\Throwable) {
                 throw new Exception("File destroy failed: {$this->file_path}, please check the file permission.",100106,array(
                     'file_path'=>$this->file_path
                 ));

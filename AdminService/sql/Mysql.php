@@ -315,8 +315,7 @@ final class Mysql extends SqlDrive {
             $stmt->bindValue($i,$value);
             $i++;
         }
-        if($stmt->execute())
-        {
+        if($stmt->execute()) {
             // 判断是否需要返回迭代器
             if($this->iterator) {
                 return $this->iterator_select($stmt);
@@ -377,8 +376,7 @@ final class Mysql extends SqlDrive {
             $stmt->bindValue($i,$value);
             $i++;
         }
-        if($stmt->execute())
-        {
+        if($stmt->execute()) {
             $result=$stmt->fetch(\PDO::FETCH_ASSOC);
             // 如果$fields不是数组且不为*, 则返回对应字段的值
             if((!is_array($fields)&&$fields!=='*')&&(!is_bool($result))&&isset($result[$fields]))

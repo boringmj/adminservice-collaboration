@@ -280,8 +280,7 @@ final class Request extends BaseRequest {
         foreach(self::$request_info['return_header']??array() as $name=>$value)
             self::setHeader($name,$value);
         // 设置Cookie
-        if(!empty(self::$cookie))
-        {
+        if(!empty(self::$cookie)) {
             // 判断对象是否存在setByArray方法
             if(method_exists(self::$cookie,'setByArray'))
                 self::$cookie->setByArray(self::$request_info['cookie']);

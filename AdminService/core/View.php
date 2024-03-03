@@ -35,7 +35,7 @@ final class View extends BaseView {
         // 将文件读取到变量中
         $content=file_get_contents($this->template_path);
         // 提取出遍历结构
-        $content=preg_replace_callback('/{{foreach\s+\$(\w+)\s+as\s+\$(\w+)}}(.*?){{\/foreach}}/s',function($matches){
+        $content=preg_replace_callback('/{{foreach\s+\$(\w+)\s+as\s+\$(\w+)}}(.*?){{\/foreach}}/s',function($matches) {
             $temp='';
             // 判断变量是否存在
             if(!isset($this->data[$matches[1]]))

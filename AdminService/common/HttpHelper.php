@@ -33,7 +33,7 @@ class HttpHelper {
         ?array $headers=null,
         ?string $body=null,
         int $timeout=30
-    ){
+    ) {
         $this->request['url']=$url??'';
         $this->request['method']=$method??'';
         $this->request['headers']=$headers??array();
@@ -52,7 +52,7 @@ class HttpHelper {
      * @param string $url 请求地址
      * @return self
      */
-    public function setUrl(string $url){
+    public function setUrl(string $url) {
         $this->request['url']=$url;
         return $this;
     }
@@ -64,7 +64,7 @@ class HttpHelper {
      * @param string $method 请求方法
      * @return self
      */
-    public function setMethod(string $method){
+    public function setMethod(string $method) {
         $this->request['method']=$method;
         return $this;
     }
@@ -76,7 +76,7 @@ class HttpHelper {
      * @param array $headers 请求头
      * @return self
      */
-    public function setHeaders(array $headers){
+    public function setHeaders(array $headers) {
         $this->request['headers']=$headers;
         return $this;
     }
@@ -88,7 +88,7 @@ class HttpHelper {
      * @param string $body 请求体
      * @return self
      */
-    public function setBody(string $body){
+    public function setBody(string $body) {
         $this->request['body']=$body;
         return $this;
     }
@@ -100,7 +100,7 @@ class HttpHelper {
      * @param int $timeout 超时时间
      * @return self
      */
-    public function setTimeout(int $timeout){
+    public function setTimeout(int $timeout) {
         $this->request['timeout']=$timeout;
         return $this;
     }
@@ -112,7 +112,7 @@ class HttpHelper {
      * @param callable $callback 回调函数
      * @return self
      */
-    public function setStream(callable $callback){
+    public function setStream(callable $callback) {
         $this->response['stream']['open']=true;
         $this->response['stream']['callback']=$callback;
         return $this;
@@ -124,7 +124,7 @@ class HttpHelper {
      * @access public
      * @return self
      */
-    public function execute(){
+    public function execute() {
         $ch=curl_init();
         curl_setopt($ch,CURLOPT_URL,$this->request['url']);
         $method=strtoupper($this->request['method']);
@@ -137,7 +137,7 @@ class HttpHelper {
         // 判断是否为流式请求
         if($this->response['stream']['open']) {
             $callback=$this->response['stream']['callback'];
-            curl_setopt($ch,CURLOPT_WRITEFUNCTION,function($ch,$data) use ($callback){
+            curl_setopt($ch,CURLOPT_WRITEFUNCTION,function($ch,$data) use ($callback) {
                 // 执行回调函数
                 call_user_func($callback,$data);
                 return strlen($data);
@@ -157,7 +157,7 @@ class HttpHelper {
      * @access public
      * @return string
      */
-    public function getBody(){
+    public function getBody() {
         return $this->response['body'];
     }
 
@@ -167,7 +167,7 @@ class HttpHelper {
      * @access public
      * @return int
      */
-    public function getStatusCode(){
+    public function getStatusCode() {
         return $this->response['status_code'];
     }
 
@@ -177,7 +177,7 @@ class HttpHelper {
      * @access public
      * @return array
      */
-    public function getHeaders(){
+    public function getHeaders() {
         return $this->response['headers'];
     }
 
@@ -188,7 +188,7 @@ class HttpHelper {
      * @param string $key 响应头key
      * @return string
      */
-    public function getHeader(string $key){
+    public function getHeader(string $key) {
         return $this->response['headers'][$key]??'';
     }
 

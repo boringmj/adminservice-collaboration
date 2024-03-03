@@ -107,6 +107,7 @@ final class Config {
 
     /**
      * 检查文件内容是否安全
+     * 我们无法提供更完善的安全检查，只能提供一个简单的安全检查，只需要简单的方法即可绕过，因此建议管理员自行检查配置文件的安全性
      * 
      * @access private
      * @param string $file

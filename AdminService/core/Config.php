@@ -120,6 +120,9 @@ final class Config {
         // 判断是否是一个合法的php文件
         if(!preg_match('/^\s*(\<\?(php|=)?)/',$file_content))
             throw new Exception("Config file is not safe: {$file}, please use the php tag");
+        // 去除所有行注释和块注释的内容
+        $file_content=preg_replace('/\(\/\/|\#.*$/m','',$file_content);
+        $file_content=preg_replace('/\/\*.*\*\//s','',$file_content);
         // 先判断最终返回的结果是否是数组
         if(!preg_match('/return\s+(array\(|\[)/',$file_content))
             throw new Exception("Config file is not safe: {$file}, please return an array");
@@ -137,11 +140,25 @@ final class Config {
             'include',
             'require',
             'include_once',
+            'require_once',
+            'import',
+            'include_once',
             'require_once'
         );
         $perg_str=implode('|',$list);
         if(preg_match('/\b('.$perg_str.')\b\s*\(/',$file_content,$matches))
             throw new Exception("Config file is not safe: {$file}, please remove the function: {$matches[1]}");
+        // 判断是否有危险的关键字
+        $list=array(
+            'include',
+            'require',
+            'include_once',
+            'require_once'
+        );
+        $perg_str=implode('|',$list);
+        // 禁止引入上级目录和协议地址
+        if(preg_match('/\b('.$perg_str.')\b\s*[\'"](\.{2}|.*(\/{2}|\\{2}))/',$file_content,$matches))
+            throw new Exception("Config file is not safe: {$file}, please remove the keyword: {$matches[1]}");
     }
 
 }

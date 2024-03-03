@@ -9,6 +9,11 @@ use AdminService\Log;
 
 final class Main {
 
+    /**
+     * 初始化状态
+     * 
+     * @var bool
+     */
     static private $init_finish;
     
     /**

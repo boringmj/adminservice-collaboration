@@ -79,7 +79,7 @@ final class Mysql extends SqlDrive {
         foreach($data as $key=>$value) {
             if(is_int($key)&&is_array($value))
                 $data_temp[]=$value;
-            else if (is_string($key)) {
+            else if(is_string($key)) {
                 if(isset($data_temp[0]))
                     $data_temp[0]=array();
                 $data_temp[0][$key]=$value;
@@ -539,7 +539,7 @@ final class Mysql extends SqlDrive {
                     $this->order[]=array($temp[0],$temp[1]);
                 } else
                     $this->order[]=array($temp[0],'ASC');
-            } elseif (is_array($value)) {
+            } elseif(is_array($value)) {
                 if(count($value)>2||count($value)<1)
                     throw new Exception('Order $data length error.',100431);
                 // 将第一个字符左右的`去除

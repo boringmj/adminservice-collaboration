@@ -96,8 +96,8 @@ final class Config {
     final static public function get(string $key,mixed $default=null): mixed {
         $keys=explode(".",$key);
         $configs=self::$configs;
-        foreach ($keys as $key) {
-            if (isset($configs[$key]))
+        foreach($keys as $key) {
+            if(isset($configs[$key]))
                 $configs=$configs[$key];
             else
                 return $default;

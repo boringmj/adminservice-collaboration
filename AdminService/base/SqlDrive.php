@@ -150,7 +150,7 @@ abstract class SqlDrive implements Sql {
     public function beginTransaction(): void {
         $this->check_connect();
         // 判断是否已经开启事务
-        if ($this->db->inTransaction())
+        if($this->db->inTransaction())
             throw new Exception('Transaction has been started.',100410);
         $this->db->beginTransaction();
     }

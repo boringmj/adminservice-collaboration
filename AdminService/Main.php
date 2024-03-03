@@ -26,7 +26,7 @@ final class Main {
         // 初始化状态
         self::$init_finish=false;
         // 判断PHP版本
-        if (version_compare(PHP_VERSION,'8.0.0','<'))
+        if(version_compare(PHP_VERSION,'8.0.0','<'))
             exit('无法兼容您的PHP版本('.PHP_VERSION.'),需要PHP8.0.0及以上版本');
         // 调整环境
         // error_reporting(0);
@@ -55,7 +55,7 @@ final class Main {
         return function() {
             // 捕获致命错误
             $error=error_get_last();
-            if (!empty($error)) {
+            if(!empty($error)) {
                 //通过正则表达式匹配出错误原因(in 前面的内容)
                 preg_match('/^(.*?: .*?) in.*/',$error['message'],$matches);
                 if(isset($matches[1]))
@@ -103,10 +103,10 @@ final class Main {
     private function loadFunction(): void {
         $function_path=Config::get('function.path');
         $function_loader=Config::get('function.loader');
-        if (is_array($function_loader)) {
-            foreach ($function_loader as $function) {
+        if(is_array($function_loader)) {
+            foreach($function_loader as $function) {
                 $function_file=$function_path.'/'.$function.'.php';
-                if (is_file($function_file))
+                if(is_file($function_file))
                     include_once $function_file;
             }
         }

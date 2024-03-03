@@ -93,7 +93,7 @@ final class File {
                 throw new Exception("File write failed: {$this->file_path}, please check the file permission.",100103,array(
                     'file_path'=>$this->file_path
                 ));
-        } catch (\Throwable) {
+        } catch(\Throwable) {
             throw new Exception("File write failed: {$this->file_path}, please check the file permission.",100103,array(
                 'file_path'=>$this->file_path
             ));
@@ -181,10 +181,10 @@ final class File {
         if(is_file($this->file_path))
         {
             try {
-                $result=unlink($this->file_path);
+                unlink($this->file_path);
                 $this->file_path=null;
                 $this->data=array();
-            } catch (\Throwable $e) {
+            } catch(\Throwable $e) {
                 throw new Exception("File destroy failed: {$this->file_path}, please check the file permission.",100106,array(
                     'file_path'=>$this->file_path
                 ));

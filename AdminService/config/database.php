@@ -11,7 +11,7 @@ return array(
         'user'=>'', // 数据库用户名
         'password'=>'', // 数据库密码
         'dbname'=>'', // 数据库名
-        'charset'=>'utf8', // 数据库编码 default: utf8
+        'charset'=>'utf8mb4', // 数据库编码 default: utf8, utf8mb4 需要mysql5.5.3及以上且数据库、表和字段都支持
         'prefix'=>'' // 数据表前缀 default: ''
     ),
     'rule'=>array(

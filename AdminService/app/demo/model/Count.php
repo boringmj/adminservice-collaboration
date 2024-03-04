@@ -3,6 +3,7 @@
 namespace app\demo\model;
 
 use base\Model;
+use AdminService\App;
 use AdminService\File;
 use AdminService\Exception;
 
@@ -17,9 +18,11 @@ class Count extends Model {
      * 构造方法
      * 
      * @access public
-     * @param File $file 文件对象
+     * @param ?File $file 文件对象
      */
-    public function __construct(File $file=(new File('count'))) {
+    public function __construct(?File $file=null) {
+        if(is_null($file))
+            $file=App::get('File','count');
         $this->file=$file;
     }
 

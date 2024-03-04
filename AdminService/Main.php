@@ -73,15 +73,14 @@ final class Main {
                 // 记录日志
                 if(self::$init_finish) {
                     try {
-                        $Log=new Log();
-                        $Log->write(
+                        App::exec_class_function(Log::class,'write',array(
                             '发生错误或警告: {message} in {file} on line {line}',
                             array(
                                 'message'=>$error['message'],
                                 'file'=>$error['file'],
                                 'line'=>$error['line']
                             )
-                        );
+                        ));
                     } catch(\Exception $e) {
                         echo "<br>日志记录失败: {$e->getMessage()}";
                     }

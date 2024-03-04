@@ -23,6 +23,24 @@ class Index extends Controller {
         return "Hello World!";
     }
 
+    public function request() {
+        // 获取请求参数(更多用法请查看Request基类以及Request核心类)
+        // $this->request的实际类型是AdminService\Request,你在调用方法时ide提示的则是base\Request
+        // 所以如果你希望你的ide能够准确提示,建议引入AdminService\Request后直接使用AdminService\Request的静态方法
+        return json(null,null,array(
+            'name'=>$this->request->param('name','AdminService'), // 获取请求参数(CGP顺序)
+            // 'name'=>$this->param('name','AdminService'), // 完全等价于上面的写法
+            // 'post'=>$this->request->post('name','AdminService'), // 获取单个POST参数
+            // 'name'=>$this->request->get('name','AdminService'), // 获取单个GET参数
+            'post'=>$this->request->post(), // 获取所有POST参数
+            'get'=>$this->request->get(), // 获取所有GET参数
+            'cookie'=>$this->request->cookie(), // 获取所有COOKIE参数
+            'input'=>$this->request->getInput(), // 获取输入流
+            'files'=>$this->request->getUploadFile('files'), // 获取上传的文件
+            'key'=>$this->request->keys('get') // 获取所有GTE类型请求参数的键名(支持all|get|post|cookie且不区分大小写)
+        ));
+    }
+
     public function test() {
         // 返回视图,默认视图路径为 AdminService/app/demo/view/控制器名/方法名.html
         return $this->view(array(

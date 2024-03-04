@@ -87,18 +87,6 @@ final class Request extends BaseRequest {
     }
 
     /**
-     * 获取GET参数
-     * 
-     * @access public
-     * @param int|string $params 参数
-     * @param mixed $default 默认值
-     * @return mixed
-     */
-    static public function getGet(int|string $params,mixed $default=null): mixed {
-        return self::$request_params['_GET'][$params]??$default;
-    }
-
-    /**
      * 设置GET参数
      * 
      * @access public
@@ -134,18 +122,6 @@ final class Request extends BaseRequest {
     }
 
     /**
-     * 获取POST参数
-     * 
-     * @access public
-     * @param int|string $params 参数
-     * @param mixed $default 默认值
-     * @return mixed
-     */
-    static public function getPost(int|string $params,mixed $default=null): mixed {
-        return self::$request_params['_POST'][$params]??$default;
-    }
-
-    /**
      * 设置POST参数
      * 
      * @access public
@@ -178,18 +154,6 @@ final class Request extends BaseRequest {
             return self::setCookie($params,$value,$enforce);
         }
         return self::getCookie(Config::get('cookie.prefix','').$params);
-    }
-
-    /**
-     * 获取COOKIE参数
-     * 
-     * @access public
-     * @param int|string $params 参数
-     * @param mixed $default 默认值
-     * @return mixed
-     */
-    static public function getCookie(int|string $params,mixed $default=null): mixed {
-        return self::$request_params['_COOKIE'][Config::get('cookie.prefix','').$params]??$default;
     }
 
     /**
@@ -243,26 +207,6 @@ final class Request extends BaseRequest {
                 'domain'=>$domain
             );
         }
-    }
-
-    /**
-     * 返回所有请求参数的键值
-     * 
-     * @access public
-     * @param string $type 参数类型(all|get|post|cookie)
-     * @return array
-     */
-    final static public function keys($type='all'): array {
-        if($type=='all')
-            return array_keys(self::$request_params);
-        else if($type=='get')
-            return array_keys(self::$request_params['_GET']);
-        else if($type=='post')
-            return array_keys(self::$request_params['_POST']);
-        else if($type=='cookie')
-            return array_keys(self::$request_params['_COOKIE']);
-        else
-            return array();
     }
 
     /**

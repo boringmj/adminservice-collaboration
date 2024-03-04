@@ -83,6 +83,30 @@ abstract class Request {
     abstract static public function getUploadFile(string $name): array;
 
     /**
+     * 设置COOKIE参数(设置Cookie时Cookie将会在本次以及后续请求中生效)
+     * 
+     * @access public
+     * @param int|string|array $params 参数
+     * @param mixed $value 值(当 $params 为数组时此参数无效)
+     * @param bool $enforce 是否与 params() 方法同步
+     * @return void
+     */
+    abstract static public function setCookie(int|string|array $params,mixed $value=null,bool $enforce=false): void;
+
+    /**
+     * 添加返回的Cookie信息
+     * 
+     * @access public
+     * @param string|array $params 参数(string时为cookie名,array时为cookie数组)
+     * @param string $value Cookie值($params 参数为数组时此参数无效)
+     * @param int $expire 过期时间
+     * @param string $path 路径
+     * @param string $domain 域名
+     * @return void
+     */
+    abstract static public function addCookie(string|array $params,string $value,?int $expire=null,?string $path=null,?string $domain=null): void;
+
+    /**
      * 初始化请求
      * 
      * @access public
@@ -159,7 +183,7 @@ abstract class Request {
         if(is_array($params)||$value!==null) {
             return self::set($params,$value);
         }
-        return self::get($params);
+        return self::param($params);
     }
 
     /**
@@ -170,7 +194,7 @@ abstract class Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    final static public function get(int|string $params,mixed $default=null): mixed {
+    final static public function param(int|string $params,mixed $default=null): mixed {
         return self::$request_params[$params]??$default;
     }
 
@@ -230,13 +254,112 @@ abstract class Request {
     }
 
     /**
-     * 返回请求体
+     * 返回输入流
      * 
      * @access public
      * @return string
      */
     final static public function getInput(): string {
         return self::$request_params['_INPUT'];
+    }
+
+    /**
+     * 获取POST参数
+     * 
+     * @access public
+     * @param int|string $params 参数
+     * @param mixed $default 默认值
+     * @return mixed
+     */
+    final static public function getPost(int|string $params,mixed $default=null): mixed {
+        return self::$request_params['_POST'][$params]??$default;
+    }
+
+    /**
+     * 获取GET参数
+     * 
+     * @access public
+     * @param int|string $params 参数
+     * @param mixed $default 默认值
+     * @return mixed
+     */
+    static public function getGet(int|string $params,mixed $default=null): mixed {
+        return self::$request_params['_GET'][$params]??$default;
+    }
+
+    /**
+     * 获取POST参数(-1则返回全部POST参数)
+     * 
+     * @access public
+     * @param int|string $params 参数
+     * @param mixed $default 默认值
+     * @return mixed
+     */
+    final static public function post(int|string $params=-1,mixed $default=null): mixed {
+        if($params===-1)
+            return self::getAllPost();
+        return self::getPost($params,$default);
+    }
+
+    /**
+     * 获取GET参数(-1则返回全部GET参数)
+     * 
+     * @access public
+     * @param int|string $params 参数
+     * @param mixed $default 默认值
+     * @return mixed
+     */
+    static public function get(int|string $params=-1,mixed $default=null): mixed {
+        if($params===-1)
+            return self::getAllGet();
+        return self::getGet($params,$default);
+    }
+
+    /**
+     * 获取COOKIE参数
+     * 
+     * @access public
+     * @param int|string $params 参数
+     * @param mixed $default 默认值
+     * @return mixed
+     */
+    static public function getCookie(int|string $params,mixed $default=null): mixed {
+        return self::$request_params['_COOKIE'][Config::get('cookie.prefix','').$params]??$default;
+    }
+
+    /**
+     * 获取COOKIE参数(-1则返回全部COOKIE参数)
+     * 
+     * @access public
+     * @param int|string $params 参数
+     * @param mixed $default 默认值
+     * @return mixed
+     */
+    static public function cookie(int|string $params=-1,mixed $default=null): mixed {
+        if($params===-1)
+            return self::getAllCookie();
+        return self::getCookie($params,$default);
+    }
+
+    /**
+     * 返回所有请求参数的键值
+     * 
+     * @access public
+     * @param string $type 参数类型(all|get|post|cookie)
+     * @return array
+     */
+    final static public function keys($type='all'): array {
+        $type=strtolower($type);
+        if($type=='all')
+            return array_keys(self::$request_params);
+        else if($type=='get')
+            return array_keys(self::$request_params['_GET']);
+        else if($type=='post')
+            return array_keys(self::$request_params['_POST']);
+        else if($type=='cookie')
+            return array_keys(self::$request_params['_COOKIE']);
+        else
+            return array();
     }
 
 }

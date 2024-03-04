@@ -50,7 +50,7 @@ abstract class Controller {
      * @return mixed
      */
     final protected function param(int|string $param,mixed $default=null): mixed {
-        return $this->request::get($param,$default);
+        return $this->request::param($param,$default);
     }
 
     /**

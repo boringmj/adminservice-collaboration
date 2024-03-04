@@ -238,13 +238,13 @@ final class Request extends BaseRequest {
                     'code'=>$data['code']??self::$request_info['code'],
                     'msg'=>$data['msg']??self::$request_info['msg'],
                     'data'=>$data['data']??self::$request_info['data']
-                ));
+                ),Config::get('request.default.json.flag',0));
             else
                 self::$request_info['return_data']=json_encode(array(
                     'code'=>self::$request_info['code'],
                     'msg'=>self::$request_info['msg'],
                     'data'=>$data
-                ));
+                ),Config::get('request.default.json.flag',0));
         } else if((self::$request_info['return_type']??null)=='html') {
             if(is_string($data)||is_null($data))
                 self::$request_info['return_data']=$data;

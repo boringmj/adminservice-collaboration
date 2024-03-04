@@ -50,7 +50,7 @@ class Index extends Controller {
 
     public function count() {
         // 这里展示通过App::get()来实例化(优点是支持自动依赖注入,缺点是兼容性不太好)
-        $count=App::get(Count::class);
+        $count=App::get(Count::class,null); // 第二个参数实际传给Count构造方法的参数
         return view('count',array(
             'count'=>$count->add()
         ));

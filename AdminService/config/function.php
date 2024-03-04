@@ -11,7 +11,7 @@ return array(
         'controller_helper', // 控制器助手函数
         'sign', // 签名函数
         'http_post', // http_post函数
-        'HttpHelper', // HttpHelper类(用于发送http请求)
+        'HttpHelper' // HttpHelper类(用于发送http请求)
     )
 );
 

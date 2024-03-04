@@ -2,12 +2,11 @@
 
 namespace app\demo\model;
 
-use base\Model;
 use AdminService\App;
 use AdminService\File;
 use AdminService\Exception;
 
-class Count extends Model {
+class Count {
 
     /**
      * 文件对象

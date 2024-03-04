@@ -75,9 +75,9 @@ abstract class Container {
      */
     static public function getClass(string $name): string {
         $name=self::getRealClass($name);
-        // 如果类容器中不存在该类则抛出异常
+        // 如果类容器中不存在该类则返回原类名
         if(!isset(self::$class_container[$name]))
-            throw new Exception('Class "'.$name.'" not found.');
+            return $name;
         return self::$class_container[$name];
     }
 

@@ -2,6 +2,9 @@
 
 namespace AdminService\sql;
 
+use \PDO;
+use \PDOStatement;
+use \PDOException;
 use base\SqlDrive;
 use AdminService\Exception;
 
@@ -45,10 +48,10 @@ final class Mysql extends SqlDrive {
     private array $where_ex;
 
     /**
-     * 高级where条件的值
+     * where条件的值
      * @var array
      */
-    private array $where_ex_value;
+    private array $where_value;
 
     /**
      * 分组数据
@@ -70,7 +73,7 @@ final class Mysql extends SqlDrive {
         '<>',
         'LIKE',
         'NOT LIKE',
-        // 'IN',            暂未支持
+        'IN',
         // 'IS NULL',       暂未支持
         // 'IS NOT NULL',   暂未支持
         // 'BETWEEN',       暂未支持
@@ -88,7 +91,7 @@ final class Mysql extends SqlDrive {
         $this->limit=array();
         $this->order=array();
         $this->where_ex=array();
-        $this->where_ex_value=array();
+        $this->where_value=array();
         $this->group=array();
         $this->iterator=false;
         $this->lock='';
@@ -259,8 +262,22 @@ final class Mysql extends SqlDrive {
                     $sql.=' WHERE ';
                     if($data===true)
                         $sql.='(';
-                    foreach($where as $value)
+                    foreach($where as $value) {
+                        // 判断操作符是否为 IN
+                        if($value['operator']==='IN') {
+                            $sql.='`'.$value['key'].'` '.$value['operator'].' (';
+                            $in_string='';
+                            foreach($value['value'] as $value2) {
+                                $in_string.=$in_string===''? ('?'):(',?');
+                                $this->where_value[]=$value2;
+                            }
+                            $sql.=$in_string.') AND ';
+                            continue;
+                        }
+                        // 将值存入数组
+                        $this->where_value[]=$value['value'];
                         $sql.='`'.$value['key'].'` '.$value['operator'].' ? AND ';
+                    }
                     // 判断是否存在其他where条件
                     if(empty($this->where_ex))
                         $sql=substr($sql,0,-5);
@@ -298,9 +315,19 @@ final class Mysql extends SqlDrive {
                         $sql.='('.$temp.')';
                     } else {
                         // 直接构造
-                        $sql.='`'.$value['key'].'` '.$value['operator'].' ?';
-                        // 将值存入数组
-                        $this->where_ex_value[]=$value['value'];
+                        if($value['operator']==='IN') {
+                            $sql.='`'.$value['key'].'` '.$value['operator'].' (';
+                            $in_string='';
+                            foreach($value['value'] as $value2) {
+                                $in_string.=$in_string===''? ('?'):(',?');
+                                $this->where_value[]=$value2;
+                            }
+                            $sql.=$in_string.')';
+                        } else {
+                            $sql.='`'.$value['key'].'` '.$value['operator'].' ?';
+                            // 将值存入数组
+                            $this->where_value[]=$value['value'];
+                        }
                     }
                     // 如果不为最后一个元素,则添加连接符号
                     if($value!==end($data))
@@ -364,14 +391,14 @@ final class Mysql extends SqlDrive {
      * 
      * @access public
      * @param string $sql SQL语句
-     * @return mixed
+     * @return PDOStatement
      */
-    public function prepare(string $sql): mixed {
+    public function prepare(string $sql): PDOStatement {
         $this->check_connect();
         $this->lastsql=$sql;
         try {
             return $this->db->prepare($sql);
-        } catch(\PDOException $e) {
+        } catch(PDOException $e) {
             throw new Exception('SQL prepare error.',100460,array(
                 'sql'=>$sql,
                 'info'=>$e->getMessage(),
@@ -397,12 +424,7 @@ final class Mysql extends SqlDrive {
             ));
         // 传入where条件的值
         $i=1;
-        foreach($this->where_array as $value) {
-            $stmt->bindValue($i,$value['value']);
-            $i++;
-        }
-        // 传入高级where条件的值
-        foreach($this->where_ex_value as $value) {
+        foreach($this->where_value as $value) {
             $stmt->bindValue($i,$value);
             $i++;
         }
@@ -411,7 +433,7 @@ final class Mysql extends SqlDrive {
             if($this->iterator) {
                 return $this->iterator_select($stmt);
             } else {
-                $result=$stmt->fetchAll(\PDO::FETCH_ASSOC);
+                $result=$stmt->fetchAll(PDO::FETCH_ASSOC);
                 $stmt->closeCursor();
                 // 重置查询状态
                 $this->reset();
@@ -435,7 +457,7 @@ final class Mysql extends SqlDrive {
     private function iterator_select(object $stmt): mixed {
         $this->iterator=false;
         // 逐条读取数据
-        while($row=$stmt->fetch(\PDO::FETCH_ASSOC))
+        while($row=$stmt->fetch(PDO::FETCH_ASSOC))
             yield $row;
         $stmt->closeCursor();
         // 重置查询状态
@@ -459,17 +481,12 @@ final class Mysql extends SqlDrive {
             ));
         // 传入where条件的值
         $i=1;
-        foreach($this->where_array as $value) {
-            $stmt->bindValue($i,$value['value']);
-            $i++;
-        }
-        // 传入高级where条件的值
-        foreach($this->where_ex_value as $value) {
+        foreach($this->where_value as $value) {
             $stmt->bindValue($i,$value);
             $i++;
         }
         if($stmt->execute()) {
-            $result=$stmt->fetch(\PDO::FETCH_ASSOC);
+            $result=$stmt->fetch(PDO::FETCH_ASSOC);
             // 如果$fields不是数组且不为*, 则返回对应字段的值
             if((!is_array($fields)&&$fields!=='*')&&(!is_bool($result))&&isset($result[$fields]))
                 $result=$result[$fields];
@@ -501,12 +518,7 @@ final class Mysql extends SqlDrive {
             ));
         // 传入where条件的值
         $i=1;
-        foreach($this->where_array as $value) {
-            $stmt->bindValue($i,$value['value']);
-            $i++;
-        }
-        // 传入高级where条件的值
-        foreach($this->where_ex_value as $value) {
+        foreach($this->where_value as $value) {
             $stmt->bindValue($i,$value);
             $i++;
         }
@@ -519,7 +531,7 @@ final class Mysql extends SqlDrive {
                 $this->reset();
                 return $result;
             } else {
-                $result=$stmt->fetchAll(\PDO::FETCH_ASSOC);
+                $result=$stmt->fetchAll(PDO::FETCH_ASSOC);
                 $stmt->closeCursor();
                 // 重置查询状态
                 $this->reset();
@@ -583,6 +595,8 @@ final class Mysql extends SqlDrive {
         foreach($data as $temp) {
             if(!is_array($temp))
                 throw new Exception('Update $data not is array.',100423);
+            // 重置where条件的值
+            $this->where_value=array();
             $sql=$this->build('update',$temp);
             $stmt=$this->prepare($sql);
             if($stmt===false)
@@ -599,14 +613,8 @@ final class Mysql extends SqlDrive {
                 $stmt->bindValue($i,$value);
                 $i++;
             }
-            // 再绑定where条件, 合并临时where条件, 如果冲突则保留临时条件
-            $where=array_merge($this->where_array,$this->where_temp);
-            foreach($where as $value) {
-                $stmt->bindValue($i,$value['value']);
-                $i++;
-            }
-            // 最后绑定高级where条件
-            foreach($this->where_ex_value as $value) {
+            // 最后绑定where条件
+            foreach($this->where_value as $value) {
                 $stmt->bindValue($i,$value);
                 $i++;
             }
@@ -754,12 +762,7 @@ final class Mysql extends SqlDrive {
             ));
         $i=1;
         // 先绑定 where 条件
-        foreach($this->where_array as $value) {
-            $stmt->bindValue($i,$value['value']);
-            $i++;
-        }
-        // 然后绑定高级 where 条件
-        foreach($this->where_ex_value as $value) {
+        foreach($this->where_value as $value) {
             $stmt->bindValue($i,$value);
             $i++;
         }

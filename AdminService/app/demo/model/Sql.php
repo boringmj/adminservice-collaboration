@@ -77,19 +77,30 @@ class Sql extends Model {
         # 查询一条数据(find 方法同样支持 select 方法的所有功能, 但是只会返回一条数据)
         // return $this->find(); 
 
-        // 补充说明, 下面是一条极其复杂的SQL语句, 解释了诸多新特性, 可以尝试修改并查看SQL语句的变化
-        return array(
-            'data'=>$this->where('id',1)->whereEx(array('app_id','LIKE','op%'))->whereEx(array(
-                array('id',2),
-                array('app_key','LIKE','op%'),
-                array(
-                    array('id',3),
-                    array('app_key','LIKE','op%')
-                ),
-                'OR'
-            ))->order('id DESC')->limit(1,1)->select(),
-            'sql'=>$this->getLastSql()
-        );
+        // 补充说明, 下面是一条极其复杂的SQL语句, 解释了诸多新特性, 可以尝试修改并查看SQL语句的变化(错误条件并不一定会有实际数据返回)
+        # 开启事务
+        $this->beginTransaction();
+        try {
+            $data=array(
+                'data'=>$this->where('id',1)->whereEx(array('app_id','LIKE','op%'))->whereEx(array(
+                    array('id',2),
+                    array('app_key','IN',array(1,2)),
+                    array(
+                        array('id',3),
+                        array('app_key','LIKE','op%')
+                    ),
+                    'OR'
+                ))->order('id DESC')->limit(1,1)->lock()->group("app_id")->select(),
+                'sql'=>$this->getLastSql()
+            );
+            # 提交事务
+            $this->commit();
+            return $data;
+        } catch(\AdminService\Exception $e) {
+            # 回滚事务
+            $this->rollBack();
+            return $e->getMessage();
+        }
 
         # 查询全部
         // return $this->select();
@@ -100,6 +111,8 @@ class Sql extends Model {
         // return $this->select('id');
         // return $this->select(array('id','app_id'));
         // return $this->select(['id','app_id']);
+        // 使用IN操作符(目前支持的where操作符仅有: =,>,<,>=,<=,!=,<>,LIKE,NOT LIKE,IN')
+        // return $this->select('id',array(1,2,3),'IN');
         # 查询指定条件(链式)
         //return $this->where('id',1)->select();
         // return $this->where('id',1,'>=')->select();

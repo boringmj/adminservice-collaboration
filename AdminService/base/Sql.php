@@ -80,18 +80,18 @@ interface Sql {
      * 
      * @access public
      * @param array ...$data 数据
-     * @return bool
+     * @return int
      */
-    public function insert(...$data): bool;
+    public function insert(...$data): int;
 
     /**
      * 更新数据
      * 
      * @access public
      * @param array ...$data 数据
-     * @return bool
+     * @return int
      */
-    public function update(...$data): bool;
+    public function update(...$data): int;
 
     /**
      * 设置limit限制
@@ -112,13 +112,22 @@ interface Sql {
     public function order(...$data): self;
 
     /**
+     * 设置group分组(仅对 select, find 和 count 生效)
+     * 
+     * @access public
+     * @param ...$data group分组
+     * @return self
+     */
+    public function group(...$data): self;
+
+    /**
      * 删除数据
      * 
      * @access public
      * @param int|string|array|null $data 主键或者组件组
-     * @return bool
+     * @return int
      */
-    public function delete(int|string|array|null $data=null): bool;
+    public function delete(int|string|array|null $data=null): int;
 
     /**
      * 开启事务
@@ -153,12 +162,37 @@ interface Sql {
     public function iterator(): self;
 
     /**
+     * 统计当前查询条件下的数据总数
+     * 
+     * @access public
+     * @return int|array
+     */
+    public function count(): int|array;
+
+    /**
+     * 自动去重复(仅对 select 和 count 生效)
+     * 
+     * @access public
+     * @return self
+     */
+    public function distinct(): self;
+
+    /**
      * 重置查询状态
      * 
      * @access protected
      * @return self
      */
     public function reset(): self;
+
+    /**
+     * 为当前语句设置显式行锁
+     * 
+     * @access public
+     * @param string $type 锁类型(shared,update且默认为update,不区分大小写,其他值无效)
+     * @return self
+     */
+    public function lock(string $type='update'): self;
 
 }
 

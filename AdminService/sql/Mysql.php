@@ -51,6 +51,32 @@ final class Mysql extends SqlDrive {
     private array $where_ex_value;
 
     /**
+     * 分组数据
+     * @var array
+     */
+    private array $group;
+
+    /**
+     * 允许的操作符
+     * @var array
+     */
+    private array $operator=array(
+        '=',
+        '>',
+        '<',
+        '>=',
+        '<=',
+        '!=',
+        '<>',
+        'LIKE',
+        'NOT LIKE',
+        // 'IN',            暂未支持
+        // 'IS NULL',       暂未支持
+        // 'IS NOT NULL',   暂未支持
+        // 'BETWEEN',       暂未支持
+    );
+
+    /**
      * 重置查询状态
      * 
      * @access protected
@@ -63,7 +89,10 @@ final class Mysql extends SqlDrive {
         $this->order=array();
         $this->where_ex=array();
         $this->where_ex_value=array();
+        $this->group=array();
         $this->iterator=false;
+        $this->lock='';
+        $this->distinct=false;
         return $this;
     }
 
@@ -117,19 +146,48 @@ final class Mysql extends SqlDrive {
                         $fields_string='`'.$fields.'`';
                     }
                 }
+                // // 判断是否要去重复
+                // if($this->distinct)
+                //     $fields_string='DISTINCT '.$fields_string;
                 $sql='SELECT '.$fields_string.' FROM `'.$this->table.'`'.$this->build('where');
+                // 添加分组
+                $sql.=$this->build('group');
                 if($options==='find')
                     return $sql;
                 // 添加排序和限制
                 $sql.=$this->build('order');
                 $sql.=$this->build('limit');
+                // 添加行锁
+                $sql.=$this->build('lock');
                 $sql.=';';
                 return $sql;
             case 'find':
                 $sql=$this->build('select',$data,'find');
                 // 添加排序
                 $sql.=$this->build('order');
-                $sql.=' LIMIT 1;';
+                $sql.=' LIMIT 1';
+                // 添加行锁
+                $sql.=$this->build('lock');
+                $sql.=';';
+                return $sql;
+            case 'count':
+                $fields_string='*';
+                // // 判断是否要去重复
+                // if($this->distinct)
+                //     $fields_string='DISTINCT '.$fields_string;
+                $sql='SELECT COUNT('.$fields_string.') AS "__count"';
+                // 判断是否有分组
+                if(!empty($this->group)) {
+                    // 将字段加入到查询中
+                    foreach($this->group as $value)
+                        $sql.=',`'.$value.'`';
+                }
+                $sql.=' FROM `'.$this->table.'`'.$this->build('where');
+                // 添加分组
+                $sql.=$this->build('group');
+                // 添加行锁
+                $sql.=$this->build('lock');
+                $sql.=';';
                 return $sql;
             case 'insert':
                 $sql='INSERT INTO `'.$this->table.'` (';
@@ -142,7 +200,10 @@ final class Mysql extends SqlDrive {
                     $values_string.=$values_string===''? ('?'):(',?');
                     $i++;
                 }
-                $sql.=$fields_string.') VALUES ('.$values_string.');';
+                $sql.=$fields_string.') VALUES ('.$values_string.')';
+                // 添加行锁
+                $sql.=$this->build('lock');
+                $sql.=';';
                 return $sql;
             case 'update':
                 $sql='UPDATE `'.$this->table.'` SET ';
@@ -162,7 +223,10 @@ final class Mysql extends SqlDrive {
                 }
                 if(empty($this->where_array)&&empty($this->where_temp)&&empty($this->where_ex))
                     throw new Exception('Update must have where condition.',100431);
-                $sql.=$fields_string.$this->build('where').';';
+                $sql.=$fields_string.$this->build('where');
+                // 添加行锁
+                $sql.=$this->build('lock');
+                $sql.=';';
                 return $sql;
             case 'delete':
                 $sql='DELETE FROM `'.$this->table.'`';
@@ -183,6 +247,8 @@ final class Mysql extends SqlDrive {
                     }
                     $sql.=$id_string.'))';
                 }
+                // 添加行锁
+                $sql.=$this->build('lock');
                 $sql.=';';
                 return $sql;
             case 'where':
@@ -261,6 +327,23 @@ final class Mysql extends SqlDrive {
                     $sql.='`'.$value[0].'` '.$value[1].',';
                 $sql=substr($sql,0,-1);
                 return $sql;
+            case 'lock':
+                $temp_lock='';
+                // 判断是否需要加行锁
+                if($this->lock==='shared')
+                    $temp_lock=' LOCK IN SHARE MODE';
+                else if($this->lock==='update')
+                    $temp_lock=' FOR UPDATE';
+                return $temp_lock;
+            case 'group':
+                $sql=' GROUP BY ';
+                // 判断是否为空
+                if(empty($this->group))
+                    return '';
+                foreach($this->group as $value)
+                    $sql.='`'.$value.'`,';
+                $sql=substr($sql,0,-1);
+                return $sql;
             default:
                 throw new Exception('SQL not build.',100430);
         }
@@ -286,7 +369,15 @@ final class Mysql extends SqlDrive {
     public function prepare(string $sql): mixed {
         $this->check_connect();
         $this->lastsql=$sql;
-        return $this->db->prepare($sql);
+        try {
+            return $this->db->prepare($sql);
+        } catch(\PDOException $e) {
+            throw new Exception('SQL prepare error.',100460,array(
+                'sql'=>$sql,
+                'info'=>$e->getMessage(),
+                'error'=>$this->db->errorInfo()
+            ));
+        }
     }
 
     /**
@@ -327,6 +418,7 @@ final class Mysql extends SqlDrive {
                 return $result;
             }
         }
+        $this->reset();
         throw new Exception('SQL execute error.',100406,array(
             'sql'=>$sql,
             'error'=>$stmt->errorInfo()
@@ -386,6 +478,7 @@ final class Mysql extends SqlDrive {
             $this->reset();
             return $result;
         }
+        $this->reset();
         throw new Exception('SQL execute error.',100406,array(
             'sql'=>$sql,
             'error'=>$stmt->errorInfo()
@@ -393,14 +486,57 @@ final class Mysql extends SqlDrive {
     }
 
     /**
+     * 统计当前查询条件下的数据总数
+     * 
+     * @access public
+     * @return int|array
+     */
+    public function count(): int|array {
+        $sql=$this->build('count');
+        $stmt=$this->prepare($sql);
+        if($stmt===false)
+            throw new Exception('SQL prepare error.',100420,array(
+                'sql'=>$sql,
+                'error'=>$this->db->errorInfo()
+            ));
+        // 传入where条件的值
+        $i=1;
+        foreach($this->where_array as $value) {
+            $stmt->bindValue($i,$value['value']);
+            $i++;
+        }
+        // 传入高级where条件的值
+        foreach($this->where_ex_value as $value) {
+            $stmt->bindValue($i,$value);
+            $i++;
+        }
+        if($stmt->execute()) {
+            // 判断是否启用了group, 如果启用了group, 则返回数组, 否则返回int
+            if(empty($this->group)) {
+                $result=$stmt->fetchColumn();
+                $stmt->closeCursor();
+                // 重置查询状态
+                $this->reset();
+                return $result;
+            } else {
+                $result=$stmt->fetchAll(\PDO::FETCH_ASSOC);
+                $stmt->closeCursor();
+                // 重置查询状态
+                $this->reset();
+                return $result;
+            }
+        }
+        $this->reset();
+    }
+
+    /**
      * 插入数据
      * 
      * @access public
      * @param array ...$data 数据
-     * @return bool
+     * @return int
      */
-    public function insert(...$data): bool {
-        $result=true;
+    public function insert(...$data): int {
         // 先检查传入数据是否有效
         $data=$this->format_data(...$data);
         foreach($data as $temp) {
@@ -419,7 +555,7 @@ final class Mysql extends SqlDrive {
                 $i++;
             }
             if(!$stmt->execute()) {
-                $result=false;
+                $this->reset();
                 throw new Exception('SQL execute error.',100407,array(
                     'sql'=>$sql,
                     'data'=>$temp,
@@ -427,6 +563,8 @@ final class Mysql extends SqlDrive {
                 ));
             }
         }
+        // 获取插入了多少条数据
+        $result=$stmt->rowCount();
         // 重置查询状态
         $this->reset();
         return $result;
@@ -437,10 +575,9 @@ final class Mysql extends SqlDrive {
      * 
      * @access public
      * @param array ...$data 数据
-     * @return bool
+     * @return int
      */
-    public function update(...$data): bool {
-        $result=true;
+    public function update(...$data): int {
         // 先检查传入数据是否有效
         $data=$this->format_data(...$data);
         foreach($data as $temp) {
@@ -483,6 +620,8 @@ final class Mysql extends SqlDrive {
                 ));
             }
         }
+        // 获取更新了多少条数据
+        $result=$stmt->rowCount();
         // 重置查询条件
         $this->reset();
         return $result;
@@ -507,6 +646,33 @@ final class Mysql extends SqlDrive {
                 $this->limit=array($data[0]);
         } else
             throw new Exception('Limit $data error.',100430);
+        return $this;
+    }
+
+    /**
+     * 设置group分组
+     * 
+     * @access public
+     * @param ...$data group分组
+     * @return self
+     */
+    public function group(...$data): self {
+        // 先判断传入的数据类型
+        foreach($data as $value) {
+            if(is_string($value)) {
+                $this->check_key($value);
+                $this->group[]=$value;
+            } else if(is_array($value)) {
+                foreach($value as $value2) {
+                    if(is_string($value2)) {
+                        $this->check_key($value2);
+                        $this->group[]=$value2;
+                    } else
+                        throw new Exception('Group $data error.',100450);
+                }
+            } else
+                throw new Exception('Group $data error.',100451);
+        }
         return $this;
     }
 
@@ -563,10 +729,9 @@ final class Mysql extends SqlDrive {
      * 
      * @access public
      * @param int|string|array|null $data 主键或者组件组
-     * @return bool
+     * @return int
      */
-    public function delete(int|string|array|null $data=null): bool {
-        $result=true;
+    public function delete(int|string|array|null $data=null): int {
         $data_temp=array();
         // 先判断传入的数据类型
         if(is_array($data)) {
@@ -604,13 +769,15 @@ final class Mysql extends SqlDrive {
             $i++;
         }
         if(!$stmt->execute()) {
-            $result=false;
+            $this->reset();
             throw new Exception('SQL execute error.',100428,array(
                 'sql'=>$sql,
                 'data'=>$data_temp,
                 'error'=>$stmt->errorInfo()
             ));
         }
+        // 获取删除了多少条数据
+        $result=$stmt->rowCount();
         // 重置查询状态
         $this->reset();
         return $result;
@@ -629,7 +796,7 @@ final class Mysql extends SqlDrive {
         $this->check_connect();
         // 判断$options是在允许的范围内
         $operator=strtoupper($operator);
-        if(!in_array($operator,array('=','>','<','>=','<=','!=','LIKE','NOT LIKE')))
+        if(!in_array($operator,$this->operator))
             throw new Exception('SQL operator error.',100406,array(
                 'operator'=>$operator
             ));
@@ -728,7 +895,7 @@ final class Mysql extends SqlDrive {
             } else
                 $value=$where[1];
             // 判断操作符是否在允许的范围内
-            if(!in_array($operator,array('=','>','<','>=','<=','!=','LIKE','NOT LIKE')))
+            if(!in_array($operator,$this->operator))
                 throw new Exception('SQL operator error.',100438,array(
                     'operator'=>$operator
                 ));
@@ -777,24 +944,6 @@ final class Mysql extends SqlDrive {
         // 检查是否已经传递了数据库表名
         if($this->table===null)
             throw new Exception('Database table name is not set, please use table() to set.',100404);
-        // 判断where_array是否已经初始化
-        if(empty($this->where_array))
-            $this->where_array=array();
-        // 判断where_temp是否已经初始化
-        if(empty($this->where_temp))
-            $this->where_temp=array();
-        // 判断where_ex是否已经初始化
-        if(empty($this->where_ex))
-            $this->where_ex=array();
-        // 判断where_ex_value是否已经初始化
-        if(empty($this->where_ex_value))
-            $this->where_ex_value=array();
-        // 判断limit是否已经初始化
-        if(empty($this->limit))
-            $this->limit=array();
-        // 判断order是否已经初始化
-        if(empty($this->order))
-            $this->order=array();
     }
 
 }

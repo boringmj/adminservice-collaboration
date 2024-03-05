@@ -269,9 +269,9 @@ abstract class Database {
      * 
      * @access protected
      * @param array ...$data 数据
-     * @return bool
+     * @return int
      */
-    protected function insert(...$data): bool {
+    protected function insert(...$data): int {
         $this->autoTable();
         return $this->db_object->insert(...$data);
     }
@@ -281,9 +281,9 @@ abstract class Database {
      * 
      * @access protected
      * @param array ...$data 数据
-     * @return bool
+     * @return int
      */
-    protected function update(...$data): bool {
+    protected function update(...$data): int {
         $this->autoTable();
         return $this->db_object->update(...$data);
     }
@@ -313,13 +313,60 @@ abstract class Database {
     }
 
     /**
+     * 设置group分组(仅对 select, find 和 count 生效)
+     * 
+     * @access public
+     * @param ...$data group分组
+     * @return self
+     */
+    public function group(...$data): self {
+        $this->db_object->group(...$data);
+        return $this;
+    }
+
+    /**
+     * 统计当前查询条件下的数据总数
+     * 
+     * @access public
+     * @return int|array
+     */
+    public function count(): int|array {
+        $this->autoTable();
+        return $this->db_object->count();
+    }
+
+    /**
+     * 自动去重复(仅对 select 和 count 生效)
+     * 
+     * @access public
+     * @return self
+     * @deprecated 因实现方式不合理,已经废弃
+     */
+    public function distinct(): self {
+        $this->db_object->distinct();
+        return $this;
+    }
+
+    /**
+     * 为当前语句设置显式行锁
+     * 
+     * @access public
+     * @param string $type 锁类型(shared,update且默认为update,不区分大小写,其他值无效)
+     * @return self
+     */
+    public function lock(string $type='update'): self {
+        $this->db_object->lock($type);
+        return $this;
+    }
+
+    /**
      * 删除数据
      * 
      * @access protected
      * @param int|string|array|null $data 主键或者组件组
-     * @return bool
+     * @return int
      */
-    protected function delete(int|string|array|null $data=null): bool {
+    protected function delete(int|string|array|null $data=null): int {
         $this->autoTable();
         return $this->db_object->delete($data);
     }

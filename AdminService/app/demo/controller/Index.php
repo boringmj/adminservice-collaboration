@@ -9,8 +9,8 @@ use base\Controller;
 use AdminService\App;
 use AdminService\Log;
 // 模型
-use app\demo\model\Count;
 use app\demo\model\Sql;
+use app\demo\model\Count;
 
 // 控制器助手函数
 use function AdminService\common\view;

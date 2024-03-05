@@ -39,28 +39,22 @@ abstract class SqlDrive implements Sql {
     protected bool $iterator;
 
     /**
+     * 行锁信息
+     * @var string
+     */
+    protected string $lock;
+
+    /**
      * 上一次执行的SQL语句
      * @var string
      */
     protected string $lastsql;
 
     /**
-     * 查询数据
-     * 
-     * @access public
-     * @param string|array $fields 查询字段
-     * @return mixed
+     * 是否开启distinct
+     * @var bool
      */
-    abstract public function select(string|array $fields='*'): mixed;
-
-    /**
-     * 查询一条数据
-     * 
-     * @access public
-     * @param string|array $fields 查询字段
-     * @return mixed
-     */
-    abstract public function find(string|array $fields='*'): mixed;
+    protected bool $distinct;
 
     /**
      * 检查是否已经连接数据库且是否已经开启事务
@@ -69,77 +63,6 @@ abstract class SqlDrive implements Sql {
      * @return void
      */
     abstract protected function check_connect(): void;
-
-    /**
-     * 根据条件查询数据
-     * 
-     * @access public
-     * @param string|array $where 查询条件
-     * @return self
-     */
-    abstract public function where(string|array $where,mixed $data=null,?string $operator='='): self;
-
-    /**
-     * 高级查询
-     * 
-     * @access public
-     * @param array ...$data 高级查询条件
-     * @return self
-     */
-    abstract public function whereEx(array ...$data): self;
-
-    /**
-     * 插入数据
-     * 
-     * @access public
-     * @param array ...$data 数据
-     * @return bool
-     */
-    abstract public function insert(...$data): bool;
-
-    /**
-     * 更新数据
-     * 
-     * @access public
-     * @param array ...$data 数据
-     * @return bool
-     */
-    abstract public function update(...$data): bool;
-
-    /**
-     * 设置limit限制
-     * 
-     * @access public
-     * @param ...$data limit限制
-     * @return self
-     */
-    abstract public function limit(...$data): self;
-
-    /**
-     * 设置order排序
-     * 
-     * @access public
-     * @param ...$data order排序
-     * @return self
-     */
-    abstract public function order(...$data): self;
-
-    /**
-     * 删除数据
-     * 
-     * @access public
-     * @param int|string|array|null $data 主键或者组件组
-     * @return bool
-     */
-    abstract public function delete(int|string|array|null $data=null): bool;
-
-    /**
-     * 重置查询状态
-     * 
-     * @access protected
-     * @return self
-     */
-    abstract public function reset(): self;
 
     /**
      * 开启事务
@@ -165,6 +88,7 @@ abstract class SqlDrive implements Sql {
         $this->check_connect();
         if(!$this->db->inTransaction())
             throw new Exception('Transaction has not been started.',100411);
+        $this->lock='';
         $this->db->commit();
     }
 
@@ -178,6 +102,7 @@ abstract class SqlDrive implements Sql {
         $this->check_connect();
         if(!$this->db->inTransaction())
             throw new Exception('Transaction has not been started.',100412);
+        $this->lock='';
         $this->db->rollBack();
     }
 
@@ -193,6 +118,12 @@ abstract class SqlDrive implements Sql {
            $this->db($db);
         if($table!==null)
             $this->table($table);
+        // 初始化
+        $this->iterator=false;
+        $this->lock='';
+        $this->lastsql='';
+        $this->distinct=false;
+        $this->reset();
     }
 
     /**
@@ -230,14 +161,6 @@ abstract class SqlDrive implements Sql {
     }
 
     /**
-     * 获取上一次执行的SQL语句
-     * 
-     * @access public
-     * @return string
-     */
-    abstract public function getLastSql(): string;
-
-    /**
      * 检查键值是合法
      * 
      * @access protected
@@ -262,6 +185,36 @@ abstract class SqlDrive implements Sql {
      */
     public function iterator(): self {
         $this->iterator=true;
+        return $this;
+    }
+
+    /**
+     * 为当前语句设置显式行锁
+     * 
+     * @access public
+     * @param string $type 锁类型(shared,update且默认为update,不区分大小写,其他值无效)
+     * @return self
+     */
+    public function lock(string $type='update'): self {
+        $this->check_connect();
+        // 判断是否已经开启事务
+        if(!$this->db->inTransaction())
+            throw new Exception('Transaction has not been started.',100420);
+        $type=strtolower($type);
+        if(in_array($type,array('shared','update')))
+            $this->lock=$type;
+        return $this;
+    }
+
+    /**
+     * 自动去重复(仅对 select 和 count 生效)
+     * 
+     * @access public
+     * @return self
+     * @deprecated
+     */
+    public function distinct(): self {
+        $this->distinct=true;
         return $this;
     }
 

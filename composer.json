@@ -4,7 +4,9 @@
     "description": "A PHP lightweight fast response framework under development, mainly for the back-end API interface",
 
     "require": {
-        "php": ">=8.0.0"
+        "php": ">=8.0.0",
+        "ext-pdo": "*",
+        "ext-curl": "*"
     },
 
     "autoload": {

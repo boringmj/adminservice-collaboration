@@ -2,7 +2,6 @@
 
 namespace AdminService;
 
-use AdminService\Config;
 use base\Request as BaseRequest;
 
 /**
@@ -81,7 +80,8 @@ final class Request extends BaseRequest {
      */
     static public function getParams(int|string|array $params,mixed $value=null,bool $enforce=false): mixed {
         if(is_array($params)||$value!==null) {
-            return self::setGet($params,$value,$enforce);
+            self::setGet($params,$value,$enforce);
+            return null;
         }
         return self::getGet($params);
     }
@@ -116,7 +116,8 @@ final class Request extends BaseRequest {
      */
     static public function postParams(int|string|array $params,mixed $value=null,bool $enforce=false): mixed {
         if(is_array($params)||$value!==null) {
-            return self::setPost($params,$value,$enforce);
+            self::setPost($params,$value,$enforce);
+            return null;
         }
         return self::getPost($params);
     }
@@ -151,7 +152,8 @@ final class Request extends BaseRequest {
      */
     static public function cookieParams(int|string|array $params,mixed $value=null,bool $enforce=false): mixed {
         if(is_array($params)||$value!==null) {
-            return self::setCookie($params,$value,$enforce);
+            self::setCookie($params,$value,$enforce);
+            return null;
         }
         return self::getCookie(Config::get('cookie.prefix','').$params);
     }
@@ -181,13 +183,13 @@ final class Request extends BaseRequest {
 
     /**
      * 添加返回的Cookie信息
-     * 
+     *
      * @access public
      * @param string|array $params 参数(string时为cookie名,array时为cookie数组)
      * @param string $value Cookie值($params 参数为数组时此参数无效)
-     * @param int $expire 过期时间
-     * @param string $path 路径
-     * @param string $domain 域名
+     * @param int|null $expire 过期时间
+     * @param string|null $path 路径
+     * @param string|null $domain 域名
      * @return void
      */
     static public function addCookie(string|array $params,string $value,?int $expire=null,?string $path=null,?string $domain=null): void {
@@ -211,10 +213,11 @@ final class Request extends BaseRequest {
 
     /**
      * 结束运行
-     * 
+     *
      * @access public
      * @param mixed $data 数据
      * @return void
+     * @throws Exception
      */
     static public function requestExit(mixed $data=null): void {
         // 加载Header
@@ -293,5 +296,3 @@ final class Request extends BaseRequest {
     }
 
 }
-
-?>

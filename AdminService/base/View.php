@@ -45,19 +45,17 @@ abstract class View {
         $this->template_path=$template_path;
     }
 
-     /**
+    /**
      * 构造方法
-     * 
+     *
      * @access public
-     * @param string $template_path 模板文件路径
+     * @param string|null $template_path 模板文件路径
      * @param array $data 需要传递给模板的数据
      */
-    final public function __construct(?string $template_path=null,$data=array()) {
+    final public function __construct(?string $template_path=null,array $data=array()) {
         if($template_path!==null)
             $this->setTemplatePath($template_path);
         $this->data=$data;
     }
 
 }
-
-?>

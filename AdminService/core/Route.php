@@ -3,9 +3,7 @@
 namespace AdminService;
 
 use base\Route as BaseRoute;
-use AdminService\Config;
-use AdminService\Exception;
-use AdminService\App;
+use \ReflectionException;
 
 final class Route extends BaseRoute {
 
@@ -17,10 +15,11 @@ final class Route extends BaseRoute {
 
     /**
      * 通过路由路径组返回控制器
-     * 
+     *
      * @access public
      * @param array $route_info 路由信息
      * @return self
+     * @throws Exception
      */
     public function load(array $route_info=array()): self {
         $this->checkInit();
@@ -94,9 +93,10 @@ final class Route extends BaseRoute {
 
     /**
      * 开始运行控制器(如果没有加载路由则会自动加载)
-     * 
+     *
      * @access public
      * @return mixed
+     * @throws Exception|ReflectionException
      */
     public function run(): mixed {
         // 先判断是否已经加载 load() 方法
@@ -119,8 +119,8 @@ final class Route extends BaseRoute {
      * @param array $params 路由参数
      * @return void
      */
-    private function toGet($params): void {
-        $config=Config::get('route.params.toget.model');
+    private function toGet(array $params): void {
+        $config=Config::get('route.params.to_get.model');
         if(!in_array($config,array('value','list','value-list','list-value')))
             $config='list-value';
         $config_list=explode('-',$config);
@@ -146,5 +146,3 @@ final class Route extends BaseRoute {
     }
 
 }
-
-?>

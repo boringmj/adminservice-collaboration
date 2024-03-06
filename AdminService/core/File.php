@@ -2,8 +2,9 @@
 
 namespace AdminService;
 
-use AdminService\Config;
-use AdminService\Exception;
+use \Throwable;
+
+use function AdminService\common\uuid;
 
 final class File {
 
@@ -21,9 +22,10 @@ final class File {
 
     /**
      * 构造方法(如果有传入路径,则将会自动初始化)
-     * 
+     *
      * @access public
-     * @param string $file_name 文件名称(不含扩展名和多余的路径)
+     * @param string|null $file_name 文件名称(不含扩展名和多余的路径)
+     * @throws Exception
      */
     public function __construct(?string $file_name=null) {
         $this->init($file_name);
@@ -31,10 +33,11 @@ final class File {
 
     /**
      * 初始化方法
-     * 
+     *
      * @access public
-     * @param string $file_name 文件名称(不含扩展名和多余的路径)
+     * @param string|null $file_name 文件名称(不含扩展名和多余的路径)
      * @return void
+     * @throws Exception
      */
     public function init(?string $file_name=null): void {
         if($file_name===null) {
@@ -42,7 +45,7 @@ final class File {
             if($file_name_cycle>0)
                 $file_name='cache_'.floor(time()/$file_name_cycle);
             else
-                $file_name='cache_'.\AdminService\common\uuid();
+                $file_name='cache_'.uuid();
         }
         if(!preg_match('/^[a-zA-Z0-9_-]+$/',$file_name))
             throw new Exception('File name is invalid',-1);
@@ -57,9 +60,10 @@ final class File {
 
     /**
      * 将数据读取到缓存中
-     * 
+     *
      * @access private
      * @return void
+     * @throws Exception
      */
     private function read(): void {
         if(!is_file($this->file_path)) {
@@ -68,12 +72,12 @@ final class File {
         }
         $data=file_get_contents($this->file_path);
         if($data===false)
-            throw new Exception("File read failed: {$this->file_path}, please check the file permission.",100101,array(
+            throw new Exception("File read failed: $this->file_path, please check the file permission.",100101,array(
                 'file_path'=>$this->file_path
             ));
         $data=json_decode($data,true);
         if($data===null)
-            throw new Exception("File decode failed: {$this->file_path}, please check the file content.",100102,array(
+            throw new Exception("File decode failed: $this->file_path, please check the file content.",100102,array(
                 'file_path'=>$this->file_path
             ));
         $this->data=$data;
@@ -81,20 +85,21 @@ final class File {
 
     /**
      * 将缓存中的数据写入文件
-     * 
+     *
      * @access private
      * @return void
+     * @throws Exception
      */
     private function write(): void {
         $data=json_encode($this->data);
         try {
             $result=file_put_contents($this->file_path,$data);
             if($result===false)
-                throw new Exception("File write failed: {$this->file_path}, please check the file permission.",100103,array(
+                throw new Exception("File write failed: $this->file_path, please check the file permission.",100103,array(
                     'file_path'=>$this->file_path
                 ));
-        } catch(\Throwable) {
-            throw new Exception("File write failed: {$this->file_path}, please check the file permission.",100103,array(
+        } catch(Throwable) {
+            throw new Exception("File write failed: $this->file_path, please check the file permission.",100103,array(
                 'file_path'=>$this->file_path
             ));
         }
@@ -116,12 +121,13 @@ final class File {
 
     /**
      * 设置数据
-     * 
+     *
      * @access public
      * @param string|int $key 键名
      * @param mixed $value 值
      * @param bool $save 是否立即保存
      * @return void
+     * @throws Exception
      */
     public function set(string|int $key,mixed $value,bool $save=false): void {
         $this->data[$key]=$value;
@@ -131,11 +137,12 @@ final class File {
 
     /**
      * 删除数据
-     * 
+     *
      * @access public
      * @param string|int $key 键名
      * @param bool $save 是否立即保存
      * @return void
+     * @throws Exception
      */
     public function delete(string|int $key,bool $save=false): void {
         if(isset($this->data[$key]))
@@ -146,10 +153,11 @@ final class File {
 
     /**
      * 清空数据
-     * 
+     *
      * @access public
      * @param bool $save 是否立即保存
      * @return void
+     * @throws Exception
      */
     public function clear(bool $save=false): void {
         $this->data=array();
@@ -159,9 +167,10 @@ final class File {
 
     /**
      * 保存数据
-     * 
+     *
      * @access public
      * @return void
+     * @throws Exception
      */
     public function save(): void {
         if(empty($this->file_path))
@@ -171,9 +180,10 @@ final class File {
 
     /**
      * 销毁数据
-     * 
+     *
      * @access public
      * @return void
+     * @throws Exception
      */
     public function destroy(): void {
         if(empty($this->file_path))
@@ -183,14 +193,14 @@ final class File {
                 unlink($this->file_path);
                 $this->file_path=null;
                 $this->data=array();
-            } catch(\Throwable) {
-                throw new Exception("File destroy failed: {$this->file_path}, please check the file permission.",100106,array(
+            } catch(Throwable) {
+                throw new Exception("File destroy failed: $this->file_path, please check the file permission.",100106,array(
                     'file_path'=>$this->file_path
                 ));
             }
         }
         else
-            throw new Exception("File not found: {$this->file_path}, please check the file path.",100107,array(
+            throw new Exception("File not found: $this->file_path, please check the file path.",100107,array(
                 'file_path'=>$this->file_path
             ));
     }
@@ -209,5 +219,3 @@ final class File {
     }
 
 }
-
-?>

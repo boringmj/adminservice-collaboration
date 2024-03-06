@@ -2,8 +2,6 @@
 
 namespace base;
 
-use base\Database;
-
 /**
  * 模型基类
  * 
@@ -17,5 +15,3 @@ abstract class Model extends Database {
     // 暂时还没功能要丢到这里
 
 }
-
-?>

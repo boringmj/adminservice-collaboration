@@ -4,14 +4,15 @@ namespace base;
 
 use AdminService\Config;
 use AdminService\Exception;
+use \PDO;
 
 abstract class Database {
 
     /**
      * 数据库连接对象
-     * @var \PDO
+     * @var PDO
      */
-    protected \PDO $db;
+    protected PDO $db;
 
     /**
      * 数据库表名
@@ -33,9 +34,9 @@ abstract class Database {
 
     /**
      * 数据库操作使用的类对象
-     * @var object
+     * @var SqlDrive
      */
-    protected object $db_object;
+    protected SqlDrive $db_object;
 
     /**
      * 数据库配置信息
@@ -62,14 +63,14 @@ abstract class Database {
             .';dbname='.$this->db_config['dbname']
             .';port='.$this->db_config['port']
             .';charset='.$this->db_config['charset'];
-        $this->db=new \PDO(
+        $this->db=new PDO(
             $dsn,
             $this->db_config['user'],
             $this->db_config['password']
         );
         // 这是为了防止 PDO::FETCH_ASSOC 返回的数据类型为 string
-        $this->db->setAttribute(\PDO::ATTR_STRINGIFY_FETCHES,false);
-        $this->db->setAttribute(\PDO::ATTR_EMULATE_PREPARES,false);
+        $this->db->setAttribute(PDO::ATTR_STRINGIFY_FETCHES,false);
+        $this->db->setAttribute(PDO::ATTR_EMULATE_PREPARES,false);
     }
 
     /**
@@ -96,21 +97,22 @@ abstract class Database {
      * 获取数据库连接对象
      * 
      * @access protected
-     * @return \PDO
+     * @return PDO
      */
-    final protected function getDb(): \PDO {
+    final protected function getDb(): PDO {
         return $this->db;
     }
 
     /**
      * 设置数据库表名
-     * 
+     *
      * @access protected
-     * @param string $table 数据库表名
+     * @param string|null $table 数据库表名
      * @param bool $prefix 是否自动添加表前缀(默认添加)
      * @return self
+     * @throws Exception
      */
-    final protected function table(string $table=null,bool $prefix=true): self {
+    final protected function table(?string $table=null,bool $prefix=true): self {
         if($table===null)
             return $this;
         $table_name=($prefix?Config::get('database.default.prefix',''):'').$table;
@@ -121,9 +123,10 @@ abstract class Database {
 
     /**
      * 自动判断是否需要传递表名(如果没有传递则传递)
-     * 
+     *
      * @access private
      * @return void
+     * @throws Exception
      */
     private function autoTable(): void {
         if(!$this->is_table_name) {
@@ -137,16 +140,17 @@ abstract class Database {
 
     /**
      * 初始化
-     * 
+     *
      * @access protected
      * @param array $config 数据库配置信息
      * @return void
+     * @throws Exception
      */
     final protected function init(array $config=array()): void {
         $this->is_table_name=false;
         $this->config($config);
         // 判断PDO是否支持该数据库类型
-        if(!in_array($this->db_type,\PDO::getAvailableDrivers()))
+        if(!in_array($this->db_type,PDO::getAvailableDrivers()))
             throw new Exception('PDO does not support this database type.',100302,array(
                 'type'=>$this->db_type
             ));
@@ -166,9 +170,10 @@ abstract class Database {
 
     /**
      * 构造函数(会自动初始化并连接数据库)
-     * 
+     *
      * @access public
      * @param array $config 数据库配置信息
+     * @throws Exception
      */
     public function __construct(array $config=array()) {
         $this->init($config);
@@ -176,9 +181,10 @@ abstract class Database {
 
     /**
      * 开启事务
-     * 
+     *
      * @access protected
      * @return void
+     * @throws Exception
      */
     protected function beginTransaction(): void {
         $this->db_object->beginTransaction();
@@ -186,9 +192,10 @@ abstract class Database {
 
     /**
      * 提交事务
-     * 
+     *
      * @access protected
      * @return void
+     * @throws Exception
      */
     protected function commit(): void {
         $this->db_object->commit();
@@ -196,9 +203,10 @@ abstract class Database {
 
     /**
      * 回滚事务
-     * 
+     *
      * @access protected
      * @return void
+     * @throws Exception
      */
     protected function rollBack(): void {
         $this->db_object->rollBack();
@@ -206,10 +214,11 @@ abstract class Database {
 
     /**
      * 查询数据
-     * 
+     *
      * @access protected
      * @param string|array $fields 查询字段(默认为*)
      * @return mixed
+     * @throws Exception
      */
     protected function select(string|array $fields='*'): mixed {
         $this->autoTable();
@@ -218,10 +227,11 @@ abstract class Database {
 
     /**
      * 查询一条数据
-     * 
+     *
      * @access protected
      * @param string|array $fields 查询字段(默认为*)
      * @return mixed
+     * @throws Exception
      */
     protected function find(string|array $fields='*'): mixed {
         $this->autoTable();
@@ -230,14 +240,15 @@ abstract class Database {
 
     /**
      * 根据条件查询数据
-     * 
+     *
      * @access protected
      * @param string|array $where 字段名称或者数据数组
      * @param mixed $data 查询数据
      * @param string $operator 操作符
      * @return self
+     * @throws Exception
      */
-    protected function where(string|array $where,mixed $data=null,?string $operator='='): self {
+    protected function where(string|array $where,mixed $data=null,string $operator='='): self {
         $this->db_object->where($where,$data,$operator);
         return $this;
     }
@@ -266,24 +277,26 @@ abstract class Database {
 
     /**
      * 插入数据
-     * 
+     *
      * @access protected
      * @param array ...$data 数据
      * @return int
+     * @throws Exception
      */
-    protected function insert(...$data): int {
+    protected function insert(array ...$data): int {
         $this->autoTable();
         return $this->db_object->insert(...$data);
     }
 
     /**
      * 更新数据
-     * 
+     *
      * @access protected
      * @param array ...$data 数据
      * @return int
+     * @throws Exception
      */
-    protected function update(...$data): int {
+    protected function update(array ...$data): int {
         $this->autoTable();
         return $this->db_object->update(...$data);
     }
@@ -292,10 +305,10 @@ abstract class Database {
      * 设置limit限制(仅对 select 生效)
      * 
      * @access public
-     * @param ...$data limit限制
+     * @param array|int ...$data limit限制
      * @return self
      */
-    protected function limit(...$data): self {
+    protected function limit(array|int ...$data): self {
         $this->db_object->limit(...$data);
         return $this;
     }
@@ -304,31 +317,32 @@ abstract class Database {
      * 设置order排序(仅对 select 和 find 生效)
      * 
      * @access public
-     * @param ...$data order排序
+     * @param array|string ...$data order排序
      * @return self
      */
-    protected function order(...$data): self {
+    protected function order(array|string ...$data): self {
         $this->db_object->order(...$data);
         return $this;
     }
 
     /**
      * 设置group分组(仅对 select, find 和 count 生效)
-     * 
+     *
      * @access public
-     * @param ...$data group分组
+     * @param array|string ...$data group分组
      * @return self
      */
-    public function group(...$data): self {
+    public function group(array|string ...$data): self {
         $this->db_object->group(...$data);
         return $this;
     }
 
     /**
      * 统计当前查询条件下的数据总数
-     * 
+     *
      * @access public
      * @return int|array
+     * @throws Exception
      */
     public function count(): int|array {
         $this->autoTable();
@@ -349,10 +363,11 @@ abstract class Database {
 
     /**
      * 为当前语句设置显式行锁
-     * 
+     *
      * @access public
      * @param string $type 锁类型(shared,update且默认为update,不区分大小写,其他值无效)
      * @return self
+     * @throws Exception
      */
     public function lock(string $type='update'): self {
         $this->db_object->lock($type);
@@ -361,10 +376,11 @@ abstract class Database {
 
     /**
      * 删除数据
-     * 
+     *
      * @access protected
      * @param int|string|array|null $data 主键或者组件组
      * @return int
+     * @throws Exception
      */
     protected function delete(int|string|array|null $data=null): int {
         $this->autoTable();
@@ -394,5 +410,3 @@ abstract class Database {
     }
 
 }
-
-?>

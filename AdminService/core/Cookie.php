@@ -3,7 +3,6 @@
 namespace AdminService;
 
 use base\Cookie as BaseCookie;
-use AdminService\Config;
 
 final class Cookie extends BaseCookie {
     
@@ -31,18 +30,18 @@ final class Cookie extends BaseCookie {
     }
 
     /**
-    * 设置Cookie
-    * 
-    * @access public
-    * @param string $name 名称
-    * @param mixed $value 值
-    * @param int $expire 过期时间
-    * @param string $path 路径
-    * @param string $domain 域名
-    * @param bool $secure 是否仅https
-    * @param bool $httponly 是否仅http
-    * @return void
-    */
+     * 设置Cookie
+     *
+     * @access public
+     * @param string $name 名称
+     * @param mixed $value 值
+     * @param int|null $expire 过期时间
+     * @param string|null $path 路径
+     * @param string|null $domain 域名
+     * @param bool $secure 是否仅https
+     * @param bool $httponly 是否仅http
+     * @return void
+     */
     static public function set(
         string $name,mixed $value,
         ?int $expire=null,?string $path=null,?string $domain=null,
@@ -60,5 +59,3 @@ final class Cookie extends BaseCookie {
     }
 
 }
-
-?>

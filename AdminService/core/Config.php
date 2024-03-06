@@ -55,7 +55,7 @@ final class Config {
                 // 清除空格
                 $env=trim($env);
                 // 判断是否是注释或者为空
-                if(substr($env,0,1)==='#'||$env==='')
+                if(str_starts_with($env,'#')||$env==='')
                     continue;
                 $env=explode('=',$env);
                 $name=strtolower($env[0])??0;
@@ -71,6 +71,7 @@ final class Config {
                 $config=$value;
             }
         }
+        /** @var array $temp */
         self::set($temp);
     }
 
@@ -119,14 +120,14 @@ final class Config {
         $file=realpath($file);
         $file_content=file_get_contents($file);
         // 判断是否是一个合法的php文件
-        if(!preg_match('/^\s*(\<\?(php|=)?)/',$file_content))
-            throw new Exception("Config file is not safe: {$file}, please use the php tag");
+        if(!preg_match('/^\s*(<\?(php|=)?)/',$file_content))
+            throw new Exception("Config file is not safe: $file, please use the php tag");
         // 去除所有行注释和块注释的内容
-        $file_content=preg_replace('/\(\/\/|\#.*$/m','',$file_content);
+        $file_content=preg_replace('/\(\/\/|#.*$/m','',$file_content);
         $file_content=preg_replace('/\/\*.*\*\//s','',$file_content);
         // 先判断最终返回的结果是否是数组
         if(!preg_match('/return\s+(array\(|\[)/',$file_content))
-            throw new Exception("Config file is not safe: {$file}, please return an array");
+            throw new Exception("Config file is not safe: $file, please return an array");
         // 再判断是否有危险的函数
         $list=array(
             'exec',
@@ -146,9 +147,9 @@ final class Config {
             'include_once',
             'require_once'
         );
-        $perg_str=implode('|',$list);
-        if(preg_match('/\b('.$perg_str.')\b\s*\(/',$file_content,$matches))
-            throw new Exception("Config file is not safe: {$file}, please remove the function: {$matches[1]}");
+        $preg_str=implode('|',$list);
+        if(preg_match('/\b('.$preg_str.')\b\s*\(/',$file_content,$matches))
+            throw new Exception("Config file is not safe: $file, please remove the function: $matches[1]");
         // 判断是否有危险的关键字
         $list=array(
             'include',
@@ -156,12 +157,10 @@ final class Config {
             'include_once',
             'require_once'
         );
-        $perg_str=implode('|',$list);
+        $preg_str=implode('|',$list);
         // 禁止引入上级目录和协议地址
-        if(preg_match('/\b('.$perg_str.')\b\s*[\'"](\.{2}|.*(\/{2}|\\{2}))/',$file_content,$matches))
-            throw new Exception("Config file is not safe: {$file}, please remove the keyword: {$matches[1]}");
+        if(preg_match('/\b('.$preg_str.')\b\s*[\'"](\.{2}|.*(\/{2}|\\{2}))/',$file_content,$matches))
+            throw new Exception("Config file is not safe: $file, please remove the keyword: $matches[1]");
     }
 
 }
-
-?>

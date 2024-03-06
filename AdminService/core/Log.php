@@ -2,7 +2,6 @@
 
 namespace AdminService;
 
-use AdminService\Config;
 use \Exception;
 
 class Log {
@@ -14,11 +13,12 @@ class Log {
     protected string $log_path;
 
     /**
-    * 构造方法
-    * 
-    * @access public
-    * @param string $log_name 日志文件名称(不含文件扩展名,不含目录名)
-    */
+     * 构造方法
+     *
+     * @access public
+     * @param string|null $log_name 日志文件名称(不含文件扩展名,不含目录名)
+     * @throws Exception
+     */
     public function __construct(?string $log_name=null) {
         // 获取用于存储日志的目录
         $log_path=Config::get('log.path');
@@ -41,11 +41,12 @@ class Log {
 
     /**
      * 写入日志
-     * 
+     *
      * @access public
      * @param string $content 日志格式(支持变量绑定,变量格式为{变量名},变量需要按数组形式传入)
      * @param array $vars 变量 例如:array('变量名'=>'变量值')这种形式传入,请注意传入顺序,{name}的值为'{value}',则会被再一次进行变量绑定,所以请注意变量的顺序
      * @return void
+     * @throws Exception
      */
     public function write(string $content,array $vars=array()):void {
         // 获取日志格式
@@ -71,11 +72,12 @@ class Log {
 
     /**
      * 检查日志文件是否存在,可写饥和大小是否超过最大值
-     * 
+     *
      * @access protected
      * @return void
+     * @throws Exception
      */
-    protected function check() {
+    protected function check(): void {
         // 判断日志文件是否存在,如果不存在,则创建日志文件
         if(!is_file($this->log_path))
             file_put_contents($this->log_path,'');
@@ -90,7 +92,7 @@ class Log {
             preg_match('/\((\d+)\)$/',$log_name,$match);
             // 如果日志结尾的“(int)”存在,则将“(int)”加1,否则直接在日志文件名后面加上“(int)”
             if(!empty($match))
-                $log_name=preg_replace('/\((\d+)\)$/','('.($match[1]+1).')',$log_name);
+                $log_name=preg_replace('/\((\d+)\)$/','('.((int)$match[1]+1).')',$log_name);
             else
                 $log_name.='(1)';
             // 重新拼接日志文件路径
@@ -98,7 +100,7 @@ class Log {
             // 递归调用检查日志文件是否存在,最大值不超过99
             if(isset($match[1])&&$match[1]<99)
                 $this->check();
-            else if(isset($match[1])&&$match[1]>=99)
+            else if(isset($match[1]))
                 throw new Exception('日志文件数量超过最大值');
             // 文件不存在,则创建文件
             if(!is_file($this->log_path))
@@ -145,11 +147,8 @@ class Log {
             "\n"=>"\\n",
             "\r"=>"\\r"
         );
-        $content=str_replace(array_keys($eol),array_values($eol),$content);
         // 返回过滤后的日志内容
-        return $content;
+        return str_replace(array_keys($eol),array_values($eol),$content);
     }
 
 }
-
-?>

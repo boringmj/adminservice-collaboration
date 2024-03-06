@@ -10,7 +10,7 @@ return array(
         'method'=>'index' // 默认方法
     ),
     'params'=>array(
-        'toget'=>array(
+        'to_get'=>array(
             'model'=>'list-value' // value, list, value-list, list-value (default: list-value)
         ),
         'rule'=>array(
@@ -21,5 +21,3 @@ return array(
         )
     )
 );
-
-?>

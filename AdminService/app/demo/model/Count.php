@@ -5,6 +5,7 @@ namespace app\demo\model;
 use AdminService\App;
 use AdminService\File;
 use AdminService\Exception;
+use \ReflectionException;
 
 class Count {
 
@@ -15,9 +16,11 @@ class Count {
 
     /**
      * 构造方法
-     * 
+     *
      * @access public
      * @param ?File $file 文件对象
+     * @throws Exception
+     * @throws ReflectionException
      */
     public function __construct(?File $file=null) {
         if(is_null($file))
@@ -43,5 +46,3 @@ class Count {
     }
 
 }
-
-?>

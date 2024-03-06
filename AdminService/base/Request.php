@@ -2,9 +2,10 @@
 
 namespace base;
 
-use base\Cookie;
 use AdminService\Config;
 use AdminService\App;
+use AdminService\Exception;
+use \ReflectionException;
 
 abstract class Request {
 
@@ -22,7 +23,7 @@ abstract class Request {
 
     /**
      * Cookie对象
-     * @var \base\Cookie
+     * @var Cookie
      */
     static protected Cookie $cookie;
 
@@ -95,23 +96,24 @@ abstract class Request {
 
     /**
      * 添加返回的Cookie信息
-     * 
+     *
      * @access public
      * @param string|array $params 参数(string时为cookie名,array时为cookie数组)
      * @param string $value Cookie值($params 参数为数组时此参数无效)
-     * @param int $expire 过期时间
-     * @param string $path 路径
-     * @param string $domain 域名
+     * @param int|null $expire 过期时间
+     * @param string|null $path 路径
+     * @param string|null $domain 域名
      * @return void
      */
     abstract static public function addCookie(string|array $params,string $value,?int $expire=null,?string $path=null,?string $domain=null): void;
 
     /**
      * 初始化请求
-     * 
+     *
      * @access public
-     * @param Cookie $cookie Cookie对象
+     * @param Cookie|null $cookie Cookie对象
      * @return void
+     * @throws Exception|ReflectionException
      */
     final static public function init(?Cookie $cookie=null): void {
         if($cookie===null)
@@ -145,9 +147,9 @@ abstract class Request {
             '_INPUT'=>file_get_contents('php://input'),
         );
         // 获取 Content-Type 请求头
-        $content_type=isset($_SERVER['CONTENT_TYPE'])?$_SERVER['CONTENT_TYPE']:'';
+        $content_type=$_SERVER['CONTENT_TYPE']??'';
         // 判断是否为 application/json
-        if(strpos(strtolower($content_type),'application/json')!==false) {
+        if(str_contains(strtolower($content_type),'application/json')) {
             // 获取请求数据
             $request_data=self::$request_params['_INPUT'];
             // 判断是否为json数据
@@ -181,7 +183,8 @@ abstract class Request {
      */
     final static public function params(int|string|array $params,mixed $value=null): mixed {
         if(is_array($params)||$value!==null) {
-            return self::set($params,$value);
+            self::set($params,$value);
+            return null;
         }
         return self::param($params);
     }
@@ -348,7 +351,7 @@ abstract class Request {
      * @param string $type 参数类型(all|get|post|cookie)
      * @return array
      */
-    final static public function keys($type='all'): array {
+    final static public function keys(string $type='all'): array {
         $type=strtolower($type);
         if($type=='all')
             return array_keys(self::$request_params);
@@ -363,5 +366,3 @@ abstract class Request {
     }
 
 }
-
-?>

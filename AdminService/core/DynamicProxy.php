@@ -2,14 +2,13 @@
 
 namespace AdminService;
 
-use AdminService\App;
-use AdminService\Exception;
+use \ReflectionException;
 
 /**
  * 动态代理类
  */
 class DynamicProxy {
-    
+
     /**
      * 目标类名
      * @var string
@@ -30,11 +29,11 @@ class DynamicProxy {
 
     /**
      * 构造函数
-     * 
+     *
      * @access public
      * @param string $target 目标类名
      * @param mixed ...$args 构造函数参数
-     * @return void
+     * @throws Exception
      */
     public function __construct(string $target,...$args) {
         $this->setTarget($target);
@@ -43,11 +42,12 @@ class DynamicProxy {
 
     /**
      * 调用目标类的方法
-     * 
+     *
      * @access public
      * @param string $name 方法名
      * @param array $arguments 参数
      * @return mixed
+     * @throws Exception|ReflectionException
      */
     public function __call(string $name,array $arguments) {
         // 判断目标类是否存在该方法
@@ -59,10 +59,11 @@ class DynamicProxy {
 
     /**
      * 调用目标成员属性
-     * 
+     *
      * @access public
      * @param string $name 属性名
      * @return mixed
+     * @throws Exception|ReflectionException
      */
     public function __get(string $name) {
         // 判断目标类是否存在该属性
@@ -74,13 +75,14 @@ class DynamicProxy {
 
     /**
      * 设置目标成员属性
-     * 
+     *
      * @access public
      * @param string $name 属性名
      * @param mixed $value 属性值
      * @return void
+     * @throws Exception|ReflectionException
      */
-    public function __set(string $name,$value): void {
+    public function __set(string $name,mixed $value): void {
         // 判断目标类是否存在该属性
         if(!property_exists($this->getTarget(),$name))
             throw new Exception('Property "'.$name.'" not found.');
@@ -90,9 +92,11 @@ class DynamicProxy {
 
     /**
      * 获取目标类对象
-     * 
+     *
      * @access protected
      * @return object
+     * @throws Exception
+     * @throws ReflectionException
      */
     protected function getTarget(): object {
         // 如果目标类对象不存在则实例化一个
@@ -105,9 +109,10 @@ class DynamicProxy {
 
     /**
      * 获取目标类
-     * 
+     *
      * @access protected
      * @return string
+     * @throws Exception
      */
     protected function getTargetClass(): string {
         // 判断是否已经设置了目标类
@@ -118,10 +123,11 @@ class DynamicProxy {
 
     /**
      * 设置目标类
-     * 
+     *
      * @access protected
      * @param string $target 目标类
      * @return void
+     * @throws Exception
      */
     protected function setTarget(string $target): void {
         // 判断目标类是否存在

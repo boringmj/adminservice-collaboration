@@ -2,7 +2,6 @@
 
 namespace AdminService\common;
 
-
 /**
  * 发送HTTP POST请求
  * 
@@ -12,19 +11,18 @@ namespace AdminService\common;
  * @return string
  */
 function httpPost(string $url,array $params=array(),string $type='form'): string {
-    $header='';
     if($type=='json') {
-        $postdata=json_encode($params);
+        $post_data=json_encode($params);
         $header='Content-type:application/json';
     } else {
-        $postdata=http_build_query($params);
+        $post_data=http_build_query($params);
         $header='Content-type:application/x-www-form-urlencoded';
     }
     $options=array(
         'http'=>array(
             'method'=>'POST',
             'header'=>$header,
-            'content'=>$postdata,
+            'content'=>$post_data,
             'timeout'=>15 * 60 // 超时时间（单位:s）
         ),
         'ssl'=>array(
@@ -33,8 +31,5 @@ function httpPost(string $url,array $params=array(),string $type='form'): string
         )
     );
     $context=stream_context_create($options);
-    $result=file_get_contents($url,false,$context);
-    return $result;
+    return file_get_contents($url,false,$context);
 }
-
-?>

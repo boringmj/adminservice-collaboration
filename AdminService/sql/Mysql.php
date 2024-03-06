@@ -2,6 +2,7 @@
 
 namespace AdminService\sql;
 
+use Generator;
 use \PDO;
 use \PDOStatement;
 use \PDOException;
@@ -13,7 +14,7 @@ use AdminService\Exception;
  * 
  * @access public
  * @package sql
- * @version 1.0.2
+ * @version 1.0.6
  */
 final class Mysql extends SqlDrive {
 
@@ -24,7 +25,7 @@ final class Mysql extends SqlDrive {
     private array $where_array;
 
     /**
-     * limlt限制
+     * limit限制
      * @var array
      */
     private array $limit;
@@ -105,6 +106,7 @@ final class Mysql extends SqlDrive {
      * @access private
      * @param mixed ...$data 数据
      * @return array
+     * @throws Exception
      */
     private function format_data(...$data): array {
         $data_temp=[];
@@ -129,6 +131,7 @@ final class Mysql extends SqlDrive {
      * @param mixed $data 数据
      * @param mixed $options 选项(辅助参数)
      * @return string
+     * @throws Exception
      */
     private function build(string $type,mixed $data=null,mixed $options=null): string {
         $this->check_connect();
@@ -196,12 +199,10 @@ final class Mysql extends SqlDrive {
                 $sql='INSERT INTO `'.$this->table.'` (';
                 $fields_string='';
                 $values_string='';
-                $i=1;
                 foreach($data as $key=>$value) {
                     $this->check_key($key);
                     $fields_string.=$fields_string===''? ('`'.$key.'`'):(',`'.$key.'`');
                     $values_string.=$values_string===''? ('?'):(',?');
-                    $i++;
                 }
                 $sql.=$fields_string.') VALUES ('.$values_string.')';
                 // 添加行锁
@@ -245,7 +246,7 @@ final class Mysql extends SqlDrive {
                         $sql.=' WHERE ';
                     $sql.='(`id` IN (';
                     $id_string='';
-                    foreach($data as $value) {
+                    foreach($data as $ignored) {
                         $id_string.=$id_string===''? ('?'):(',?');
                     }
                     $sql.=$id_string.'))';
@@ -283,9 +284,7 @@ final class Mysql extends SqlDrive {
                         $sql=substr($sql,0,-5);
                     else
                         $sql.=$this->build('where_ex');
-                    if($data===true)
-                        $sql.=')';
-                }else {
+                }else{
                     // 判断是否存在其他where条件
                     if(empty($this->where_ex))
                         return '';
@@ -293,9 +292,9 @@ final class Mysql extends SqlDrive {
                         $sql.='(';
                     $sql.=' WHERE ';
                     $sql.=$this->build('where_ex');
-                    if($data===true)
-                        $sql.=')';
                 }
+                if($data===true)
+                    $sql.=')';
                 return $sql;
             case 'where_ex':
                 $sql='';
@@ -352,8 +351,7 @@ final class Mysql extends SqlDrive {
                     return '';
                 foreach($this->order as $value)
                     $sql.='`'.$value[0].'` '.$value[1].',';
-                $sql=substr($sql,0,-1);
-                return $sql;
+                return substr($sql,0,-1);
             case 'lock':
                 $temp_lock='';
                 // 判断是否需要加行锁
@@ -369,8 +367,7 @@ final class Mysql extends SqlDrive {
                     return '';
                 foreach($this->group as $value)
                     $sql.='`'.$value.'`,';
-                $sql=substr($sql,0,-1);
-                return $sql;
+                return substr($sql,0,-1);
             default:
                 throw new Exception('SQL not build.',100430);
         }
@@ -383,19 +380,20 @@ final class Mysql extends SqlDrive {
      * @return string
      */
     public function getLastSql(): string {
-        return $this->lastsql??'';
+        return $this->last_sql??'';
     }
 
     /**
      * 准备sql语句
-     * 
+     *
      * @access public
      * @param string $sql SQL语句
      * @return PDOStatement
+     * @throws Exception
      */
     public function prepare(string $sql): PDOStatement {
         $this->check_connect();
-        $this->lastsql=$sql;
+        $this->last_sql=$sql;
         try {
             return $this->db->prepare($sql);
         } catch(PDOException $e) {
@@ -409,19 +407,15 @@ final class Mysql extends SqlDrive {
 
     /**
      * 查询数据
-     * 
+     *
      * @access public
      * @param string|array $fields 查询字段(默认为*)
-     * @return mixed
+     * @return Generator|array|bool
+     * @throws Exception
      */
-    public function select(string|array $fields='*'): mixed {
+    public function select(string|array $fields='*'): Generator|array|bool {
         $sql=$this->build('select',$fields);
         $stmt=$this->prepare($sql);
-        if($stmt===false)
-            throw new Exception('SQL prepare error.',100420,array(
-                'sql'=>$sql,
-                'error'=>$this->db->errorInfo()
-            ));
         // 传入where条件的值
         $i=1;
         foreach($this->where_value as $value) {
@@ -452,9 +446,9 @@ final class Mysql extends SqlDrive {
      * 
      * @access public
      * @param object $stmt PDOStatement对象
-     * @return mixed
+     * @return Generator
      */
-    private function iterator_select(object $stmt): mixed {
+    private function iterator_select(object $stmt): Generator {
         $this->iterator=false;
         // 逐条读取数据
         while($row=$stmt->fetch(PDO::FETCH_ASSOC))
@@ -466,19 +460,15 @@ final class Mysql extends SqlDrive {
 
     /**
      * 查询一条数据
-     * 
+     *
      * @access public
      * @param string|array $fields 查询字段
      * @return mixed
+     * @throws Exception
      */
     public function find(string|array $fields='*'): mixed {
         $sql=$this->build('find',$fields);
         $stmt=$this->prepare($sql);
-        if($stmt===false)
-            throw new Exception('SQL prepare error.',100420,array(
-                'sql'=>$sql,
-                'error'=>$this->db->errorInfo()
-            ));
         // 传入where条件的值
         $i=1;
         foreach($this->where_value as $value) {
@@ -504,18 +494,14 @@ final class Mysql extends SqlDrive {
 
     /**
      * 统计当前查询条件下的数据总数
-     * 
+     *
      * @access public
      * @return int|array
+     * @throws Exception
      */
     public function count(): int|array {
         $sql=$this->build('count');
         $stmt=$this->prepare($sql);
-        if($stmt===false)
-            throw new Exception('SQL prepare error.',100420,array(
-                'sql'=>$sql,
-                'error'=>$this->db->errorInfo()
-            ));
         // 传入where条件的值
         $i=1;
         foreach($this->where_value as $value) {
@@ -524,31 +510,28 @@ final class Mysql extends SqlDrive {
         }
         if($stmt->execute()) {
             // 判断是否启用了group, 如果启用了group, 则返回数组, 否则返回int
-            if(empty($this->group)) {
+            if(empty($this->group))
                 $result=$stmt->fetchColumn();
-                $stmt->closeCursor();
-                // 重置查询状态
-                $this->reset();
-                return $result;
-            } else {
+            else
                 $result=$stmt->fetchAll(PDO::FETCH_ASSOC);
-                $stmt->closeCursor();
-                // 重置查询状态
-                $this->reset();
-                return $result;
-            }
+            $stmt->closeCursor();
+            $this->reset();
+            return $result;
         }
         $this->reset();
+        return 0;
     }
 
     /**
      * 插入数据
-     * 
+     *
      * @access public
      * @param array ...$data 数据
      * @return int
+     * @throws Exception
      */
-    public function insert(...$data): int {
+    public function insert(array ...$data): int {
+        $count=0;
         // 先检查传入数据是否有效
         $data=$this->format_data(...$data);
         foreach($data as $temp) {
@@ -556,11 +539,6 @@ final class Mysql extends SqlDrive {
                 throw new Exception('Insert $data not is array.',100422);
             $sql=$this->build('insert',$temp);
             $stmt=$this->prepare($sql);
-            if($stmt===false)
-                throw new Exception('SQL prepare error.',100421,array(
-                    'sql'=>$sql,
-                    'error'=>$this->db->errorInfo()
-                ));
             $i=1;
             foreach($temp as $value) {
                 $stmt->bindValue($i,$value);
@@ -574,22 +552,24 @@ final class Mysql extends SqlDrive {
                     'error'=>$stmt->errorInfo()
                 ));
             }
+            // 获取插入了多少条数据
+            $count+=$stmt->rowCount();
         }
-        // 获取插入了多少条数据
-        $result=$stmt->rowCount();
         // 重置查询状态
         $this->reset();
-        return $result;
+        return $count;
     }
 
     /**
      * 更新数据
-     * 
+     *
      * @access public
      * @param array ...$data 数据
      * @return int
+     * @throws Exception
      */
-    public function update(...$data): int {
+    public function update(array ...$data): int {
+        $count=0;
         // 先检查传入数据是否有效
         $data=$this->format_data(...$data);
         foreach($data as $temp) {
@@ -599,11 +579,6 @@ final class Mysql extends SqlDrive {
             $this->where_value=array();
             $sql=$this->build('update',$temp);
             $stmt=$this->prepare($sql);
-            if($stmt===false)
-                throw new Exception('SQL prepare error.',100424,array(
-                    'sql'=>$sql,
-                    'error'=>$this->db->errorInfo()
-                ));
             $i=1;
             // 先绑定更新数据
             foreach($temp as $key=>$value) {
@@ -627,22 +602,23 @@ final class Mysql extends SqlDrive {
                     'error'=>$stmt->errorInfo()
                 ));
             }
+            // 获取更新了多少条数据
+            $count+=$stmt->rowCount();
         }
-        // 获取更新了多少条数据
-        $result=$stmt->rowCount();
         // 重置查询条件
         $this->reset();
-        return $result;
+        return $count;
     }
 
     /**
      * 设置limit限制
-     * 
+     *
      * @access public
-     * @param ...$data limit限制
+     * @param array|int ...$data limit限制
      * @return self
+     * @throws Exception
      */
-    public function limit(...$data): self {
+    public function limit(int|array ...$data): self {
         // 先判断传入的数据长度
         if(count($data)>2||count($data)<1)
             throw new Exception('Limit $data length error.',100429);
@@ -659,12 +635,13 @@ final class Mysql extends SqlDrive {
 
     /**
      * 设置group分组
-     * 
+     *
      * @access public
-     * @param ...$data group分组
+     * @param array|string ...$data group分组
      * @return self
+     * @throws Exception
      */
-    public function group(...$data): self {
+    public function group(array|string ...$data): self {
         // 先判断传入的数据类型
         foreach($data as $value) {
             if(is_string($value)) {
@@ -686,12 +663,13 @@ final class Mysql extends SqlDrive {
 
     /**
      * 设置order排序
-     * 
+     *
      * @access public
-     * @param ...$data order排序
+     * @param  array|string ...$data order排序
      * @return self
+     * @throws Exception
      */
-    public function order(...$data): self {
+    public function order(array|string ...$data): self {
         // 先判断传入的数据类型
         foreach($data as $value) {
             if(is_string($value)) {
@@ -734,10 +712,11 @@ final class Mysql extends SqlDrive {
 
     /**
      * 删除数据
-     * 
+     *
      * @access public
      * @param int|string|array|null $data 主键或者组件组
      * @return int
+     * @throws Exception
      */
     public function delete(int|string|array|null $data=null): int {
         $data_temp=array();
@@ -755,11 +734,6 @@ final class Mysql extends SqlDrive {
             throw new Exception('Delete $data not is int, array, null or string.',100426);
         $sql=$this->build('delete',$data_temp);
         $stmt=$this->prepare($sql);
-        if($stmt===false)
-            throw new Exception('SQL prepare error.',100427,array(
-                'sql'=>$sql,
-                'error'=>$this->db->errorInfo()
-            ));
         $i=1;
         // 先绑定 where 条件
         foreach($this->where_value as $value) {
@@ -788,14 +762,15 @@ final class Mysql extends SqlDrive {
 
     /**
      * 根据条件查询数据
-     * 
+     *
      * @access public
      * @param string|array $where 字段名称或者数据数组
      * @param mixed $data 查询数据
      * @param string $operator 操作符
      * @return self
+     * @throws Exception
      */
-    public function where(string|array $where,mixed $data=null,?string $operator='='): self {
+    public function where(string|array $where,mixed $data=null,string $operator='='): self {
         $this->check_connect();
         // 判断$options是在允许的范围内
         $operator=strtoupper($operator);
@@ -852,10 +827,11 @@ final class Mysql extends SqlDrive {
 
     /**
      * 高级查询
-     * 
+     *
      * @access public
      * @param array ...$data 高级查询条件
      * @return self
+     * @throws Exception
      */
     public function whereEx(array ...$data): self {
         foreach($data as $where) {
@@ -871,10 +847,11 @@ final class Mysql extends SqlDrive {
 
     /**
      * 将数组递归为多层where条件
-     * 
+     *
      * @access private
      * @param array $where where条件
      * @return array
+     * @throws Exception
      */
     public function whereExBuild(array $where): array {
         // 判断数组是否为空
@@ -890,7 +867,6 @@ final class Mysql extends SqlDrive {
             ));
             // 第一个元素为字符串,则视为该层为最后一层,返回结果
             $operator='=';
-            $value='';
             // 判断是否存在第三个参数,如果存在,则使用第三个参数作为值,如果不存在,则使用第二个参数作为值
             if(isset($where[2])) {
                 $operator=strtoupper($where[1]);
@@ -936,19 +912,18 @@ final class Mysql extends SqlDrive {
 
     /**
      * 检查是否已经连接数据库
-     * 
+     *
      * @access protected
      * @return void
+     * @throws Exception
      */
     protected function check_connect(): void {
         // 检查是否已经连接数据库
         if(!$this->is_connect)
             throw new Exception('Database is not connected.',100401);
         // 检查是否已经传递了数据库表名
-        if($this->table===null)
+        if(empty($this->table))
             throw new Exception('Database table name is not set, please use table() to set.',100404);
     }
 
 }
-
-?>

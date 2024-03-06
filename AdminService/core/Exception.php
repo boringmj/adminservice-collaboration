@@ -3,21 +3,22 @@
 namespace AdminService;
 
 use base\Exception as BaseException;
-use AdminService\App;
+use \ReflectionException;
 
 final class Exception extends BaseException {
 
     /**
      * 构造方法
-     * 
+     *
      * @access public
      * @param string $message
      * @param int $error_code
+     * @param array $data
+     * @throws Exception
+     * @throws ReflectionException
      */
     final public function __construct(string $message,int $error_code=0,array $data=array()) {
-        $this->error_code=$error_code;
-        $this->message=$message;
-        $this->data=$data;
+        parent::__construct($message,$error_code,$data);
         //写入日志
         App::get('Log')->write(
             'Error({error_code}): {message} | data: {data} in {file} on line {line}, trace: {trace}',
@@ -71,5 +72,3 @@ final class Exception extends BaseException {
     }
 
 }
-
-?>

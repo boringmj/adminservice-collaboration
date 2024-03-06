@@ -18,15 +18,17 @@ abstract class Exception extends \Exception {
 
     /**
      * 构造方法
-     * 
+     *
      * @access public
      * @param string $message
      * @param int $error_code
+     * @param array $data
      */
     public function __construct(string $message,int $error_code=0,array $data=array()) {
         $this->error_code=$error_code;
         $this->message=$message;
         $this->data=$data;
+        parent::__construct($message,$error_code);
     }
 
     /**
@@ -40,5 +42,3 @@ abstract class Exception extends \Exception {
     }
 
 }
-
-?>

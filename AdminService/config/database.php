@@ -2,6 +2,8 @@
 
 namespace AdminService\config;
 
+use AdminService\sql\Mysql;
+
 // database 相关配置
 return array(
     'default'=>array(
@@ -19,8 +21,6 @@ return array(
         'table'=>'/^[A-Za-z][A-Za-z0-9_]{1,63}$/' // 数据库表名规则
     ),
     'support_type'=>array(
-        'mysql'=>\AdminService\sql\Mysql::class // Mysql类型的数据库支持
+        'mysql'=>Mysql::class // Mysql类型的数据库支持
     )
 );
-
-?>

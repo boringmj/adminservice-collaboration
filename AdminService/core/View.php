@@ -3,17 +3,17 @@
 namespace AdminService;
 
 use base\View as BaseView;
-use AdminService\Exception;
 
 final class View extends BaseView {
 
     /**
      * 初始化方法
-     * 
+     *
      * @access public
      * @param string $template_path 模板文件路径
      * @param array $data 需要传递给模板的数据
      * @return void
+     * @throws Exception
      */
     public function init(string $template_path,array $data=array()): void {
         if(!is_file($template_path))
@@ -47,10 +47,10 @@ final class View extends BaseView {
                     $str=str_replace('{{$'.$matches[2].'}}',$value,$str);
                 // 如果$value是数组则再往下遍历
                 if(is_array($value)) {
-                    foreach($value as $key=>$value) {
+                    foreach($value as $key=>$value_temp) {
                         // 判断$value是否为字符串和数字,如果是则替换
-                        if(is_string($value)||is_numeric($value))
-                            $str=str_replace('{{$'.$matches[2].'["'.$key.'"]}}',$value,$str);
+                        if(is_string($value_temp)||is_numeric($value_temp))
+                            $str=str_replace('{{$'.$matches[2].'["'.$key.'"]}}',$value_temp,$str);
                     }
                 }
                 $temp.=$str;
@@ -67,5 +67,3 @@ final class View extends BaseView {
     }
 
 }
-
-?>

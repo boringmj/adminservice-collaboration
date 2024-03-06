@@ -11,5 +11,3 @@ return array(
     'secure'=>false, // 是否仅仅通过安全的 HTTPS 连接传给客户端 default: false
     'httponly'=>false // 是否仅可通过 HTTP 协议访问 default: false
 );
-
-?>

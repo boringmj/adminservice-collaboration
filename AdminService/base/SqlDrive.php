@@ -2,24 +2,24 @@
 
 namespace base;
 
-use base\Sql;
-use AdminService\Exception;
+use \PDO;
 use AdminService\Config;
+use AdminService\Exception;
 
 /**
  * Sql驱动基类
  * 
  * @access public
  * @package base
- * @version 1.0.1
+ * @version 1.0.3
  */
 abstract class SqlDrive implements Sql {
 
     /**
      * 数据库连接对象
-     * @var \PDO
+     * @var PDO
      */
-    protected \PDO $db;
+    protected PDO $db;
 
     /**
      * 是否已经连接数据库
@@ -48,7 +48,7 @@ abstract class SqlDrive implements Sql {
      * 上一次执行的SQL语句
      * @var string
      */
-    protected string $lastsql;
+    protected string $last_sql;
 
     /**
      * 是否开启distinct
@@ -66,9 +66,10 @@ abstract class SqlDrive implements Sql {
 
     /**
      * 开启事务
-     * 
+     *
      * @access public
      * @return void
+     * @throws Exception
      */
     public function beginTransaction(): void {
         $this->check_connect();
@@ -80,9 +81,10 @@ abstract class SqlDrive implements Sql {
 
     /**
      * 提交事务
-     * 
+     *
      * @access public
      * @return void
+     * @throws Exception
      */
     public function commit(): void {
         $this->check_connect();
@@ -94,9 +96,10 @@ abstract class SqlDrive implements Sql {
 
     /**
      * 回滚事务
-     * 
+     *
      * @access public
      * @return void
+     * @throws Exception
      */
     public function rollBack(): void {
         $this->check_connect();
@@ -108,12 +111,13 @@ abstract class SqlDrive implements Sql {
 
     /**
      * 构造函数
-     * 
+     *
      * @access public
-     * @param \PDO $db 数据库连接对象
-     * @param string $table 数据库表名
+     * @param PDO|null $db 数据库连接对象
+     * @param string|null $table 数据库表名
+     * @throws Exception
      */
-    final public function __construct(?\PDO $db=null,?string $table=null) {
+    final public function __construct(?PDO $db=null,?string $table=null) {
         if($db!==null)
            $this->db($db);
         if($table!==null)
@@ -121,7 +125,7 @@ abstract class SqlDrive implements Sql {
         // 初始化
         $this->iterator=false;
         $this->lock='';
-        $this->lastsql='';
+        $this->last_sql='';
         $this->distinct=false;
         $this->reset();
     }
@@ -130,10 +134,10 @@ abstract class SqlDrive implements Sql {
      * 传入数据库连接对象
      * 
      * @access public
-     * @param \PDO $db 数据库连接对象
+     * @param PDO $db 数据库连接对象
      * @return self
      */
-    final public function db(\PDO $db): self {
+    final public function db(PDO $db): self {
         $this->db=$db;
         $this->is_connect=true;
         $this->iterator=false;
@@ -142,12 +146,13 @@ abstract class SqlDrive implements Sql {
 
     /**
      * 设置数据库表名
-     * 
+     *
      * @access public
-     * @param string $table 数据库表名
+     * @param string|null $table 数据库表名
      * @return self
+     * @throws Exception
      */
-    final public function table(string $table=null): self {
+    final public function table(?string $table=null): self {
         if($table===null)
             return $this;
         $rule=Config::get('database.rule.table');
@@ -162,10 +167,11 @@ abstract class SqlDrive implements Sql {
 
     /**
      * 检查键值是合法
-     * 
+     *
      * @access protected
      * @param string $key 键值
      * @return void
+     * @throws Exception
      */
     protected function check_key(string $key): void {
         $rule=Config::get('database.rule.fields');
@@ -190,10 +196,11 @@ abstract class SqlDrive implements Sql {
 
     /**
      * 为当前语句设置显式行锁
-     * 
+     *
      * @access public
      * @param string $type 锁类型(shared,update且默认为update,不区分大小写,其他值无效)
      * @return self
+     * @throws Exception
      */
     public function lock(string $type='update'): self {
         $this->check_connect();
@@ -219,5 +226,3 @@ abstract class SqlDrive implements Sql {
     }
 
 }
-
-?>

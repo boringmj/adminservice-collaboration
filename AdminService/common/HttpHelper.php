@@ -9,8 +9,17 @@ namespace AdminService\common;
  */
 class HttpHelper {
 
-    protected $request=array();
-    protected $response=array(
+    /**
+     * 请求参数
+     * @var array
+     */
+    protected array $request=array();
+
+    /**
+     * 响应参数
+     * @var array
+     */
+    protected array $response=array(
         'status_code'=>0,
         'headers'=>array(),
         'body'=>''
@@ -18,14 +27,13 @@ class HttpHelper {
 
     /**
      * HttpHelper constructor.
-     * 
+     *
      * @access public
-     * @param string $url 请求地址
-     * @param string $method 请求方法
-     * @param array $headers 请求头
-     * @param string $body 请求体
+     * @param string|null $url 请求地址
+     * @param string|null $method 请求方法
+     * @param array|null $headers 请求头
+     * @param string|null $body 请求体
      * @param int $timeout 超时时间
-     * @return void
      */
     public function __construct(
         ?string $url=null,
@@ -52,7 +60,7 @@ class HttpHelper {
      * @param string $url 请求地址
      * @return self
      */
-    public function setUrl(string $url) {
+    public function setUrl(string $url): self {
         $this->request['url']=$url;
         return $this;
     }
@@ -64,7 +72,7 @@ class HttpHelper {
      * @param string $method 请求方法
      * @return self
      */
-    public function setMethod(string $method) {
+    public function setMethod(string $method): self {
         $this->request['method']=$method;
         return $this;
     }
@@ -76,7 +84,7 @@ class HttpHelper {
      * @param array $headers 请求头
      * @return self
      */
-    public function setHeaders(array $headers) {
+    public function setHeaders(array $headers): self {
         $this->request['headers']=$headers;
         return $this;
     }
@@ -88,7 +96,7 @@ class HttpHelper {
      * @param string $body 请求体
      * @return self
      */
-    public function setBody(string $body) {
+    public function setBody(string $body): self {
         $this->request['body']=$body;
         return $this;
     }
@@ -100,7 +108,7 @@ class HttpHelper {
      * @param int $timeout 超时时间
      * @return self
      */
-    public function setTimeout(int $timeout) {
+    public function setTimeout(int $timeout): self {
         $this->request['timeout']=$timeout;
         return $this;
     }
@@ -112,7 +120,7 @@ class HttpHelper {
      * @param callable $callback 回调函数
      * @return self
      */
-    public function setStream(callable $callback) {
+    public function setStream(callable $callback): self {
         $this->response['stream']['open']=true;
         $this->response['stream']['callback']=$callback;
         return $this;
@@ -124,7 +132,7 @@ class HttpHelper {
      * @access public
      * @return self
      */
-    public function execute() {
+    public function execute(): self {
         $ch=curl_init();
         curl_setopt($ch,CURLOPT_URL,$this->request['url']);
         $method=strtoupper($this->request['method']);
@@ -157,7 +165,7 @@ class HttpHelper {
      * @access public
      * @return string
      */
-    public function getBody() {
+    public function getBody(): string {
         return $this->response['body'];
     }
 
@@ -167,7 +175,7 @@ class HttpHelper {
      * @access public
      * @return int
      */
-    public function getStatusCode() {
+    public function getStatusCode(): int {
         return $this->response['status_code'];
     }
 
@@ -177,7 +185,7 @@ class HttpHelper {
      * @access public
      * @return array
      */
-    public function getHeaders() {
+    public function getHeaders(): array {
         return $this->response['headers'];
     }
 
@@ -188,10 +196,8 @@ class HttpHelper {
      * @param string $key 响应头key
      * @return string
      */
-    public function getHeader(string $key) {
+    public function getHeader(string $key): string {
         return $this->response['headers'][$key]??'';
     }
 
 }
-
-?>

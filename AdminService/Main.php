@@ -2,10 +2,7 @@
 
 namespace AdminService;
 
-use AdminService\Exception;
-use AdminService\App;
-use AdminService\Config;
-use AdminService\Log;
+use \ReflectionException;
 
 final class Main {
 
@@ -14,13 +11,15 @@ final class Main {
      * 
      * @var bool
      */
-    static private $init_finish;
-    
+    static private bool $init_finish;
+
     /**
      * 初始化
-     * 
+     *
      * @access public
      * @return self
+     * @throws Exception
+     * @throws \Exception
      */
     public function init(): self {
         // 初始化状态
@@ -113,9 +112,10 @@ final class Main {
 
     /**
      * 开始运行
-     * 
+     *
      * @access public
      * @return void
+     * @throws Exception|ReflectionException
      */
     public function run(): void {
         try {
@@ -128,5 +128,3 @@ final class Main {
     }
 
 }
-
-?>

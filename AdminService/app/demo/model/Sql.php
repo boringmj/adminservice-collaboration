@@ -3,12 +3,21 @@
 namespace app\demo\model;
 
 use base\Model;
+use \PDOException;
+use AdminService\Exception;
 
 class Sql extends Model {
 
     public string $table_name='admin_service_system_info'; // 数据表名(默认不启用自动添加数据表前缀)
 
-    public function test() {
+    /**
+     * 测试方法
+     *
+     * @access public
+     * @return array|string
+     * @throws Exception
+     */
+    public function test(): array|string {
         // 使用 $table_name 作为表名
 
         /** 简单说明
@@ -66,7 +75,7 @@ class Sql extends Model {
             $this->delete(array(4,5));
             # 通过where条件删除数据
             $this->where('id',6,'>=')->delete();
-        } catch(\AdminService\Exception $e) {
+        } catch(Exception|PDOException $e) {
             # 回滚事务
             $this->rollBack();
             return $e->getMessage();
@@ -96,7 +105,7 @@ class Sql extends Model {
             # 提交事务
             $this->commit();
             return $data;
-        } catch(\AdminService\Exception $e) {
+        } catch(Exception $e) {
             # 回滚事务
             $this->rollBack();
             return $e->getMessage();
@@ -180,10 +189,15 @@ class Sql extends Model {
         )->select(); */
     }
 
-    public function demo() {
+    /**
+     * 演示方法
+     *
+     * @access public
+     * @return array
+     * @throws Exception
+     */
+    public function demo(): array {
         // 传入表名,且自动添加前缀
         return $this->table('system_info')->where('id',1)->select(array('id','app_key'));
     }
 }
-
-?>

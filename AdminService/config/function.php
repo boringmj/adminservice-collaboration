@@ -14,5 +14,3 @@ return array(
         'HttpHelper' // HttpHelper类(用于发送http请求)
     )
 );
-
-?>

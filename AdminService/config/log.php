@@ -14,5 +14,3 @@ return array(
     'row'=>'[{date}-{time}] {msg}', // 日志行格式,支持的变量有: {data}日期,{time}时间, {msg}日志内容
     'default_file'=>'{date}' // 默认日志文件名,支持的变量有: {data}日期, 系统不会检查文件名是否符合规则,请自行保证
 );
-
-?>

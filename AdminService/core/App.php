@@ -3,18 +3,20 @@
 namespace AdminService;
 
 use base\Container;
-use AdminService\Config;
-use AdminService\Exception;
-use AdminService\DynamicProxy;
+use \ReflectionClass;
+use \ReflectionException;
+use \ReflectionFunction;
+use \ReflectionMethod;
 
 final class App extends Container {
 
     /**
      * 初始化
-     * 
+     *
      * @access public
      * @param array $classes 需要初始化的类
      * @return void
+     * @throws Exception
      */
     static public function init(array $classes=array()): void {
         // 获取配置文件中的别名
@@ -30,14 +32,15 @@ final class App extends Container {
 
     /**
      * 获取对象
-     * 
+     *
      * 注意: 依赖简单支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
      * 这种情况请先使用App::set(Class::class,new Class())添加到容器中
-     * 
+     *
      * @access public
      * @param string $name 对象名
      * @param mixed ...$args 构造函数参数
      * @return object
+     * @throws Exception|ReflectionException
      */
     static public function get(string $name,...$args): object {
         // 判断是否传入了构造函数参数
@@ -45,10 +48,9 @@ final class App extends Container {
             // 判断类是否存在,如果不存在则在容器中寻找
             if(!class_exists($name))
                 $name=parent::getClass($name);
-            $ref=new \ReflectionClass($name);
-            $object=$ref->newInstanceArgs($args);
+            $ref=new ReflectionClass($name);
             // 直接返回对象,不添加到父容器中
-            return $object;
+            return $ref->newInstanceArgs($args);
         } else {
             // 判断父容器中是否存在该类
             if(isset(parent::$class_container[$name]))
@@ -60,12 +62,13 @@ final class App extends Container {
 
     /**
      * 执行类或对象的方法
-     * 
+     *
      * @access public
      * @param object|string $object 对象或者类名
      * @param string $method 方法名
      * @param array $args 方法参数(如果为关系型数组,则会将key作为参数名,value作为参数值,如果索引数组,则会逐一赋值,没有赋值的参数会使用默认值)
      * @return mixed
+     * @throws Exception|ReflectionException
      */
     static public function exec_class_function(object|string $object,string $method,array $args=array()): mixed {
         // 判断是否为类名
@@ -74,7 +77,7 @@ final class App extends Container {
             $object=self::make($object);
         }
         // 获取方法参数
-        $ref=new \ReflectionMethod($object,$method);
+        $ref=new ReflectionMethod($object,$method);
         $params=$ref->getParameters();
         $args_temp=self::mergeParams($params,$args);
         // 调用方法
@@ -83,15 +86,17 @@ final class App extends Container {
 
     /**
      * 执行函数
-     * 
+     *
      * @access public
      * @param string $function 函数名
      * @param array $args 函数参数(如果为关系型数组,则会将key作为参数名,value作为参数值,如果索引数组,则会逐一赋值,没有赋值的参数会使用默认值)
      * @return mixed
+     * @throws Exception
+     * @throws ReflectionException
      */
     static public function exec_function(string $function,array $args=array()): mixed {
         // 获取函数参数
-        $ref=new \ReflectionFunction($function);
+        $ref=new ReflectionFunction($function);
         $params=$ref->getParameters();
         $args_temp=self::mergeParams($params,$args);
         // 调用函数
@@ -100,11 +105,13 @@ final class App extends Container {
 
     /**
      * 整理和合并参数
-     * 
+     *
      * @access private
      * @param array $params 参数
      * @param array $args 参数
      * @return array
+     * @throws Exception
+     * @throws ReflectionException
      */
     static private function mergeParams(array $params,array $args): array {
         $params_temp=array();
@@ -125,7 +132,7 @@ final class App extends Container {
             $type=parent::getRealClass($type);
             // 判断类是否存在,如果存在则判断是否是抽象类或接口
             if(class_exists($type)) {
-                $ref_type=new \ReflectionClass($type);
+                $ref_type=new ReflectionClass($type);
                 if(!$ref_type->isInstantiable()) {
                     // 尝试获取是否存在子类
                     $sub_class=parent::findSubClass($type);
@@ -166,7 +173,7 @@ final class App extends Container {
             // 判断是否为一个存在的类
             if(class_exists($type)) {
                 // 通过反射判断是否可以实例化该类
-                $ref_type=new \ReflectionClass($type);
+                $ref_type=new ReflectionClass($type);
                 if($ref_type->isInstantiable()) {
                     // 如果参数类型为类则通过自动依赖注入实例化一个新的对象
                     $params_temp[]=self::make($type);
@@ -195,11 +202,12 @@ final class App extends Container {
 
     /**
      * 生成一个类的代理实例
-     * 
+     *
      * @access public
      * @param string $name 类名
      * @param array $args 构造函数参数
      * @return DynamicProxy
+     * @throws Exception
      */
     static public function proxy(string $name,array $args=array()): DynamicProxy {
         return new DynamicProxy($name,...$args);
@@ -207,9 +215,11 @@ final class App extends Container {
 
     /**
      * 获取当前应用名称
-     * 
+     *
      * @access public
-     * @return string
+     * @return string|null
+     * @throws Exception
+     * @throws ReflectionException
      */
     static public function getAppName(): ?string {
         self::initRouteInfo();
@@ -220,9 +230,11 @@ final class App extends Container {
 
     /**
      * 获取当前控制器名称
-     * 
+     *
      * @access public
-     * @return string
+     * @return string|null
+     * @throws Exception
+     * @throws ReflectionException
      */
     static public function getControllerName(): ?string {
         self::initRouteInfo();
@@ -233,9 +245,11 @@ final class App extends Container {
 
     /**
      * 获取当前方法名称
-     * 
+     *
      * @access public
-     * @return string
+     * @return string|null
+     * @throws Exception
+     * @throws ReflectionException
      */
     static public function getMethodName(): ?string {
         self::initRouteInfo();
@@ -246,9 +260,11 @@ final class App extends Container {
 
     /**
      * 初始化路由信息
-     * 
+     *
      * @access private
      * @return void
+     * @throws Exception
+     * @throws ReflectionException
      */
     static private function initRouteInfo(): void {
         // 检查是否存在缓存
@@ -261,5 +277,3 @@ final class App extends Container {
     }
 
 }
-
-?>

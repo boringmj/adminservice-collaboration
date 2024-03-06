@@ -2,10 +2,10 @@
 
 namespace base;
 
-use base\View;
-use base\Request;
 use AdminService\App;
 use AdminService\Config;
+use AdminService\Exception;
+use \ReflectionException;
 
 /**
  * 控制器基类
@@ -19,22 +19,24 @@ abstract class Controller {
 
     /**
      * 请求对象
-     * @var \base\Request
+     * @var Request
      */
     protected Request $request;
 
     /**
      * 视图对象
-     * @var \base\View
+     * @var View
      */
     protected View $view;
 
     /**
      * 构造方法
-     * 
+     *
      * @access public
-     * @param \base\Request $request 请求对象
-     * @param \base\View $view 视图对象
+     * @param Request|null $request 请求对象
+     * @param View|null $view 视图对象
+     * @throws Exception
+     * @throws ReflectionException
      */
     final public function __construct(?Request $request=null,?View $view=null) {
         $this->request=$request??App::get('Request');
@@ -79,13 +81,14 @@ abstract class Controller {
 
     /**
      * 显示视图
-     * 
+     *
      * @access protected
-     * @param string|array $template 视图名称或数据(如果传入数组则为数据)
+     * @param string|array|null $template 视图名称或数据(如果传入数组则为数据)
      * @param array $data 数据
      * @return string
+     * @throws Exception|ReflectionException
      */
-    final protected function view(string|array $template=null,array $data=array()): string {
+    final protected function view(null|string|array $template=null,array $data=array()): string {
         if(is_array($template)) {
             $data=$template;
             $template=null;
@@ -111,5 +114,3 @@ abstract class Controller {
     }
 
 }
-
-?>

@@ -10,10 +10,6 @@ if(is_file($autoload_path))
 else
     exit("Error: Unable to complete autoload!");
 
-use AdminService\Main;
-
 # 初始化服务
 $Main=new Main();
 $Main->init()->run();
-
-?>

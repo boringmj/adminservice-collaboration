@@ -3,6 +3,8 @@
 namespace base;
 
 use AdminService\Exception;
+use \ReflectionClass;
+use \ReflectionException;
 
 abstract class Container {
 
@@ -10,17 +12,17 @@ abstract class Container {
      * 对象实例容器
      * @var array
      */
-    protected static $container;
+    protected static array $container;
 
     /**
      * 未被实例化的类容器
      */
-    protected static $class_container;
+    protected static array $class_container;
 
     /**
      * 全局数据容器
      */
-    protected static $data_container;
+    protected static array $data_container;
 
     /**
      * 初始化
@@ -33,10 +35,11 @@ abstract class Container {
 
     /**
      * 获取对象(如果不存在则自动实例化,自动实例化的前提是构造函数不含任何参数且在类容器中存在)
-     * 
+     *
      * @access public
      * @param string $name 对象名
      * @return object
+     * @throws Exception|ReflectionException
      */
     static public function get(string $name): object {
         $name=self::getRealClass($name);
@@ -45,7 +48,7 @@ abstract class Container {
             if(!class_exists($name))
                 throw new Exception('Class "'.$name.'" not found.');
             // 如果存在则判断是否可以实例化
-            $ref=new \ReflectionClass($name);
+            $ref=new ReflectionClass($name);
             if(!$ref->isInstantiable())
                 throw new Exception('Class "'.$name.'" is not instantiable.');
             // 如果可以实例化则实例化一个新的对象
@@ -96,11 +99,12 @@ abstract class Container {
 
     /**
      * 设置或添加未被实例化的类(会覆盖已存在的别名等)
-     * 
+     *
      * @access public
      * @param string $name 类名
      * @param string $class 类
      * @return void
+     * @throws Exception
      */
     static public function setClass(string $name,string $class): void {
         // 如果类不存在则抛出异常
@@ -123,10 +127,11 @@ abstract class Container {
 
     /**
      * 批量设置或添加未被实例化的类
-     * 
+     *
      * @access public
      * @param array $classes 类数组
      * @return void
+     * @throws Exception
      */
     static public function setClassByArray(array $classes): void {
         foreach($classes as $name=>$class)
@@ -161,26 +166,26 @@ abstract class Container {
      * 批量设置或添加全局数据
      * 
      * @access public
-     * @param array $datas 数据数组
+     * @param array $data 数据数组
      * @return void
      */
-    static public function setDataByArray(array $datas): void {
-        foreach($datas as $name=>$data)
-            self::setData($name,$data);
+    static public function setDataByArray(array $data): void {
+        foreach($data as $name=>$value)
+            self::setData($name,$value);
     }
 
     /**
      * 通过自动依赖注入实例化一个对象
-     * 
+     *
      * 注意: 依赖简单支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
      * 这种情况请先使用App::set(Class::class,new Class())添加到容器中
-     * 
+     *
      * @access public
      * @param string $name 对象名
      * @param bool $is_force 是否强制实例化
-     * @param array $falgs 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
-     * @throws Exception
+     * @param array $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
      * @return object
+     * @throws Exception|ReflectionException
      */
     static public function make(string $name,bool $is_force=false,array &$flags=array()): object {
         // 判断类是否存在,如果不存在则在容器中寻找
@@ -191,9 +196,8 @@ abstract class Container {
             return self::get($name);
         // 将当前对象添加到标识中
         $flags[]=$name;
-        $ref=new \ReflectionClass($name);
+        $ref=new ReflectionClass($name);
         $constructor=$ref->getConstructor();
-        $object=null;
         if($constructor!==null) {
             $params=$constructor->getParameters();
             $args=array();
@@ -205,7 +209,7 @@ abstract class Container {
                 $class_name=self::getRealClass($type);
                 if(class_exists($class_name)) {
                     // 通过反射判断是否可以实例化该类
-                    $ref_type=new \ReflectionClass($class_name);
+                    $ref_type=new ReflectionClass($class_name);
                     if(!$ref_type->isInstantiable()) {
                         // 如果参数类型为抽象类或接口则判断是否可以获取到子类
                         $class_name=self::findSubClass($class_name);
@@ -219,18 +223,15 @@ abstract class Container {
                     // 如果参数类型为类则通过自动依赖注入实例化一个新的对象
                     $object=self::make($class_name,false,$flags);
                     $args[]=$object;
-                } else {
-                    // 其他类型判断是否有默认值,如果有则使用默认值,没有则抛出异常
-                    if($param->isDefaultValueAvailable())
-                        $args[]=$param->getDefaultValue();
-                    else if($param->allowsNull())
-                        $args[]=null;
-                    else
-                        throw new Exception('Parameter "'.$param->getName().'" of "'.$name.'" constructor is not valid.',0,array(
-                            'class'=>$name,
-                            'parameter'=>$param->getName()
-                        ));
-                }
+                } elseif($param->isDefaultValueAvailable())
+                    $args[]=$param->getDefaultValue();
+                else if($param->allowsNull())
+                    $args[]=null;
+                else
+                    throw new Exception('Parameter "'.$param->getName().'" of "'.$name.'" constructor is not valid.',0,array(
+                        'class'=>$name,
+                        'parameter'=>$param->getName()
+                    ));
             }
             // 传入构造函数参数实例化一个新的对象
             $object=$ref->newInstanceArgs($args);
@@ -265,5 +266,3 @@ abstract class Container {
     }
 
 }
-
-?>

@@ -2,15 +2,15 @@
 
 namespace base;
 
-use base\Request;
 use AdminService\Exception;
 use AdminService\App;
+use \ReflectionException;
 
 abstract class Route {
 
     /**
      * 请求对象
-     * @var \base\Request
+     * @var Request
      */
     protected Request $request;
 
@@ -58,15 +58,16 @@ abstract class Route {
             $uri='/';
         $uri=explode("/",$uri);
         array_shift($uri);
-        $uri=array_values($uri);
-        return $uri;
+        return array_values($uri);
     }
 
     /**
      * 构造方法(如果都传入则默认初始化)
-     * 
+     *
      * @access public
-     * @param Request $request 请求对象
+     * @param Request|null $request 请求对象
+     * @throws Exception
+     * @throws ReflectionException
      */
     final public function __construct(?Request $request=null) {
         $this->is_init=false;
@@ -76,10 +77,12 @@ abstract class Route {
 
     /**
      * 初始化路由
-     * 
+     *
      * @access public
-     * @param Request $request 请求对象
+     * @param Request|null $request 请求对象
      * @return self
+     * @throws Exception
+     * @throws ReflectionException
      */
     final public function init(?Request $request=null): self {
         $this->request=$request??App::get('Request');
@@ -90,9 +93,10 @@ abstract class Route {
 
     /**
      * 获取路由路径组
-     * 
+     *
      * @access public
      * @return array
+     * @throws Exception
      */
     final public function get(): array {
         $this->checkInit();
@@ -101,9 +105,10 @@ abstract class Route {
 
     /**
      * 检查是否已经初始化
-     * 
+     *
      * @access protected
      * @return void
+     * @throws Exception
      */
     protected function checkInit(): void {
         if(!$this->is_init)
@@ -111,5 +116,3 @@ abstract class Route {
     }
 
 }
-
-?>

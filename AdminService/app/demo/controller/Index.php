@@ -146,7 +146,7 @@ class Index extends Controller {
                 'code'=>$code,
                 'body'=>$body,
                 'headers'=>$headers
-            ),true);
+            ),true); // 注意,disable_ssl_verify参数是true则会禁用ssl验证,这可能会导致安全问题
         });
     }
 

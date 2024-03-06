@@ -2,6 +2,8 @@
 
 namespace AdminService\common;
 
+use AdminService\App;
+
 /**
  * http请求工具类
  *
@@ -47,6 +49,7 @@ class HttpHelper {
         $this->request['headers']=$headers??array();
         $this->request['body']=$body??'';
         $this->request['timeout']=$timeout;
+        $this->request['disable_ssl_verify']=false;
         $this->response['stream']=array(
             'open'=>false,
             'callback'=>null
@@ -127,6 +130,18 @@ class HttpHelper {
     }
 
     /**
+     * 禁用ssl验证
+     * 
+     * @access public
+     * @param bool $disable 是否禁用
+     * @return self
+     */
+    public function disableSslVerify(bool $disable=true): self {
+        $this->request['disable_ssl_verify']=$disable;
+        return $this;
+    }
+
+    /**
      * 执行请求
      * 
      * @access public
@@ -135,6 +150,11 @@ class HttpHelper {
     public function execute(): self {
         $ch=curl_init();
         curl_setopt($ch,CURLOPT_URL,$this->request['url']);
+        // 检查是否需要开启ssl
+        if($this->request['disable_ssl_verify']) {
+            curl_setopt($ch,CURLOPT_SSL_VERIFYPEER,false);
+            curl_setopt($ch,CURLOPT_SSL_VERIFYHOST,false);
+        }
         $method=strtoupper($this->request['method']);
         curl_setopt($ch,CURLOPT_CUSTOMREQUEST,$method);
         curl_setopt($ch,CURLOPT_HTTPHEADER,$this->request['headers']);
@@ -198,6 +218,72 @@ class HttpHelper {
      */
     public function getHeader(string $key): string {
         return $this->response['headers'][$key]??'';
+    }
+    
+    /**
+     * 快速发起get请求
+     * 
+     * @access public
+     * @param string $url 请求地址
+     * @param array $headers 请求头
+     * @param int $timeout 超时时间
+     * @param callable|null $error_callback 错误回调(支持的参数:code,body,headers)
+     * @param bool $disable_ssl_verify 是否禁用ssl验证
+     * @return string
+     */
+    public static function get(
+        string $url,
+        array $headers=array(),
+        int $timeout=30,
+        ?callable $error_callback=null,
+        bool $disable_ssl_verify=false
+    ): string {
+        $response=App::get(
+            HttpHelper::class,$url,'GET',$headers,null,$timeout
+        )->disableSslVerify($disable_ssl_verify)->execute();
+        if($response->getStatusCode()!=200&&$error_callback!=null) {
+            App::exec_function($error_callback,array(
+                'code'=>$response->getStatusCode(),
+                'body'=>$response->getBody(),
+                'headers'=>$response->getHeaders()
+            ));
+        }
+        return $response->getBody();
+    }
+
+    /**
+     * 快速发起post请求
+     * 
+     * @access public
+     * @param string $url 请求地址
+     * @param string|array $data 请求体(传入数组则会自动转为json字符串)
+     * @param array $headers 请求头
+     * @param int $timeout 超时时间
+     * @param callable|null $error_callback 错误回调(支持的参数:code,body,headers)
+     * @param bool $disable_ssl_verify 是否禁用ssl验证
+     * @return string
+     */
+    public static function post(
+        string $url,
+        string|array $data,
+        array $headers=array(),
+        int $timeout=30,
+        ?callable $error_callback=null,
+        bool $disable_ssl_verify=false
+    ): string {
+        if(is_array($data))
+            $data=json_encode($data);
+        $response=App::get(
+            HttpHelper::class,$url,'POST',$headers,$data,$timeout
+            )->disableSslVerify($disable_ssl_verify)->execute();
+        if($response->getStatusCode()!=200&&$error_callback!=null) {
+            App::exec_function($error_callback,array(
+                'code'=>$response->getStatusCode(),
+                'body'=>$response->getBody(),
+                'headers'=>$response->getHeaders()
+            ));
+        }
+        return $response->getBody();
     }
 
 }

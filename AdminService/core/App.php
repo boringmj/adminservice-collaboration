@@ -94,7 +94,12 @@ final class App extends Container {
      * @throws Exception
      * @throws ReflectionException
      */
-    static public function exec_function(string $function,array $args=array()): mixed {
+    static public function exec_function(string|callable $function,array $args=array()): mixed {
+        if(is_string($function)) {
+            // 判断是否存在
+            if(!function_exists($function))
+                throw new Exception('Function "'.$function.'" not found.');
+        }
         // 获取函数参数
         $ref=new ReflectionFunction($function);
         $params=$ref->getParameters();

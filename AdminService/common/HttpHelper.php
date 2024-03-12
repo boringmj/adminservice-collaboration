@@ -44,11 +44,11 @@ class HttpHelper {
         ?string $body=null,
         int $timeout=30
     ) {
-        $this->request['url']=$url??'';
-        $this->request['method']=$method??'';
-        $this->request['headers']=$headers??array();
-        $this->request['body']=$body??'';
-        $this->request['timeout']=$timeout;
+        $this->setUrl($url??'');
+        $this->setMethod($method??'GET');
+        $this->setHeaders($headers??array());
+        $this->setBody($body??'');
+        $this->setTimeout($timeout);
         $this->request['disable_ssl_verify']=false;
         $this->response['stream']=array(
             'open'=>false,
@@ -88,7 +88,11 @@ class HttpHelper {
      * @return self
      */
     public function setHeaders(array $headers): self {
-        $this->request['headers']=$headers;
+        foreach($headers as $key=>$value)
+            if(is_numeric($key))
+                $this->request['headers'][]=$value;
+            else
+                $this->request['headers'][]="{$key}: {$value}";
         return $this;
     }
 

@@ -4,10 +4,10 @@ namespace app\demo\controller;
 
 // 控制器基类
 use base\Controller;
-
 // 系统核心类
 use AdminService\App;
 use AdminService\Log;
+use AdminService\Config;
 use AdminService\Exception;
 // 模型
 use app\demo\model\Sql;
@@ -74,7 +74,7 @@ class Index extends Controller {
             'app'=>App::getAppName()
         ));
         // 输出日志文件路径
-        return "日志存放目录: ".realpath(\AdminService\Config::get('log.path'));
+        return "日志存放目录: ".realpath(Config::get('log.path',''));
     }
 
     public function exec(): array {

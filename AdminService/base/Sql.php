@@ -67,10 +67,10 @@ interface Sql {
      * 设置数据库表名
      * 
      * @access public
-     * @param string $table 数据库表名
+     * @param string|array $table 数据库表名
      * @return self
      */
-    public function table(string $table): self;
+    public function table(string|array $table): self;
 
     /**
      * 获取上一次执行的SQL语句
@@ -198,6 +198,35 @@ interface Sql {
      * @return self
      */
     public function lock(string $type='update'): self;
+
+    /**
+     * 设置当前查询主表别名
+     * 
+     * @access public
+     * @param string $alias 别名
+     * @return self
+     */
+    public function alias(string $alias): self;
+
+    /**
+     * 关联查询
+     * 
+     * @access public
+     * @param string|array $table 关联表名
+     * @param string $on 关联条件
+     * @param string $type 关联类型(left,right,inner,full)
+     * @return self
+     */
+    public function join(string|array $table,string $on,string $type='left'): self;
+
+    /**
+     * 设置过滤字段
+     * 
+     * @access public
+     * @param array|string $fields 过滤字段
+     * @return self
+     */
+    public function field(array|string $fields): self;
 
 }
 

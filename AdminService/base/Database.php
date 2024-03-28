@@ -107,12 +107,12 @@ abstract class Database {
      * 设置数据库表名
      *
      * @access protected
-     * @param string|null $table 数据库表名
+     * @param string|array|null $table 数据库表名
      * @param bool $prefix 是否自动添加表前缀(默认添加)
      * @return self
      * @throws Exception
      */
-    final protected function table(?string $table=null,bool $prefix=true): self {
+    final protected function table(null|array|string $table=null,bool $prefix=true): self {
         if($table===null)
             return $this;
         $table_name=($prefix?Config::get('database.default.prefix',''):'').$table;
@@ -358,6 +358,44 @@ abstract class Database {
      */
     public function distinct(): self {
         $this->db_object->distinct();
+        return $this;
+    }
+
+    /**
+     * 设置当前查询主表别名
+     * 
+     * @access public
+     * @param string $alias 别名
+     * @return self
+     */
+    public function alias(string $alias): self {
+        $this->db_object->alias($alias);
+        return $this;
+    }
+
+    /**
+     * 关联查询
+     * 
+     * @access public
+     * @param string|array $table 关联表名
+     * @param string $on 关联条件
+     * @param string $type 关联类型(left,right,inner,full)
+     * @return self
+     */
+    public function join(string|array $table,string $on,string $type='left'): self {
+        $this->db_object->join($table,$on,$type);
+        return $this;
+    }
+
+    /**
+     * 设置过滤字段
+     * 
+     * @access public
+     * @param array|string $fields 过滤字段
+     * @return self
+     */
+    public function field(array|string $fields): self {
+        $this->db_object->field($fields);
         return $this;
     }
 

@@ -29,6 +29,8 @@ class Sql extends Model {
          * 5. 现在已经可以通过更加复杂的 whereEx 构造复合型 where 了,同时也支持构造 OR 语句
          * 6. 需要注意的是, whereEx 为了更方便以及更合理, 参数由 (<字段>,<值>,[操作符]) 改为 (<字段>,<值/操作符>,[操作符:<值>])
          *      例如 where 的 ("id",$id,"=") 在 whereEx 中你可以这样写: ("id",$id) 或者 ("id","=",$id)
+         * 7. 目前已支持 “`table`.`field`” 的形式, 需要注意,“`table`”中的“`”符号可以没有,而且不能在“`”里面有空格,空格允许在外面
+         *      例如: ' `table` . `field`' 或者 '`table`.field' 亦或者 'table . field' 但不能是 '` table `.field'
          */
 
         # 开启事务
@@ -83,7 +85,7 @@ class Sql extends Model {
         # 提交事务
         $this->commit();
 
-        # 查询一条数据(find 方法同样支持 select 方法的所有功能, 但是只会返回一条数据)
+        # 查询一条数据(find 方法同样支持 select 方法的部分功能, 但无论如何结果只会返回一条数据,当只返回一个字段时,返回字段值)
         // return $this->find(); 
 
         // 补充说明, 下面是一条极其复杂的SQL语句, 解释了诸多新特性, 可以尝试修改并查看SQL语句的变化(错误条件并不一定会有实际数据返回)
@@ -91,15 +93,17 @@ class Sql extends Model {
         $this->beginTransaction();
         try {
             $data=array(
-                'data'=>$this->where('id',1)->whereEx(array('app_id','LIKE','op%'))->whereEx(array(
+                'data'=>$this->where('`db`.id',1)->whereEx(array('db.app_id','LIKE','op%'))->whereEx(array(
                     array('id',2),
                     array('app_key','IN',array(1,2)),
                     array(
-                        array('id',3),
-                        array('app_key','LIKE','op%')
+                        array('db.id',3),
+                        array('`db`.`app_key`','LIKE','op%')
                     ),
                     'OR'
-                ))->order('id DESC')->limit(1,1)->lock()->group("app_id")->select(),
+                ))->order('id DESC')->limit(1,1)->lock()->group("app_id")->alias('db')->field(
+                    array('id'=>'ID','app_id'=>'APPID')
+                )->select(),
                 'sql'=>$this->getLastSql()
             );
             # 提交事务
@@ -116,12 +120,20 @@ class Sql extends Model {
         // return $this->select('*');
         # 反回迭代器(当数据量过大时,建议使用迭代器,否则可能会导致内存溢出)
         // return $this->iterator()->select();
+        # 给当前主表设置别名
+        // return $this->alias('db')->select();
         # 查询指定字段
         // return $this->select('id');
         // return $this->select(array('id','app_id'));
         // return $this->select(['id','app_id']);
+        // 使用field方法
+        // $this->field('id')->select();
+        // $this->field(array('id','app_id'))->select();
         // 使用IN操作符(目前支持的where操作符仅有: =,>,<,>=,<=,!=,<>,LIKE,NOT LIKE,IN')
         // return $this->select('id',array(1,2,3),'IN');
+        # 使用列别名
+        // return $this->select(array('id'=>'ID','app_id'=>'APPID'));
+        // return $this->field(array(array('id','ID'),array('app_id','APPID')))->select();
         # 查询指定条件(链式)
         //return $this->where('id',1)->select();
         // return $this->where('id',1,'>=')->select();

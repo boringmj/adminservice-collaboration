@@ -61,6 +61,12 @@ final class Mysql extends SqlDrive {
     private array $group;
 
     /**
+     * 过滤字段
+     * @var array
+     */
+    protected array $filter;
+
+    /**
      * 允许的操作符
      * @var array
      */
@@ -97,6 +103,8 @@ final class Mysql extends SqlDrive {
         $this->iterator=false;
         $this->lock='';
         $this->distinct=false;
+        $this->filter=array();
+        $this->table[1]='';
         return $this;
     }
 
@@ -136,26 +144,25 @@ final class Mysql extends SqlDrive {
     private function build(string $type,mixed $data=null,mixed $options=null): string {
         $this->check_connect();
         switch($type) {
-            case 'select':
-                $fields=$data;
+            case 'filter':
+                $fields=$this->filter;
                 $fields_string='';
-                if(is_array($fields)) {
-                    foreach($fields as $value) {
-                        $this->check_key($value);
-                        $fields_string.=$fields_string===''? ('`'.$value.'`'):(',`'.$value.'`');
-                    }
-                } else {
-                    if($fields==='*')
-                        $fields_string='*';
-                    else {
-                        $this->check_key($fields);
-                        $fields_string='`'.$fields.'`';
-                    }
+                // 如果为空则返回全部字段
+                if(empty($fields))
+                    return '*';
+                foreach($fields as $value) {
+                    if(count($value[0])===2)
+                        $fields_string.='`'.$value[0][0].'`.`'.$value[0][1].'`';
+                    else
+                        $fields_string.='`'.$value[0][0].'`';
+                    if(!empty($value[1]))
+                        $fields_string.=' AS `'.$value[1].'`';
+                    $fields_string.=',';
                 }
-                // // 判断是否要去重复
-                // if($this->distinct)
-                //     $fields_string='DISTINCT '.$fields_string;
-                $sql='SELECT '.$fields_string.' FROM `'.$this->table.'`'.$this->build('where');
+                return substr($fields_string,0,-1);
+            case 'select':
+                $fields_string=$this->build('filter');
+                $sql='SELECT '.$fields_string.' FROM '.$this->getTableName().$this->build('where');
                 // 添加分组
                 $sql.=$this->build('group');
                 if($options==='find')
@@ -177,10 +184,7 @@ final class Mysql extends SqlDrive {
                 $sql.=';';
                 return $sql;
             case 'count':
-                $fields_string='*';
-                // // 判断是否要去重复
-                // if($this->distinct)
-                //     $fields_string='DISTINCT '.$fields_string;
+                $fields_string=$this->build('filter');
                 $sql='SELECT COUNT('.$fields_string.') AS "__count"';
                 // 判断是否有分组
                 if(!empty($this->group)) {
@@ -188,7 +192,7 @@ final class Mysql extends SqlDrive {
                     foreach($this->group as $value)
                         $sql.=',`'.$value.'`';
                 }
-                $sql.=' FROM `'.$this->table.'`'.$this->build('where');
+                $sql.=' FROM '.$this->getTableName().$this->build('where');
                 // 添加分组
                 $sql.=$this->build('group');
                 // 添加行锁
@@ -196,7 +200,7 @@ final class Mysql extends SqlDrive {
                 $sql.=';';
                 return $sql;
             case 'insert':
-                $sql='INSERT INTO `'.$this->table.'` (';
+                $sql='INSERT INTO '.$this->getTableName().' (';
                 $fields_string='';
                 $values_string='';
                 foreach($data as $key=>$value) {
@@ -210,7 +214,7 @@ final class Mysql extends SqlDrive {
                 $sql.=';';
                 return $sql;
             case 'update':
-                $sql='UPDATE `'.$this->table.'` SET ';
+                $sql='UPDATE '.$this->getTableName().' SET ';
                 $fields_string='';
                 foreach($data as $key=>$value) {
                     // 这里的 id 是主键, 主键是不需要更新的, 而且需要将主键加入到 where 条件中
@@ -233,7 +237,7 @@ final class Mysql extends SqlDrive {
                 $sql.=';';
                 return $sql;
             case 'delete':
-                $sql='DELETE FROM `'.$this->table.'`';
+                $sql='DELETE FROM '.$this->getTableName();
                 // 先处理where条件
                 if(empty($this->where_array)&&empty($data)&&empty($this->where_ex))
                     throw new Exception('Delete must have where condition.',100432);
@@ -264,6 +268,15 @@ final class Mysql extends SqlDrive {
                     if($data===true)
                         $sql.='(';
                     foreach($where as $value) {
+                        // 判断key是否为数组
+                        if(is_array($value['key'])) {
+                            if(count($value['key'])===1)
+                                $value['key']=$value['key'][0];
+                            elseif(count($value['key'])===2) {
+                                $value['key']=$value['key'][0].'`.`'.$value['key'][1];
+                            } else
+                                throw new Exception('Where error.',100420);
+                        }
                         // 判断操作符是否为 IN
                         if($value['operator']==='IN') {
                             $sql.='`'.$value['key'].'` '.$value['operator'].' (';
@@ -307,6 +320,8 @@ final class Mysql extends SqlDrive {
                         return '';
                     return '';
                 }
+                $len=count($data);
+                $count=0;
                 foreach($data as $value) {
                     // 判断是否有where,有则需要继续遍历
                     if(!empty($value['where'])) {
@@ -314,6 +329,15 @@ final class Mysql extends SqlDrive {
                         $sql.='('.$temp.')';
                     } else {
                         // 直接构造
+                        // 判断key是否为数组
+                        if(is_array($value['key'])) {
+                            if(count($value['key'])===1)
+                                $value['key']=$value['key'][0];
+                            elseif(count($value['key'])===2) {
+                                $value['key']=$value['key'][0].'`.`'.$value['key'][1];
+                            } else
+                                throw new Exception('Where error.',100420);
+                        }
                         if($value['operator']==='IN') {
                             $sql.='`'.$value['key'].'` '.$value['operator'].' (';
                             $in_string='';
@@ -328,8 +352,9 @@ final class Mysql extends SqlDrive {
                             $this->where_value[]=$value['value'];
                         }
                     }
+                    $count++;
                     // 如果不为最后一个元素,则添加连接符号
-                    if($value!==end($data))
+                    if($count<$len)
                         $sql.=($options==='OR'?' OR ':' AND ');
                 }
                 return $sql;
@@ -349,8 +374,18 @@ final class Mysql extends SqlDrive {
                 // 判断是否为空
                 if(empty($this->order))
                     return '';
-                foreach($this->order as $value)
+                foreach($this->order as $value) {
+                    // 判断value[0]是否为数组
+                    if(is_array($value[0])) {
+                        if(count($value[0])===1)
+                            $value[0]=$value[0][0];
+                        elseif(count($value[0])===2) {
+                            $value[0]=$value[0][0].'`.`'.$value[0][1];
+                        } else
+                            throw new Exception('Where error.',100420);
+                    }
                     $sql.='`'.$value[0].'` '.$value[1].',';
+                }
                 return substr($sql,0,-1);
             case 'lock':
                 $temp_lock='';
@@ -365,8 +400,18 @@ final class Mysql extends SqlDrive {
                 // 判断是否为空
                 if(empty($this->group))
                     return '';
-                foreach($this->group as $value)
+                foreach($this->group as $value) {
+                    // 判断value是否为数组
+                    if(is_array($value)) {
+                        if(count($value)===1)
+                            $value=$value[0];
+                        elseif(count($value)===2) {
+                            $value=$value[0].'`.`'.$value[1];
+                        } else
+                            throw new Exception('Group error.',100450);
+                    }
                     $sql.='`'.$value.'`,';
+                }
                 return substr($sql,0,-1);
             default:
                 throw new Exception('SQL not build.',100430);
@@ -414,7 +459,10 @@ final class Mysql extends SqlDrive {
      * @throws Exception
      */
     public function select(string|array $fields='*'): Generator|array|bool {
-        $sql=$this->build('select',$fields);
+        // 如果传入的fields不为“*”则需要过滤字段
+        if($fields!=='*')
+            $this->field($fields);
+        $sql=$this->build('select');
         $stmt=$this->prepare($sql);
         // 传入where条件的值
         $i=1;
@@ -439,6 +487,20 @@ final class Mysql extends SqlDrive {
             'sql'=>$sql,
             'error'=>$stmt->errorInfo()
         ));
+    }
+
+    /**
+     * 获取当前查询的表结构语句
+     * 
+     * @access public
+     * @return string
+     */
+    private function getTableName(): string {
+        $table_name='`'.$this->table[0].'`';
+        if(!empty($this->table[1])) {
+            $table_name.=' `'.$this->table[1].'`';
+        }
+        return $table_name;
     }
 
     /**
@@ -467,7 +529,10 @@ final class Mysql extends SqlDrive {
      * @throws Exception
      */
     public function find(string|array $fields='*'): mixed {
-        $sql=$this->build('find',$fields);
+        // 如果传入的fields不为“*”则需要过滤字段
+        if($fields!=='*')
+            $this->field($fields);
+        $sql=$this->build('find');
         $stmt=$this->prepare($sql);
         // 传入where条件的值
         $i=1;
@@ -611,6 +676,62 @@ final class Mysql extends SqlDrive {
     }
 
     /**
+     * 关联查询
+     * 
+     * @access public
+     * @param string|array $table 关联表名
+     * @param string $on 关联条件
+     * @param string $type 关联类型(left,right,inner,full)
+     * @return self
+     */
+    public function join(string|array $table,string $on,string $type='left'): self {
+        // 抛出暂时不支持的异常(暂时不支持Join,但会在未来支持)
+        throw new Exception('Join is not supported, but will be supported in the future.',100440);
+        return $this;
+    }
+
+    /**
+     * 设置过滤字段
+     * 
+     * @access public
+     * @param array|string $fields 过滤字段
+     * @return self
+     */
+    public function field(array|string $fields): self {
+        // 如果是字符串且不为“*”则转为数组
+        if(is_string($fields)&&$fields!=='*')
+            $fields=explode(',',$fields);
+        if(is_array($fields)) {
+            foreach($fields as $key=>$value) {
+                // 判断key是否为字符串
+                if(is_string($key)) {
+                    // 将其转为索引数组
+                    $value=array($key,$value);
+                }
+                // 判断value是否为字符串,如果是则转为数组
+                if(is_string($value))
+                    $value=array($value);
+                $temp=$this->field_to_array($value[0]??"");
+                // 判断是否有别名
+                if(!empty($value[1]))
+                    $this->check_key($value[1]);
+                switch(count($temp)) {
+                    case 1:
+                    case 2:
+                        $this->filter[]=array($temp,$value[1]??'');
+                        break;
+                    default:
+                        throw new Exception('Filter $fields error.',100410,array(
+                            'fields'=>$fields,
+                            'value'=>$temp
+                        ));
+                }
+            }
+        }
+        return $this;
+    }
+
+    /**
      * 设置limit限制
      *
      * @access public
@@ -645,13 +766,11 @@ final class Mysql extends SqlDrive {
         // 先判断传入的数据类型
         foreach($data as $value) {
             if(is_string($value)) {
-                $this->check_key($value);
-                $this->group[]=$value;
+                $this->group[]=$this->field_to_array($value);
             } else if(is_array($value)) {
                 foreach($value as $value2) {
                     if(is_string($value2)) {
-                        $this->check_key($value2);
-                        $this->group[]=$value2;
+                        $this->group[]=$this->field_to_array($value2);
                     } else
                         throw new Exception('Group $data error.',100450);
                 }
@@ -677,25 +796,14 @@ final class Mysql extends SqlDrive {
                 $temp=explode(' ',$value);
                 if(count($temp)>2)
                     throw new Exception('Order $data length error.',100431);
-                // 将第一个字符左右的`去除
-                $temp[0]=trim($temp[0],'`');
-                // 判断第一个字符串是否为字段名
-                $this->check_key($temp[0]);
-                // 判断是否有第二个字符串,如果有则判断是否为 ASC 或 DESC, 如果没有则默认为 ASC
-                if(isset($temp[1])) {
-                    $temp[1]=strtoupper($temp[1]);
-                    if($temp[1]!=='ASC'&&$temp[1]!=='DESC')
-                        throw new Exception('Order $data error.',100432);
-                    $this->order[]=array($temp[0],$temp[1]);
-                } else
-                    $this->order[]=array($temp[0],'ASC');
-            } elseif(is_array($value)) {
+                // 转为数组
+                $value=$temp;
+            }
+            if(is_array($value)) {
                 if(count($value)>2||count($value)<1)
                     throw new Exception('Order $data length error.',100431);
-                // 将第一个字符左右的`去除
-                $value[0]=trim($value[0],'`');
                 // 判断第一个字符串是否为字段名
-                $this->check_key($value[0]);
+                $value[0]=$this->field_to_array($value[0]);
                 // 判断是否有第二个字符串,如果有则判断是否为 ASC 或 DESC, 如果没有则默认为 ASC
                 if(isset($value[1])) {
                     $value[1]=strtoupper($value[1]);
@@ -772,54 +880,41 @@ final class Mysql extends SqlDrive {
      */
     public function where(string|array $where,mixed $data=null,string $operator='='): self {
         $this->check_connect();
-        // 判断$options是在允许的范围内
-        $operator=strtoupper($operator);
-        if(!in_array($operator,$this->operator))
-            throw new Exception('SQL operator error.',100406,array(
-                'operator'=>$operator
-            ));
-        if(is_array($where)) {
-            // 如果传入的 $where 是数组则忽略 $data
-            foreach($where as $key=>$value) {
-                // 先判断 $key 是否为数字, 且 $value 是否为数组
-                if(is_int($key)&&is_array($value)) {
-                    $key_tmp=$value['key']??$value[0]??null;
-                    $this->check_key($key_tmp);
-                    if($key_tmp!==null) {
-                        $this->where_array[]=array(
-                            'key'=>$key_tmp,
-                            'value'=>$value['value']??$value[1]??null,
-                            'operator'=>$value['operator']??$value[2]??$operator
-                        );
-                    } else {
-                        throw new Exception('SQL where error.',100407,array(
-                            'where'=>$where
-                        ));
-                    }
-                    continue;
-                }
-                $this->check_key($key);
-                // 这里还需要判断 $value 是否是数组
+        // 先判断$where是否为字符串,如果是则转为数组
+        if(is_string($where))
+            $where=array(array($where,$data,$operator));
+        // 遍历一次数组,如果不全为数组,则抛出异常
+        foreach($where as $value) {
+            if(!is_array($value))
+                throw new Exception('Where error.',100420,array(
+                    'message'=>'Unsupported where format.'
+                ));
+        }
+        foreach($where as $key=>$value) {
+            // 判断$key是否为字符串,如果是则转为索引数组
+            if(is_string($key)) {
+                // 判断value是否为数组
                 if(is_array($value))
-                    $this->where_array[]=array(
-                        'key'=>$key,
-                        'value'=>$value['value']??$value[0]??null,
-                        'operator'=>$value['operator']??$value[1]??$operator
-                    );
+                    $value=array($key,$value[0],$value[1]??$operator);
                 else
-                    $this->where_array[]=array(
-                        'key'=>$key,
-                        'value'=>$value,
-                        'operator'=>$operator
-                    );
+                    $value=array($key,$value,$operator);
             }
-        } else {
-            // 如果传入的 $where 是字符串则使用 $data
-            $this->check_key($where);
+            // 判断第一个参数是否为字符串
+            if(!is_string($value[0]))
+                throw new Exception('Where error.',100420,array(
+                    'where'=>$where,
+                    'value'=>$value
+                ));
+            // 判断操作符是否在允许的范围内
+            $temp_operator=$value[2]??$operator;
+            if(!in_array($temp_operator,$this->operator))
+                throw new Exception('SQL operator error.',100438,array(
+                    'operator'=>$temp_operator
+                ));
             $this->where_array[]=array(
-                'key'=>$where,
-                'value'=>$data,
-                'operator'=>$operator
+                'key'=>$this->field_to_array($value[0]),
+                'value'=>$value[1]??null,
+                'operator'=>$temp_operator
             );
         }
         return $this;
@@ -879,7 +974,7 @@ final class Mysql extends SqlDrive {
                     'operator'=>$operator
                 ));
             return array(
-                'key'=>$where[0],
+                'key'=>$this->field_to_array($where[0]),
                 'value'=>$value,
                 'operator'=>$operator,
             );
@@ -911,6 +1006,35 @@ final class Mysql extends SqlDrive {
     }
 
     /**
+     * 将一个字段转换为合法的字段数组
+     * 
+     * @access private
+     * @param string $field 字段名
+     * @return array
+     * @throws Exception
+     */
+    private function field_to_array(string $field): array {
+        // 将第一个参数通过“.”分割
+        $temp=explode('.',$field);
+        // 将全部“`”与空格去除
+        $temp=array_map(function($value) {
+            $value=trim($value);
+            return trim($value,'`');
+        },$temp);
+        // 校验合法性
+        if(count($temp)===1)
+            $this->check_key($temp[0]);
+        else if(count($temp)===2) {
+            $this->check_table($temp[0]);
+            $this->check_key($temp[1]);
+        } else
+            throw new Exception('Field error.',100421,array(
+                'field'=>$field
+            ));
+        return $temp;
+    }
+
+    /**
      * 检查是否已经连接数据库
      *
      * @access protected
@@ -922,7 +1046,7 @@ final class Mysql extends SqlDrive {
         if(!$this->is_connect)
             throw new Exception('Database is not connected.',100401);
         // 检查是否已经传递了数据库表名
-        if(empty($this->table))
+        if(empty($this->table)&&empty($this->table[0]))
             throw new Exception('Database table name is not set, please use table() to set.',100404);
     }
 

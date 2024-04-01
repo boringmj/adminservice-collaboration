@@ -189,8 +189,18 @@ final class Mysql extends SqlDrive {
                 // 判断是否有分组
                 if(!empty($this->group)) {
                     // 将字段加入到查询中
-                    foreach($this->group as $value)
+                    foreach($this->group as $value) {
+                        // 判断value是否为数组
+                        if(is_array($value)) {
+                            if(count($value)===1)
+                                $value=$value[0];
+                            elseif(count($value)===2) {
+                                $value=$value[0].'`.`'.$value[1];
+                            } else
+                                throw new Exception('Group error.',100450);
+                        }
                         $sql.=',`'.$value.'`';
+                    }
                 }
                 $sql.=' FROM '.$this->getTableName().$this->build('where');
                 // 添加分组

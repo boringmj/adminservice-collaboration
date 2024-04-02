@@ -155,19 +155,19 @@ class HttpHelper {
         $ch=curl_init();
         curl_setopt($ch,CURLOPT_URL,$this->request['url']);
         // 检查是否需要开启ssl
-        if($this->request['disable_ssl_verify']) {
+        if($this->request['disable_ssl_verify']??false) {
             curl_setopt($ch,CURLOPT_SSL_VERIFYPEER,false);
             curl_setopt($ch,CURLOPT_SSL_VERIFYHOST,false);
         }
-        $method=strtoupper($this->request['method']);
+        $method=strtoupper($this->request['method']??'GET');
         curl_setopt($ch,CURLOPT_CUSTOMREQUEST,$method);
-        curl_setopt($ch,CURLOPT_HTTPHEADER,$this->request['headers']);
+        curl_setopt($ch,CURLOPT_HTTPHEADER,$this->request['headers']??array());
         if($method=='POST')
-            curl_setopt($ch,CURLOPT_POSTFIELDS,$this->request['body']);
+            curl_setopt($ch,CURLOPT_POSTFIELDS,$this->request['body']??'');
         curl_setopt($ch,CURLOPT_RETURNTRANSFER,true);
-        curl_setopt($ch,CURLOPT_TIMEOUT,$this->request['timeout']);
+        curl_setopt($ch,CURLOPT_TIMEOUT,$this->request['timeout']??30);
         // 判断是否为流式请求
-        if($this->response['stream']['open']) {
+        if($this->response['stream']['open']??false) {
             $callback=$this->response['stream']['callback'];
             curl_setopt($ch,CURLOPT_WRITEFUNCTION,function($ch,$data) use ($callback) {
                 // 执行回调函数

@@ -50,7 +50,7 @@ abstract class Route {
      * @return array
      */
     private function route(): array {
-        $uri=$_SERVER['REQUEST_URI'];
+        $uri=$_SERVER['REQUEST_URI']??'';
         $uri=explode("?",$uri);
         $uri=$uri[1]??$uri[0];
         // 判断是不是index.php

@@ -194,6 +194,22 @@ class Sql extends Model {
         # 获取最后一次执行的SQL语句
         // return $this->getLastSql();
 
+        # 关联查询
+        // 简单例子,可以通过获取执行的SQL语句来查看效果(请注意,下面仅为语法演示,实际使用请根据实际情况调整)
+        return $this->alias('info')->join(
+            array('admin_service_system_user','user'),
+            array(
+                'info.id','user.pid'
+            )
+        )->join(
+            array('admin_service_system_user','user2'),
+            array(
+                array('info.id','>','user2.pid'),
+                array('info.app_id','=','user2.app_id')
+            ),
+            'right'
+        )->select();
+
         /* // 这种写法我们不会支持, 因为这将与其他写法产生不必要的冲突
         return $this->where(
             array('id',1),

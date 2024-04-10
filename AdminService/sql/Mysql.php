@@ -87,6 +87,23 @@ final class Mysql extends SqlDrive {
     );
 
     /**
+     * 关联查询
+     * @var array
+     */
+    private array $join=array();
+
+    /**
+     * 关联查询支持的类型
+     * @var array
+     */
+    private array $join_type=array(
+        'left'=>'LEFT JOIN',
+        'right'=>'RIGHT JOIN',
+        'inner'=>'INNER JOIN',
+        'full'=>'FULL JOIN'
+    );
+
+    /**
      * 重置查询状态
      * 
      * @access protected
@@ -105,6 +122,7 @@ final class Mysql extends SqlDrive {
         $this->distinct=false;
         $this->filter=array();
         $this->table[1]='';
+        $this->join=array();
         return $this;
     }
 
@@ -162,7 +180,8 @@ final class Mysql extends SqlDrive {
                 return substr($fields_string,0,-1);
             case 'select':
                 $fields_string=$this->build('filter');
-                $sql='SELECT '.$fields_string.' FROM '.$this->getTableName().$this->build('where');
+                $sql='SELECT '.$fields_string.' FROM '.$this->getTableName().$this->build('join');
+                $sql.=$this->build('where');
                 // 添加分组
                 $sql.=$this->build('group');
                 if($options==='find')
@@ -202,7 +221,7 @@ final class Mysql extends SqlDrive {
                         $sql.=',`'.$value.'`';
                     }
                 }
-                $sql.=' FROM '.$this->getTableName().$this->build('where');
+                $sql.=' FROM '.$this->getTableName().$this->build('join').$this->build('where');
                 // 添加分组
                 $sql.=$this->build('group');
                 // 添加行锁
@@ -215,8 +234,8 @@ final class Mysql extends SqlDrive {
                 $values_string='';
                 foreach($data as $key=>$value) {
                     $this->check_key($key);
-                    $fields_string.=$fields_string===''? ('`'.$key.'`'):(',`'.$key.'`');
-                    $values_string.=$values_string===''? ('?'):(',?');
+                    $fields_string.=$fields_string===''?('`'.$key.'`'):(',`'.$key.'`');
+                    $values_string.=$values_string===''?('?'):(',?');
                 }
                 $sql.=$fields_string.') VALUES ('.$values_string.')';
                 // 添加行锁
@@ -237,7 +256,7 @@ final class Mysql extends SqlDrive {
                         continue;
                     }
                     $this->check_key($key);
-                    $fields_string.=$fields_string===''? ('`'.$key.'` = ?'):(',`'.$key.'` = ?');
+                    $fields_string.=$fields_string===''?('`'.$key.'` = ?'):(',`'.$key.'` = ?');
                 }
                 if(empty($this->where_array)&&empty($this->where_temp)&&empty($this->where_ex))
                     throw new Exception('Update must have where condition.',100431);
@@ -260,9 +279,8 @@ final class Mysql extends SqlDrive {
                         $sql.=' WHERE ';
                     $sql.='(`id` IN (';
                     $id_string='';
-                    foreach($data as $ignored) {
-                        $id_string.=$id_string===''? ('?'):(',?');
-                    }
+                    foreach($data as $ignored)
+                        $id_string.=$id_string===''?('?'):(',?');
                     $sql.=$id_string.'))';
                 }
                 // 添加行锁
@@ -292,7 +310,7 @@ final class Mysql extends SqlDrive {
                             $sql.='`'.$value['key'].'` '.$value['operator'].' (';
                             $in_string='';
                             foreach($value['value'] as $value2) {
-                                $in_string.=$in_string===''? ('?'):(',?');
+                                $in_string.=$in_string===''?('?'):(',?');
                                 $this->where_value[]=$value2;
                             }
                             $sql.=$in_string.') AND ';
@@ -300,7 +318,7 @@ final class Mysql extends SqlDrive {
                         }
                         // 将值存入数组
                         $this->where_value[]=$value['value'];
-                        $sql.='`'.$value['key'].'` '.$value['operator'].' ? AND ';
+                        $sql.='`'.$value['key'].'` '.$value['operator'].' ?AND ';
                     }
                     // 判断是否存在其他where条件
                     if(empty($this->where_ex))
@@ -352,7 +370,7 @@ final class Mysql extends SqlDrive {
                             $sql.='`'.$value['key'].'` '.$value['operator'].' (';
                             $in_string='';
                             foreach($value['value'] as $value2) {
-                                $in_string.=$in_string===''? ('?'):(',?');
+                                $in_string.=$in_string===''?('?'):(',?');
                                 $this->where_value[]=$value2;
                             }
                             $sql.=$in_string.')';
@@ -423,6 +441,33 @@ final class Mysql extends SqlDrive {
                     $sql.='`'.$value.'`,';
                 }
                 return substr($sql,0,-1);
+            case 'join':
+                $sql='';
+                // 判断是否为空
+                if(empty($this->join))
+                    return '';
+                foreach($this->join as $value) {
+                    $sql.=' '.$this->join_type[$value[2]].' `'.$value[0][0].'` ';
+                    // 判断是否有别名
+                    if(!empty($value[0][1]))
+                        $sql.='`'.$value[0][1].'` ';
+                    $sql.='ON ';
+                    foreach($value[1] as $value2) {
+                        $sql.='`';
+                        if(isset($value2[0][1]))
+                            $sql.=$value2[0][0].'`.`'.$value2[0][1].'`';
+                        else
+                            $sql.=$value2[0][0].'`';
+                        $sql.=' '.$value2[1].' `';
+                        if(isset($value2[2][1]))
+                            $sql.=$value2[2][0].'`.`'.$value2[2][1].'`';
+                        else
+                            $sql.=$value2[2][0].'`';
+                        $sql.=' AND ';
+                    }
+                    $sql=substr($sql,0,-5);
+                }
+                return $sql;
             default:
                 throw new Exception('SQL not build.',100430);
         }
@@ -452,10 +497,11 @@ final class Mysql extends SqlDrive {
         try {
             return $this->db->prepare($sql);
         } catch(PDOException $e) {
-            throw new Exception('SQL prepare error.',100460,array(
+            $error=$this->db->errorInfo();
+            throw new Exception($error[2],100460,array(
                 'sql'=>$sql,
                 'info'=>$e->getMessage(),
-                'error'=>$this->db->errorInfo()
+                'error'=>$error
             ));
         }
     }
@@ -690,13 +736,47 @@ final class Mysql extends SqlDrive {
      * 
      * @access public
      * @param string|array $table 关联表名
-     * @param string $on 关联条件
+     * @param array $on 关联条件
      * @param string $type 关联类型(left,right,inner,full)
      * @return self
      */
-    public function join(string|array $table,string $on,string $type='left'): self {
-        // 抛出暂时不支持的异常(暂时不支持Join,但会在未来支持)
-        throw new Exception('Join is not supported, but will be supported in the future.',100440);
+    public function join(string|array $table,array $on,string $type='left'): self {
+        // 校验关联类型是否有效
+        $type=strtolower($type);
+        if(!isset($this->join_type[$type]))
+            throw new Exception('Join $type error.',100449);
+        // 判断是否为数组
+        if(is_string($table))
+            $table=array($table);
+        // 定义一个临时数组
+        $temp=array();
+        // 先校验表名是否有效
+        $this->check_table($table[0]);
+        // 判断是否有别名
+        if(isset($table[1]))
+            $this->check_table($table[1]);
+        // 校验关联条件是否有效
+        if(count($on)===0)
+            throw new Exception('Join $on error.',100450);
+        // 判断第一个元素是否为字符串
+        if(is_string($on[0]))
+            $on=array($on);
+        foreach($on as $value) {
+            // 判断长度是否为2-3
+            if(count($value)===2)
+                $value=array($value[0],'=',$value[1]);
+            elseif(count($value)===3) {
+                // 判断第二个元素是否为操作符
+                if(!in_array($value[1],$this->operator))
+                    throw new Exception('Join $on error.',100451);
+            } else
+                throw new Exception('Join $on error.',100452);
+            $value[0]=$this->field_to_array($value[0]);
+            $value[2]=$this->field_to_array($value[2]);
+            $temp[]=array($value[0],$value[1],$value[2]);
+        }
+        $this->join[]=array($table,$temp,$type);
+        print_r($this->join);
         return $this;
     }
 

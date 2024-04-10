@@ -213,11 +213,11 @@ interface Sql {
      * 
      * @access public
      * @param string|array $table 关联表名
-     * @param string $on 关联条件
+     * @param array $on 关联条件
      * @param string $type 关联类型(left,right,inner,full)
      * @return self
      */
-    public function join(string|array $table,string $on,string $type='left'): self;
+    public function join(string|array $table,array $on,string $type='left'): self;
 
     /**
      * 设置过滤字段

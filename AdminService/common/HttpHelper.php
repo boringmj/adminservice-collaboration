@@ -279,7 +279,7 @@ class HttpHelper {
             $data=json_encode($data);
         $response=App::get(
             HttpHelper::class,$url,'POST',$headers,$data,$timeout
-            )->disableSslVerify($disable_ssl_verify)->execute();
+        )->disableSslVerify($disable_ssl_verify)->execute();
         if($response->getStatusCode()!=200&&$error_callback!=null) {
             App::exec_function($error_callback,array(
                 'code'=>$response->getStatusCode(),

@@ -984,13 +984,6 @@ final class Mysql extends SqlDrive {
         // 先判断$where是否为字符串,如果是则转为数组
         if(is_string($where))
             $where=array(array($where,$data,$operator));
-        // 遍历一次数组,如果不全为数组,则抛出异常
-        foreach($where as $value) {
-            if(!is_array($value))
-                throw new Exception('Where error.',100420,array(
-                    'message'=>'Unsupported where format.'
-                ));
-        }
         foreach($where as $key=>$value) {
             // 判断$key是否为字符串,如果是则转为索引数组
             if(is_string($key)) {

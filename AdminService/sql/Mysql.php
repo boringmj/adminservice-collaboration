@@ -318,7 +318,7 @@ final class Mysql extends SqlDrive {
                         }
                         // 将值存入数组
                         $this->where_value[]=$value['value'];
-                        $sql.='`'.$value['key'].'` '.$value['operator'].' ?AND ';
+                        $sql.='`'.$value['key'].'` '.$value['operator'].' ? AND ';
                     }
                     // 判断是否存在其他where条件
                     if(empty($this->where_ex))

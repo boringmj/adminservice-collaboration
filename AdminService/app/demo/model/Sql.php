@@ -196,10 +196,11 @@ class Sql extends Model {
 
         # 关联查询
         // 简单例子,可以通过获取执行的SQL语句来查看效果(请注意,下面仅为语法演示,实际使用请根据实际情况调整)
+        // join的第一个参数支持写成 '`admin_service_system_user` `user`',“`”符号可以没有,不能有额外空格(注意是字符串不是数组)
         // return $this->alias('info')->join(
         //     array('admin_service_system_user','user'),
         //     array(
-        //         'info.id','user.pid'
+        //         'info.id','user.pid' // 同样支持写成 'info.id'=>'user.pid'
         //     )
         // )->join(
         //     array('admin_service_system_user','user2'),

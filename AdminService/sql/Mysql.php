@@ -746,8 +746,17 @@ final class Mysql extends SqlDrive {
         if(!isset($this->join_type[$type]))
             throw new Exception('Join $type error.',100449);
         // 判断是否为数组
-        if(is_string($table))
-            $table=array($table);
+        if(is_string($table)) {
+            // 是字符则转为数组
+            $table=explode(' ',$table);
+            // 判断长度是否为1-2
+            if(count($table)>2)
+                throw new Exception('Join $table error.',100453);
+            // 先清除所有元素的`符号
+            $table[0]=trim($table[0],'`');
+            if(isset($table[1]))
+                $table[1]=trim($table[1],'`');
+        }
         // 定义一个临时数组
         $temp=array();
         // 先校验表名是否有效
@@ -759,9 +768,12 @@ final class Mysql extends SqlDrive {
         if(count($on)===0)
             throw new Exception('Join $on error.',100450);
         // 判断第一个元素是否为字符串
-        if(is_string($on[0]))
+        if(is_string($on[0]??false))
             $on=array($on);
-        foreach($on as $value) {
+        foreach($on as $key=>$value) {
+            // 判断key是否为字符串则转为数组
+            if(is_string($key))
+                $value=array($key,$value);
             // 判断长度是否为2-3
             if(count($value)===2)
                 $value=array($value[0],'=',$value[1]);
@@ -776,7 +788,6 @@ final class Mysql extends SqlDrive {
             $temp[]=array($value[0],$value[1],$value[2]);
         }
         $this->join[]=array($table,$temp,$type);
-        print_r($this->join);
         return $this;
     }
 

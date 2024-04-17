@@ -223,7 +223,7 @@ class HttpHelper {
     public function getHeader(string $key): string {
         return $this->response['headers'][$key]??'';
     }
-    
+
     /**
      * 快速发起get请求
      * 

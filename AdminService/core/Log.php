@@ -5,7 +5,7 @@ namespace AdminService;
 use \Exception;
 
 class Log {
-    
+
     /**
     * 日志文件路径
     * @var string

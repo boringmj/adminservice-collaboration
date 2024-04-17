@@ -3,7 +3,7 @@
 namespace base;
 
 abstract class Cookie {
-    
+
     /**
      * 通过数组的方式设置cookie
      * 

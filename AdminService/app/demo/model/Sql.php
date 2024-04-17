@@ -171,7 +171,7 @@ class Sql extends Model {
         // return $this->order(array('id','DESC'),array('app_id','ASC'))->select();
         // return $this->order('id DESC','app_id ASC')->select();
         // return $this->order('`id` DESC',array('`app_id`','ASC'))->select();
-        
+
         # 使用limit限制(仅对 select 和 count 生效)且仅生效最后一个limit
         // return $this->limit(1)->select();
         // return $this->limit(1,2)->select();
@@ -184,7 +184,7 @@ class Sql extends Model {
         # 使用count统计
         // return $this->count();
         // return $this->group('id')->count();
-        
+
         # 行锁(仅在事务中生效)
         // 共享锁
         // $this->lock('shared');

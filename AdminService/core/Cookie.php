@@ -5,7 +5,7 @@ namespace AdminService;
 use base\Cookie as BaseCookie;
 
 final class Cookie extends BaseCookie {
-    
+
     /**
      * 通过数组的方式设置cookie
      * 

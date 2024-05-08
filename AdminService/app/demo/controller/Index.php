@@ -40,7 +40,7 @@ class Index extends Controller {
             'cookie'=>$this->request->cookie(), // 获取所有COOKIE参数
             'input'=>$this->request->getInput(), // 获取输入流
             'files'=>$this->request->getUploadFile('files'), // 获取上传的文件
-            'key'=>$this->request->keys('get') // 获取所有GTE类型请求参数的键名(支持all|get|post|cookie且不区分大小写)
+            'key'=>$this->request->keys('get') // 获取所有GET类型请求参数的键名(支持all|get|post|cookie且不区分大小写)
         ));
     }
 

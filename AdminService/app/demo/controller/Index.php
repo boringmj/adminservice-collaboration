@@ -33,7 +33,7 @@ class Index extends Controller {
         return json(null,null,array(
             'name'=>$this->request->param('name','AdminService'), // 获取请求参数(CGP顺序)
             // 'name'=>$this->param('name','AdminService'), // 完全等价于上面的写法
-            // 'post'=>$this->request->post('name','AdminService'), // 获取单个POST参数
+            // 'name'=>$this->request->post('name','AdminService'), // 获取单个POST参数
             // 'name'=>$this->request->get('name','AdminService'), // 获取单个GET参数
             'post'=>$this->request->post(), // 获取所有POST参数
             'get'=>$this->request->get(), // 获取所有GET参数

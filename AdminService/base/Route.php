@@ -52,7 +52,13 @@ abstract class Route {
     private function route(): array {
         $uri=$_SERVER['REQUEST_URI']??'';
         $uri=explode("?",$uri);
-        $uri=$uri[1]??$uri[0];
+        if(count($uri)>1) {
+            // 判断第一个元素是否为文件名
+            if(preg_match("/\.\w+$/",$uri[0]))
+                array_shift($uri);
+            $uri=implode("?",$uri);
+        } else 
+            $uri=$uri[0];
         // 判断是不是index.php
         if($uri==='/index.php')
             $uri='/';

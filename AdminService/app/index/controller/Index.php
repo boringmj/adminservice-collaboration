@@ -18,8 +18,4 @@ class Index extends Controller {
         return "Hello $name!";
     }
 
-    public function test(string $msg="Hello World!"): string {
-        return $msg;
-    }
-
 }

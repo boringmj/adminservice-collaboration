@@ -54,7 +54,7 @@ abstract class Route {
         $uri=explode("?",$uri);
         if(count($uri)>1) {
             // 判断第一个元素是否为文件名
-            if(preg_match("/\.\w+$/",$uri[0]))
+            if(preg_match("/(\.\w+|\/)$/",$uri[0]))
                 array_shift($uri);
             $uri=implode("?",$uri);
         } else 
@@ -63,6 +63,8 @@ abstract class Route {
         if($uri==='/index.php')
             $uri='/';
         $uri=explode("/",$uri);
+        foreach($uri as $k=>$v)
+            $uri[$k]=preg_replace("/(\?|&).*$/","",$v);
         array_shift($uri);
         return array_values($uri);
     }

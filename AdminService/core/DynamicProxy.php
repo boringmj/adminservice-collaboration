@@ -54,7 +54,7 @@ class DynamicProxy {
         if(!method_exists($this->getTarget(),$name))
             throw new Exception('Method "'.$name.'" not found.');
         // 调用目标类的方法
-        return call_user_func_array(array($this->getTarget(),$name),$arguments);
+        return App::exec_class_function($this->getTarget(),$name,$arguments);
     }
 
     /**

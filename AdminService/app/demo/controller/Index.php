@@ -60,7 +60,7 @@ class Index extends Controller {
     }
 
     public function sql(): array {
-        // 这里展示动态代理类的使用(只有当你调用这个类时才会实例化,属于懒加载
+        // 这里展示动态代理类的使用(只有当你调用这个类时才会实例化,属于懒加载)
         // 必须说明,因为动态代理的兼容性问题,所以不建议用在定义复杂的类上
         $test=App::proxy(Sql::class);
         // 返回json

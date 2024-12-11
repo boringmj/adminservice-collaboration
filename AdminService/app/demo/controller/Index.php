@@ -163,11 +163,12 @@ class Index extends Controller {
         // 这里展示curl请求,具体用法请查看HttpHelper类
         $url='https://www.baidu.com';
         // 快速发起GET请求
-        return HttpHelper::get($url,array(),30,function($code,$body,$headers) {
+        return HttpHelper::get($url,array(),30,function($code,$body,$headers,$error) {
             throw new Exception("请求失败,详细请查看日志",500,array(
                 'code'=>$code,
                 'body'=>$body,
-                'headers'=>$headers
+                'headers'=>$headers,
+                'error'=>$error
             ),true); // 注意,disable_ssl_verify参数是true则会禁用ssl验证,这可能会导致安全问题
         });
     }

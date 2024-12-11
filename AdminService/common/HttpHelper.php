@@ -24,7 +24,8 @@ class HttpHelper {
     protected array $response=array(
         'status_code'=>0,
         'headers'=>array(),
-        'body'=>''
+        'body'=>'',
+        'error'=>null
     );
 
     /**
@@ -176,6 +177,8 @@ class HttpHelper {
             });
         }
         $response=curl_exec($ch);
+        if($response===false)
+            $this->response['error']=curl_error($ch);
         $this->response['status_code']=curl_getinfo($ch,CURLINFO_HTTP_CODE);
         $this->response['headers']=curl_getinfo($ch);
         $this->response['body']=$response;
@@ -225,13 +228,23 @@ class HttpHelper {
     }
 
     /**
+     * 获取响应错误
+     * 
+     * @access public
+     * @return string|null
+     */
+    public function getError(): ?string {
+        return $this->response['error'];
+    }
+
+    /**
      * 快速发起get请求
      * 
      * @access public
      * @param string $url 请求地址
      * @param array $headers 请求头
      * @param int $timeout 超时时间
-     * @param callable|null $error_callback 错误回调(支持的参数:code,body,headers)
+     * @param callable|null $error_callback 错误回调(支持的参数:code,body,headers,error)
      * @param bool $disable_ssl_verify 是否禁用ssl验证
      * @return string
      */
@@ -249,7 +262,8 @@ class HttpHelper {
             App::exec_function($error_callback,array(
                 'code'=>$response->getStatusCode(),
                 'body'=>$response->getBody(),
-                'headers'=>$response->getHeaders()
+                'headers'=>$response->getHeaders(),
+                'error'=>$response->getError()
             ));
         }
         return $response->getBody();
@@ -263,7 +277,7 @@ class HttpHelper {
      * @param string|array $data 请求体(传入数组则会自动转为json字符串)
      * @param array $headers 请求头
      * @param int $timeout 超时时间
-     * @param callable|null $error_callback 错误回调(支持的参数:code,body,headers)
+     * @param callable|null $error_callback 错误回调(支持的参数:code,body,headers,error)
      * @param bool $disable_ssl_verify 是否禁用ssl验证
      * @return string
      */
@@ -284,7 +298,8 @@ class HttpHelper {
             App::exec_function($error_callback,array(
                 'code'=>$response->getStatusCode(),
                 'body'=>$response->getBody(),
-                'headers'=>$response->getHeaders()
+                'headers'=>$response->getHeaders(),
+                'error'=>$response->getError()
             ));
         }
         return $response->getBody();

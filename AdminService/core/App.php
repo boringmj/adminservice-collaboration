@@ -78,7 +78,6 @@ final class App extends Container {
         }
         $params=$constructor->getParameters();
         $args_temp=self::mergeParams($params,$args);
-        print_r($args_temp);
         // 直接返回对象,不添加到父容器中
         return $ref->newInstanceArgs($args_temp);
     }

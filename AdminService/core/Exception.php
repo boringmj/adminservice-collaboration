@@ -44,7 +44,6 @@ final class Exception extends BaseException {
         echo "File: ".$this->getFile()."<br>\n";
         echo "Line: ".$this->getLine()."<br>\n";
         echo "Trace: ".$this->getTraceAsString()."<br>\n";
-        print_r($this->getData());
     }
 
     /**

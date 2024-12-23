@@ -38,21 +38,21 @@ final class App extends Container {
      * 依赖注入目前仅支持不传入构造参数的类
      *
      * @access public
-     * @param string $name 对象名
-     * @param mixed ...$args 构造函数参数
+     * @param string $__name 对象名
+     * @param mixed ...$args 构造函数参数($args中不允许传入“__name”参数)
      * @return object
      * @throws Exception|ReflectionException
      */
-    static public function get(string $name,...$args): object {
+    static public function get(string $__name,...$args): object {
         // 判断是否传入了构造函数参数
         if(count($args)>0) {
-            return self::new($name,...$args);
+            return self::new($__name,...$args);
         } else {
             // 判断父容器中是否存在该类
-            if(isset(parent::$class_container[$name]))
-                return parent::get($name);
+            if(isset(parent::$class_container[$__name]))
+                return parent::get($__name);
             // 如果不存在则通过自动依赖注入实例化一个对象
-            return parent::make($name);
+            return parent::make($__name);
         }
     }
 
@@ -60,18 +60,27 @@ final class App extends Container {
      * 实例化一个新对象(不添加到实例容器中),不支持依赖注入
      * 
      * @access public
-     * @param string $name 对象名
-     * @param mixed ...$args 构造函数参数
+     * @param string $__name 对象名
+     * @param mixed ...$args 构造函数参数($args中不允许传入“__name”参数)
      * @return object
      * @throws Exception|ReflectionException
      */
-    static public function new(string $name,...$args): object {
+    static public function new(string $__name,...$args): object {
         // 判断类是否存在,如果不存在则在容器中寻找
-        if(!class_exists($name))
-            $name=parent::getClass($name);
-        $ref=new ReflectionClass($name);
+        if(!class_exists($__name))
+            $__name=parent::getClass($__name);
+        $ref=new ReflectionClass($__name);
+        // 获取构造函数的参数
+        $constructor=$ref->getConstructor();
+        if($constructor===null) {
+            // 如果构造函数不存在则直接实例化一个对象
+            return $ref->newInstance();
+        }
+        $params=$constructor->getParameters();
+        $args_temp=self::mergeParams($params,$args);
+        print_r($args_temp);
         // 直接返回对象,不添加到父容器中
-        return $ref->newInstanceArgs($args);
+        return $ref->newInstanceArgs($args_temp);
     }
 
 

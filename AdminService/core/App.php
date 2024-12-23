@@ -31,10 +31,11 @@ final class App extends Container {
     }
 
     /**
-     * 获取对象
+     * 获取对象(传入构造参数则不会使用容器)
      *
      * 注意: 依赖简单支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
      * 这种情况请先使用App::set(Class::class,new Class())添加到容器中
+     * 依赖注入目前仅支持不传入构造参数的类
      *
      * @access public
      * @param string $name 对象名
@@ -45,12 +46,7 @@ final class App extends Container {
     static public function get(string $name,...$args): object {
         // 判断是否传入了构造函数参数
         if(count($args)>0) {
-            // 判断类是否存在,如果不存在则在容器中寻找
-            if(!class_exists($name))
-                $name=parent::getClass($name);
-            $ref=new ReflectionClass($name);
-            // 直接返回对象,不添加到父容器中
-            return $ref->newInstanceArgs($args);
+            return self::new($name,...$args);
         } else {
             // 判断父容器中是否存在该类
             if(isset(parent::$class_container[$name]))
@@ -59,6 +55,25 @@ final class App extends Container {
             return parent::make($name);
         }
     }
+
+    /**
+     * 实例化一个新对象(不添加到实例容器中),不支持依赖注入
+     * 
+     * @access public
+     * @param string $name 对象名
+     * @param mixed ...$args 构造函数参数
+     * @return object
+     * @throws Exception|ReflectionException
+     */
+    static public function new(string $name,...$args): object {
+        // 判断类是否存在,如果不存在则在容器中寻找
+        if(!class_exists($name))
+            $name=parent::getClass($name);
+        $ref=new ReflectionClass($name);
+        // 直接返回对象,不添加到父容器中
+        return $ref->newInstanceArgs($args);
+    }
+
 
     /**
      * 执行类或对象的方法

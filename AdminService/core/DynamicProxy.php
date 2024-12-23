@@ -13,19 +13,19 @@ class DynamicProxy {
      * 目标类名
      * @var string
      */
-    protected string $target;
+    protected string $__target;
 
     /**
      * 目标类对象
      * @var object
      */
-    protected object $target_object;
+    protected object $__target_object;
 
     /**
      * 构造参数
      * @var array
      */
-    protected array $args;
+    protected array $__args;
 
     /**
      * 构造函数
@@ -36,8 +36,8 @@ class DynamicProxy {
      * @throws Exception
      */
     public function __construct(string $target,...$args) {
-        $this->setTarget($target);
-        $this->args=$args;
+        $this->__setTarget($target);
+        $this->__args=$args;
     }
 
     /**
@@ -51,10 +51,10 @@ class DynamicProxy {
      */
     public function __call(string $name,array $arguments) {
         // 判断目标类是否存在该方法
-        if(!method_exists($this->getTarget(),$name))
+        if(!method_exists($this->__getTarget(),$name))
             throw new Exception('Method "'.$name.'" not found.');
         // 调用目标类的方法
-        return App::exec_class_function($this->getTarget(),$name,$arguments);
+        return App::exec_class_function($this->__getTarget(),$name,$arguments);
     }
 
     /**
@@ -66,11 +66,18 @@ class DynamicProxy {
      * @throws Exception|ReflectionException
      */
     public function __get(string $name) {
+        /**
+         * 在实际的使用中,并不需要检查属性是否存在,所以注释掉了这段代码
+         * 如果你需要检查属性是否存在,请取消注释
+         * 如果对应的属性不存在,则返回null
+         */
         // 判断目标类是否存在该属性
-        if(!property_exists($this->getTarget(),$name))
-            throw new Exception('Property "'.$name.'" not found.');
+        // if(!property_exists($this->__get__Target(),$name))
+        //     throw new Exception('Property "'.$name.'" not found.');
+        if(!property_exists($this->__getTarget(),$name))
+            return null;
         // 返回目标类的属性
-        return $this->getTarget()->$name;
+        return $this->__getTarget()->$name;
     }
 
     /**
@@ -83,11 +90,15 @@ class DynamicProxy {
      * @throws Exception|ReflectionException
      */
     public function __set(string $name,mixed $value): void {
-        // 判断目标类是否存在该属性
-        if(!property_exists($this->getTarget(),$name))
-            throw new Exception('Property "'.$name.'" not found.');
+        /**
+         * 在实际的使用中,并不需要检查属性是否存在,所以注释掉了这段代码
+         * 如果你需要检查属性是否存在,请取消注释
+         */
+        // // 判断目标类是否存在该属性
+        // if(!property_exists($this->__getTarget(),$name))
+        //     throw new Exception('Property "'.$name.'" not found.');
         // 设置目标类的属性
-        $this->getTarget()->$name=$value;
+        $this->__getTarget()->$name=$value;
     }
 
     /**
@@ -98,13 +109,13 @@ class DynamicProxy {
      * @throws Exception
      * @throws ReflectionException
      */
-    protected function getTarget(): object {
+    protected function __getTarget(): object {
         // 如果目标类对象不存在则实例化一个
-        if(!isset($this->target_object)) {
+        if(!isset($this->__target_object)) {
            // 通过容器类实例化目标类
-           $this->target_object=App::get($this->getTargetClass(),...$this->args);
+           $this->__target_object=App::new($this->__getTargetClass(),...$this->__args);
         }
-        return $this->target_object;
+        return $this->__target_object;
     }
 
     /**
@@ -114,26 +125,26 @@ class DynamicProxy {
      * @return string
      * @throws Exception
      */
-    protected function getTargetClass(): string {
+    protected function __getTargetClass(): string {
         // 判断是否已经设置了目标类
-        if(!isset($this->target))
-            throw new Exception('Target class not found.');
-        return $this->target;
+        if(!isset($this->__target))
+            throw new Exception('__Target class not found.');
+        return $this->__target;
     }
 
     /**
      * 设置目标类
      *
      * @access protected
-     * @param string $target 目标类
+     * @param string $__target 目标类
      * @return void
      * @throws Exception
      */
-    protected function setTarget(string $target): void {
+    protected function __setTarget(string $__target): void {
         // 判断目标类是否存在
-        if(!class_exists($target))
-            throw new Exception('Class "'.$target.'" not found.');
-        $this->target=$target;
+        if(!class_exists($__target))
+            throw new Exception('Class "'.$__target.'" not found.');
+        $this->__target=$__target;
     }
 
 }

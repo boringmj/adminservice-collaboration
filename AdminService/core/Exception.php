@@ -19,18 +19,22 @@ final class Exception extends BaseException {
      */
     final public function __construct(string $message,int $error_code=0,array $data=array()) {
         parent::__construct($message,$error_code,$data);
-        //写入日志
-        App::get('Log')->write(
-            'Error({error_code}): {message} | data: {data} in {file} on line {line}, trace: {trace}',
-            array(
-                'message'=>$message,
-                'error_code'=>$error_code,
-                'data'=>json_encode($data),
-                'file'=>$this->getFile(),
-                'line'=>$this->getLine(),
-                'trace'=>$this->getTraceAsString()
-            )
-        );
+        try{
+            //写入日志
+            App::get('Log')->write(
+                'Error({error_code}): {message} | data: {data} in {file} on line {line}, trace: {trace}',
+                array(
+                    'message'=>$message,
+                    'error_code'=>$error_code,
+                    'data'=>json_encode($data),
+                    'file'=>$this->getFile(),
+                    'line'=>$this->getLine(),
+                    'trace'=>$this->getTraceAsString()
+                )
+            );
+        } catch(\Exception) {
+            echo 'Log write failed: "'.$message.'"';
+        }
     }
 
     /**

@@ -52,8 +52,10 @@ class Index extends Controller {
     }
 
     public function count(): string {
-        // 这里展示通过App::get()来实例化(优点是支持自动依赖注入,缺点是兼容性不太好)
-        $count=App::get(Count::class,null); // 第二个参数实际传给Count构造方法的参数
+        // 这里展示通过App::get()来实例化类,支持自动依赖注入(因为传入了构造参数,所以不会放入容器中)
+        // $count=App::get(Count::class,null); // 第二个参数实际传给Count构造方法的参数
+        // 下面这种写法不会将没有构造参数的类放入容器中,且同样支持自动依赖注入
+        $count=App::new(Count::class);
         return view('count',array(
             'count'=>$count->add()
         ));
@@ -61,6 +63,7 @@ class Index extends Controller {
 
     public function sql(): array {
         // 这里展示动态代理类的使用(只有当你调用这个类时才会实例化,属于懒加载)
+        // 调用被代理类的方法时,支持自动参数注入
         // 必须说明,因为动态代理的兼容性问题,所以不建议用在定义复杂的类上
         $test=App::proxy(Sql::class);
         // 返回json

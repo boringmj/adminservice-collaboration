@@ -31,11 +31,10 @@ final class App extends Container {
     }
 
     /**
-     * 获取对象(传入构造参数则不会使用容器)
+     * 获取对象(传入构造参数则不会添加到实例容器中)
      *
      * 注意: 依赖简单支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
      * 这种情况请先使用App::set(Class::class,new Class())添加到容器中
-     * 依赖注入目前仅支持不传入构造参数的类
      *
      * @access public
      * @param string $__name 对象名
@@ -44,7 +43,6 @@ final class App extends Container {
      * @throws Exception|ReflectionException
      */
     static public function get(string $__name,...$args): object {
-        // 判断是否传入了构造函数参数
         if(count($args)>0) {
             return self::new($__name,...$args);
         } else {
@@ -57,7 +55,7 @@ final class App extends Container {
     }
 
     /**
-     * 实例化一个新对象(不添加到实例容器中),不支持依赖注入
+     * 实例化一个新对象(不添加到实例容器中)
      * 
      * @access public
      * @param string $__name 对象名

@@ -101,7 +101,7 @@ class Sql extends Model {
                         array('`db`.`app_key`','LIKE','op%')
                     ),
                     'OR'
-                ))->order('id DESC')->limit(1,1)->lock()->group("app_id")->alias('db')->field(
+                ))->order('id DESC')->limit(1,1)->lock()->group("app_id",'id')->alias('db')->field(
                     array('id'=>'ID','app_id'=>'APPID')
                 )->select(),
                 'sql'=>$this->getLastSql()
@@ -109,7 +109,7 @@ class Sql extends Model {
             # 提交事务
             $this->commit();
             return $data;
-        } catch(Exception $e) {
+        } catch(Exception|PDOException $e) {
             # 回滚事务
             $this->rollBack();
             return $e->getMessage();

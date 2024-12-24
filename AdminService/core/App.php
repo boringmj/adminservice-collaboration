@@ -145,6 +145,16 @@ final class App extends Container {
         $params_temp=array();
         $arg_count=0;
         foreach($params as $param) {
+            // 获取参数名
+            $name=$param->getName();
+            // 判断参数类型是否为可变参数
+            if($param->isVariadic()) {
+                // 重置数字索引
+                $numeric_args=array_values(array_filter($args, 'is_numeric',ARRAY_FILTER_USE_KEY));
+                $assoc_args=array_filter($args,'is_string',ARRAY_FILTER_USE_KEY);
+                $params_temp[]=array_merge($numeric_args,$assoc_args);
+                break;
+            }
             $type=$param->getType();
             $type=(string)$type;
             // 清除类型前缀
@@ -168,8 +178,6 @@ final class App extends Container {
                         $type=$sub_class;
                 }
             }
-            // 获取参数名
-            $name=$param->getName();
             // 先尝试在参数数组通过参数名查找
             if(
                 isset($args[$name])&&(
@@ -207,9 +215,10 @@ final class App extends Container {
                     $params_temp[]=self::make($type);
                 } else {
                     // 如果参数类型为抽象类或接口则抛出异常
-                    throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" constructor is not valid.',0,array(
+                    throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" is not valid.',0,array(
                         'class'=>$param,
-                        'parameter'=>$param->getName()
+                        'parameter'=>$param->getName(),
+                        'error'=>'The parameter type is an abstract class or interface, which is not allowed.'
                     ));
                 }
             } else {
@@ -219,9 +228,10 @@ final class App extends Container {
                 else if($param->allowsNull())
                     $params_temp[]=null;
                 else
-                    throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" constructor is not valid.',0,array(
+                    throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" is not valid.',0,array(
                         'class'=>$param,
-                        'parameter'=>$param->getName()
+                        'parameter'=>$param->getName(),
+                        'error'=>'The parameter type is not valid or the parameter value is not set.'
                     ));
             }
         }

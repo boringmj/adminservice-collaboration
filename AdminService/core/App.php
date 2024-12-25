@@ -143,43 +143,46 @@ final class App extends Container {
         $params_temp=array();
         $arg_count=0;
         foreach($params as $param) {
+            $type=$param->getType();
+            $type=(string)$type;
+            //  将类型分割为数组
+            $types=explode('|',$type);
+            $types=self::getStandardTypes($types);
             // 获取参数名
             $name=$param->getName();
             // 判断参数类型是否为可变参数
             if($param->isVariadic()) {
-                // 重置数字索引
                 $numeric_args=array_values(array_filter($args, 'is_numeric',ARRAY_FILTER_USE_KEY));
                 $assoc_args=array_filter($args,'is_string',ARRAY_FILTER_USE_KEY);
-                $params_temp[]=array_merge($numeric_args,$assoc_args);
-                break;
-            }
-            $type=$param->getType();
-            $type=(string)$type;
-            // 清除类型前缀
-            $type=str_replace('?','',$type);
-            // 将类型转为gettype()返回的类型
-            $list=array(
-                'int'=>'integer',
-                'bool'=>'boolean',
-                'float'=>'double'
-            );
-            if(isset($list[$type]))
-                $type=$list[$type];
-            $type=parent::getRealClass($type);
-            // 判断类是否存在,如果存在则判断是否是抽象类或接口
-            if(class_exists($type)) {
-                $ref_type=new ReflectionClass($type);
-                if(!$ref_type->isInstantiable()) {
-                    // 尝试获取是否存在子类
-                    $sub_class=parent::findSubClass($type);
-                    if($sub_class!==null&&class_exists($sub_class))
-                        $type=$sub_class;
+                $temp_args=array_merge($numeric_args,$assoc_args);
+                // 判断是否有类型限制
+                if(count($types)===1&&$types[0]==='') {
+                    $params_temp=array_merge($params_temp,$temp_args);
+                    break;
                 }
+                // 判断每个参数是否符合类型限制
+                foreach($temp_args as $key=>$value) {
+                    $type=gettype($value);
+                    if(in_array($type,$types)) {
+                        if(is_numeric($key))
+                            $params_temp[]=$value;
+                        else
+                            $params_temp[$key]=$value;
+                        unset($args[$key]);
+                    } else {
+                        throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" is not valid.',0,array(
+                            'class'=>$param,
+                            'parameter'=>$param->getName(),
+                            'error'=>'The parameter type is not valid.'
+                        ));
+                    }
+                }
+                break;
             }
             // 先尝试在参数数组通过参数名查找
             if(
                 isset($args[$name])&&(
-                    $type==gettype($args[$name])||
+                    in_array(gettype($args[$name]),$types)||
                     $type==''||
                     // 当gettype()返回的类型为object时,获取参数类型是否为类且与type相同
                     gettype($args[$name])=='object'&&class_exists($type)&&$args[$name] instanceof $type
@@ -192,7 +195,7 @@ final class App extends Container {
             // 判断是否存在顺位参数
             if(
                 isset($args[$arg_count])&&(
-                    $type==gettype($args[$arg_count])||
+                    in_array(gettype($args[$arg_count]),$types)||
                     $type==''||
                     // 当gettype()返回的类型为object时,获取参数类型是否为类且与type相同
                     gettype($args[$arg_count])=='object'&&class_exists($type)&&$args[$arg_count] instanceof $type
@@ -204,34 +207,22 @@ final class App extends Container {
                 $arg_count++;
                 continue;
             }
-            // 判断是否为一个存在的类
-            if(class_exists($type)) {
-                // 通过反射判断是否可以实例化该类
-                $ref_type=new ReflectionClass($type);
-                if($ref_type->isInstantiable()) {
-                    // 如果参数类型为类则通过自动依赖注入实例化一个新的对象
-                    $params_temp[]=self::make($type);
-                } else {
-                    // 如果参数类型为抽象类或接口则抛出异常
-                    throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" is not valid.',0,array(
-                        'class'=>$param,
-                        'parameter'=>$param->getName(),
-                        'error'=>'The parameter type is an abstract class or interface, which is not allowed.'
-                    ));
-                }
-            } else {
-                // 其他类型判断是否有默认值,如果有则使用默认值,没有则抛出异常
-                if($param->isDefaultValueAvailable())
-                    $params_temp[]=$param->getDefaultValue();
-                else if($param->allowsNull())
-                    $params_temp[]=null;
-                else
-                    throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" is not valid.',0,array(
-                        'class'=>$param,
-                        'parameter'=>$param->getName(),
-                        'error'=>'The parameter type is not valid or the parameter value is not set.'
-                    ));
+            // 获取第一个可实例化的类
+            $real_class=self::getFirstInstantiableClass($types);
+            if($real_class!==null) {
+                $params_temp[]=self::make($real_class);
+                continue;
             }
+            elseif($param->isDefaultValueAvailable())
+                $params_temp[]=$param->getDefaultValue();
+            else if($param->allowsNull())
+                $params_temp[]=null;
+            else
+                throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" is not valid.',0,array(
+                    'class'=>$param,
+                    'parameter'=>$param->getName(),
+                    'error'=>'The parameter type is not valid or the parameter value is not set.'
+                ));
         }
         return $params_temp;
     }

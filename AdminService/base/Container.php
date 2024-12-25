@@ -182,7 +182,7 @@ abstract class Container {
      *
      * @access public
      * @param string $name 对象名
-     * @param bool $is_force 是否强制实例化
+     * @param bool $is_force 是否强制实例化(仅对当前对象有效,不会影响依赖)
      * @param array $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
      * @return object
      * @throws Exception|ReflectionException
@@ -204,26 +204,17 @@ abstract class Container {
             foreach($params as $param) {
                 $type=$param->getType();
                 $type=(string)$type;
-                // 删除参数类型中的问号
-                $type=str_replace('?','',$type);
-                $class_name=self::getRealClass($type);
-                if(class_exists($class_name)) {
-                    // 通过反射判断是否可以实例化该类
-                    $ref_type=new ReflectionClass($class_name);
-                    if(!$ref_type->isInstantiable()) {
-                        // 如果参数类型为抽象类或接口则判断是否可以获取到子类
-                        $class_name=self::findSubClass($class_name);
-                        if(empty($class_name)||!class_exists($class_name))
-                            throw new Exception('Parameter "'.$param->getName().'" of "'.$name.'" constructor is not valid.',0,array(
-                                'name'=>$name,
-                                'class'=>$class_name,
-                                'parameter'=>$param->getName()
-                            ));
-                    }
-                    // 如果参数类型为类则通过自动依赖注入实例化一个新的对象
-                    $object=self::make($class_name,false,$flags);
-                    $args[]=$object;
-                } elseif($param->isDefaultValueAvailable())
+                //  将类型分割为数组
+                $types=explode('|',$type);
+                $types=self::getStandardTypes($types);
+                // 获取第一个可实例化的类
+                $real_class=self::getFirstInstantiableClass($types);
+                if($real_class!==null) {
+                    // 递归实例化依赖
+                    $args[]=self::make($real_class,false,$flags);
+                    continue;
+                }
+                else if($param->isDefaultValueAvailable())
                     $args[]=$param->getDefaultValue();
                 else if($param->allowsNull())
                     $args[]=null;
@@ -246,7 +237,7 @@ abstract class Container {
     }
 
     /**
-     * 寻找一个类的可实例化的子类(不使用别名)
+     * 寻找一个类的可实例化的子类
      * 
      * @access public
      * @param string $class 类名
@@ -261,8 +252,82 @@ abstract class Container {
         $sub_classes=array_filter($sub_classes,function($sub_class) use ($class) {
             return is_subclass_of($sub_class,$class);
         });
-        // 返回第一个子类
-        return array_shift($sub_classes);
+        // 判断是否存在可实例化的子类
+        foreach($sub_classes as $sub_class) {
+            $sub_class=self::getRealClass($sub_class);
+            $ref=new ReflectionClass($sub_class);
+            if($ref->isInstantiable())
+                return $sub_class;
+        }
+        // 如果均不可实例化则递归查找,知道找到可实例化的子类
+        foreach($sub_classes as $sub_class) {
+            $sub_class=self::findSubClass($sub_class);
+            if($sub_class!==null)
+                return $sub_class;
+        }
+        return null;
+    }
+
+    /**
+     * 将一个PHP类型转为gettype()返回的类型
+     * 
+     * @access public
+     * @param string $type 类型
+     * @return string
+     */
+    static public function getStandardType(string $type): string {
+        // 清除类型前缀
+        $type=str_replace('?','',$type);
+        $list=array(
+            'int'=>'integer',
+            'bool'=>'boolean',
+            'float'=>'double'
+        );
+        if(isset($list[$type]))
+            return $list[$type];
+        return $type;
+    }
+
+    /**
+     * 将一组PHP类型转为gettype()返回的类型
+     * 
+     * @access public
+     * @param array $types 类型数组
+     * @return array
+     */
+    static public function getStandardTypes(array $types): array {
+        $result=array();
+        foreach($types as $type)
+            $result[]=self::getStandardType($type);
+        return $result;
+    }
+
+    /**
+     * 获取给出类型中的第一个可实例化的类
+     * 
+     * @access public
+     * @param array $types 类型数组
+     * @return ?string
+     */
+    static public function getFirstInstantiableClass(array $types): ?string {
+        foreach($types as $type) {
+            // 判断是否可以实例化该类
+            $class_name=self::getRealClass($type);
+            if(class_exists($class_name)) {
+                // 通过反射判断是否可以实例化该类
+                $ref_type=new ReflectionClass($class_name);
+                if(!$ref_type->isInstantiable()) {
+                    // 如果不可以实例化则尝试寻找一个可实例化的子类
+                    $class_name=self::findSubClass($class_name);
+                    if($class_name!==null)
+                        return $class_name;
+                    else
+                        continue;
+                }
+                return $class_name;
+            }
+        }
+        return null;
     }
 
 }

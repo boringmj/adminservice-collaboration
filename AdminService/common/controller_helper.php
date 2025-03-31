@@ -15,7 +15,7 @@ use \ReflectionException;
  * @return string
  * @throws ReflectionException|Exception
  */
-function view(string|array $template=null,array $data=array()): string {
+function view(null|string|array $template=null,array $data=array()): string {
     $reflector=new ReflectionClass(App::get('Controller'));
     $method=$reflector->getMethod('view');
     $method->setAccessible(true);

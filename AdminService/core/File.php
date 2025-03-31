@@ -12,7 +12,7 @@ final class File {
      * 文件绝对路径
      * @var string
      */
-    private string $file_path;
+    private ?string $file_path;
 
     /**
      * 数据

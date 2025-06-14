@@ -21,5 +21,3 @@ function uuid(bool $use_time=false): string {
     // 转为全小写
     return strtolower($uuid);
 }
-
-?>

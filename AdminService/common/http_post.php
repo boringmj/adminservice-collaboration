@@ -23,7 +23,7 @@ function httpPost(string $url,array $params=array(),string $type='form'): string
             'method'=>'POST',
             'header'=>$header,
             'content'=>$post_data,
-            'timeout'=>15 * 60 // 超时时间（单位:s）
+            'timeout'=>15*60 // 超时时间（单位:s）
         ),
         'ssl'=>array(
             'verify_peer'=>false,

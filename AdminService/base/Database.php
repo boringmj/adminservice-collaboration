@@ -109,10 +109,10 @@ abstract class Database {
      * @access protected
      * @param string|array|null $table 数据库表名
      * @param bool $prefix 是否自动添加表前缀(默认添加)
-     * @return self
+     * @return static
      * @throws Exception
      */
-    final protected function table(null|array|string $table=null,bool $prefix=true): self {
+    final protected function table(null|array|string $table=null,bool $prefix=true): static {
         if($table===null)
             return $this;
         $table_name=($prefix?Config::get('database.default.prefix',''):'').$table;
@@ -245,10 +245,10 @@ abstract class Database {
      * @param string|array $where 字段名称或者数据数组
      * @param mixed $data 查询数据
      * @param string $operator 操作符
-     * @return self
+     * @return static
      * @throws Exception
      */
-    protected function where(string|array $where,mixed $data=null,string $operator='='): self {
+    protected function where(string|array $where,mixed $data=null,string $operator='='): static {
         $this->db_object->where($where,$data,$operator);
         return $this;
     }
@@ -256,11 +256,11 @@ abstract class Database {
     /**
      * 高级查询
      * 
-     * @access public
+     * @access protected
      * @param array ...$data 高级查询条件
-     * @return self
+     * @return static
      */
-    public function whereEx(array ...$data): self {
+    protected function whereEx(array ...$data): static {
         $this->db_object->whereEx(...$data);
         return $this;
     }
@@ -306,9 +306,9 @@ abstract class Database {
      * 
      * @access public
      * @param array|int ...$data limit限制
-     * @return self
+     * @return static
      */
-    protected function limit(array|int ...$data): self {
+    protected function limit(array|int ...$data): static {
         $this->db_object->limit(...$data);
         return $this;
     }
@@ -318,9 +318,9 @@ abstract class Database {
      * 
      * @access public
      * @param array|string ...$data order排序
-     * @return self
+     * @return static
      */
-    protected function order(array|string ...$data): self {
+    protected function order(array|string ...$data): static {
         $this->db_object->order(...$data);
         return $this;
     }
@@ -330,9 +330,9 @@ abstract class Database {
      *
      * @access public
      * @param array|string ...$data group分组
-     * @return self
+     * @return static
      */
-    public function group(array|string ...$data): self {
+    public function group(array|string ...$data): static {
         $this->db_object->group(...$data);
         return $this;
     }
@@ -353,10 +353,10 @@ abstract class Database {
      * 自动去重复(仅对 select 和 count 生效)
      * 
      * @access public
-     * @return self
+     * @return static
      * @deprecated 因实现方式不合理,已经废弃
      */
-    public function distinct(): self {
+    public function distinct(): static {
         $this->db_object->distinct();
         return $this;
     }
@@ -366,9 +366,9 @@ abstract class Database {
      * 
      * @access public
      * @param string $alias 别名
-     * @return self
+     * @return static
      */
-    public function alias(string $alias): self {
+    public function alias(string $alias): static {
         $this->db_object->alias($alias);
         return $this;
     }
@@ -380,9 +380,9 @@ abstract class Database {
      * @param string|array $table 关联表名
      * @param array $on 关联条件
      * @param string $type 关联类型(left,right,inner,full)
-     * @return self
+     * @return static
      */
-    public function join(string|array $table,array $on,string $type='left'): self {
+    public function join(string|array $table,array $on,string $type='left'): static {
         $this->db_object->join($table,$on,$type);
         return $this;
     }
@@ -392,9 +392,9 @@ abstract class Database {
      * 
      * @access public
      * @param array|string $fields 过滤字段
-     * @return self
+     * @return static
      */
-    public function field(array|string $fields): self {
+    public function field(array|string $fields): static {
         $this->db_object->field($fields);
         return $this;
     }
@@ -404,10 +404,10 @@ abstract class Database {
      *
      * @access public
      * @param string $type 锁类型(shared,update且默认为update,不区分大小写,其他值无效)
-     * @return self
+     * @return static
      * @throws Exception
      */
-    public function lock(string $type='update'): self {
+    public function lock(string $type='update'): static {
         $this->db_object->lock($type);
         return $this;
     }
@@ -429,9 +429,9 @@ abstract class Database {
      * 设置下一次返回数据为迭代器(仅对 select 生效)
      * 
      * @access public
-     * @return self
+     * @return static
      */
-    public function iterator(): self {
+    public function iterator(): static {
         $this->db_object->iterator();
         return $this;
     }
@@ -440,9 +440,9 @@ abstract class Database {
      * 重置查询状态
      * 
      * @access public
-     * @return self
+     * @return static
      */
-    public function reset(): self {
+    public function reset(): static {
         $this->db_object->reset();
         return $this;
     }

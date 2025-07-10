@@ -71,7 +71,10 @@ class Index extends Controller {
         /** @var Sql $test 虽然实际上是代理类,但本质上还是Sql类 */
         return json(null,null,$test->test());
         // 这里还展示了ORM的用法(目前支持有限,将来会支持更多)
-        return json(null,null,$test->select()->toArray());
+        // return json(null,null,$systemInfo->select()->toArray());
+        // 更多用法(注意可能会抛出异常,特别是查找不存在的字段时,还需要注意结果是否为空)
+        // $data=$systemInfo->test();
+        // $id=$data->id;
     }
 
     public function log(): string {

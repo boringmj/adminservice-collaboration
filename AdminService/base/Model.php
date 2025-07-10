@@ -123,9 +123,24 @@ abstract class Model extends Database {
 
     /**
      * 以数组的形式获取结果集
+     * 
+     * @access public
+     * @return array
      */
     public function toArray(): array {
         return $this->result;
+    }
+
+    /**
+     * 创建新的数据集
+     * 
+     * @access public
+     * @param array $data 数据
+     * @return static
+     * @throws Exception
+     */
+    public function new(array $data): static {
+        return new static($data);
     }
 
     /**
@@ -138,7 +153,7 @@ abstract class Model extends Database {
      */
     public function find(string|array $fields='*'): static {
         // 执行父类的查询方法
-        return new static(parent::find($fields));
+        return $this->new(parent::find($fields));
     }
 
     /**
@@ -163,7 +178,7 @@ abstract class Model extends Database {
      */
     public function select(string|array $fields='*'): Collection {
         // 调用父类的查询方法
-        return new Collection(parent::select($fields));
+        return new Collection($this,parent::select($fields));
     }
 
 }

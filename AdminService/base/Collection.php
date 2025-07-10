@@ -14,6 +14,13 @@ class Collection {
     protected array $data=[];
 
     /**
+     * 模型对象
+     * 
+     * @var Model
+     */
+    protected Model $model;
+
+    /**
      * 当前索引
 
      * @var int
@@ -23,9 +30,11 @@ class Collection {
     /**
      * 构造函数
      * 
+     * @param Model $model 模型对象
      * @param array $data 数据集
      */
-    public function __construct(array $data=[]) {
+    public function __construct(Model $model,array $data=[]) {
+        $this->model=$model;
         $this->data=$data;
     }
 
@@ -52,8 +61,8 @@ class Collection {
      * 
      * @return mixed
      */
-    public function first(): mixed {
-        return $this->data[0];
+    public function first(): Model {
+        return $this->model->new($this->data[0]);
     }
 
     /**
@@ -62,7 +71,7 @@ class Collection {
      * @return mixed
      */
     public function last(): mixed {
-        return $this->data[count($this->data)-1];
+        return $this->model->new($this->data[count($this->data)-1]);
     }
 
     /**
@@ -72,7 +81,9 @@ class Collection {
      * @return mixed
      */
     public function get(int $index): mixed {
-        return $this->data[$index];
+        if($index<0||$index>=count($this->data))
+            throw new Exception('Index out of range');
+        return $this->model->new($this->data[$index]);
     }
 
     /**

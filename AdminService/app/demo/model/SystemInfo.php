@@ -18,4 +18,8 @@ class SystemInfo extends Model {
     // 上面的代码会自动添加前缀,如你的前置配置为`admin_service_`,那么上面的代码等效于下面的代码
     // protected $table='admin_service_system_info';
 
+    public function test() {
+        return $this->where('id',1)->get();
+    }
+
 }

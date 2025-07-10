@@ -12,6 +12,7 @@ use AdminService\Exception;
 // 模型
 use app\demo\model\Sql;
 use app\demo\model\Count;
+use app\demo\model\SystemInfo;
 // 公共类
 use AdminService\common\HttpHelper;
 
@@ -61,7 +62,7 @@ class Index extends Controller {
         ));
     }
 
-    public function sql(): array {
+    public function sql(SystemInfo $systemInfo): array {
         // 这里展示动态代理类的使用(只有当你调用这个类时才会实例化,属于懒加载)
         // 调用被代理类的方法时,支持自动参数注入
         // 必须说明,因为动态代理的兼容性问题,所以不建议用在定义复杂的类上
@@ -69,6 +70,8 @@ class Index extends Controller {
         // 返回json
         /** @var Sql $test 虽然实际上是代理类,但本质上还是Sql类 */
         return json(null,null,$test->test());
+        // 这里还展示了ORM的用法(目前支持有限,将来会支持更多)
+        return json(null,null,$test->select()->toArray());
     }
 
     public function log(): string {

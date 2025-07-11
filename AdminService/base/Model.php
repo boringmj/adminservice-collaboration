@@ -148,7 +148,7 @@ abstract class Model {
      * @return static
      * @throws Exception
      */
-    public function new(array $data): static {
+    public function new(array $data=[]): static {
         return new static($data);
     }
 
@@ -189,22 +189,37 @@ abstract class Model {
     }
 
     /**
-     * 保存数据(依赖主键)
+     * 保存数据(依赖主键,如果不提供主键则视为插入)
      * 
      * @access public
-     * @param array $data 数据(提供视为插入,不提供视为更新)
-     * @return int
+     * @param array $data 数据(提供视为插入,不提供且不提供主键视为更新)
+     * @param bool $throw 是否抛出异常
+     * @return bool
      * @throws Exception
      */
-    public function save(array $data=[]): int {
-        if(empty($data)) {
-            if(empty($this->result))
-                throw new Exception('No data to update.');
-            if(!array_key_exists('id',$this->result))
-                throw new Exception('No primary key.');
-            return $this->update($this->result);
+    public function save(array $data=[],bool $throw=true): bool {
+        try {
+            if(empty($data)) {
+                if(empty($this->result))
+                    throw new Exception('No data to update.');
+                if(!array_key_exists('id',$this->result)) {
+                    // 如果没有主键则视为插入
+                    if($this->insert($this->result))
+                        return true;
+                    throw new Exception('No id to update.');
+                }
+                if(!$this->update($this->result))
+                    throw new Exception('Update failed.');
+                return true;
+            }
+            if(!$this->insert($data))
+                throw new Exception('Insert failed.');
+            return true;
+        } catch(Exception $e) {
+            if($throw)
+                throw $e;
+            return false;
         }
-        return $this->insert($data);
     }
 
     /**

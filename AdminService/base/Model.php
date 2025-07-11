@@ -189,6 +189,25 @@ abstract class Model {
     }
 
     /**
+     * 保存数据(依赖主键)
+     * 
+     * @access public
+     * @param array $data 数据(提供视为插入,不提供视为更新)
+     * @return int
+     * @throws Exception
+     */
+    public function save(array $data=[]): int {
+        if(empty($data)) {
+            if(empty($this->result))
+                throw new Exception('No data to update.');
+            if(!array_key_exists('id',$this->result))
+                throw new Exception('No primary key.');
+            return $this->update($this->result);
+        }
+        return $this->insert($data);
+    }
+
+    /**
      * 根据条件查询数据
      *
      * @access public

@@ -28,7 +28,7 @@ php start
 ## 路由
 默认路由继承至`base\Route`基类,使用`AdminService\Route`实现, 请先[配置](https://github.com/boringmj/adminservice-collaboration/wiki/开始#默认路由)您的 `webserver` 支持该路由形式
 ```
-http[s]://domain/app/controller/method[/param1,/param2...][/?get=value&...]
+http[s]://domain/app/controller/method[/param1,/param2...][?get=value&...]
 或
 // 使用下面的路由形式无须配置 webserver, 且可以支持多入口形式
 http[s]://domain[/web_path]/?/app/controller/method[/param1,/param2...][/&get=value&...]

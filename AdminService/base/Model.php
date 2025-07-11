@@ -35,7 +35,7 @@ abstract class Model {
      * 
      * @var array
      */
-    public array $result=[];
+    protected array $result=[];
 
     /**
      * Database对象
@@ -161,7 +161,6 @@ abstract class Model {
      * @throws Exception
      */
     public function find(string|array $fields='*'): static {
-        // 执行父类的查询方法
         return $this->new($this->db->find($fields));
     }
 
@@ -186,7 +185,6 @@ abstract class Model {
      * @throws Exception
      */
     public function select(string|array $fields='*'): Collection {
-        // 调用父类的查询方法
         return new Collection($this,$this->db->select($fields));
     }
 

@@ -141,6 +141,16 @@ abstract class Model {
     }
 
     /**
+     * 判断结果集是否为空
+     * 
+     * @access public
+     * @return bool
+     */
+    public function isEmpty(): bool {
+        return empty($this->result);
+    }
+
+    /**
      * 创建新的数据集
      * 
      * @access public
@@ -148,7 +158,7 @@ abstract class Model {
      * @return static
      * @throws Exception
      */
-    public function new(array $data=[]): static {
+    static public function new(array $data=[]): static {
         return new static($data);
     }
 
@@ -161,7 +171,13 @@ abstract class Model {
      * @throws Exception
      */
     public function find(string|array $fields='*'): static {
-        return $this->new($this->db->find($fields));
+        $result=$this->db->find($fields);
+        if(is_string($fields)&&$fields!='*') {
+            if(empty($result))
+                return self::new();
+            $result=array($fields=>$result);
+        }
+        return self::new($result);
     }
 
     /**

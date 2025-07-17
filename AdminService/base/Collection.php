@@ -2,8 +2,6 @@
 
 namespace base;
 
-use AdminService\Exception;
-
 class Collection {
 
     /**
@@ -28,6 +26,13 @@ class Collection {
     protected int $index=0;
 
     /**
+     * 是否以数组形式返回
+     * 
+     * @var bool
+     */
+    protected bool $return_array=false;
+
+    /**
      * 构造函数
      * 
      * @param Model $model 模型对象
@@ -35,91 +40,25 @@ class Collection {
      */
     public function __construct(Model $model,array $data=[]) {
         $this->model=$model;
-        $this->data=$data;
+        $this->data=$this->BuildCollection($data);
     }
 
     /**
-     * 获取全部数据集
+     * 将数组集转为模型对象集
      * 
+     * @param array $data 数据集
      * @return array
      */
-    public function getData(): array {
-        return $this->data;
+    protected function BuildCollection(array $data=[]): array {
+        // 防止奇怪的键名,直接使用新数组
+        $temp=[];
+        foreach ($data as $value)
+            $temp[]=$this->model::new($value);
+        return $data;
     }
 
     /**
-     * 获取数据集长度
-     * 
-     * @return int
-     */
-    public function length(): int {
-        return count($this->data);
-    }
-
-    /**
-     * 获取数据集的第一个元素
-     * 
-     * @return mixed
-     */
-    public function first(): Model {
-        return $this->model->new($this->data[0]);
-    }
-
-    /**
-     * 获取数据集的最后一个元素
-     * 
-     * @return mixed
-     */
-    public function last(): mixed {
-        return $this->model->new($this->data[count($this->data)-1]);
-    }
-
-    /**
-     * 获取数据集的指定元素
-     * 
-     * @param int $index 索引
-     * @return mixed
-     */
-    public function get(int $index): mixed {
-        if($index<0||$index>=count($this->data))
-            throw new Exception('Index out of range');
-        return $this->model->new($this->data[$index]);
-    }
-
-    /**
-     * 判断索引是否有效
-     * 
-     * @return bool
-     */
-    public function valid(): bool {
-        if($this->index<count($this->data))
-            return true;
-        return false;
-    }
-
-    /**
-     * 重置索引
-     * 
-     * @return void
-     */
-    public function reset(): void {
-        $this->index=0;
-    }
-
-    /**
-     * 获取下一个索引位置
-     * 
-     * @return int
-     */
-    public function nextIndex(): int {
-        $index=$this->index+1;
-        if($this->valid())
-            return $index;
-        return -1;
-    }
-
-    /**
-     * 获取当前索引位置
+     * 获取当前索引
      * 
      * @return int
      */
@@ -128,61 +67,114 @@ class Collection {
     }
 
     /**
-     * 设置索引位置
+     * 重置索引
      * 
-     * @param int $index 索引
      * @return void
      */
-    public function setIndex(int $index): void {
-        if($index>=0&&$index<count($this->data))
-            $this->index=$index;
-        else
-            throw new Exception('索引超出范围');
+    public function rewind(): void {
+        $this->index=0;
+    }
+
+    /**
+     * 校验索引是否合法
+     * 
+     * @param int $index 索引
+     * @return bool
+     */
+    public function valid(int $index=0): bool {
+        return isset($this->data[$index]);
+    }
+
+    /**
+     * 获取指定索引位置的数据
+     * 
+     * @param int $index 索引
+     * @return Model|array|null
+     */
+    public function get(int $index=0): Model|array|null {
+        if($this->valid($index))
+            if($this->return_array)
+                return $this->data[$index]->toArray();
+            else
+                return $this->data[$index];
+        return null;
     }
 
     /**
      * 获取当前索引位置的数据
      * 
-     * @return mixed
+     * @return Model|array|null
      */
-    public function current(): mixed {
-        return $this->data[$this->index];
+    public function current(): Model|array|null {
+        return $this->get($this->index);
     }
 
     /**
-     * 获取当前索引位置且将索引位置向后移动一位
+     * 获取下一个索引位置的数据(索引向后移动一位)
      * 
-     * @return mixed
+     * @return Model|array|null
      */
-    public function next(): mixed {
-        $this->index++;
-        if($this->valid())
-            return $this->data[$this->index];
+    public function next(): Model|array|null {
+        if($this->valid($this->index+1))
+            return $this->get($this->index++);
         return null;
     }
 
     /**
-     * 以数组形式返回所以数据
+     * 获取上一个索引位置的数据(索引向前移动一位)
+     * 
+     * @return Model|array|null
      */
-    public function toArray(): array {
+    public function prev(): Model|array|null {
+        if($this->valid($this->index-1))
+            return $this->get($this->index--);
+        return null;
+    }
+
+    /**
+     * 重置索引并返回当前索引位置的数据
+     * 
+     * @return Model|null
+     */
+    public function first(): Model|null {
+        $this->rewind();
+        return $this->current();
+    }
+
+    /**
+     * 重置索引并返回最后一个索引位置的数据
+     * 
+     * @return Model|array|null
+     */
+    public function last(): Model|array|null {
+        $this->rewind();
+        $this->next();
+        return $this->current();
+    }
+
+    /**
+     * 返回全部数据集
+     * 
+     * @return array
+     */
+    public function all(): array {
+        if($this->return_array) {
+            $temp=[];
+            foreach ($this->data as $value)
+                $temp[]=$value->toArray();
+            return $temp;
+        }
         return $this->data;
     }
 
     /**
-     * 以数组形式返回当前索引位置的数据
+     * 以数组形式返回
+     * 
+     * @return static
      */
-    public function toCurrentArray(): array {
-        return [$this->data[$this->index]];
-    }
-
-    /**
-     * 以数组形式返回当前索引位置的数据并向后移动一位
-     */
-    public function toNextArray(): array {
-        $this->index++;
-        if($this->valid())
-            return [$this->data[$this->index]];
-        return [];
+    public function toArray(): static {
+        $this->return_array=true;
+        return $this;
     }
 
 }

@@ -2,25 +2,18 @@
 
 namespace base;
 
-class Collection {
+class Collection implements \Iterator {
 
     /**
      * 保存数据集
      * 
-     * @var array
+     * @var Model[]
      */
     protected array $data=[];
 
     /**
-     * 模型对象
+     * 当前指针位置
      * 
-     * @var Model
-     */
-    protected Model $model;
-
-    /**
-     * 当前索引
-
      * @var int
      */
     protected int $index=0;
@@ -38,27 +31,27 @@ class Collection {
      * @param Model $model 模型对象
      * @param array $data 数据集
      */
-    public function __construct(Model $model,array $data=[]) {
-        $this->model=$model;
-        $this->data=$this->BuildCollection($data);
+    public function __construct(Model $model, array $data=[]) {
+        $this->data=$this->buildCollection($model,$data);
     }
 
     /**
      * 将数组集转为模型对象集
      * 
+     * @param Model $model 模型对象
      * @param array $data 数据集
-     * @return array
+     * @return Model[]
      */
-    protected function BuildCollection(array $data=[]): array {
-        // 防止奇怪的键名,直接使用新数组
-        $temp=[];
-        foreach ($data as $value)
-            $temp[]=$this->model::new($value);
-        return $data;
+    protected function buildCollection(Model $model,array $data): array {
+        $collection=[];
+        foreach($data as $item) {
+            $collection[]=$model::new($item);
+        }
+        return $collection;
     }
 
     /**
-     * 获取当前索引
+     * 获取当前指针位置
      * 
      * @return int
      */
@@ -67,7 +60,7 @@ class Collection {
     }
 
     /**
-     * 重置索引
+     * 重置指针到起始位置
      * 
      * @return void
      */
@@ -76,32 +69,16 @@ class Collection {
     }
 
     /**
-     * 校验索引是否合法
+     * 检查当前指针位置是否有效
      * 
-     * @param int $index 索引
      * @return bool
      */
-    public function valid(int $index=0): bool {
-        return isset($this->data[$index]);
+    public function valid(): bool {
+        return $this->index<count($this->data);
     }
 
     /**
-     * 获取指定索引位置的数据
-     * 
-     * @param int $index 索引
-     * @return Model|array|null
-     */
-    public function get(int $index=0): Model|array|null {
-        if($this->valid($index))
-            if($this->return_array)
-                return $this->data[$index]->toArray();
-            else
-                return $this->data[$index];
-        return null;
-    }
-
-    /**
-     * 获取当前索引位置的数据
+     * 获取当前元素
      * 
      * @return Model|array|null
      */
@@ -110,71 +87,108 @@ class Collection {
     }
 
     /**
-     * 获取下一个索引位置的数据(索引向后移动一位)
+     * 获取当前键名
+     * 
+     * @return int
+     */
+    public function key(): int {
+        return $this->index;
+    }
+
+    /**
+     * 移动到下一个元素
+     * 
+     * @return void
+     */
+    public function next(): void {
+        $this->index++;
+    }
+
+    /**
+     * 获取指定位置元素
+     * 
+     * @param int $index 索引位置
+     * @return Model|array|null
+     */
+    public function get(int $index): Model|array|null {
+        if(!isset($this->data[$index]))
+            return null;
+        if($this->return_array)
+            return $this->data[$index]->toArray();
+        return $this->data[$index];
+    }
+
+    /**
+     * 获取第一个元素
      * 
      * @return Model|array|null
      */
-    public function next(): Model|array|null {
-        if($this->valid($this->index+1))
-            return $this->get($this->index++);
-        return null;
+    public function first(): Model|array|null {
+        return $this->get(0);
     }
 
     /**
-     * 获取上一个索引位置的数据(索引向前移动一位)
-     * 
-     * @return Model|array|null
-     */
-    public function prev(): Model|array|null {
-        if($this->valid($this->index-1))
-            return $this->get($this->index--);
-        return null;
-    }
-
-    /**
-     * 重置索引并返回当前索引位置的数据
-     * 
-     * @return Model|null
-     */
-    public function first(): Model|null {
-        $this->rewind();
-        return $this->current();
-    }
-
-    /**
-     * 重置索引并返回最后一个索引位置的数据
+     * 获取最后一个元素
      * 
      * @return Model|array|null
      */
     public function last(): Model|array|null {
-        $this->rewind();
-        $this->next();
-        return $this->current();
+        $lastIndex=count($this->data)-1;
+        return $this->get($lastIndex);
     }
 
     /**
-     * 返回全部数据集
+     * 返回所有数据
      * 
      * @return array
      */
     public function all(): array {
         if($this->return_array) {
-            $temp=[];
-            foreach ($this->data as $value)
-                $temp[]=$value->toArray();
-            return $temp;
+            $result=[];
+            foreach($this->data as $model)
+                $result[]=$model->toArray();
+            return $result;
         }
         return $this->data;
     }
 
     /**
-     * 以数组形式返回
+     * 设置返回类型为数组(长期有效)
      * 
-     * @return static
+     * @return $this
      */
     public function toArray(): static {
         $this->return_array=true;
         return $this;
+    }
+
+    /**
+     * 设置返回类型为模型对象(长期有效)
+     * 
+     * @return $this
+     */
+    public function toObject(): static {
+        $this->return_array=false;
+        return $this;
+    }
+
+    /**
+     * 获取数据集数量
+     * 
+     * @return int
+     */
+    public function count(): int {
+        return count($this->data);
+    }
+
+    /**
+     * 重置状态
+     * 
+     * @return void
+     */
+    public function reset(): void {
+        $this->index=0;
+        $this->return_array=false;
     }
 
 }

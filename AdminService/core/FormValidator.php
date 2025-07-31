@@ -148,7 +148,7 @@ class FormValidator extends BaseValidator {
 
     // ===================== 验证规则实现 =====================
 
-    protected function validateRequired(string $field,$value): bool {
+    protected function validateRequired(string $field,$value,$_): bool {
         if(is_null($value)) {
             return $this->addError($field,'required');
         }
@@ -164,7 +164,7 @@ class FormValidator extends BaseValidator {
         return true;
     }
 
-    protected function validateEmail(string $field,$value): bool {
+    protected function validateEmail(string $field,$value,$_): bool {
         if($value&&!filter_var($value,FILTER_VALIDATE_EMAIL)) {
             return $this->addError($field,'email');
         }
@@ -199,21 +199,21 @@ class FormValidator extends BaseValidator {
         return true;
     }
 
-    protected function validateNumeric(string $field,$value): bool {
+    protected function validateNumeric(string $field,$value,$_): bool {
         if(!is_numeric($value)) {
             return $this->addError($field,'numeric');
         }
         return true;
     }
 
-    protected function validateInteger(string $field,$value): bool {
+    protected function validateInteger(string $field,$value,$_): bool {
         if(!filter_var($value,FILTER_VALIDATE_INT)) {
             return $this->addError($field,'integer');
         }
         return true;
     }
 
-    protected function validateUrl(string $field,$value): bool {
+    protected function validateUrl(string $field,$value,$_): bool {
         if($value&&!filter_var($value,FILTER_VALIDATE_URL)) {
             return $this->addError($field,'url');
         }
@@ -259,7 +259,7 @@ class FormValidator extends BaseValidator {
         return true;
     }
 
-    protected function validateDate(string $field,$value): bool {
+    protected function validateDate(string $field,$value,$_): bool {
         if(strtotime($value)===false) {
             return $this->addError($field,'date');
         }

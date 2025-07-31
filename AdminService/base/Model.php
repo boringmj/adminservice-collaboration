@@ -174,10 +174,10 @@ abstract class Model {
         $result=$this->db->find($fields);
         if(is_string($fields)&&$fields!='*') {
             if(empty($result))
-                return self::new();
+                return static::new();
             $result=array($fields=>$result);
         }
-        return self::new($result);
+        return static::new($result);
     }
 
     /**

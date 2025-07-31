@@ -9,6 +9,7 @@ use AdminService\App;
 use AdminService\Log;
 use AdminService\Config;
 use AdminService\Exception;
+use AdminService\FormValidator;
 // 模型
 use app\demo\model\Sql;
 use app\demo\model\Count;
@@ -51,6 +52,16 @@ class Index extends Controller {
             'name'=>$this->param('name','AdminService')
         ));
     }
+
+    public function validator(FormValidator $validator,$name='AdminService'): array {
+            // 可以通过在路由参数中传入不同的name参数来触发验证
+            if($validator->validate(['name'=>$name],[
+                'name'=>'required|min_length:6|max_length:15|regex:/^[a-zA-Z]+$/'
+            ])) {
+                return json(null,null,$name);
+            }
+            return json(null,null,$validator->errors());
+        }
 
     public function count(): string {
         // 这里展示通过App::get()来实例化类,支持自动依赖注入(因为传入了构造参数,所以不会放入容器中)

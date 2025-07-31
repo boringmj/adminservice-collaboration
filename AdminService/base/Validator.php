@@ -21,7 +21,7 @@ abstract class Validator {
      */
     protected array $rules=[];
 
-    public function __construct(array $data,$rules=[]) {
+    public function __construct(array $data=[],$rules=[]) {
         $this->data=$data;
         // 外部规则覆盖默认规则
         $this->rules=array_merge($this->rules(),$rules);
@@ -41,14 +41,18 @@ abstract class Validator {
      * 验证数据
      * 
      * @param array $data 待验证的数据,如果为空则使用构造时传入的数据
+     * @param array $rules 验证规则,如果为空则使用构造时传入的规则
      * @return bool
      */
-    public function validate(array $data=[]): bool {
+    public function validate(array $data=[],array $rules=[]): bool {
         if(empty($data))
             $data=$this->data;
-        foreach($this->rules as $field=>$rules) {
+        if(empty($rules))
+            $rules=$this->rules;
+        $this->errors=[];
+        foreach($rules as $field=>$rule_list) {
             $value=$data[$field]??null;
-            $ruleList=is_array($rules)?$rules:explode('|',$rules);
+            $ruleList=is_array($rule_list)?$rule_list:explode('|',$rule_list);
             foreach($ruleList as $rule) {
                 [$ruleName,$param]=explode(':',$rule,2)+[null,null];
                 $this->checkRule($field,$ruleName,$value,$param);

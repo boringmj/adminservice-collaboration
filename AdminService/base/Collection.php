@@ -19,13 +19,6 @@ class Collection implements \Iterator {
     protected int $index=0;
 
     /**
-     * 是否以数组形式返回
-     * 
-     * @var bool
-     */
-    protected bool $return_array=false;
-
-    /**
      * 构造函数
      * 
      * @param Model $model 模型对象
@@ -48,6 +41,15 @@ class Collection implements \Iterator {
             $collection[]=$model::new($item);
         }
         return $collection;
+    }
+
+    /**
+     * 判断数据集是否为空
+     * 
+     * @return bool
+     */
+    public function isEmpty(): bool {
+        return empty($this->data);
     }
 
     /**
@@ -80,10 +82,21 @@ class Collection implements \Iterator {
     /**
      * 获取当前元素
      * 
-     * @return Model|array|null
+     * @return Model|null
      */
-    public function current(): Model|array|null {
+    public function current(): Model|null {
         return $this->get($this->index);
+    }
+
+    /**
+     * 获取当前元素并将指针移动到下一个元素
+     * 
+     * @return Model|null
+     */
+    public function currentAndNext(): Model|null {
+        $current=$this->current();
+        $this->next();
+        return $current;
     }
 
     /**
@@ -108,12 +121,13 @@ class Collection implements \Iterator {
      * 获取指定位置元素
      * 
      * @param int $index 索引位置
+     * @param bool $to_array 是否转换为数组
      * @return Model|array|null
      */
-    public function get(int $index): Model|array|null {
+    public function get(int $index,bool $to_array=false): Model|array|null {
         if(!isset($this->data[$index]))
             return null;
-        if($this->return_array)
+        if($to_array)
             return $this->data[$index]->toArray();
         return $this->data[$index];
     }
@@ -121,18 +135,18 @@ class Collection implements \Iterator {
     /**
      * 获取第一个元素
      * 
-     * @return Model|array|null
+     * @return Model|null
      */
-    public function first(): Model|array|null {
+    public function first(): Model|null {
         return $this->get(0);
     }
 
     /**
      * 获取最后一个元素
      * 
-     * @return Model|array|null
+     * @return Model|null
      */
-    public function last(): Model|array|null {
+    public function last(): Model|null {
         $lastIndex=count($this->data)-1;
         return $this->get($lastIndex);
     }
@@ -140,10 +154,11 @@ class Collection implements \Iterator {
     /**
      * 返回所有数据
      * 
+     * @param bool $to_array 是否转换为数组
      * @return array
      */
-    public function all(): array {
-        if($this->return_array) {
+    public function all(bool $to_array=false): array {
+        if($to_array) {
             $result=[];
             foreach($this->data as $model)
                 $result[]=$model->toArray();
@@ -153,23 +168,21 @@ class Collection implements \Iterator {
     }
 
     /**
-     * 设置返回类型为数组(长期有效)
+     * 以数组的形式返回数据集
      * 
-     * @return $this
+     * @return array
      */
-    public function toArray(): static {
-        $this->return_array=true;
-        return $this;
+    public function toArray(): array {
+        return $this->all(true);
     }
 
     /**
-     * 设置返回类型为模型对象(长期有效)
+     * 以对象的形式返回数据集
      * 
-     * @return $this
+     * @return array
      */
-    public function toObject(): static {
-        $this->return_array=false;
-        return $this;
+    public function toObject(): array {
+        return $this->all(false);
     }
 
     /**
@@ -188,7 +201,6 @@ class Collection implements \Iterator {
      */
     public function reset(): void {
         $this->index=0;
-        $this->return_array=false;
     }
 
 }

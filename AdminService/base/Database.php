@@ -278,6 +278,26 @@ class Database {
     }
 
     /**
+     * 返回当前过滤字段
+     * 
+     * @access public
+     * @return array
+     */
+    public function getFields(): array {
+        return $this->db_object->getFields();
+    }
+
+    /**
+     * 返回上一次的过滤字段
+     * @access public
+     * @return array
+     */
+    public function getLastFields(): array {
+        return $this->db_object->getLastFields();
+    }
+
+
+    /**
      * 插入数据
      *
      * @access public
@@ -349,18 +369,6 @@ class Database {
     public function count(): int|array {
         $this->autoTable();
         return $this->db_object->count();
-    }
-
-    /**
-     * 自动去重复(仅对 select 和 count 生效)
-     * 
-     * @access public
-     * @return static
-     * @deprecated 因实现方式不合理,已经废弃
-     */
-    public function distinct(): static {
-        $this->db_object->distinct();
-        return $this;
     }
 
     /**

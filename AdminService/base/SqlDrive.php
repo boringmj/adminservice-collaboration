@@ -11,7 +11,7 @@ use AdminService\Exception;
  * 
  * @access public
  * @package base
- * @version 1.0.4
+ * @version 1.0.5
  */
 abstract class SqlDrive implements Sql {
 
@@ -51,6 +51,12 @@ abstract class SqlDrive implements Sql {
     protected string $last_sql;
 
     /**
+     * 上一次的过滤字段
+     * @var array
+     */
+    protected array $last_filter;
+
+    /**
      * 是否开启distinct
      * @var bool
      */
@@ -63,6 +69,19 @@ abstract class SqlDrive implements Sql {
      * @return void
      */
     abstract protected function check_connect(): void;
+
+    /**
+     * 返回当前过滤字段
+     * @access public
+     * @return array
+     */
+    abstract public function getFields(): array;
+    /**
+     * 返回上一次的过滤字段
+     * @access public
+     * @return array
+     */
+    abstract public function getLastFields(): array;
 
     /**
      * 开启事务
@@ -126,6 +145,7 @@ abstract class SqlDrive implements Sql {
         $this->iterator=false;
         $this->lock='';
         $this->last_sql='';
+        $this->last_filter=array();
         $this->distinct=false;
         $this->reset();
     }

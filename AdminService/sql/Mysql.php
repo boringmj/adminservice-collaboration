@@ -14,7 +14,7 @@ use AdminService\Exception;
  * 
  * @access public
  * @package sql
- * @version 1.0.6
+ * @version 1.0.7
  */
 final class Mysql extends SqlDrive {
 
@@ -484,6 +484,24 @@ final class Mysql extends SqlDrive {
     }
 
     /**
+     * 返回当前过滤字段
+     * @access public
+     * @return array
+     */
+    public function getFields(): array {
+        return $this->filter;
+    }
+
+    /**
+     * 返回上一次的过滤字段
+     * @access public
+     * @return array
+     */
+    public function getLastFields(): array {
+        return $this->last_filter;
+    }
+
+    /**
      * 准备sql语句
      *
      * @access public
@@ -494,6 +512,7 @@ final class Mysql extends SqlDrive {
     public function prepare(string $sql): PDOStatement {
         $this->check_connect();
         $this->last_sql=$sql;
+        $this->last_filter=$this->filter;
         try {
             return $this->db->prepare($sql);
         } catch(PDOException $e) {

@@ -2,6 +2,7 @@
 
 namespace base;
 
+use \Generator;
 use AdminService\App;
 use AdminService\Config;
 use AdminService\Exception;
@@ -141,16 +142,6 @@ abstract class Model {
     }
 
     /**
-     * 判断结果集是否为空
-     * 
-     * @access public
-     * @return bool
-     */
-    public function isEmpty(): bool {
-        return empty($this->result);
-    }
-
-    /**
      * 创建新的数据集
      * 
      * @access public
@@ -163,6 +154,38 @@ abstract class Model {
     }
 
     /**
+     * 根据上一次查询的字段构造一个空的结果集
+     * 
+     * @access protected
+     * @param string|array $fields 使用的查询字段(默认为*)
+     * @return array
+     */
+    protected function buildEmptyResult(string|array $fields='*'): array {
+        if(is_string($fields)&&$fields!=='*')
+            return [$fields=>null];
+        $last_filter=$this->db->getLastFields();
+        $result=[];
+        foreach($last_filter as $value) {
+            // 优先使用别名
+            if(!empty($value[1])) {
+                $result[$value[1]]=null;
+                continue;
+            }
+            // 如果别名不存在则使用字段名称
+            if(is_array($value[0])) {
+                // 判断是否有表名
+                if(count($value[0])===2)
+                    $result[$value[0][1]]=null;
+                else
+                    $result[$value[0][0]]=null;
+            }
+            else
+                $result[$value[0]]=null;
+        }
+        return $result;
+    }
+
+    /**
      * 查询一条数据
      *  
      * @access public
@@ -172,11 +195,10 @@ abstract class Model {
      */
     public function find(string|array $fields='*'): static {
         $result=$this->db->find($fields);
-        if(is_string($fields)&&$fields!='*') {
-            if(empty($result))
-                return static::new();
-            $result=array($fields=>$result);
-        }
+        if(is_string($fields)&&$fields!=='*')
+            return static::new([$fields=>$result]);
+        if(empty($result))
+            return static::new($this->buildEmptyResult($fields));
         return static::new($result);
     }
 
@@ -197,18 +219,22 @@ abstract class Model {
      *  
      * @access public
      * @param string|array $fields 查询字段(默认为*)
-     * @return Collection
+     * @return Collection|Generator
      * @throws Exception
      */
-    public function select(string|array $fields='*'): Collection {
-        return new Collection($this,$this->db->select($fields));
+    public function select(string|array $fields='*'): Collection|Generator {
+        $result=$this->db->select($fields);
+        // 如果是迭代器则直接返回
+        if($result instanceof Generator)
+            return $result;
+        return new Collection($this,$result);
     }
 
     /**
      * 保存数据(依赖主键,如果不提供主键则视为插入)
      * 
      * @access public
-     * @param array $data 数据(提供视为插入,不提供且不提供主键视为更新)
+     * @param array $data 数据
      * @param bool $throw 是否抛出异常
      * @return bool
      * @throws Exception
@@ -245,10 +271,10 @@ abstract class Model {
      * @param string|array $where 字段名称或者数据数组
      * @param mixed $data 查询数据
      * @param string $operator 操作符
-     * @return self
+     * @return static
      * @throws Exception
      */
-    public function where(string|array $where,mixed $data=null,string $operator='='): self {
+    public function where(string|array $where,mixed $data=null,string $operator='='): static {
         $this->db->where($where,$data,$operator);
         return $this;
     }
@@ -258,9 +284,9 @@ abstract class Model {
      * 
      * @access public
      * @param array ...$data 高级查询条件
-     * @return self
+     * @return static
      */
-    public function whereEx(array ...$data): self {
+    public function whereEx(array ...$data): static {
         $this->db->whereEx(...$data);
         return $this;
     }
@@ -287,6 +313,25 @@ abstract class Model {
      */
     public function getLastSql(): string {
         return $this->db->getLastSql();
+    }
+
+    /**
+     * 返回当前过滤字段
+     * 
+     * @access public
+     * @return array
+     */
+    public function getFields(): array {
+        return $this->db->getFields();
+    }
+
+    /**
+     * 返回上一次的过滤字段
+     * @access public
+     * @return array
+     */
+    public function getLastFields(): array {
+        return $this->db->getLastFields();
     }
 
     /**
@@ -389,7 +434,7 @@ abstract class Model {
     }
 
     /**
-     * 设置下一次返回数据为迭代器(仅对 select 生效)
+     * 设置下一次返回数据为迭代器而非对象集合(仅对 select 生效)
      * 
      * @access public
      * @return self
@@ -407,17 +452,6 @@ abstract class Model {
      */
     public function count(): int|array {
         return $this->db->count();
-    }
-
-    /**
-     * 自动去重复(仅对 select 和 count 生效)
-     * 
-     * @access public
-     * @return self
-     */
-    public function distinct(): self {
-        $this->db->distinct();
-        return $this;
     }
 
     /**

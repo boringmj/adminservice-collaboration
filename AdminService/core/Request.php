@@ -273,6 +273,16 @@ final class Request extends BaseRequest {
     }
 
     /**
+     * 获取待输出内容
+     * 
+     * @access public
+     * @return string|null
+     */
+    static public function getOutput(): ?string {
+        return self::$request_info['return_data']??null;
+    }
+
+    /**
      * 设置返回类型
      * 
      * @access public

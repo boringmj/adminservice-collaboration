@@ -32,10 +32,22 @@ final class View extends BaseView {
             throw new Exception('Template file not found.',100301,
                 ['template_path'=>$template_path]
             );
-        $this->template_path=$template_path;
-        $this->data=$data;
-        $this->template_content=file_get_contents($template_path);
-        $this->initialized=true;
+        $this->initWithContent(
+            file_get_contents($template_path),
+            $data
+        );
+    }
+
+     /**
+     * 通过直接传入模板内容完成初始化
+     * 
+     * @access public
+     * @param string $template_content 模板内容
+     * @param array $data 需要传递给模板的数据
+     * @return void
+     */
+    public function initWithContent(string $template_content,array $data=array()): void {
+        $this->initByContent($template_content,$data);
     }
 
     /**
@@ -83,26 +95,65 @@ final class View extends BaseView {
         $pattern='/\{\{foreach\s+(\S+?)\s+as\s+(\S+?)(?:\s*=>\s*(\S+))?\}\}(.*?)\{\{\/foreach\}\}/s';
         $this->template_content=preg_replace_callback($pattern,function($matches) {
             $dataPath=trim($matches[1],'$');
-            $itemVar=trim($matches[2],'$');
-            $keyVar=isset($matches[3])?trim($matches[3],'$'):null;
-            $loopContent=$matches[4];
+            $keyVar=null;
+            $itemVar=null;
+            // 解析循环变量语法
+            if(isset($matches[3])&&!empty(trim($matches[3]))) {
+                // 键值对语法: key => value
+                $keyVar=trim($matches[2],'$');
+                $itemVar=trim($matches[3],'$');
+            } else {
+                // 单值语法: value
+                $itemVar=trim($matches[2],'$');
+            }
             // 获取循环数据
             $loopData=$this->getDataByPath($dataPath);
-            if(!is_array($loopData)) return '';
+            if(!is_array($loopData)) {
+                return '';
+            }
             $result='';
-            foreach($loopData as $key=>$value) {
+            foreach($loopData as $loopKey=>$loopValue) {
                 $childData=$this->data;
-                $childData[$itemVar]=$value;
-                if($keyVar!==null) {
-                    $childData[$keyVar]=$key;
-                }
-                // 创建子视图并渲染
+                $this->assignVariable($childData,$itemVar,$loopValue);
+                if($keyVar!==null)
+                    $this->assignVariable($childData,$keyVar,$loopKey);
+                // 创建子视图并渲染循环内容
                 $childView=new self();
-                $childView->initByContent($loopContent,$childData);
+                $childView->initByContent($matches[4],$childData);
                 $result.=$childView->render();
             }
             return $result;
         },$this->template_content);
+    }
+
+    /**
+     * 分配变量到数据(支持点分隔路径)
+     * 
+     * @access protected
+     * @param array &$data 目标数据数组
+     * @param string $path 点分隔的路径
+     * @param mixed $value 要分配的值
+     */
+    protected function assignVariable(array &$data,string $path,$value): void {
+        // 如果路径不含点号，直接赋值
+        if(strpos($path,'.')===false) {
+            $data[$path]=$value;
+            return;
+        }
+        // 处理点分隔路径
+        $keys=explode('.', $path);
+        $current=&$data;
+        // 遍历路径(除最后一个键外)
+        for($i=0; $i<count($keys)-1;$i++) {
+            $key=$keys[$i];
+            if(!isset($current[$key])) {
+                $current[$key]=[];
+            }
+            $current=&$current[$key];
+        }
+        // 分配最终值
+        $finalKey=end($keys);
+        $current[$finalKey]=$value;
     }
 
     /**
@@ -120,9 +171,14 @@ final class View extends BaseView {
             $elseBlock=$matches[3]??'';
             $conditionValue=$this->evaluateCondition($condition);
             $content=$conditionValue?$ifBlock:$elseBlock;
-            $childView=new self();
-            $childView->initByContent($content,$this->data);
-            return $childView->render();
+            // 仅当有内容需要渲染时才创建子视图
+            if ($content!=='') {
+                $childView=new self();
+                $childView->initByContent($content,$this->data);
+                return $childView->render();
+            }
+            // 空内容直接返回空字符串
+            return '';
         },$this->template_content);
     }
 

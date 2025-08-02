@@ -248,168 +248,104 @@ final class Error {
      * @return string
      */
     private static function renderErrors(): string {
-        $html='<!DOCTYPE html><html lang="zh-CN"><head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width,initial-scale=1.0">
-        <link rel="stylesheet" href="/css/error.css">
-        </head><body>';
-        $html.='<div class="mobile-only error-summary">';
-        $html.='<p><strong>共发现 ' . count(self::$errors).' 个错误</strong></p>';
-        $html.='<p>点击下方错误条目查看详情</p>';
-        $html.='</div>';
-        $html.='<div class="error-container">';
-        $html.='<h1 class="error-header">发生错误</h1>';
+        $debug_mode=Config::get('app.debug',false);
+        // 预处理错误数据
+        $processed_errors=[];
         foreach(self::$errors as $index=>$error) {
-            $typeName=self::$errorTypes[$error['type']]??'Unknown Error';
-            $errorType=$error['is_fatal']?'致命错误':'常规错误';
-            // 禁用非调试模式下的文件显示和行号追踪
-            $error_info='';
-            if(Config::get('app.debug',false)) {
-                $error_info=<<<HTML
-                <div class="error-detail">
-                    <strong>错误文件:</strong> {$error['file']}
-                </div>
-                <div class="error-detail">
-                    <strong>错误行号:</strong> {$error['line']}
-                </div>
-                HTML;
-            } else {
-                $error['stack_trace']='堆栈跟踪信息已被隐藏-请在日志中查看或开启调试模式'
-                .PHP_EOL
-                .'如想开启调试模式,请在配置文件中配置 `app.debug` 为 `true`';
+            // 确定错误类型名称
+            $type_name=self::$errorTypes[$error['type']]??'Unknown Error';
+            // 确定错误类型标签
+            $error_type=$error['is_fatal']?'致命错误':'常规错误';
+            if($error['is_exception'])
+                $error_type='未捕获异常';
+            // 确定徽章类名
+            $badge_class='error-badge ';
+            if($error['is_fatal'])
+                $badge_class.='fatal-badge';
+            elseif ($error['type']===E_WARNING)
+                $badge_class.='warning-badge';
+            else
+                $badge_class.='notice-badge';
+            if ($error['is_exception'])
+                $badge_class.=' exception-badge';
+            // 处理堆栈跟踪
+            $stack_trace=$error['stack_trace']??'';
+            if (!$debug_mode&&!empty($stack_trace)) {
+                $stack_trace='堆栈跟踪信息已被隐藏-请在日志中查看或开启调试模式'.PHP_EOL.
+                    '如想开启调试模式,请在配置文件中配置 `app.debug` 为 `true`';
+            } elseif($debug_mode&&is_array($stack_trace)) {
+                $stack_trace=self::formatStackTrace($stack_trace);
             }
-            // 根据错误类型设置徽章
-            $badgeClass='error-badge ';
-            if($error['is_fatal']) {
-                $badgeClass.='fatal-badge';
-            } elseif($error['type']===E_WARNING) {
-                $badgeClass.='warning-badge';
-            } else {
-                $badgeClass.='notice-badge';
-            }
-            // 特殊样式标记异常
-            if($error['is_exception']) {
-                $badgeClass.=' exception-badge';
-                $errorType='未捕获异常';
-            }
-            $html.=<<<HTML
-            <div class="error-entry">
-                <h2>
-                    <span class="{$badgeClass}">{$errorType}</span>
-                    错误 #{$index} - {$typeName}
-                </h2>
-                <div class="error-detail">
-                    <strong>错误信息:</strong> {$error['message']}
-                </div>
-                {$error_info}
-            HTML;
-            if(!empty($error['stack_trace'])) {
-                $stackId="stack-{$index}";
-                $stackContent=is_array($error['stack_trace']) 
-                    ? self::formatStackTrace($error['stack_trace'])
-                    : htmlspecialchars($error['stack_trace']);
-                $html.=<<<HTML
-                <div class="stack-title">堆栈跟踪:</div>
-                <div class="toggle-stack" onclick="
-                    document.getElementById('{$stackId}').style.display='block';
-                    this.style.display='none';
-                ">
-                    <i class="toggle-icon">▼</i> 点击查看堆栈跟踪
-                </div>
-                <div id="{$stackId}" class="stack-trace" style="display:none">
-                {$stackContent}
-                </div>
-                HTML;
-            }
-            $html.='</div>';
+            // 添加到处理后的错误数组
+            $processed_errors[$index]=[
+                'type_name'=>$type_name,
+                'error_type'=>$error_type,
+                'badge_class'=>$badge_class,
+                'message'=>$error['message']??'',
+                'file'=>$error['file']??'',
+                'line'=>$error['line']??'',
+                'stack_trace'=>$stack_trace
+            ];
         }
-        $outputContent=null;
-        // 调试模式下显示请求模块输出内容
-        if(Config::get('app.debug',false))
-            $outputContent=Request::getOutput();
-        if($outputContent!==null&&$outputContent!=='') {
-            $html.='<div class="output-section">';
-            $html.='<h2 class="output-header">请求模块输出内容</h2>';
-            $html.='<div class="output-content">';
-            $html.=htmlspecialchars($outputContent);
-            $html.='</div>';
-            $html.='</div>';
-        }
-        $html.='</div>';
-        // 添加简单的JS功能
-        $html.=<<<HTML
-        <script>
-            // 自动展开所有堆栈跟踪的按钮
-            document.write('<div style="margin: 0 2rem 2rem; text-align: center">');
-            document.write('<button onclick="toggleAllStacks()" style="padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 4px; cursor: pointer">切换所有堆栈跟踪</button>');
-            document.write('</div>');
-            function toggleAllStacks() {
-                var allStacks=document.querySelectorAll('.stack-trace');
-                var allButtons=document.querySelectorAll('.toggle-stack');
-                if(allStacks.length>0) {
-                    var isVisible=allStacks[0].style.display==='block';
-                    allStacks.forEach(function(stack) {
-                        stack.style.display=isVisible?'none':'block';
-                    });
-                    allButtons.forEach(function(button) {
-                        button.style.display=isVisible?'inline-block':'none';
-                    });
-                }
+        // 准备模板数据
+        $template_data=[
+            'error_count'=>count(self::$errors),
+            'errors'=>$processed_errors,
+            'debug_mode'=>$debug_mode,
+            'output_content'=>null,
+        ];
+        // 在调试模式下添加输出内容
+        if($debug_mode) {
+            $output_content=Request::getOutput();
+            if($output_content!==null&&$output_content!=='') {
+                $template_data['output_content']=htmlspecialchars($output_content);
             }
-        </script>
-        HTML;
-        $html.='</body></html>';
-        // 返回完整的HTML内容
-        return $html;
+        }
+        // 使用模板引擎渲染
+        try {
+            /**@var View */
+            $view=App::get(View::class);
+            // 设置模板路径
+            $template_path=Config::get('app.error_template',null);
+            if($template_path==null||!is_file($template_path))
+                $view->initWithContent(self::getDefaultErrorTemplate(),$template_data);
+            else
+                $view->init($template_path,$template_data);
+            return $view->render();
+        } catch(Exception $e) {
+            // 如果模板渲染失败，回退到简单错误显示
+            return '<h1>发生错误</h1><p>' . htmlspecialchars($e->getMessage()).'</p>';
+        }
     }
 
     /**
-     * 格式化堆栈跟踪用于HTML显示
+     * 格式化堆栈跟踪信息
      * 
      * @access private
-     * @param array $trace
-     * @return string
+     * @param array $stack_trace 堆栈跟踪数组
+     * @return string 格式化后的HTML
      */
-    private static function formatStackTrace(array $trace): string {
-        $formatted='';
-        $index=0;
-        foreach($trace as $frame) {
-            $file=$frame['file']??'[internal function]';
-            $line=$frame['line']??'';
+    private static function formatStackTrace(array $stack_trace): string {
+        $html='<table class="stack-table">';
+        $html.='<tr><th>#</th><th>文件</th><th>行号</th><th>函数/方法</th></tr>';
+        foreach($stack_trace as $index=>$frame) {
+            $file=$frame['file']??'[内部函数]';
+            $line=$frame['line']??'N/A';
             $function=$frame['function']??'';
             $class=$frame['class']??'';
             $type=$frame['type']??'';
-            $args='';
-            // 格式化参数(如果可用)
-            if(isset($frame['args'])&&is_array($frame['args'])) {
-                $args=array_map(function($arg) {
-                    if(is_object($arg)) {
-                        return get_class($arg).' object';
-                    } elseif(is_array($arg)) {
-                        return 'array('.count($arg).')';
-                    } elseif(is_string($arg)) {
-                        return "'".(strlen($arg)>20?substr($arg,0,20).'...':$arg)."'";
-                    } elseif(is_scalar($arg)) {
-                        return var_export($arg,true);
-                    }
-                    return gettype($arg);
-                },$frame['args']);
-                $args=implode(',',$args);
-            }
-            $formatted.="#{$index} ";
-            if($class) {
-                $formatted.="{$class}{$type}{$function}({$args})";
-            } else {
-                $formatted.="{$function}({$args})";
-            }
-            $formatted.="\n    at {$file}";
-            if($line) {
-                $formatted.="({$line})";
-            }
-            $formatted.="\n\n";
-            $index++;
+            $html.=sprintf(
+                '<tr><td>%d</td><td>%s</td><td>%s</td><td>%s%s%s()</td></tr>',
+                $index+1,
+                htmlspecialchars($file),
+                htmlspecialchars($line),
+                htmlspecialchars($class),
+                htmlspecialchars($type),
+                htmlspecialchars($function)
+            );
         }
-        return nl2br(htmlspecialchars($formatted));
+        $html.='</table>';
+        return $html;
     }
 
     /**
@@ -439,6 +375,29 @@ final class Error {
         }
         return $formatted;
     }
+
+    /**
+     * 安全降级,获取内置渲染模板
+     * 
+     * @access public
+     * @return string
+     */
+    public static function getDefaultErrorTemplate(): string {
+        // 返回一个简单的HTML模板
+        return <<<HTML
+            {{foreach errors as index=>error}}
+            <!-- 垂直排列 -->
+            <div style="display:flex; flex-direction:column;margin-bottom:16px;">
+                <strong>发生错误</strong> {{error.message}}
+                {{if debug_mode}}
+                <strong>错误文件</strong> {{error.file}}
+                <strong>错误行号</strong> {{error.line}}
+                {{/if}}
+            </div>
+            {{/foreach}}
+        HTML;
+    }
+    
 
     /**
      * 设置框架初始化状态

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <link rel="stylesheet" href="/css/error.css" />
+  </head>
+  <body>
+    <div class="mobile-only error-summary">
+        <p><strong>共发现 {{error_count}} 个错误</strong></p>
+        <p>点击下方错误条目查看详情</p>
+    </div>
+    <div class="error-container">
+        <h1 class="error-header">发生错误或警告</h1>
+        {{foreach errors as index=>error}}
+        <div class="error-entry">
+            <h2>
+                <span class="{{error.badge_class}}">{{error.error_type}}</span>
+                错误 #{{index}} - {{error.error_type}}
+            </h2>
+            <div class="error-detail">
+                <strong>错误信息:</strong> {{error.message}}
+            </div>
+            {{if debug_mode}}
+            <div class="error-detail">
+                <strong>错误文件:</strong> {{error.file}}
+            </div>
+            <div class="error-detail">
+                <strong>错误行号:</strong> {{error.line}}
+            </div>
+            {{/if}}
+            {{if error.stack_trace != ''}}
+            <div class="stack-title">堆栈跟踪:</div>
+            <div class="toggle-stack" onclick="
+                document.getElementById('stack-{{index}}').style.display='block';
+                this.style.display='none';
+            ">
+                <i class="toggle-icon">▼</i> 点击查看堆栈跟踪
+            </div>
+            <div id="stack-{{index}}" class="stack-trace" style="display:none">{{error.stack_trace}}</div>
+            {{/if}}
+        </div>
+        {{/foreach}}
+        {{if output_content != null}}
+        <div class="output-section">
+            <h2 class="output-header">请求模块输出内容</h2>
+            <div class="output-content">{{output_content}}</div>
+        </div>
+        {{/if}}
+    </div>
+    <script>
+      // 自动展开所有堆栈跟踪的按钮
+      document.write('<div style="margin: 0 2rem 2rem; text-align: center">');
+      document.write(
+        '<button onclick="toggleAllStacks()" style="padding: 8px 16px; background: #0d6efd; color: white; border: none; border-radius: 4px; cursor: pointer">切换所有堆栈跟踪</button>'
+      );
+      document.write("</div>");
+      function toggleAllStacks() {
+        var allStacks = document.querySelectorAll(".stack-trace");
+        var allButtons = document.querySelectorAll(".toggle-stack");
+        if (allStacks.length > 0) {
+          var isVisible = allStacks[0].style.display === "block";
+          allStacks.forEach(function (stack) {
+            stack.style.display = isVisible ? "none" : "block";
+          });
+          allButtons.forEach(function (button) {
+            button.style.display = isVisible ? "inline-block" : "none";
+          });
+        }
+      }
+    </script>
+  </body>
+</html>

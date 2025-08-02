@@ -1,4 +1,3 @@
-
 /* 基础样式 */
 .error-container {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -71,8 +70,8 @@
 
 /* 异常徽章 */
 .exception-badge {
-    background: #6f42c1;
-    color: white;
+  background: #6f42c1;
+  color: white;
 }
 
 /* 堆栈跟踪 */
@@ -222,4 +221,21 @@
 
 .error-summary strong {
   color: #d32f2f;
+}
+
+.stack-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.stack-table th,
+.stack-table td {
+  padding: 0.5rem;
+  border: 1px solid #dee2e6;
+  text-align: left;
+}
+
+.stack-table tr:nth-child(even) {
+  background-color: #f2f2f2;
 }

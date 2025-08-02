@@ -7,8 +7,8 @@
 <div class="foreach-support">
     <!-- 遍历支持一 -->
     <ul>
-        {{foreach $list1 as $value}}
-            <li>{{$value}}</li>
+        {{foreach $list1 as $key=>$value}}
+            <li>{{$key}} => {{$value}}</li>
         {{/foreach}}
     </ul>
     <!-- 遍历支持二 -->

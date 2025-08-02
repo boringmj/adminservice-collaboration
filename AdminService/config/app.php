@@ -15,6 +15,7 @@ use AdminService\DynamicProxy;
 // app 相关配置
 return array(
     'debug'=>false, // 是否开启调试模式
+    'error_template'=>__DIR__.'/../view/error.html', // 错误页面模板路径
     'path'=>__DIR__.'/../app', // app 目录
     'classes'=>array( // 需要初始化的类,这些类会自动绑定到容器中(这些类必须可以直接实例化,不需要传入构造函数参数)
         'Route'=>Route::class,

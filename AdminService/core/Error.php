@@ -274,7 +274,9 @@ final class Error {
                 </div>
                 HTML;
             } else {
-                $error['stack_trace']='堆栈跟踪信息已被隐藏-请在日志中查看或开启调试模式';
+                $error['stack_trace']='堆栈跟踪信息已被隐藏-请在日志中查看或开启调试模式'
+                .PHP_EOL
+                .'如想开启调试模式,请在配置文件中配置 `app.debug` 为 `true`';
             }
             // 根据错误类型设置徽章
             $badgeClass='error-badge ';

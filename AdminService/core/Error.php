@@ -28,6 +28,12 @@ final class Error {
     private static $normalExitCallback=null;
 
     /**
+     * 标记是否已经处理过错误
+     * @var bool
+     */
+    private static $handled=false;
+
+    /**
      * 错误类型映射
      * @var array
      */
@@ -58,10 +64,15 @@ final class Error {
      * @return void
      */
     public static function register(?callable $normalExitCallback=null,bool $initialized=false): void {
+        // 如果已经处理过错误，则不再注册
+        if(self::$handled)
+            return;
         self::$initialized=$initialized;
         self::$normalExitCallback=$normalExitCallback;
         // 注册错误处理器(非致命错误)
         set_error_handler(array(self::class,'handleError'),E_ALL);
+        // 注册异常处理器
+        set_exception_handler(array(self::class,'handleException'));
         // 注册shutdown函数(致命错误)
         register_shutdown_function(array(self::class,'handleShutdown'));
     }
@@ -77,6 +88,8 @@ final class Error {
      * @return bool
      */
     public static function handleError(int $type,string $message,string $file,int $line): bool {
+        // 清理错误消息(移除文件路径和行号)
+        $message=self::cleanErrorMessage($message);
         // 获取堆栈跟踪(忽略当前错误处理器这一层)
         $stackTrace=debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
         // 移除错误处理器自身的调用
@@ -87,10 +100,37 @@ final class Error {
             'file'=>$file,
             'line'=>$line,
             'is_fatal'=>false,
-            'stack_trace'=>$stackTrace
+            'stack_trace'=>$stackTrace,
+            'is_exception'=>false
         );
         // 阻止默认错误处理
         return true;
+    }
+
+    /**
+     * 异常处理器（未捕获的异常）
+     * 
+     * @access public
+     * @param \Throwable $exception
+     * @return void
+     */
+    public static function handleException(\Throwable $exception): void {
+        // 清理异常消息
+        $message=self::cleanErrorMessage($exception->getMessage());
+        // 将异常视为致命错误
+        self::$errors[]=array(
+            'type'=>E_ERROR,
+            'message'=>$message,
+            'file'=>$exception->getFile(),
+            'line'=>$exception->getLine(),
+            'is_fatal'=>true,
+            'stack_trace'=>$exception->getTrace(),
+            'is_exception'=>true
+        );
+        
+        // 直接处理并退出
+        self::handleShutdown();
+        exit();
     }
 
     /**
@@ -100,15 +140,18 @@ final class Error {
      * @return void
      */
     public static function handleShutdown(): void {
+        // 如果已经处理过错误,则直接退出
+        if(self::$handled) {
+            return;
+        }
         // 捕获致命错误
         $lastError=error_get_last();
         if($lastError&&in_array($lastError['type'],array(E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR))) {
             // 分离致命错误消息和堆栈跟踪
-            $message=$lastError['message'];
+            $message=self::cleanErrorMessage($lastError['message']);
             $stackTrace='';
-            // 尝试从消息中分离堆栈
-            if(strpos($message,'Stack trace:')!==false) {
-                list($message,$stackTrace)=explode('Stack trace:',$message,2);
+            if(strpos($lastError['message'],'Stack trace:')!==false) {
+                list(,$stackTrace)=explode('Stack trace:',$lastError['message'],2);
                 $stackTrace='Stack trace:'.$stackTrace;
             } else {
                 // 获取当前堆栈(忽略shutdown函数这一层)
@@ -122,7 +165,8 @@ final class Error {
                 'file'=>$lastError['file'],
                 'line'=>$lastError['line'],
                 'is_fatal'=>true,
-                'stack_trace'=>$stackTrace
+                'stack_trace'=>$stackTrace,
+                'is_exception'=>false
             );
         }
         // 如果没有错误则正常退出
@@ -132,6 +176,19 @@ final class Error {
             }
             exit();
         }
+        // 标记已处理
+        self::$handled=true;
+        // 渲染并退出
+        self::renderAndExit();
+    }
+
+    /**
+     * 渲染错误信息并退出
+     * 
+     * @access private
+     * @return void
+     */
+    private static function renderAndExit(): void {
         // 清除输出缓冲区
         while(ob_get_level()>0) {
             ob_end_clean();
@@ -148,7 +205,6 @@ final class Error {
                 foreach(self::$errors as $error) {
                     $errorType=self::$errorTypes[$error['type']]??'Unknown';
                     $logMessage="[{$errorType}] {message} in {file} on line {line}";
-                    
                     if(!empty($error['stack_trace'])) {
                         $stackTrace=is_array($error['stack_trace']) 
                             ? self::formatStackTraceForLog($error['stack_trace'])
@@ -169,136 +225,55 @@ final class Error {
     }
 
     /**
+     * 清理错误消息移除文件路径和行号
+     * 
+     * @access private
+     * @param string $message
+     * @return string
+     */
+    private static function cleanErrorMessage(string $message): string {
+        // 移除类似 "in /path/to/file:line" 的部分
+        if(preg_match('/^(.*?)( in .*?\.php on line \d+)$/',$message,$matches))
+            return $matches[1];
+        // 移除类似 "in /path/to/file(line)" 的部分
+        if(preg_match('/^(.*?)( in .*?\.php\(\d+\))$/',$message,$matches))
+            return $matches[1];
+        return $message;
+    }
+
+    /**
      * 渲染错误信息为HTML
      * 
      * @access private
      * @return string
      */
     private static function renderErrors(): string {
-        $html='<style>
-            .error-container { 
-                font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; 
-                margin: 2rem; 
-                color: #333;
-                line-height: 1.6;
-            }
-            .error-header {
-                background: #dc3545;
-                color: white;
-                padding: 1rem;
-                border-radius: 5px 5px 0 0;
-                margin-bottom: 0;
-            }
-            .error-entry { 
-                padding: 1.5rem; 
-                margin-bottom: 1.5rem;
-                background: #f8f9fa;
-                border-left: 4px solid #dc3545;
-                border-radius: 0 0 5px 5px;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            }
-            .error-entry h2 {
-                margin-top: 0;
-                color: #dc3545;
-                border-bottom: 1px solid #eee;
-                padding-bottom: 0.5rem;
-            }
-            .error-detail {
-                margin-bottom: 0.5rem;
-            }
-            .error-detail strong {
-                display: inline-block;
-                width: 100px;
-                color: #6c757d;
-            }
-            .stack-trace {
-                background: #e9ecef;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                padding: 15px;
-                margin-top: 15px;
-                font-family: "SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
-                font-size: 14px;
-                max-height: 300px;
-                overflow: auto;
-                white-space: pre-wrap;
-                line-height: 1.4;
-            }
-            .stack-title {
-                font-weight: bold;
-                margin-bottom: 10px;
-                color: #495057;
-                font-size: 16px;
-            }
-            .toggle-stack {
-                cursor: pointer;
-                color: #0d6efd;
-                font-size: 14px;
-                margin-top: 10px;
-                display: inline-block;
-                padding: 5px 10px;
-                background: #e7f1ff;
-                border-radius: 4px;
-                transition: all 0.2s;
-            }
-            .toggle-stack:hover {
-                background: #d0e2ff;
-            }
-            .error-badge {
-                display: inline-block;
-                padding: 3px 8px;
-                border-radius: 4px;
-                font-size: 12px;
-                font-weight: bold;
-                margin-right: 8px;
-            }
-            .fatal-badge {
-                background: #dc3545;
-                color: white;
-            }
-            .warning-badge {
-                background: #ffc107;
-                color: #212529;
-            }
-            .notice-badge {
-                background: #0dcaf0;
-                color: #212529;
-            }
-            .output-section {
-                margin-top: 2rem;
-                padding: 1.5rem;
-                background: #e9f7ef;
-                border-left: 4px solid #28a745;
-                border-radius: 5px;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            }
-            .output-header {
-                margin-top: 0;
-                color: #28a745;
-                border-bottom: 1px solid #c3e6cb;
-                padding-bottom: 0.5rem;
-            }
-            .output-content {
-                padding: 15px;
-                background: white;
-                border: 1px solid #c3e6cb;
-                border-radius: 4px;
-                font-family: monospace;
-                white-space: pre-wrap;
-                max-height: 300px;
-                overflow: auto;
-                margin-top: 10px;
-            }
-        </style>';
+        $html='<!DOCTYPE html><html lang="zh-CN"><head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1.0">
+        <link rel="stylesheet" href="/css/error.css">
+        </head><body>';
+        $html.='<div class="mobile-only error-summary">';
+        $html.='<p><strong>共发现 ' . count(self::$errors).' 个错误</strong></p>';
+        $html.='<p>点击下方错误条目查看详情</p>';
+        $html.='</div>';
         $html.='<div class="error-container">';
         $html.='<h1 class="error-header">发生错误</h1>';
         foreach(self::$errors as $index=>$error) {
             $typeName=self::$errorTypes[$error['type']]??'Unknown Error';
-            $errorType=$error['is_fatal'] ? '致命错误' : '常规错误';
+            $errorType=$error['is_fatal']?'致命错误':'常规错误';
             // 禁用非调试模式下的文件显示和行号追踪
-            if(!Config::get('app.debug',false)) {
-                $error['file']='文件信息已被隐藏';
-                $error['line']='行号信息已被隐藏';
+            $error_info='';
+            if(Config::get('app.debug',false)) {
+                $error_info=<<<HTML
+                <div class="error-detail">
+                    <strong>错误文件:</strong> {$error['file']}
+                </div>
+                <div class="error-detail">
+                    <strong>错误行号:</strong> {$error['line']}
+                </div>
+                HTML;
+            } else {
                 $error['stack_trace']='堆栈跟踪信息已被隐藏-请在日志中查看或开启调试模式';
             }
             // 根据错误类型设置徽章
@@ -310,6 +285,11 @@ final class Error {
             } else {
                 $badgeClass.='notice-badge';
             }
+            // 特殊样式标记异常
+            if($error['is_exception']) {
+                $badgeClass.=' exception-badge';
+                $errorType='未捕获异常';
+            }
             $html.=<<<HTML
             <div class="error-entry">
                 <h2>
@@ -319,12 +299,7 @@ final class Error {
                 <div class="error-detail">
                     <strong>错误信息:</strong> {$error['message']}
                 </div>
-                <div class="error-detail">
-                    <strong>错误文件:</strong> {$error['file']}
-                </div>
-                <div class="error-detail">
-                    <strong>错误行号:</strong> {$error['line']}
-                </div>
+                {$error_info}
             HTML;
             if(!empty($error['stack_trace'])) {
                 $stackId="stack-{$index}";
@@ -346,10 +321,13 @@ final class Error {
             }
             $html.='</div>';
         }
-        $outputContent=Request::getOutput();
-        if ($outputContent!==null&&$outputContent!=='') {
+        $outputContent=null;
+        // 调试模式下显示请求模块输出内容
+        if(Config::get('app.debug',false))
+            $outputContent=Request::getOutput();
+        if($outputContent!==null&&$outputContent!=='') {
             $html.='<div class="output-section">';
-            $html.='<h2 class="output-header">应用准备输出的内容</h2>';
+            $html.='<h2 class="output-header">请求模块输出内容</h2>';
             $html.='<div class="output-content">';
             $html.=htmlspecialchars($outputContent);
             $html.='</div>';
@@ -378,6 +356,8 @@ final class Error {
             }
         </script>
         HTML;
+        $html.='</body></html>';
+        // 返回完整的HTML内容
         return $html;
     }
 
@@ -467,6 +447,16 @@ final class Error {
      */
     public static function setInitialized(bool $initialized): void {
         self::$initialized=$initialized;
+    }
+
+    /**
+     * 获取收集到的错误
+     * 
+     * @access public
+     * @return array
+     */
+    public static function getErrors(): array {
+        return self::$errors;
     }
 
 }

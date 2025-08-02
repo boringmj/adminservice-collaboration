@@ -299,10 +299,13 @@ final class Request extends BaseRequest {
      * @access public
      * @param string $name 名称
      * @param string $value 值
-     * @return void
+     * @return bool
      */
-    final static public function setHeader(string $name,string $value): void {
+    final static public function setHeader(string $name,string $value): bool {
+        if(headers_sent())
+            return false;
         header($name.': '.$value);
+        return true;
     }
 
 }

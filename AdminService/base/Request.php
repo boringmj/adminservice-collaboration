@@ -59,9 +59,9 @@ abstract class Request {
      * @access public
      * @param string $name 名称
      * @param string $value 值
-     * @return void
+     * @return bool
      */
-    abstract static public function setHeader(string $name,string $value): void;
+    abstract static public function setHeader(string $name,string $value): bool;
 
     /**
      * 设置或获取COOKIE请求参数(设置Cookie时Cookie将会在本次以及后续请求中生效)

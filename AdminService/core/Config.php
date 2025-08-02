@@ -68,6 +68,15 @@ final class Config {
                         $config[$n]=array();
                     $config=&$config[$n];
                 }
+                // 获取原始值的类型
+                $type=gettype($config);
+                // 如果原始值是布尔则将字符串`false`,`null`和`0`转为布尔,其他转为true
+                if($type==='boolean') {
+                    if(strtolower($value)==='false'||strtolower($value)==='null'||$value==='0')
+                        $value=false;
+                    else
+                        $value=true;
+                }
                 $config=$value;
             }
         }

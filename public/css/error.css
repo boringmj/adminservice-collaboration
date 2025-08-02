@@ -1,0 +1,225 @@
+
+/* 基础样式 */
+.error-container {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  margin: 1rem;
+  color: #333;
+  line-height: 1.6;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* 响应式布局 - 移动设备优先 */
+@media (min-width: 768px) {
+  .error-container {
+    margin: 2rem;
+    max-width: 90%;
+  }
+}
+
+@media (min-width: 992px) {
+  .error-container {
+    max-width: 1200px;
+    margin: 2rem auto;
+  }
+}
+
+/* 错误头部 */
+.error-header {
+  background: #dc3545;
+  color: white;
+  padding: 1rem;
+  border-radius: 5px;
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+}
+
+/* 错误条目 */
+.error-entry {
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  background: #f8f9fa;
+  border-left: 4px solid #dc3545;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  word-break: break-word;
+}
+
+/* 错误标题 */
+.error-entry h2 {
+  margin-top: 0;
+  color: #dc3545;
+  padding-bottom: 0.5rem;
+  font-size: 1.1rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+/* 错误详情 */
+.error-detail {
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+  word-break: break-word;
+}
+
+.error-detail strong {
+  display: block;
+  color: #6c757d;
+  margin-bottom: 0.2rem;
+  font-weight: 600;
+}
+
+/* 异常徽章 */
+.exception-badge {
+    background: #6f42c1;
+    color: white;
+}
+
+/* 堆栈跟踪 */
+.stack-trace {
+  background: #e9ecef;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  padding: 10px;
+  margin-top: 10px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+  max-height: 300px;
+  overflow: auto;
+  white-space: pre-wrap;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.stack-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #495057;
+  font-size: 14px;
+}
+
+/* 堆栈切换按钮 */
+.toggle-stack {
+  cursor: pointer;
+  color: #0d6efd;
+  font-size: 14px;
+  margin-top: 8px;
+  display: block;
+  padding: 8px 12px;
+  background: #e7f1ff;
+  border-radius: 4px;
+  transition: all 0.2s;
+  text-align: center;
+  user-select: none;
+}
+
+.toggle-stack:hover {
+  background: #d0e2ff;
+}
+
+/* 错误徽章 */
+.error-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  margin-right: 8px;
+  margin-bottom: 5px;
+}
+
+.fatal-badge {
+  background: #dc3545;
+  color: white;
+}
+
+.warning-badge {
+  background: #ffc107;
+  color: #212529;
+}
+
+.notice-badge {
+  background: #0dcaf0;
+  color: #212529;
+}
+
+/* 输出内容区域 */
+.output-section {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: #e9f7ef;
+  border-left: 4px solid #28a745;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.output-header {
+  margin-top: 0;
+  color: #28a745;
+  padding-bottom: 0.5rem;
+  font-size: 1.1rem;
+  border-bottom: 1px solid #c3e6cb;
+}
+
+.output-content {
+  padding: 10px;
+  background: white;
+  border: 1px solid #c3e6cb;
+  border-radius: 4px;
+  font-family: monospace;
+  white-space: pre-wrap;
+  max-height: 300px;
+  overflow: auto;
+  margin-top: 10px;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+/* 移动端特定优化 */
+.mobile-only {
+  display: block;
+}
+
+.desktop-only {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .mobile-only {
+    display: none;
+  }
+
+  .desktop-only {
+    display: block;
+  }
+}
+
+/* 触摸友好的按钮 */
+.action-button {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  background: #0d6efd;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  margin: 10px 0;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* 错误摘要栏 */
+.error-summary {
+  background: #fff8e1;
+  border-left: 4px solid #ffc107;
+  padding: 10px;
+  margin-bottom: 15px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.error-summary strong {
+  color: #d32f2f;
+}

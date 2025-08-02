@@ -61,10 +61,10 @@ abstract class Controller {
      * @access protected
      * @param string $name 名称
      * @param string $value 值
-     * @return void
+     * @return bool
      */
-    final protected function header(string $name,string $value): void {
-        $this->request::setHeader($name,$value);
+    final protected function header(string $name,string $value): bool {
+        return $this->request::setHeader($name,$value);
     }
 
     /**

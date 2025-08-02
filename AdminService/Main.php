@@ -23,7 +23,6 @@ final class Main {
         date_default_timezone_set('PRC');
         // 注册错误处理
         Error::register([Request::class,'requestEcho'],false);
-        // register_shutdown_function($this->end());
         // 加载配置文件
         Config::load();
         // 加载函数库
@@ -63,13 +62,8 @@ final class Main {
      * @throws Exception|ReflectionException
      */
     public function run(): void {
-        try {
-            // 路由
-            $route=App::get('Route');
-            Request::requestExit($route->run());
-        } catch(Exception $e) {
-            Request::requestExit($e->getMessage());
-        }
+        $route=App::get('Route');
+        Request::requestExit($route->run());
     }
 
 }

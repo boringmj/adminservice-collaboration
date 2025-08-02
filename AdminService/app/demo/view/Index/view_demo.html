@@ -1,0 +1,56 @@
+<!-- 变量绑定 -->
+<div class="variable-binding">
+    Hi {{name}}, this is view demo.
+</div>
+
+<!-- 遍历支持 -->
+<div class="foreach-support">
+    <!-- 遍历支持一 -->
+    <ul>
+        {{foreach $list1 as $value}}
+            <li>{{$value}}</li>
+        {{/foreach}}
+    </ul>
+    <!-- 遍历支持二 -->
+    <ul>
+        {{foreach $list2 as $value}}
+            <!-- 同样支持旧语法 -->
+            <li>{{$value.data.value}} => {{value["data"]['name']}}</li>
+        {{/foreach}}
+    </ul>
+</div>
+
+<!-- 条件判断 -->
+<div class="condition-support">
+    <!-- 条件判断一 -->
+    {{if $condition1}}
+        <p style="color: green;">Condition1 is true.</p>
+    {{else}}
+        <p style="color: red;">Condition1 is false.</p>
+    {{/if}}
+
+    <!-- 条件判断二 -->
+    {{if $condition2 < 5}}
+        <p style="color: green;">Condition2({{$condition2}}) is less than 5.</p>
+    {{else}}
+        <p style="color: red;">Condition2({{$condition2}}) is 5 or more.</p>
+    {{/if}}
+</div>
+
+<!-- 综合示例 -->
+<div class="comprehensive-example">
+    <h2>Comprehensive Example</h2>
+    <p>count: {{count.value}}</p>
+    {{if count.value > count.condition}}
+        <p>Count is </span><span style="color: green;"> greater </span> than condition.</p>
+    {{else}}
+        <p>Count is <span style="color: red;"> not greater </span> than condition.</p>
+    {{/if}}
+    <ul>
+        {{foreach demo.list as value}}
+            {{if $value == 5}}
+                <li>Value: {{$value}}</li>
+            {{/if}}
+        {{/foreach}}
+    </ul>
+</div>

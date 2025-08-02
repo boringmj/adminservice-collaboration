@@ -46,31 +46,48 @@ class Index extends Controller {
         ));
     }
 
-    public function test(): string {
+    public function view_demo(): string {
         // 返回视图,默认视图路径为 AdminService/app/demo/view/控制器名/方法名.html
+        // 也可以直接传入视图名称 (不带后缀名),此时会在默认视图路径下查找
         return $this->view(array(
-            'name'=>$this->param('name','AdminService')
+            'name'=>'AdminService',
+            'list1'=>array(
+                'list1.demo1','list1.demo2'
+            ),
+            'list2'=>array(
+                array(
+                    'data'=>array(
+                        'value'=>'list2.demo1',
+                        'name'=>'name1'
+                    )
+                ),
+                array(
+                    'data'=>array(
+                        'value'=>'list2.demo2',
+                        'name'=>'name2'
+                    )
+                )
+            ),
+            'condition1'=>true,
+            'condition2'=>3,
+            'count'=>array(
+                'value'=>App::get(Count::class)->add(),
+                'condition'=>5
+            ),
+            'demo'=>array(
+                'list'=>array(1,2,3,4,5,6,7,8,9,10)
+            )
         ));
     }
 
     public function validator(FormValidator $validator,$name='AdminService'): array {
-            // 可以通过在路由参数中传入不同的name参数来触发验证
-            if($validator->validate(['name'=>$name],[
-                'name'=>'required|min_length:6|max_length:15|regex:/^[a-zA-Z]+$/'
-            ])) {
-                return json(null,null,$name);
-            }
-            return json(null,null,$validator->errors());
+        // 可以通过在路由参数中传入不同的name参数来触发验证
+        if($validator->validate(['name'=>$name],[
+            'name'=>'required|min_length:6|max_length:15|regex:/^[a-zA-Z]+$/'
+        ])) {
+            return json(null,null,$name);
         }
-
-    public function count(): string {
-        // 这里展示通过App::get()来实例化类,支持自动依赖注入(因为传入了构造参数,所以不会放入容器中)
-        // $count=App::get(Count::class,null); // 第二个参数实际传给Count构造方法的参数
-        // 下面这种写法不会将没有构造参数的类放入容器中,且同样支持自动依赖注入
-        $count=App::new(Count::class);
-        return view('count',array(
-            'count'=>$count->add()
-        ));
+        return json(null,null,$validator->errors());
     }
 
     public function sql(SystemInfo $systemInfo): array {
@@ -112,24 +129,6 @@ class Index extends Controller {
         return App::exec_function('AdminService\common\json',array(
             "msg"=>"Hello World!", // 指定参数名
             200, // 顺位参数(指定参数不占用顺位参数位置)
-        ));
-    }
-
-    public function foreach_view(): string {
-        // 这里展示视图中的foreach语法,目前只支持两种遍历形式:一维索引数组和二维关联数组
-        return $this->view('foreach',array(
-            'name'=>'AdminService',
-            'list1'=>array(
-                'list1.demo1','list1.demo2'
-            ),
-            'list2'=>array(
-                array(
-                    'value'=>'list2.demo1'
-                ),
-                array(
-                    'value'=>'list2.demo2'
-                )
-            )
         ));
     }
 

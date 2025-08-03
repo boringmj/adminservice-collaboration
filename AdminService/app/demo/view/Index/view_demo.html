@@ -37,6 +37,21 @@
     {{/if}}
 </div>
 
+<!--
+    if 支持的运算符及优先级
+    $ops=[
+        '!'=>4,
+        '=='=>3,'!='=>3,'<='=>3,'>='=>3,'<'=>3,'>'=>3,
+        '&&'=>2,
+        '||'=>1,
+        '('=>0,')'=>0
+    ];
+    此外支持使用使用`()`包裹表达式
+
+    * 变量名开头的`$`符号不是必须的
+    * 多级变量可以使用`value.value1`或者`value['value1']`的形式
+-->
+
 <!-- 综合示例 -->
 <div class="comprehensive-example">
     <h2>Comprehensive Example</h2>
@@ -48,8 +63,16 @@
     {{/if}}
     <ul>
         {{foreach demo.list as value}}
-            {{if $value == 5}}
-                <li>Value: {{$value}}</li>
+            <!-- 这里展示嵌套if-else -->
+            {{if value <= 5}}
+                <!-- 这里展示稍微复杂的表达式支持 -->
+                {{if (value == 3) || (value == 5)}}
+                    <li style="color: green;">{{$value}}</li>
+                {{else}}
+                    <li style="color: red;">{{$value}}</li>
+                {{/if}}
+            {{else}}
+                <li style="color: black;">{{$value}}</li>
             {{/if}}
         {{/foreach}}
     </ul>

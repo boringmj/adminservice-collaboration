@@ -436,10 +436,6 @@ class FormValidator extends BaseValidator {
     }
 
     protected function validateSensitive(string $field,$_,$param): bool {
-        if($param===true||$param==='true'||$param==null)
-            $param='hide';
-        if(is_array($param))
-            $param=isset($param[0])?$param[0]:$param[count($param)-1];
         return $this->addSensitiveField($field,$param);
     }
 

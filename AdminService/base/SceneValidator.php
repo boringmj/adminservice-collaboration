@@ -64,7 +64,8 @@ abstract class SceneValidator extends Validator {
         $this->rules=array_merge($this->rules,$rules);
         $this->errors=[];
         $rulesToApply=$this->getSceneRules();
-        return $this->doValidate($this->data,$rulesToApply);
+        // 验证并重置场景
+        return $this->scene()->doValidate($this->data,$rulesToApply);
     }
 
     /**

@@ -2,16 +2,16 @@
 
 namespace AdminService;
 
-use base\Validator as BaseValidator;
+use base\SceneValidator;
 
 /**
  * 表单验证器类
  * 
  * @access public
  * @package AdminService
- * @version 1.0.0
+ * @version 1.0.2
  */
-class FormValidator extends BaseValidator {
+class FormValidator extends SceneValidator {
 
     /**
      * 待脱敏数据字段
@@ -128,10 +128,12 @@ class FormValidator extends BaseValidator {
      * @param string $field 字段名
      * @param string $rule 规则名
      * @param mixed $param 规则参数
-     * @return bool
+     * @param ?string $template 错误模板
+     * @return false
      */
-    protected function addError(string $field,string $rule,mixed $param=null): bool {
-        $template=$this->messages[$rule]??'{field}验证失败';
+    protected function addError(string $field,string $rule,mixed $param=null,?string $template=null): bool {
+        if($template===null)
+            $template=$this->messages[$rule]??'{field}验证失败';
         $context=[
             'field'=>$field,
             'param'=>$param,

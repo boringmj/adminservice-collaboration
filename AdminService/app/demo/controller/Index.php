@@ -83,7 +83,11 @@ class Index extends Controller {
 
     public function validator(TestValidator $validator,$name='AdminService'): array {
         // 可以通过在路由参数中传入不同的name参数来触发验证
-        if($validator->validate([
+        $scene='all'; // 场景,具体查看`TestValidator`中定义的场景
+        // 这里演示使用`scene()`方法启用场景支持,如果不使用则不自动使用全部规则验证
+        // 场景需要自己定义,具体请查看`TestValidator`类的示例
+        // 如果指定了一个不存在的场景视为不使用规则集验证(默认通过验证)
+        if($validator->scene($scene)->validate([
             'name'=>$name,
             'pass'=>'Pass',
             'int'=>6,

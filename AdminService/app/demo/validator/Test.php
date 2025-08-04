@@ -44,15 +44,45 @@ class Test extends FormValidator {
     /**
      * 验证规则集
      * 
-     * @abstract
      * @return array
      */
     public function rules(): array {
         return [
             'name'=>'required|min_length:6|max_length:15|regex:/^[a-zA-Z]+$/',
             'pass'=>'same:name|regex:/^.{6,32}$/|sensitive:replace',
-            'int'=>'in:1,2,3',
+            'int'=>'in:1,2,3|is_value:1',
         ];
+    }
+
+    /**
+     * 所有场景字段映射
+     * 
+     * @return array
+     */
+    protected function scenes(): array {
+        return [
+            'all'=>[ // all场景,验证所有字段
+                'name',
+                'pass',
+                'int'
+            ],
+            'name'=>[ // name场景,仅验证name字段
+                'name'
+            ]
+        ];
+    }
+    
+    /**
+     * 展示自定义规则
+     * 
+     * @param string $field 字段名称
+     * @param mixed $value 字段值
+     * @param mixed $param 验证参数
+     */
+    public function validateIsValue(string $field,$value,$param) {
+        if($value!=$param)
+            return $this->addError($field,'is_value',$param,'{field}的值必须等于{param}');
+        return true;
     }
 
 }

@@ -9,11 +9,12 @@ use AdminService\App;
 use AdminService\Log;
 use AdminService\Config;
 use AdminService\Exception;
-use AdminService\FormValidator;
 // 模型
 use app\demo\model\Sql;
 use app\demo\model\Count;
 use app\demo\model\SystemInfo;
+// 过滤器
+use app\demo\validator\Test as TestValidator;
 // 公共类
 use AdminService\common\HttpHelper;
 
@@ -49,7 +50,7 @@ class Index extends Controller {
     public function view_demo(): string {
         // 返回视图,默认视图路径为 AdminService/app/demo/view/控制器名/方法名.html
         // 也可以直接传入视图名称 (不带后缀名),此时会在默认视图路径下查找
-        return $this->view(array(
+        return view(array(
             'name'=>'AdminService',
             'list1'=>array(
                 'list1.demo1','list1.demo2'
@@ -80,14 +81,16 @@ class Index extends Controller {
         ));
     }
 
-    public function validator(FormValidator $validator,$name='AdminService'): array {
+    public function validator(TestValidator $validator,$name='AdminService'): array {
         // 可以通过在路由参数中传入不同的name参数来触发验证
-        if($validator->validate(['name'=>$name],[
-            'name'=>'required|min_length:6|max_length:15|regex:/^[a-zA-Z]+$/'
+        if($validator->validate([
+            'name'=>$name,
+            'pass'=>'Pass',
+            'int'=>6,
         ])) {
             return json(null,null,$name);
         }
-        return json(null,null,$validator->errors());
+        return json(null,null,$validator->errors(false,true));
     }
 
     public function sql(SystemInfo $systemInfo): array {

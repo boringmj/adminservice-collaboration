@@ -14,6 +14,24 @@ use base\Validator as BaseValidator;
 class FormValidator extends BaseValidator {
 
     /**
+     * 待脱敏数据字段
+     * @var array
+     */
+    protected array $sanitize_field=[];
+
+    /**
+     * 支持的脱敏方式
+     * @var array
+     */
+    protected array $sensitive_patterns=[
+        'only_first',
+        'only_last',
+        'hide',
+        'replace',
+        'hint'
+    ];
+
+    /**
      * 验证规则对应的错误消息模板
      * @var array
      */
@@ -41,6 +59,7 @@ class FormValidator extends BaseValidator {
         'phone'         => '{field}必须是有效的手机号',
         'json'          => '{field}必须是有效的JSON字符串',
         'array'         => '{field}必须是数组',
+        'sensitive'     => '', // 脱敏标记
     ];
 
     /**
@@ -60,6 +79,8 @@ class FormValidator extends BaseValidator {
         // 处理未知规则
         $this->error($field,[
             'rule'=>$rule,
+            'param'=>$param,
+            'value'=>$this->data[$field]??null,
             'msg'=>"验证规则 '{$rule}' 不存在"
         ]);
         return false;
@@ -123,9 +144,77 @@ class FormValidator extends BaseValidator {
         $message=$this->replacePlaceholders($template,$context);
         $this->error($field,[
             'rule'=>$rule,
+            'param'=>$param,
+            'value'=>$this->data[$field]??null,
             'msg'=>$message
         ]);
         return false;
+    }
+
+    /**
+     * 脱敏数据
+     * 
+     * @param array $data 待脱敏的数据
+     * @return array
+     */
+    public function sanitize(array $data): array {
+        foreach($data as $field=>&$items) {
+            // 检查字段是否需要脱敏
+            if(!isset($this->sanitize_field[$field]))
+                continue;
+            // 获取脱敏方式(默认为 hide)
+            $pattern=$this->sanitize_field[$field];
+            if(!in_array($pattern,$this->sensitive_patterns,true))
+                $pattern='hide';
+            // 处理每个条目
+            foreach($items as &$item) {
+                if(isset($item['value']))
+                    $item['value']=$this->applySanitization($item['value'],$pattern);
+            }
+        }
+        return $data;
+    }
+    
+    /**
+     * 添加待脱敏数据字段(覆盖原则)
+     * 
+     * @param string $field 字段名
+     * @param ?string $pattern 脱敏方式
+     * @return bool
+     */
+    public function addSensitiveField(string $field,?string $pattern=null): bool {
+        $this->sanitize_field[$field]=$pattern??'hide';
+        return true;
+    }
+    
+    /**
+     * 应用脱敏规则
+     * 
+     * @param mixed $value 原始值
+     * @param string $pattern 脱敏方式
+     * @return string 脱敏后的值
+     */
+    protected function applySanitization($value,string $pattern): string {
+        // 非字符串值转为字符串
+        $strValue=is_scalar($value)?(string)$value:'';
+        $length=$this->stringLength($strValue);
+        // 空值直接返回
+        if($length===0)
+            return '';
+        // 应用脱敏规则
+        switch($pattern) {
+            case 'only_first':
+                return $length===1?'*':mb_substr($strValue,0,1).str_repeat('*',$length-1);
+            case 'only_last':
+                return $length===1?'*':str_repeat('*',$length-1).mb_substr($strValue,-1);
+            case 'replace':
+                return str_repeat('*',$length);
+            case 'hint':
+                return '**已脱敏**';
+            case 'hide':
+            default:
+                return '***';
+        }
     }
 
     /**
@@ -138,7 +227,7 @@ class FormValidator extends BaseValidator {
         // 判断是否支持mbstring函数
         if(function_exists('mb_strlen'))
             return mb_strlen($value);
-        // 检查是否为有效的 UTF-8 字符串（正则方式）
+        // 检查是否为有效的 UTF-8 字符串(正则方式)
         if(!preg_match('//u',$value))
             throw new Exception('The given string is not valid UTF-8.');
         // 使用正则统计字符数量
@@ -345,4 +434,13 @@ class FormValidator extends BaseValidator {
         }
         return true;
     }
+
+    protected function validateSensitive(string $field,$_,$param): bool {
+        if($param===true||$param==='true'||$param==null)
+            $param='hide';
+        if(is_array($param))
+            $param=isset($param[0])?$param[0]:$param[count($param)-1];
+        return $this->addSensitiveField($field,$param);
+    }
+
 }

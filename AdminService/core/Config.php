@@ -21,7 +21,6 @@ final class Config {
     final public function __construct(array $configs=array()) {
         if(!empty($configs))
             self::set($configs);
-        return $this;
     }
 
     /**

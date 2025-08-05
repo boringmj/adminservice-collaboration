@@ -298,7 +298,7 @@ final class Error {
         if($debug_mode) {
             $output_content=Request::getOutput();
             if($output_content!==null&&$output_content!=='') {
-                $template_data['output_content']=htmlspecialchars($output_content);
+                $template_data['output_content']=$output_content;
             }
         }
         // 使用模板引擎渲染
@@ -337,11 +337,11 @@ final class Error {
             $html.=sprintf(
                 '<tr><td>%d</td><td>%s</td><td>%s</td><td>%s%s%s()</td></tr>',
                 $index+1,
-                htmlspecialchars($file),
-                htmlspecialchars($line),
-                htmlspecialchars($class),
-                htmlspecialchars($type),
-                htmlspecialchars($function)
+                $file,
+                $line,
+                $class,
+                $type,
+                $function
             );
         }
         $html.='</table>';

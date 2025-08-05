@@ -37,9 +37,10 @@ final class App extends Container {
      * 这种情况请先使用App::set(Class::class,new Class())添加到容器中
      *
      * @access public
-     * @param string $__name 对象名
+     * @template T of object
+     * @param class-string<T> $__name 对象名（类名）
      * @param mixed ...$args 构造函数参数($args中不允许传入“__name”参数)
-     * @return object
+     * @return T 返回指定类的实例
      * @throws Exception|ReflectionException
      */
     static public function get(string $__name,...$args): object {
@@ -231,9 +232,10 @@ final class App extends Container {
      * 生成一个类的代理实例
      *
      * @access public
-     * @param string $name 类名
+     * @template T of object
+     * @param class-string<T> $name 类名
      * @param array $args 构造函数参数
-     * @return DynamicProxy
+     * @return DynamicProxy<T>
      * @throws Exception
      */
     static public function proxy(string $name,array $args=array()): DynamicProxy {

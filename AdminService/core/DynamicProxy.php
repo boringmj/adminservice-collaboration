@@ -6,6 +6,8 @@ use \ReflectionException;
 
 /**
  * 动态代理类
+ * 
+ * @template T of object
  */
 class DynamicProxy {
 
@@ -17,7 +19,7 @@ class DynamicProxy {
 
     /**
      * 目标类对象
-     * @var object
+     * @var T
      */
     protected object $__target_object;
 
@@ -31,7 +33,7 @@ class DynamicProxy {
      * 构造函数
      *
      * @access public
-     * @param string $target 目标类名
+     * @param class-string<T> $target 目标类名
      * @param mixed ...$args 构造函数参数
      * @throws Exception
      */
@@ -105,7 +107,7 @@ class DynamicProxy {
      * 获取目标类对象
      *
      * @access protected
-     * @return object
+     * @return T
      * @throws Exception
      * @throws ReflectionException
      */
@@ -145,6 +147,19 @@ class DynamicProxy {
         if(!class_exists($__target))
             throw new Exception('Class "'.$__target.'" not found.');
         $this->__target=$__target;
+    }
+
+    /**
+     * 获取目标类实例(主要是让ide能识别代理方法,但实际情况并不严谨,所以默认回返真实对象)
+     *
+     * @access public
+     * @param bool $return_proxy 是否返回代理对象 
+     * @return T
+     */
+    public function instance(bool $return_proxy=false): object {
+        if($return_proxy)
+            return $this;
+        return $this->__getTarget();
     }
 
 }

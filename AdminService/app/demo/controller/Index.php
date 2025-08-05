@@ -101,9 +101,11 @@ class Index extends Controller {
         // 这里展示动态代理类的使用(只有当你调用这个类时才会实例化,属于懒加载)
         // 调用被代理类的方法时,支持自动参数注入
         // 必须说明,因为动态代理的兼容性问题,所以不建议用在定义复杂的类上
-        $test=App::proxy(Sql::class);
+        // `instance()` 方法属于助手类方法,传入true则返回代理类
+        // 但编辑器会把他当做被代理的类,所以使用这种方法让编辑器支持代理类解析是有风险的
+        // 默认为false,即返回真实对象,后续调用将失去代理类的支持,但无类型安全无风险
+        $test=App::proxy(Sql::class)->instance(true);
         // 返回json
-        /** @var Sql $test 虽然实际上是代理类,但本质上还是Sql类 */
         return json(null,null,$test->test());
         // 这里还展示了ORM的用法(目前支持有限,将来会支持更多)
         // return json(null,null,$systemInfo->select()->toArray());

@@ -299,7 +299,6 @@ final class Error extends BaseError {
         }
         // 使用模板引擎渲染
         try {
-            /**@var View */
             $view=App::get(View::class);
             // 设置模板路径
             $template_path=Config::get('app.error_template',null);

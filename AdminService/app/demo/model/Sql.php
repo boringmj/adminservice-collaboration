@@ -103,7 +103,7 @@ class Sql extends Model {
                     'OR'
                 ))->order('id DESC')->limit(1,1)->lock()->group("app_id",'id')->alias('db')->field(
                     array('id'=>'ID','app_id'=>'APPID')
-                )->select()->toArray()->all(),
+                )->select()->toArray(),
                 'sql'=>$this->getLastSql()
             );
             # 提交事务
@@ -227,6 +227,6 @@ class Sql extends Model {
      */
     public function demo(): array {
         // 传入表名,且自动添加前缀
-        return $this->table('system_info')->where('id',1)->select(array('id','app_key'))->toArray()->all();
+        return $this->table('system_info')->where('id',1)->select(array('id','app_key'))->toArray();
     }
 }

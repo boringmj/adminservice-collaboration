@@ -292,6 +292,9 @@ final class View extends BaseView {
             $varPath=ltrim($matches[1],'$');
             $value=$this->getDataByPath($varPath);
             if(is_scalar($value)) {
+                // 预防XSS，对数据编码
+                if(is_string($value))
+                    $value=htmlspecialchars($value,ENT_QUOTES,'UTF-8');
                 return $value;
             } elseif(is_array($value)||is_object($value)) {
                 return json_encode($value,JSON_UNESCAPED_UNICODE);

@@ -9,7 +9,7 @@ use AdminService\Log;
 class Index extends Controller {
 
     /**
-     * 依赖注入相比之前有了不少进步,但依旧不能保证兼容性,所以请谨慎使用
+     * 自动参数注入已经相对成熟,足够满足绝大部分情况
      * @throws Exception
      */
     public function index(Log $log,$name="World"): string {

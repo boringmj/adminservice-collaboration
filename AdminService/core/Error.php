@@ -337,11 +337,11 @@ final class Error {
             $html.=sprintf(
                 '<tr><td>%d</td><td>%s</td><td>%s</td><td>%s%s%s()</td></tr>',
                 $index+1,
-                $file,
-                $line,
-                $class,
-                $type,
-                $function
+                htmlspecialchars($file),
+                htmlspecialchars($line),
+                htmlspecialchars($class),
+                htmlspecialchars($type),
+                htmlspecialchars($function)
             );
         }
         $html.='</table>';

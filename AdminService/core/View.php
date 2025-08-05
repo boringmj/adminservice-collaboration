@@ -286,21 +286,46 @@ final class View extends BaseView {
      * @return void
      */
     protected function processVariables(): void {
-        // 匹配变量标签: {{$var}} 或 {{var.sub}}
-        $pattern='/\{\{\s*(\$?[\w\.\[\]\'"]+)\s*\}\}/';
-        $this->template_content=preg_replace_callback($pattern,function($matches) {
-            $varPath=ltrim($matches[1],'$');
-            $value=$this->getDataByPath($varPath);
-            if(is_scalar($value)) {
-                // 预防XSS，对数据编码
-                if(is_string($value))
-                    $value=htmlspecialchars($value,ENT_QUOTES,'UTF-8');
-                return $value;
-            } elseif(is_array($value)||is_object($value)) {
-                return json_encode($value,JSON_UNESCAPED_UNICODE);
+        // 支持三种标签：{{var}}(转义)，{{{var}}} 或 {{!var}}(不转义)
+        $patterns=[
+            // 不转义标签：{{{var}}} 或 {{!var}}
+            '/\{\{\{\s*(\$?[\w\.\[\]\'"]+)\s*\}\}\}/'=>function($matches) {
+                $varPath=ltrim($matches[1],'$');
+                $value=$this->getDataByPath($varPath);
+                if(is_scalar($value)) {
+                    return (string)$value;
+                } elseif(is_array($value)||is_object($value)) {
+                    return json_encode($value, JSON_UNESCAPED_UNICODE);
+                }
+                return '';
+            },
+            '/\{\{!\s*(\$?[\w\.\[\]\'"]+)\s*\}\}/'=>function($matches) {
+                $varPath=ltrim($matches[1], '$');
+                $value=$this->getDataByPath($varPath);
+                if(is_scalar($value)) {
+                    return (string)$value;
+                } elseif(is_array($value)||is_object($value)) {
+                    return json_encode($value,JSON_UNESCAPED_UNICODE);
+                }
+                return '';
+            },
+            // 普通变量标签：{{var}}(默认转义)
+            '/\{\{\s*(\$?[\w\.\[\]\'"]+)\s*\}\}/'=>function($matches) {
+                $varPath=ltrim($matches[1], '$');
+                $value=$this->getDataByPath($varPath);
+                if(is_scalar($value)) {
+                    if(is_string($value))
+                        $value=htmlspecialchars($value,ENT_QUOTES,'UTF-8');
+                    return $value;
+                } elseif(is_array($value)||is_object($value)) {
+                    return json_encode($value,JSON_UNESCAPED_UNICODE);
+                }
+                return '';
             }
-            return '';
-        },$this->template_content);
+        ];
+        foreach($patterns as $pattern=>$callback) {
+            $this->template_content=preg_replace_callback($pattern,$callback,$this->template_content);
+        }
     }
 
     /**
@@ -418,7 +443,7 @@ final class View extends BaseView {
         foreach($matches[0] as $token) {
             $tokens[]=$token;
         }
-        // Shunting Yard算法：中缀转后缀（逆波兰式）
+        // Shunting Yard算法：中缀转后缀(逆波兰式)
         $output=[];
         $stack=[];
         foreach($tokens as $token) {

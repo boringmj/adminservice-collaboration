@@ -2,18 +2,14 @@
 
 namespace AdminService;
 
+use base\Error as BaseError;
+
 /**
  * 错误处理类
  * 
  * 用于收集和处理PHP错误，包括致命错误和非致命错误。
  */
-final class Error {
-
-    /**
-     * 存储收集到的错误
-     * @var array
-     */
-    private static $errors=array();
+final class Error extends BaseError {
 
     /**
      * 标记框架是否初始化完成(用于决定是否记录日志)
@@ -327,7 +323,7 @@ final class Error {
      */
     private static function formatStackTrace(array $stack_trace): string {
         $html='<table class="stack-table">';
-        $html.='<tr><th>#</th><th>文件</th><th>行号</th><th>函数/方法</th></tr>';
+        $html.='<tr><th>#</th><th>函数/方法</th><th>文件</th><th>行号</th></tr>';
         foreach($stack_trace as $index=>$frame) {
             $file=$frame['file']??'[内部函数]';
             $line=$frame['line']??'N/A';
@@ -335,13 +331,13 @@ final class Error {
             $class=$frame['class']??'';
             $type=$frame['type']??'';
             $html.=sprintf(
-                '<tr><td>%d</td><td>%s</td><td>%s</td><td>%s%s%s()</td></tr>',
+                '<tr><td>%s</td><td>%s%s%s()</td><td>%s</td><td>%d</td></tr>',
                 $index+1,
-                htmlspecialchars($file),
-                htmlspecialchars($line),
                 htmlspecialchars($class),
                 htmlspecialchars($type),
-                htmlspecialchars($function)
+                htmlspecialchars($function),
+                htmlspecialchars($file),
+                htmlspecialchars($line)
             );
         }
         $html.='</table>';
@@ -397,7 +393,6 @@ final class Error {
             {{/foreach}}
         HTML;
     }
-    
 
     /**
      * 设置框架初始化状态
@@ -408,16 +403,6 @@ final class Error {
      */
     public static function setInitialized(bool $initialized): void {
         self::$initialized=$initialized;
-    }
-
-    /**
-     * 获取收集到的错误
-     * 
-     * @access public
-     * @return array
-     */
-    public static function getErrors(): array {
-        return self::$errors;
     }
 
 }

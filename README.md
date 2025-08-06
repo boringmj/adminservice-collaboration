@@ -40,12 +40,9 @@ http://localhost:8000/index/index/index/get/value 推荐的路由形式
 ```
 您可以在`AdminService/Main.php`中查看路由的引用
 ```php
-try {
-    // 路由
-    $route=App::get('Route');
+public function run(): void {
+    $route=App::get(Route::class);
     Request::requestExit($route->run());
-} catch(Exception $e) {
-    Request::requestExit($e->getMessage());
 }
 ```
 如果默认路由并不适用于您的项目,你可以自由创建一个适用的路由类,并在`AdminService/Main.php`中引入您的类,并实例化

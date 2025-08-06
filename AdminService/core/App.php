@@ -40,7 +40,7 @@ final class App extends Container {
      * @template T of object
      * @param class-string<T> $__name 对象名（类名）
      * @param mixed ...$args 构造函数参数($args中不允许传入“__name”参数)
-     * @return T 返回指定类的实例
+     * @return T|object 返回指定类的实例
      * @throws Exception|ReflectionException
      */
     static public function get(string $__name,...$args): object {
@@ -299,7 +299,7 @@ final class App extends Container {
         // 检查是否存在缓存
         if(self::getData('route_info')===null) {
             // 获取路由信息
-            $route_info=parent::get('Route')->getRouteInfo();
+            $route_info=parent::get(Route::class)->getRouteInfo();
             // 缓存路由信息
             parent::setData('route_info',$route_info);
         }

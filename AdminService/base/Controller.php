@@ -39,8 +39,8 @@ abstract class Controller {
      * @throws ReflectionException
      */
     final public function __construct(?Request $request=null,?View $view=null) {
-        $this->request=$request??App::get('Request');
-        $this->view=$view??App::get('View');
+        $this->request=$request??App::get(Request::class);
+        $this->view=$view??App::get(View::class);
     }
 
     /**

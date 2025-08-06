@@ -117,7 +117,7 @@ abstract class Request {
      */
     final static public function init(?Cookie $cookie=null): void {
         if($cookie===null)
-            $cookie=App::get('Cookie');
+            $cookie=App::get(Cookie::class);
         // 初始化Cookie
         self::$cookie=$cookie;
         // 设置默认返回数据信息

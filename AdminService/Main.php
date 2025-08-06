@@ -62,7 +62,7 @@ final class Main {
      * @throws Exception|ReflectionException
      */
     public function run(): void {
-        $route=App::get('Route');
+        $route=App::get(Route::class);
         Request::requestExit($route->run());
     }
 

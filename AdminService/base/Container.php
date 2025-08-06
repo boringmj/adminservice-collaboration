@@ -39,7 +39,7 @@ abstract class Container {
      * @access public
      * @template T of object
      * @param class-string<T> $__name 对象名（类名）
-     * @return T 返回指定类的实例
+     * @return T|object 返回指定类的实例
      */
     static public function get(string $name): object {
         $name=self::getRealClass($name);
@@ -185,7 +185,7 @@ abstract class Container {
      * @param class-string<T> $name 对象名
      * @param bool $is_force 是否强制实例化(仅对当前对象有效,不会影响依赖)
      * @param array $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
-     * @return T
+     * @return T|object
      * @throws Exception|ReflectionException
      */
     static public function make(string $name,bool $is_force=false,array &$flags=array()): object {

@@ -24,7 +24,7 @@ class Count {
      */
     public function __construct(?File $file=null) {
         if(is_null($file))
-            $file=App::get('File','count');
+            $file=App::get(File::class,'count');
         $this->file=$file;
     }
 

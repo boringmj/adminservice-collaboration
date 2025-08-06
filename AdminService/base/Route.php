@@ -93,7 +93,7 @@ abstract class Route {
      * @throws ReflectionException
      */
     final public function init(?Request $request=null): self {
-        $this->request=$request??App::get('Request');
+        $this->request=$request??App::get(Request::class);
         $this->uri=$this->route();
         $this->is_init=true;
         return $this;

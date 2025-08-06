@@ -3,6 +3,7 @@
 namespace AdminService\common;
 
 use AdminService\App;
+use AdminService\Request;
 use AdminService\Exception;
 use \ReflectionException;
 
@@ -15,5 +16,5 @@ use \ReflectionException;
  * @throws Exception|ReflectionException
  */
 function param(int|string $param,mixed $default=null): mixed {
-    return App::get('Request')->get($param,$default);
+    return App::get(Request::class)->get($param,$default);
 }

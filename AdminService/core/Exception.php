@@ -21,7 +21,7 @@ final class Exception extends BaseException {
         parent::__construct($message,$error_code,$data);
         try{
             //写入日志
-            App::get('Log')->write(
+            App::get(Log::class)->write(
                 'Error({error_code}): {message} | data: {data} in {file} on line {line}, trace: {trace}',
                 array(
                     'message'=>$message,

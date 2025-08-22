@@ -148,10 +148,10 @@ final class Response extends BaseResponse {
     /**
      * 渲染结果
      * 
-     * @access protected
+     * @access public
      * @return string
      */
-    static protected function render(): string {
+    static public function render(): string {
         if(self::$return_content!==null) return self::$return_content;
         $type=self::getStandardContentType();
         $config=Config::get('response.default.type.'.$type);

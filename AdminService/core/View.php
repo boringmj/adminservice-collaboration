@@ -399,7 +399,6 @@ final class View extends BaseView {
                 return null;
             }
         }
-        print_r($data);
         return $data;
     }
 

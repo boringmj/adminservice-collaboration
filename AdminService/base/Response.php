@@ -221,10 +221,10 @@ abstract class Response {
     /**
      * 渲染结果
      * 
-     * @access protected
+     * @access public
      * @return string
      */
-    abstract static protected function render(): string;
+    abstract static public function render(): string;
 
     /**
      * 结束响应并发送数据

@@ -2,13 +2,15 @@
 
 namespace app\demo\controller;
 
-// 控制器基类
+// 基类
+use base\Request;
 use base\Controller;
 // 系统核心类
 use AdminService\App;
 use AdminService\Log;
 use AdminService\Config;
 use AdminService\Exception;
+use AdminService\UploadStorage;
 // 模型
 use app\demo\model\Sql;
 use app\demo\model\Count;
@@ -31,20 +33,20 @@ class Index extends Controller {
 
     public function request(): array {
         // 获取请求参数(更多用法请查看Request基类以及Request核心类)
-        // $this->request的实际类型是AdminService\Request,你在调用方法时ide提示的则是base\Request
-        // 所以如果你希望你的ide能够准确提示,建议引入AdminService\Request后直接使用AdminService\Request的静态方法
-        return json(null,null,array(
-            'name'=>$this->request->param('name','AdminService'), // 获取请求参数(CGP顺序)
-            // 'name'=>$this->param('name','AdminService'), // 完全等价于上面的写法
-            // 'name'=>$this->request->post('name','AdminService'), // 获取单个POST参数
-            // 'name'=>$this->request->get('name','AdminService'), // 获取单个GET参数
-            'post'=>$this->request->post(), // 获取所有POST参数
-            'get'=>$this->request->get(), // 获取所有GET参数
-            'cookie'=>$this->request->cookie(), // 获取所有COOKIE参数
-            'input'=>$this->request->getInput(), // 获取输入流
-            'files'=>$this->request->getUploadFile('files'), // 获取上传的文件
-            'key'=>$this->request->keys('get') // 获取所有GET类型请求参数的键名(支持all|get|post|cookie且不区分大小写)
-        ));
+        // 从get参数中获取指定参数
+        $name=$this->request->getGet('name');
+        // 从post参数中获取指定参数
+        $name=$this->request->getPost('name');
+        // 从cookie中获取指定参数
+        $name=$this->request->getCookie('name');
+        return json([
+            'name'=>$name,
+            'raw_input'=>$this->request->getRawInput(),
+            'get'=>$this->request->getGets(),
+            'post'=>$this->request->getPosts(),
+            // 因为request_cookie是实现类成员,不属于基类成员,所以一般编辑器都会提示错误
+            // 'cookie'=>$this->request::$request_cookie->all() // 看着难受等后续更新吧
+        ],200);
     }
 
     public function view_demo(): string {
@@ -92,9 +94,9 @@ class Index extends Controller {
             'pass'=>'Pass',
             'int'=>6,
         ])) {
-            return json(null,null,$name);
+            return json($name);
         }
-        return json(null,null,$validator->errors(false,true));
+        return json($validator->errors(false,true));
     }
 
     public function sql(SystemInfo $systemInfo): array {
@@ -106,9 +108,9 @@ class Index extends Controller {
         // 默认为false,即返回真实对象,后续调用将失去代理类的支持,但无类型安全无风险
         $test=App::proxy(Sql::class)->instance(true);
         // 返回json
-        return json(null,null,$test->test());
+        return json($test->test());
         // 这里还展示了ORM的用法(目前支持有限,将来会支持更多)
-        // return json(null,null,$systemInfo->select()->toArray());
+        // return json($systemInfo->select()->toArray());
         // 更多用法(注意可能会抛出异常,特别是查找不存在的字段时,还需要注意结果是否为空)
         // $data=$systemInfo->test();
         // $id=$data->id;
@@ -142,49 +144,23 @@ class Index extends Controller {
     }
 
     public function upload(): string|array {
+        // ========================================
+        // 警告: 上传文件存在一定安全风险,请谨慎使用
+        // ========================================
         // 这里展示文件上传,支持多文件上传和单文件上传
-        $files=$this->request->getUploadFile('files');
+        $files=$this->request->getUploadFiles('files');
         // 判断是否有文件被上传,如果没有则返回上传页面
-        if(empty($files)) {
+        if(count($files)==0) {
             return $this->view('upload');
         }
-        $list=array();
-        // 处理上传的文件
+        // 返回所有上传文件信息
+        // return $this->json($files->toArray());
+        // 保存所有上传文件(风险警告:使用原后缀名存储,存在一定安全风险)
+        $upload_storage=App::get(UploadStorage::class);
         foreach($files as $file) {
-            // 保存文件(文件名为sha1值,后缀为文件后缀)
-            // ============ 高危警告 ============
-            // 安全警告: 如果使用用户提供的文件后缀名,请务必对文件进行检查,否则可能会导致文件上传漏洞
-            // 您可以通过例如白名单的方式来限制文件后缀名,或者您将文件存放在非web目录下(不推荐的方式)
-            // 更加安全的方式是将文件存放在数据库中,这样可以避免文件上传漏洞(缺点是数据库性能会受到影响)
-            // 也可以通过完全随机命名,然后通过数据库来关联文件名和文件路径(推荐)
-            // 总之,请不要轻易使用用户提供的文件名和后缀名,这对您的系统安全很重要
-            // 为了实现最优的安全性，建议结合多种措施，例如：
-            // 限制文件类型和大小：使用白名单限制文件类型，结合 MIME 类型检查。
-            // 随机文件名：生成随机的文件名以避免文件名冲突。
-            // 存储路径：将文件存储在非 web 目录下，并使用数据库记录文件的元数据。
-            // 安全检查：在上传和处理文件时进行全面的安全检查，包括文件内容验证和权限控制。
-            // 下面是一段简单的后缀名检查代码,这段代码被放在这里仅仅是为了演示(不保证安全)
-            // ============ 高危警告 ============
-            // 将白名单定义在循环外可以提高性能
-            $file_ext_white_list=array('jpg','jpeg','png','gif','bmp','webp','txt');
-            // 检查文件后缀名是否在白名单中
-            if(!in_array($file['ext'],$file_ext_white_list)) {
-                throw new Exception("文件后缀名不在白名单中",0,array(
-                    'ext'=>$file['ext'],
-                    'allow'=>$file_ext_white_list
-                ));
-            }
-            $path=$file['sha1'].'.'.$file['ext'];
-            // 请注意,如果不指定具体路径则会保存到运行目录下(默认运行目录是public目录)
-            move_uploaded_file($file['tmp_name'],$path);
-            $list[]=array(
-                'name'=>$file['name'],
-                'path'=>realpath($path)
-            );
+            $file->save($upload_storage);
         }
-        return json(null,null,array(
-            'list'=>$list
-        ));
+        return $this->json($files->toArray());
     }
 
     public function curl(): string {

@@ -2,6 +2,7 @@
 
 namespace AdminService;
 
+use base\Response;
 use base\Route as BaseRoute;
 use \ReflectionException;
 
@@ -49,6 +50,8 @@ final class Route extends BaseRoute {
         $controller_path=$app_path.'/'.'controller/'.$route_info['controller'].'.php';
         $controller_name='app\\'.$route_info['app'].'\\controller\\'.$route_info['controller'];
         if(file_exists($controller_path)&&class_exists($controller_name)) {
+            // 转化为get参数
+            $this->toGet($route_info['params']);
             // 将控制器类名存入容器
             App::setClass('Controller',$controller_name);
             $controller=new $controller_name();
@@ -57,9 +60,6 @@ final class Route extends BaseRoute {
             // 判断类方法是否存在且是否为public,且排除构造方法
             if(method_exists($controller,$route_info['method'])&&is_callable(array($controller,$route_info['method']))&&$route_info['method']!='__construct') {
                 $this->method=array($controller,$route_info['method']);
-                // 转化为get参数
-                $this->toGet($route_info['params']);
-                $this->request->paramsInit();
                 return $this;
             } else
                 throw new Exception("Method is not defined.",-405,array(
@@ -95,21 +95,31 @@ final class Route extends BaseRoute {
      * 开始运行控制器(如果没有加载路由则会自动加载)
      *
      * @access public
-     * @return mixed
+     * @return void
      * @throws Exception|ReflectionException
      */
-    public function run(): mixed {
+    public function run(): void {
         // 先判断是否已经加载 load() 方法
         if(empty($this->method))
             $this->load();
         $method=$this->method;
         //return $method();
-        $args=$this->request->getAllGet();
+        $args=$this->request->getGets();
         // 提取出全部key不为数字的参数
         foreach($args as $k=>$v)
             if(is_numeric($k))
                 unset($args[$k]);
-        return App::exec_class_function($method[0],$method[1],$args);
+        $before_middlewares=Config::get('middlewares.before',[]);
+        $after_middlewares=Config::get('middlewares.after',[]);
+        $response=App::get(Response::class);
+        self::dispatch(
+            $before_middlewares,
+            $after_middlewares,
+            function () use ($method,$args,$response) {
+                $data=App::exec_class_function($method[0],$method[1],$args);
+                $response->setControllerReturn($data);
+            }
+        );
     }
 
     /**
@@ -120,6 +130,7 @@ final class Route extends BaseRoute {
      * @return void
      */
     private function toGet(array $params): void {
+        $get=[];
         $config=Config::get('route.params.to_get.model');
         if(!in_array($config,array('value','list','value-list','list-value')))
             $config='list-value';
@@ -128,21 +139,63 @@ final class Route extends BaseRoute {
             if($value=='value')
                 // 键从0开始,逐一赋值
                 foreach($params as $k=>$v)
-                    $_GET[$k]=urldecode($v);
+                    $get[$k]=urldecode($v);
             else if($value=='list') {
                 // 将前面的参数作为键,后面的参数作为值(没有后面的参数则为空)
                 $count=count($params);
                 for($i=0;$i<$count;$i+=2) {
                     // 清除不符合规则的键值对(规则为空则不清除)
                     if(empty(Config::get('route.params.rule.get')) || preg_match(Config::get('route.params.rule.get'),$params[$i])) {
-                        $_GET[$params[$i]]=$params[$i+1]??null;
+                        $get[$params[$i]]=$params[$i+1]??null;
                         // 如果不为null则解码
-                        if(!is_null($_GET[$params[$i]]))
-                            $_GET[$params[$i]]=urldecode($_GET[$params[$i]]);
+                        if(!is_null($get[$params[$i]]))
+                            $get[$params[$i]]=urldecode($get[$params[$i]]);
                     }
                 }
             }
         }
+        // 将GET参数存入请求体中
+        $this->request->setGet($get);
+    }
+
+    /**
+     * 执行中间件
+     *
+     * @param array $before 请求前中间件列表
+     * @param array $after 请求后中间件列表
+     * @param callable $core 核心逻辑
+     * @return void
+     */
+    static public function dispatch(array $before,array $after,callable $core): void {
+        // 构造前置中间件链
+        $beforeChain=array_reduce(
+            array_reverse($before),
+            function($next,$middleware) {
+                return function () use ($middleware,$next) {
+                    (new $middleware())->handle($next);
+                };
+            },
+            function () use ($core,$after) {
+                // 前置执行完后，调用核心逻辑
+                $core();
+                // 构造后置中间件链
+                $afterChain=array_reduce(
+                    $after,
+                    function($next,$middleware) {
+                        return function () use ($middleware,$next) {
+                            (new $middleware())->handle($next);
+                        };
+                    },
+                    function () {
+                        // 后置执行完后的处理
+                    }
+                );
+                // 启动后置中间件链
+                $afterChain();
+            }
+        );
+        // 启动前置中间件链
+        $beforeChain();
     }
 
 }

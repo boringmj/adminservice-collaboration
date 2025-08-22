@@ -2,6 +2,7 @@
 
 namespace AdminService;
 
+use base\Route;
 use \ReflectionException;
 
 final class Main {
@@ -19,10 +20,10 @@ final class Main {
         if(version_compare(PHP_VERSION,'8.0.0','<'))
             exit('无法兼容您的PHP版本('.PHP_VERSION.'),需要PHP8.0.0及以上版本');
         // 调整环境
-        error_reporting(0);
+        // error_reporting(0);
         date_default_timezone_set('PRC');
         // 注册错误处理
-        Error::register([Request::class,'requestEcho'],false);
+        Error::register([Response::class,'send'],false);
         // 加载配置文件
         Config::load();
         // 加载函数库
@@ -30,7 +31,9 @@ final class Main {
         // App初始化
         App::init();
         // 初始化请求
-        Request::init();
+        HttpRequest::init();
+        // 响应初始化
+        Response::class::init();
         // 初始化完成
         Error::setInitialized(true);
         return $this;
@@ -63,7 +66,7 @@ final class Main {
      */
     public function run(): void {
         $route=App::get(Route::class);
-        Request::requestExit($route->run());
+        $route->run();
     }
 
 }

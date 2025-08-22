@@ -2,6 +2,7 @@
 
 namespace AdminService\common;
 
+use base\Response;
 use AdminService\App;
 use AdminService\Exception;
 use \ReflectionClass;
@@ -23,25 +24,14 @@ function view(null|string|array $template=null,array $data=array()): string {
 }
 
 /**
- * 设置输出类型为json,返回标准json数组
+ * 设置输出类型为json
  *
- * @param int|null $code 状态码
- * @param string|null $msg 提示信息
  * @param mixed $data 数据
- * @return array
- * @throws ReflectionException|Exception
+ * @param int $code 状态码
+ * @return mixed
  */
-function json(?int $code=null,?string $msg=null,mixed $data=null): array {
-    $ref=new ReflectionClass(App::get('Controller'));
-    $method=$ref->getMethod('type');
-    $method->setAccessible(true);
-    $method->invoke(App::get('Controller'),'json');
-    $return_data=array();
-    if($code!==null)
-        $return_data['code']=$code;
-    if($msg!==null)
-        $return_data['msg']=$msg;
-    if($data!==null)
-        $return_data['data']=$data;
-    return $return_data;
+function json(mixed $data=null,int $code=200): mixed {
+    $response=App::get(Response::class);
+    $response->setStatusCode($code);
+    return $response->json($data);
 }

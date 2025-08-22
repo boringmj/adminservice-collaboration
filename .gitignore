@@ -2,6 +2,7 @@ vendor/
 composer.lock
 AdminService/data/
 AdminService/log/
+AdminService/uploads/
 .env
 .idea/
 .vscode/

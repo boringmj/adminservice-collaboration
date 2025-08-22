@@ -13,7 +13,7 @@ use \ReflectionException;
  * @access public
  * @abstract
  * @package base
- * @version 1.0.2
+ * @version 1.0.3
  */
 abstract class Controller {
 
@@ -22,6 +22,12 @@ abstract class Controller {
      * @var Request
      */
     protected Request $request;
+
+    /**
+     * 响应对象
+     * @var Response
+     */
+    protected Response $response;
 
     /**
      * 视图对象
@@ -34,12 +40,18 @@ abstract class Controller {
      *
      * @access public
      * @param Request|null $request 请求对象
+     * @param Response|null $response 响应对象
      * @param View|null $view 视图对象
      * @throws Exception
      * @throws ReflectionException
      */
-    final public function __construct(?Request $request=null,?View $view=null) {
+    final public function __construct(
+        ?Request $request=null,
+        ?Response $response=null,
+        ?View $view=null
+    ) {
         $this->request=$request??App::get(Request::class);
+        $this->response=$response??App::get(Response::class);
         $this->view=$view??App::get(View::class);
     }
 
@@ -52,7 +64,7 @@ abstract class Controller {
      * @return mixed
      */
     final protected function param(int|string $param,mixed $default=null): mixed {
-        return $this->request::param($param,$default);
+        return $this->request::getParam($param,Request::ALL_PARAM,$default);
     }
 
     /**
@@ -61,22 +73,80 @@ abstract class Controller {
      * @access protected
      * @param string $name 名称
      * @param string $value 值
-     * @return bool
+     * @return void
      */
-    final protected function header(string $name,string $value): bool {
-        return $this->request::setHeader($name,$value);
+    final protected function header(string $name,string $value): void {
+        $this->response::setHeader($name,$value);
     }
 
     /**
-     * 设置返回的数据类型(需要注意,每次设置都会引入对应的Header,如果已经设置过Header,则会覆盖)
+     * 设置Cookie信息
+     *
+     * @access protected
+     * @param string|array $params 参数(string时为cookie名,array时为cookie数组)
+     * @param string $value Cookie值($params 参数为数组时此参数无效)
+     * @param int|null $expire 过期时间($params 参数为数组时此参数无效)
+     * @param string|null $path 路径($params 参数为数组时此参数无效)
+     * @param string|null $domain 域名($params 参数为数组时此参数无效)
+     * @param bool $secure 是否安全传输($params 参数为数组时此参数无效)
+     * @param bool $httponly 是否仅http传输($params 参数为数组时此参数无效)
+     * @return void
+     */
+    final protected function cookie(
+        string|array $params,
+        string $value,
+        ?int $expire=null,
+        ?string $path=null,
+        ?string $domain=null,
+        ?bool $secure=null,
+        ?bool $httponly=null
+    ): void {
+        $this->response::setCookie(
+            $params,
+            $value,
+            $expire,
+            $path,
+            $domain,
+            $secure,
+            $httponly
+        );
+    }
+
+    /**
+     * 设置返回的数据类型
      * 
      * @access protected
-     * @param string $type 数据类型(*,default:html)
+     * @param string $type 数据类型
      * @return self
      */
     final protected function type(string $type): self {
-        $this->request::setReturnType($type);
+        $this->response::setContentType($type);
         return $this;
+    }
+
+    /**
+     * 设置返回时的状态码
+     * 
+     * @access protected
+     * @param int $code 状态码
+     * @return self
+     */
+    final protected function code(int $code): self {
+        $this->response::setStatusCode($code);
+        return $this;
+    }
+
+    /**
+     * 设置返回类型为json
+     * 
+     * @access protected
+     * @param mixed $data 数据
+     * @param int $code 状态码
+     * @return mixed
+     */
+    final protected function json(mixed $data,int $code=200): mixed {
+        $this->response::setStatusCode($code);
+        return $this->response::json($data);
     }
 
     /**
@@ -98,19 +168,6 @@ abstract class Controller {
         $template=Config::get('app.path').'/'.App::getAppName().'/view'.'/'.App::getControllerName().'/'.$template.'.html';
         $this->view->init($template,$data);
         return $this->view->render();
-    }
-
-    /**
-     * 设置或获取 Cookie
-     * 
-     * @access protected
-     * @param int|string|array $params 参数
-     * @param mixed $value 值(不为空则设置)
-     * @param bool $enforce 是否与 params() 方法同步
-     * @return mixed
-     */
-    final protected function cookie(int|string|array $params,mixed $value=null,bool $enforce=false): mixed {
-        return $this->request::cookieParams($params,$value,$enforce);
     }
 
 }

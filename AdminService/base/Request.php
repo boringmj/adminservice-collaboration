@@ -2,367 +2,327 @@
 
 namespace base;
 
-use AdminService\Config;
-use AdminService\App;
-use AdminService\Exception;
-use \ReflectionException;
-
 abstract class Request {
 
     /**
-     * 请求参数
-     * @var array
+     * ALL参数
+     * @var int
      */
-    static protected array $request_params;
+    const ALL_PARAM=0;
 
     /**
-     * 返回数据的信息
-     * @var array
+     * GET参数
+     * @var int
      */
-    static protected array $request_info;
-
+    const GET_PARAM=1;
+    
     /**
-     * Cookie对象
-     * @var Cookie
+     * POST参数
+     * @var int
      */
-    static protected Cookie $cookie;
-
+    const POST_PARAM=2;
+     
     /**
-     * 设置返回类型
-     * 
-     * @access public
-     * @param string $type 数据类型(html|json,default:html)
-     * @return void
+     * COOKIE参数
+     * @var int
      */
-    abstract static public function setReturnType(string $type): void;
-
-    /**
-     * 结束运行
-     * 
-     * @access public
-     * @param mixed $data 数据
-     * @return void
-     */
-    abstract static public function requestExit(mixed $data=null): void;
-
-    /**
-     * 结束时输出内容
-     * 
-     * @access public
-     * @return void
-     */
-    abstract static public function requestEcho(): void;
-
-    /**
-     * 设置Header
-     * 
-     * @access public
-     * @param string $name 名称
-     * @param string $value 值
-     * @return bool
-     */
-    abstract static public function setHeader(string $name,string $value): bool;
-
-    /**
-     * 设置或获取COOKIE请求参数(设置Cookie时Cookie将会在本次以及后续请求中生效)
-     * 
-     * @access public
-     * @param int|string|array $params 参数
-     * @param mixed $value 值(不为空则设置)
-     * @param bool $enforce 是否与 params() 方法同步
-     * @return mixed
-     */
-    abstract static public function cookieParams(int|string|array $params,mixed $value=null,bool $enforce=false): mixed;
-
-    /**
-     * 获取上传的文件
-     * 
-     * @access public
-     * @param string $name 字段名
-     * @return array
-     */
-    abstract static public function getUploadFile(string $name): array;
-
-    /**
-     * 设置COOKIE参数(设置Cookie时Cookie将会在本次以及后续请求中生效)
-     * 
-     * @access public
-     * @param int|string|array $params 参数
-     * @param mixed $value 值(当 $params 为数组时此参数无效)
-     * @param bool $enforce 是否与 params() 方法同步
-     * @return void
-     */
-    abstract static public function setCookie(int|string|array $params,mixed $value=null,bool $enforce=false): void;
-
-    /**
-     * 添加返回的Cookie信息
-     *
-     * @access public
-     * @param string|array $params 参数(string时为cookie名,array时为cookie数组)
-     * @param string $value Cookie值($params 参数为数组时此参数无效)
-     * @param int|null $expire 过期时间
-     * @param string|null $path 路径
-     * @param string|null $domain 域名
-     * @return void
-     */
-    abstract static public function addCookie(string|array $params,string $value,?int $expire=null,?string $path=null,?string $domain=null): void;
+    const COOKIE_PARAM=4;
 
     /**
      * 初始化请求
      *
      * @access public
-     * @param Cookie|null $cookie Cookie对象
-     * @return void
-     * @throws Exception|ReflectionException
-     */
-    final static public function init(?Cookie $cookie=null): void {
-        if($cookie===null)
-            $cookie=App::get(Cookie::class);
-        // 初始化Cookie
-        self::$cookie=$cookie;
-        // 设置默认返回数据信息
-        self::$request_info=array(
-            'return_type'=>Config::get('request.default.type','html'),
-            'return_header'=>array(),
-            'code'=>Config::get('request.default.json.code',1),
-            'msg'=>Config::get('request.default.json.msg','success'),
-            'data'=>array(),
-            'cookie'=>array(),
-            'return_data'=>null
-        );
-    }
-
-    /**
-     * 初始化请求参数
-     * 
-     * @access public
      * @return void
      */
-    final static public function paramsInit(): void {
-        // 初始化请求参数
-        self::$request_params=array(
-            '_GET'=>$_GET,
-            '_POST'=>$_POST,
-            '_COOKIE'=>$_COOKIE,
-            '_INPUT'=>file_get_contents('php://input'),
-        );
-        // 获取 Content-Type 请求头
-        $content_type=$_SERVER['CONTENT_TYPE']??'';
-        // 判断是否为 application/json
-        if(str_contains(strtolower($content_type),'application/json')) {
-            // 获取请求数据
-            $request_data=self::$request_params['_INPUT'];
-            // 判断是否为json数据
-            if($request_data!==false&&$request_data!=='') {
-                // 解析json数据
-                $request_data=json_decode($request_data,true);
-                // 判断是否解析成功
-                if($request_data!==null)
-                    self::$request_params['_POST']=$request_data;
-            }
-        }
-        $_GET=array();
-        $_POST=array();
-        $_COOKIE=array();
-        // 按CGP顺序初始化请求参数
-        self::$request_params=array_merge(
-            self::$request_params['_COOKIE'],
-            self::$request_params['_GET'],
-            self::$request_params['_POST'],
-            self::$request_params
-        );
-    }
+    abstract static public function init(): void;
 
     /**
-     * 获取或设置请求参数(传入数组则设置请求参数)
+     * 获取上传的文件信息,
+     * 传入字段名则返回`AbstractUploadFiles`,
+     * 不传入则返回`AbstractUploadFilesForm`
      * 
      * @access public
-     * @param int|string|array $params 参数
-     * @param mixed $value 值(不为空则设置)
-     * @return mixed
+     * @param string|null $name 字段名(null时获取全部)
+     * @return AbstractUploadFilesForm|AbstractUploadFiles
      */
-    final static public function params(int|string|array $params,mixed $value=null): mixed {
-        if(is_array($params)||$value!==null) {
-            self::set($params,$value);
-            return null;
-        }
-        return self::param($params);
-    }
+    abstract static public function getUploadFiles(
+        ?string $name=null
+    ): AbstractUploadFilesForm|AbstractUploadFiles;
 
     /**
-     * 获取参数
+     * 设置Cookie信息(为中间件修改提供便利,修改有效周期为本次请求,不提供跨会话持久化)
+     *
+     * @access public
+     * @param string|array $params 参数名或参数组
+     * @param string $value Cookie值($params 参数为数组时此参数无效)
+     * @return void
+     */
+    abstract static public function setCookie(
+        string|array $params,
+        string $value=''
+    ): void;
+
+    /**
+     * 获取Cookie参数
      * 
      * @access public
-     * @param int|string $params 参数
+     * @param string $name 参数名
      * @param mixed $default 默认值
      * @return mixed
      */
-    final static public function param(int|string $params,mixed $default=null): mixed {
-        return self::$request_params[$params]??$default;
-    }
+    abstract static public function getCookie(
+        string $name,
+        mixed $default=null
+    ): mixed;
 
     /**
-     * 设置参数
+     * 设置Header信息(为中间件修改提供便利,修改有效周期为本次请求,不提供跨会话持久化)
      * 
      * @access public
-     * @param int|string|array $params 参数
-     * @param mixed $value 值
+     * @param string|array $params 参数名或参数组
+     * @param string $value Cookie值($params 参数为数组时此参数无效)
      * @return void
      */
-    final static public function set(int|string|array $params,mixed $value=null): void {
-        if(is_array($params))
-            self::$request_params=array_merge(self::$request_params,$params);
-        else
-            self::$request_params[$params]=$value;
-    }
+    abstract static public function setHeader(
+        string|array $params,
+        string $value=''
+    ): void;
 
     /**
-     * 返回全部Get参数
+     * 获取Header参数
      * 
      * @access public
-     * @return array
+     * @param string $name 参数名
+     * @param mixed $default 默认值
+     * @return mixed
      */
-    final static public function getAllGet(): array {
-        return self::$request_params['_GET'];
-    }
+    abstract static public function getHeader(
+        string $name,
+        mixed $default=null
+    ): mixed;
 
     /**
-     * 返回全部Post参数
+     * 设置Input参数
+     *
+     * @access public
+     * @param string|array $params 参数
+     * @param string $value Cookie值($params 参数为数组时此参数无效)
+     * @return void
+     */
+    abstract static public function setInput(
+        string|array $params,
+        string $value=''
+    ): void;
+
+    /**
+     * 获取Input参数
      * 
      * @access public
-     * @return array
+     * @param string $name 参数名
+     * @param mixed $default 默认值
+     * @return mixed
      */
-    final static public function getAllPost(): array {
-        return self::$request_params['_POST'];
-    }
+    abstract static public function getInput(
+        string $name,
+        mixed $default=null
+    ): mixed;
 
     /**
-     * 返回全部Cookie参数
-     * 
-     * @access public
-     * @return array
-     */
-    final static public function getAllCookie(): array {
-        return self::$request_params['_COOKIE'];
-    }
-
-    /**
-     * 返回全部请求参数
-     * 
-     * @access public
-     * @return array
-     */
-    final static public function getAllParams(): array {
-        return self::$request_params;
-    }
-
-    /**
-     * 返回输入流
+     * 获取原始Input数据
      * 
      * @access public
      * @return string
      */
-    final static public function getInput(): string {
-        return self::$request_params['_INPUT'];
-    }
+    abstract static public function getRawInput(): string;
 
     /**
-     * 获取POST参数
+     * 设置Server参数
+     *
+     * @access public
+     * @param string|array $params 参数名或参数组
+     * @param mixed $value Cookie值($params 参数为数组时此参数无效)
+     * @return void
+     */
+    abstract static public function setServer(
+        string|array $params,
+        mixed $value=null
+    ): void;
+
+    /**
+     * 获取Server参数
      * 
      * @access public
-     * @param int|string $params 参数
+     * @param string $name 参数名
      * @param mixed $default 默认值
      * @return mixed
      */
-    final static public function getPost(int|string $params,mixed $default=null): mixed {
-        return self::$request_params['_POST'][$params]??$default;
-    }
+    abstract static public function getServer(
+        string $name,
+        mixed $default=null
+    ): mixed;
+
+    /**
+     * 设置GET参数
+     *
+     * @access public
+     * @param string|array $params 参数名或参数组
+     * @param mixed $value Cookie值($params 参数为数组时此参数无效)
+     * @return void
+     */
+    abstract static public function setGet(
+        string|array $params,
+        mixed $value=null
+    ): void;
 
     /**
      * 获取GET参数
      * 
      * @access public
-     * @param int|string $params 参数
+     * @param string $name 参数名
      * @param mixed $default 默认值
      * @return mixed
      */
-    static public function getGet(int|string $params,mixed $default=null): mixed {
-        return self::$request_params['_GET'][$params]??$default;
-    }
+    abstract static public function getGet(
+        string $name,
+        mixed $default=null
+    ): mixed;
 
     /**
-     * 获取POST参数(-1则返回全部POST参数)
+     * 获取全部GET参数
      * 
      * @access public
-     * @param int|string $params 参数
-     * @param mixed $default 默认值
-     * @return mixed
-     */
-    final static public function post(int|string $params=-1,mixed $default=null): mixed {
-        if($params===-1)
-            return self::getAllPost();
-        return self::getPost($params,$default);
-    }
-
-    /**
-     * 获取GET参数(-1则返回全部GET参数)
-     * 
-     * @access public
-     * @param int|string $params 参数
-     * @param mixed $default 默认值
-     * @return mixed
-     */
-    static public function get(int|string $params=-1,mixed $default=null): mixed {
-        if($params===-1)
-            return self::getAllGet();
-        return self::getGet($params,$default);
-    }
-
-    /**
-     * 获取COOKIE参数
-     * 
-     * @access public
-     * @param int|string $params 参数
-     * @param mixed $default 默认值
-     * @return mixed
-     */
-    static public function getCookie(int|string $params,mixed $default=null): mixed {
-        return self::$request_params['_COOKIE'][Config::get('cookie.prefix','').$params]??$default;
-    }
-
-    /**
-     * 获取COOKIE参数(-1则返回全部COOKIE参数)
-     * 
-     * @access public
-     * @param int|string $params 参数
-     * @param mixed $default 默认值
-     * @return mixed
-     */
-    static public function cookie(int|string $params=-1,mixed $default=null): mixed {
-        if($params===-1)
-            return self::getAllCookie();
-        return self::getCookie($params,$default);
-    }
-
-    /**
-     * 返回所有请求参数的键值
-     * 
-     * @access public
-     * @param string $type 参数类型(all|get|post|cookie)
      * @return array
      */
-    final static public function keys(string $type='all'): array {
-        $type=strtolower($type);
-        if($type=='all')
-            return array_keys(self::$request_params);
-        else if($type=='get')
-            return array_keys(self::$request_params['_GET']);
-        else if($type=='post')
-            return array_keys(self::$request_params['_POST']);
-        else if($type=='cookie')
-            return array_keys(self::$request_params['_COOKIE']);
-        else
-            return array();
-    }
+    abstract static public function getGets(): array;
+
+    /**
+     * 设置POST参数
+     *
+     * @access public
+     * @param string|array $params 参数名或参数组
+     * @param mixed $value Cookie值($params 参数为数组时此参数无效)
+     * @return void
+     */
+    abstract static public function setPost(
+        string|array $params,
+        mixed $value=null
+    ): void;
+
+    /**
+     * 获取POST参数
+     * 
+     * @access public
+     * @param string $name 参数名
+     * @param mixed $default 默认值
+     * @return mixed
+     */
+    abstract static public function getPost(
+        string $name,
+        mixed $default=null
+    ): mixed;
+
+    /**
+     * 获取全部POST参数
+     * 
+     * @access public
+     * @return array
+     */
+    abstract static public function getPosts(): array;
+
+    /**
+     * 设置Session参数
+     *
+     * @access public
+     * @param string|array $params 参数名或参数组
+     * @param string $value Cookie值($params 参数为数组时此参数无效) 
+     * @return void
+     */
+    abstract static public function setSession(
+        string|array $params,
+        string $value=''
+    ): void;
+
+    /**
+     * 获取Session参数
+     * 
+     * @access public
+     * @param string $name 参数名
+     * @param mixed $default 默认值
+     * @return mixed
+     */
+    abstract static public function getSession(
+        string $name,
+        mixed $default=null
+    ): mixed;
+
+    /**
+     * 获取请求参数键名
+     * 
+     * @access public
+     * @param int $type 参数类型
+     * @return array
+     */
+    abstract static public function getParamKeys(
+        int $type=self::ALL_PARAM
+    ): array;
+
+    /**
+     * 通过键名获取请求参数
+     * 
+     * @access public
+     * @param string $name 参数名
+     * @param int $type 参数类型
+     * @param mixed $default 默认值
+     * @return mixed
+     */
+    abstract static public function getParam(
+        string $name,
+        int $type=self::ALL_PARAM,
+        mixed $default=null
+    ): mixed;
+
+    /**
+     * 通过键名设置请求参数
+     * 
+     * @access public
+     * @param string|array $params 参数名或参数组
+     * @param mixed $value Cookie值($params 参数为数组时此参数无效)
+     * @param int $type 参数类型
+     * @return void
+     */
+    abstract static public function setParam(
+        string|array $params,
+        mixed $value=null,
+        int $type=self::ALL_PARAM
+    ): void;
+
+    /**
+     * 通过键名删除请求参数
+     * 
+     * @access public
+     * @param string|array $params 参数名或参数组
+     * @param int $type 参数类型
+     * @return void
+     */
+    abstract static public function removeParam(
+        string|array $params,
+        int $type=self::ALL_PARAM
+    ): void;
+
+    /**
+     * 获取上传文件实例
+     * 
+     * @access public
+     * @return AbstractUploadFilesForm
+     */
+    abstract static public function getUploadFilesInstance(): AbstractUploadFilesForm;
+
+    /**
+     * 获取Session实例
+     * 
+     * @access public
+     * @return AbstractSession
+     */
+    abstract static public function getSessionInstance(): AbstractSession;
 
 }

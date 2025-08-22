@@ -15,6 +15,7 @@
             "AdminService\\": "AdminService/core/",
             "AdminService\\model\\": "AdminService/model/",
             "AdminService\\sql\\": "AdminService/sql/",
+            "AdminService\\exception\\": "AdminService/exception/",
             "app\\": "AdminService/app/"
         },
         "files": [

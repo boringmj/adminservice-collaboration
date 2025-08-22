@@ -59,9 +59,10 @@ final class App extends Container {
      * 实例化一个新对象(不添加到实例容器中)
      * 
      * @access public
-     * @param string $__name 对象名
+     * @template T of object
+     * @param class-string<T> $__name 对象名
      * @param mixed ...$args 构造函数参数($args中不允许传入“__name”参数)
-     * @return object
+     * @return T|object
      * @throws Exception|ReflectionException
      */
     static public function new(string $__name,...$args): object {

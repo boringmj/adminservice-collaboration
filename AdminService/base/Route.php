@@ -123,4 +123,13 @@ abstract class Route {
             throw new Exception('Route is not initialized.',-406);
     }
 
+     /**
+     * 开始运行控制器(如果没有加载路由则会自动加载)
+     *
+     * @access public
+     * @return void
+     * @throws Exception|ReflectionException
+     */
+    abstract public function run(): void;
+
 }

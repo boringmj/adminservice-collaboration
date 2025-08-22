@@ -2,8 +2,8 @@
 
 namespace AdminService\common;
 
+use base\Request;
 use AdminService\App;
-use AdminService\Request;
 use AdminService\Exception;
 use \ReflectionException;
 

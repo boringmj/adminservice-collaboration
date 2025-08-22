@@ -5,7 +5,7 @@ namespace AdminService;
 use base\Exception as BaseException;
 use \ReflectionException;
 
-final class Exception extends BaseException {
+class Exception extends BaseException {
 
     /**
      * 构造方法

@@ -21,10 +21,25 @@ abstract class Validator {
      */
     protected array $rules=[];
 
-    public function __construct(array $data=[],$rules=[]) {
+    /**
+     * 自定义错误信息
+     * @var array
+     */
+    protected array $messages=[];
+
+    /**
+     * 构造方法
+     * 
+     * @param array $data 待验证的数据
+     * @param array $rules 验证规则
+     * @param array $messages 自定义错误信息
+     * @return void
+     */
+    public function __construct(array $data=[],$rules=[],$messages=[]) {
         $this->data=$data;
         // 外部规则覆盖默认规则
         $this->rules=array_merge($this->rules(),$rules);
+        $this->messages=array_merge($this->messages(),$messages);
     }
 
     /**
@@ -34,6 +49,15 @@ abstract class Validator {
      */
     protected function rules(): array {
         return $this->rules;
+    }
+
+    /**
+     * 自定义错误信息
+     * 
+     * @return array
+     */
+    protected function messages(): array {
+        return $this->messages;
     }
 
     /**
@@ -74,25 +98,6 @@ abstract class Validator {
     }
 
     /**
-     * 验证规则是否满足要求
-     * 
-     * @param string $field 字段名称
-     * @param string $rule 规则名称
-     * @param mixed $value 待验证的值
-     * @param mixed $param 验证规则参数
-     * @return bool
-     */
-    abstract protected function checkRule(string $field,string $rule,mixed $value,mixed $param=null): bool;
-
-    /**
-     * 脱敏数据
-     * 
-     * @param array $data 待脱敏的数据
-     * @return array
-     */
-    abstract public function sanitize(array $data): array;
-
-    /**
      * 添加错误
      * 
      * @param string $field 字段名称
@@ -114,7 +119,7 @@ abstract class Validator {
      * @param bool $sensitive 是否开启脱敏(默认为开启)
      * @return array
      */
-    public function errors(bool $only_msg=true,bool $sensitive=true): array {
+    public function getErrors(bool $only_msg=true,bool $sensitive=true): array {
         // 如果只允许显示消息,则不需要脱敏浪费性能
         if($only_msg)
             return array_map(function($v){
@@ -123,5 +128,49 @@ abstract class Validator {
         // 如果需要显示消息以及数据,则需要正常处理或进行脱敏
         return $sensitive?$this->sanitize($this->errors):$this->errors;
     }
+
+    /**
+     * 获取首个错误信息(请严格确认信息安全后才写入日志或对外暴露)
+     * 
+     * @param bool $only_msg 是否只显示错误消息(默认为开启)
+     * @param bool $sensitive 是否开启脱敏(默认为开启)
+     * @return array
+     */
+    public function getFirstError(
+        bool $only_msg=true,
+        bool $sensitive=true
+    ): array {
+        if(empty($this->errors)) return [];
+        // 取第一个字段名和错误列表
+        $field=array_key_first($this->errors);
+        $errors=$this->errors[$field];
+        // 只取错误消息
+        if($only_msg)
+            return [$errors[0]['msg']??''];
+        // 需要脱敏
+        if($sensitive)
+            return $this->sanitize([$field=>$errors])[$field][0]??[];
+        // 原始错误
+        return $errors[0]??[];
+    }
+
+    /**
+     * 验证规则是否满足要求
+     * 
+     * @param string $field 字段名称
+     * @param string $rule 规则名称
+     * @param mixed $value 待验证的值
+     * @param mixed $param 验证规则参数
+     * @return bool
+     */
+    abstract protected function checkRule(string $field,string $rule,mixed $value,mixed $param=null): bool;
+
+    /**
+     * 脱敏数据
+     * 
+     * @param array $data 待脱敏的数据
+     * @return array
+     */
+    abstract public function sanitize(array $data): array;
 
 }

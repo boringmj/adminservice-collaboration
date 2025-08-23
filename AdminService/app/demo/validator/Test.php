@@ -71,6 +71,19 @@ class Test extends FormValidator {
             ]
         ];
     }
+
+    /**
+     * 自定义错误消息
+     * 
+     * @return array
+     */
+    protected function messages(): array {
+        return [
+            'name.required'=>'用户名不能为空', // 定义name字段required规则对应的错误消息
+            'name.regex'=>'用户名只能包含字母', // 定义name字段regex规则对应的错误消息
+            'pass'=>'密码字段({field})不符合要求' // 定义所有pass字段的错误消息
+        ];
+    }
     
     /**
      * 展示自定义规则
@@ -81,7 +94,7 @@ class Test extends FormValidator {
      */
     public function validateIsValue(string $field,$value,$param) {
         if($value!=$param)
-            return $this->addError($field,'is_value',$param,'{field}的值必须等于{param}');
+            return $this->addError($field,'is_value',$param,'{field} 的值必须等于 {param}');
         return true;
     }
 

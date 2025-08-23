@@ -9,7 +9,7 @@ use base\SceneValidator;
  * 
  * @access public
  * @package AdminService
- * @version 1.0.2
+ * @version 1.0.3
  */
 class FormValidator extends SceneValidator {
 
@@ -32,33 +32,33 @@ class FormValidator extends SceneValidator {
     ];
 
     /**
-     * 验证规则对应的错误消息模板
+     * 验证规则对应的错误消息默认模板
      * @var array
      */
-    protected array $messages=[
-        'required'      => '{field}不能为空',
-        'email'         => '{field}必须是有效的邮箱地址',
-        'min'           => '{field}必须大于等于{param}',
-        'max'           => '{field}必须小于等于{param}',
-        'min_length'    => '{field}长度不能小于{param}',
-        'max_length'    => '{field}长度不能大于{param}',
-        'numeric'       => '{field}必须是数字',
-        'integer'       => '{field}必须是整数',
-        'url'           => '{field}必须是有效的URL',
-        'regex'         => '{field}格式不正确',
-        'in'            => '{field}必须在{param}之中',
-        'not_in'        => '{field}不能在{param}之中',
-        'same'          => '{field}必须和{param}相同',
-        'different'     => '{field}必须和{param}不同',
-        'date'          => '{field}必须是有效的日期',
-        'after'         => '{field}必须在{param}之后',
-        'before'        => '{field}必须在{param}之前',
-        'between'       => '{field}必须在{min}和{max}之间',
-        'not_between'   => '{field}不能在{min}和{max}之间',
-        'ip'            => '{field}必须是有效的IP地址',
-        'phone'         => '{field}必须是有效的手机号',
-        'json'          => '{field}必须是有效的JSON字符串',
-        'array'         => '{field}必须是数组',
+    protected array $messages_default=[
+        'required'      => '{field} 不能为空',
+        'email'         => '{field} 必须是有效的邮箱地址',
+        'min'           => '{field} 必须大于等于{param}',
+        'max'           => '{field} 必须小于等于{param}',
+        'min_length'    => '{field} 长度不能小于{param}',
+        'max_length'    => '{field} 长度不能大于{param}',
+        'numeric'       => '{field} 必须是数字',
+        'integer'       => '{field} 必须是整数',
+        'url'           => '{field} 必须是有效的URL',
+        'regex'         => '{field} 格式不正确',
+        'in'            => '{field} 必须在{param}之中',
+        'not_in'        => '{field} 不能在{param}之中',
+        'same'          => '{field} 必须和{param}相同',
+        'different'     => '{field} 必须和{param}不同',
+        'date'          => '{field} 必须是有效的日期',
+        'after'         => '{field} 必须在{param}之后',
+        'before'        => '{field} 必须在{param}之前',
+        'between'       => '{field} 必须在{min}和{max}之间',
+        'not_between'   => '{field} 不能在{min}和{max}之间',
+        'ip'            => '{field} 必须是有效的IP地址',
+        'phone'         => '{field} 必须是有效的手机号',
+        'json'          => '{field} 必须是有效的JSON字符串',
+        'array'         => '{field} 必须是数组',
         'sensitive'     => '', // 脱敏标记
     ];
 
@@ -123,6 +123,20 @@ class FormValidator extends SceneValidator {
     }
 
     /**
+     * 寻找错误模板
+     * 
+     * @param string $field 字段名
+     * @param string $rule 规则名
+     * @return string
+     */
+    protected function findErrorMessage(string $field,string $rule): string {
+        return $this->messages[$field.'.'.$rule]
+            ??$this->messages[$field]
+            ??$this->messages_default[$rule]
+            ??'{field} 验证失败';
+    }
+
+    /**
      * 添加验证错误
      * 
      * @param string $field 字段名
@@ -132,8 +146,7 @@ class FormValidator extends SceneValidator {
      * @return false
      */
     protected function addError(string $field,string $rule,mixed $param=null,?string $template=null): bool {
-        if($template===null)
-            $template=$this->messages[$rule]??'{field}验证失败';
+        if($template===null) $template=$this->findErrorMessage($field,$rule);
         $context=[
             'field'=>$field,
             'param'=>$param,
@@ -312,7 +325,7 @@ class FormValidator extends SceneValidator {
     }
 
     protected function validateRegex(string $field,$value,$param): bool {
-        if(!preg_match($param,$value)) {
+        if(!preg_match($param,(string)$value)) {
             return $this->addError($field,'regex',$param);
         }
         return true;

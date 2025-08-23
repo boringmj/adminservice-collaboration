@@ -95,7 +95,7 @@ class Index extends Controller {
         ])) {
             return json($name);
         }
-        return json($validator->errors(false,true));
+        return json($validator->getErrors(false,true));
     }
 
     public function sql(SystemInfo $systemInfo): array {

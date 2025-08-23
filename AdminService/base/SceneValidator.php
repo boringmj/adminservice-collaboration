@@ -16,8 +16,16 @@ abstract class SceneValidator extends Validator {
      */
     protected array $scenes=[];
 
-    public function __construct(array $data=[],$rules=[]) {
-        parent::__construct($data,$rules);
+    /**
+     * 构造方法
+     * 
+     * @param array $data 待验证的数据
+     * @param array $rules 验证规则
+     * @param array $messages 自定义错误信息
+     * @return void
+     */
+    public function __construct(array $data=[],$rules=[],$messages=[]) {
+        parent::__construct($data,$rules,$messages);
         $this->scenes=$this->scenes();
     }
 

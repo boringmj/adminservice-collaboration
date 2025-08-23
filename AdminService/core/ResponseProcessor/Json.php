@@ -2,7 +2,6 @@
 
 namespace AdminService\ResponseProcessor;
 
-use AdminService\Config;
 use base\AbstractResponseProcessor;
 
 /**

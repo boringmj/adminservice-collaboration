@@ -3,7 +3,6 @@
 namespace app\demo\controller;
 
 // 基类
-use base\Request;
 use base\Controller;
 // 系统核心类
 use AdminService\App;
@@ -118,7 +117,7 @@ class Index extends Controller {
 
     public function log(): string {
         // 通过 App::get() 传入自定义参数(如果不传入则会尝试自动注入,如果注入失败则会抛出异常)
-        App::get("Log",'debug')->write("This is a debug message in {app}.",array(
+        App::get(Log::class,'debug')->write("This is a debug message in {app}.",array(
             'app'=>App::getAppName()
         ));
         // 输出日志文件路径

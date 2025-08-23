@@ -22,8 +22,9 @@ class Exception extends BaseException {
         try{
             //写入日志
             App::get(Log::class)->write(
-                'Error({error_code}): {message} | data: {data} in {file} on line {line}, trace: {trace}',
+                '{class_name}({error_code}): {message} | data: {data} in {file} on line {line}, trace: {trace}',
                 array(
+                    'class_name'=>get_called_class(),
                     'message'=>$message,
                     'error_code'=>$error_code,
                     'data'=>json_encode($data),

@@ -8,7 +8,7 @@ use base\AbstractSession;
 use AdminService\Exception;
 
 /**
- * Request核心类
+ * HttpRequest核心类
  */
 final class HttpRequest extends Request {
 
@@ -191,6 +191,16 @@ final class HttpRequest extends Request {
     }
 
     /**
+     * 获取全部Cookie参数
+     * 
+     * @access public
+     * @return array
+     */
+    static public function getCookies(): array {
+        return self::$request_cookie->all();
+    }
+
+    /**
      * 设置Header信息(仅修改`Request`容器内缓存,不同步后续请求,不同步到`Response`)
      * 
      * @access public
@@ -217,6 +227,16 @@ final class HttpRequest extends Request {
         mixed $default=null
     ): mixed {
         return self::$request_headers->get($name,$default);
+    }
+
+    /**
+     * 获取全部Header参数
+     * 
+     * @access public
+     * @return array
+     */
+    static public function getHeaders(): array {
+        return self::$request_headers->all();
     }
 
     /**
@@ -249,6 +269,16 @@ final class HttpRequest extends Request {
         mixed $default=null
     ): mixed {
         return self::$request_input->get($name,$default);
+    }
+
+    /**
+     * 获取全部Input参数
+     * 
+     * @access public
+     * @return array
+     */
+    static public function getInputs(): array {
+        return self::$request_input->all();
     }
 
     /**
@@ -291,6 +321,16 @@ final class HttpRequest extends Request {
         mixed $default=null
     ): mixed {
         return self::$request_server->get($name,$default);
+    }
+
+    /**
+     * 获取全部Server参数
+     * 
+     * @access public
+     * @return array
+     */
+    static public function getServers(): array {
+        return self::$request_server->all();
     }
 
     /**

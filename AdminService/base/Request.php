@@ -76,6 +76,14 @@ abstract class Request {
     ): mixed;
 
     /**
+     * 获取全部Cookie参数
+     * 
+     * @access public
+     * @return array
+     */
+    abstract static public function getCookies(): array;
+
+    /**
      * 设置Header信息(为中间件修改提供便利,修改有效周期为本次请求,不提供跨会话持久化)
      * 
      * @access public
@@ -102,6 +110,14 @@ abstract class Request {
     ): mixed;
 
     /**
+     * 获取全部Header参数
+     * 
+     * @access public
+     * @return array
+     */
+    abstract static public function getHeaders(): array;
+
+    /**
      * 设置Input参数
      *
      * @access public
@@ -126,6 +142,14 @@ abstract class Request {
         string $name,
         mixed $default=null
     ): mixed;
+
+    /**
+     * 获取全部Input参数
+     * 
+     * @access public
+     * @return array
+     */
+    abstract static public function getInputs(): array;
 
     /**
      * 获取原始Input数据
@@ -160,6 +184,14 @@ abstract class Request {
         string $name,
         mixed $default=null
     ): mixed;
+
+    /**
+     * 获取全部Server参数
+     * 
+     * @access public
+     * @return array
+     */
+    abstract static public function getServers(): array;
 
     /**
      * 设置GET参数

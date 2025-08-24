@@ -224,7 +224,7 @@ abstract class Model {
      *  
      * @access public
      * @param string|array $fields 查询字段(默认为*)
-     * @return CursorCollection|Collection|Generator<int,T>
+     * @return CursorCollection<T>|Collection<T>|Generator<int,T>
      * @throws Exception
      */
     public function select(

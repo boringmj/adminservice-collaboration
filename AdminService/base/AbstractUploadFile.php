@@ -169,9 +169,9 @@ abstract class AbstractUploadFile {
      * 
      * @access public
      * @param string $name 最终上传名称
-     * @return self
+     * @return static
      */
-    public function setConfirmName(string $name): self {
+    public function setConfirmName(string $name): static {
         $this->confirm_name=$name;
         return $this;
     }

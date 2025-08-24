@@ -74,7 +74,7 @@ abstract class AbstractUploadFilesForm implements IteratorAggregate,Countable {
      * 获取迭代器
      * 
      * @access public
-     * @return ArrayIterator<string, AbstractUploadFiles>
+     * @return ArrayIterator<string,AbstractUploadFiles>
      */
     public function getIterator(): ArrayIterator {
         return new ArrayIterator($this->getFiles());

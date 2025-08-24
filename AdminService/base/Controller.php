@@ -117,9 +117,9 @@ abstract class Controller {
      * 
      * @access protected
      * @param string $type 数据类型
-     * @return self
+     * @return static
      */
-    final protected function type(string $type): self {
+    final protected function type(string $type): static {
         $this->response::setContentType($type);
         return $this;
     }
@@ -129,9 +129,9 @@ abstract class Controller {
      * 
      * @access protected
      * @param int $code 状态码
-     * @return self
+     * @return static
      */
-    final protected function code(int $code): self {
+    final protected function code(int $code): static {
         $this->response::setStatusCode($code);
         return $this;
     }

@@ -14,29 +14,34 @@ use AdminService\Exception;
  * @abstract
  * @package base
  * @version 1.0.0
+ * @template T of static
  */
 abstract class Model {
 
     /**
      * 数据表名(自动添加数据表前缀,优先级高于 $table_name)
-     * 
      * @var string
      */
     public string $table='';
 
     /**
      * 数据表名(默认不启用自动添加数据表前缀)
-     * 
      * @var string
      */
     public string $table_name='';
 
     /**
      * 查询结果集
-     * 
      * @var array
      */
     protected array $result=[];
+
+    /**
+     * 是否返回游标集合类
+     * @var bool
+     */
+    protected bool $cursor_collection=false;
+
 
     /**
      * Database对象
@@ -146,7 +151,7 @@ abstract class Model {
      * 
      * @access public
      * @param array $data 数据
-     * @return static
+     * @return T
      * @throws Exception
      */
     static public function new(array $data=[]): static {
@@ -219,15 +224,36 @@ abstract class Model {
      *  
      * @access public
      * @param string|array $fields 查询字段(默认为*)
-     * @return Collection|Generator
+     * @return CursorCollection|Collection|Generator<int,T>
      * @throws Exception
      */
-    public function select(string|array $fields='*'): Collection|Generator {
+    public function select(
+        string|array $fields='*'
+    ): CursorCollection|Collection|Generator {
         $result=$this->db->select($fields);
         // 如果是迭代器则直接返回
-        if($result instanceof Generator)
-            return $result;
-        return new Collection($this,$result);
+        if($result instanceof Generator) {
+            if($this->cursor_collection) {
+                $this->cursor_collection=false;
+                return new CursorCollection(static::class,$result);
+            }
+            else return $this->yieldResult($result);
+        }
+        $this->cursor_collection=false;
+        return new Collection(static::class,$result);
+    }
+
+    /**
+     * 迭代器处理结果
+     *  
+     * @access public
+     * @param Generator<static> $result 数据
+     * @return Generator
+     */
+    protected function yieldResult(Generator $result): Generator {
+        foreach ($result as $data) {
+            yield static::new($data);
+        }
     }
 
     /**
@@ -361,9 +387,9 @@ abstract class Model {
      * 
      * @access public
      * @param array|int ...$data limit限制
-     * @return self
+     * @return static
      */
-    public function limit(array|int ...$data): self {
+    public function limit(array|int ...$data): static {
         $this->db->limit(...$data);
         return $this;
     }
@@ -373,9 +399,9 @@ abstract class Model {
      * 
      * @access public
      * @param array|string ...$data order排序
-     * @return self
+     * @return static
      */
-    public function order(array|string ...$data): self {
+    public function order(array|string ...$data): static {
         $this->db->order(...$data);
         return $this;
     }
@@ -385,9 +411,9 @@ abstract class Model {
      * 
      * @access public
      * @param array|string ...$data group分组
-     * @return self
+     * @return static
      */
-    public function group(array|string ...$data): self {
+    public function group(array|string ...$data): static {
         $this->db->group(...$data);
         return $this;
     }
@@ -437,9 +463,11 @@ abstract class Model {
      * 设置下一次返回数据为迭代器而非对象集合(仅对 select 生效)
      * 
      * @access public
-     * @return self
+     * @param bool $cursor_collection 是否返回游标集合类(游标集合类不支持rewind,所以无法使用foreach)
+     * @return static
      */
-    public function iterator(): self {
+    public function iterator(bool $cursor_collection=false): static {
+        $this->cursor_collection=$cursor_collection;
         $this->db->iterator();
         return $this;
     }
@@ -458,9 +486,9 @@ abstract class Model {
      * 重置查询状态
      * 
      * @access protected
-     * @return self
+     * @return static
      */
-    public function reset(): self {
+    public function reset(): static {
         $this->db->reset();
         return $this;
     }
@@ -470,9 +498,9 @@ abstract class Model {
      * 
      * @access public
      * @param string $type 锁类型(shared,update且默认为update,不区分大小写,其他值无效)
-     * @return self
+     * @return static
      */
-    public function lock(string $type='update'): self {
+    public function lock(string $type='update'): static {
         $this->db->lock($type);
         return $this;
     }
@@ -482,9 +510,9 @@ abstract class Model {
      * 
      * @access public
      * @param string $alias 别名
-     * @return self
+     * @return static
      */
-    public function alias(string $alias): self {
+    public function alias(string $alias): static {
         $this->db->alias($alias);
         return $this;
     }
@@ -496,9 +524,9 @@ abstract class Model {
      * @param string|array $table 关联表名
      * @param array $on 关联条件
      * @param string $type 关联类型(left,right,inner,full)
-     * @return self
+     * @return static
      */
-    public function join(string|array $table,array $on,string $type='left'): self {
+    public function join(string|array $table,array $on,string $type='left'): static {
         $this->db->join($table,$on,$type);
         return $this;
     }
@@ -508,9 +536,9 @@ abstract class Model {
      * 
      * @access public
      * @param array|string $fields 过滤字段
-     * @return self
+     * @return static
      */
-    public function field(array|string $fields): self {
+    public function field(array|string $fields): static {
         $this->db->field($fields);
         return $this;
     }

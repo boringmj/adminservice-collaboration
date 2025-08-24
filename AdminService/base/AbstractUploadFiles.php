@@ -41,9 +41,9 @@ abstract class AbstractUploadFiles implements IteratorAggregate,Countable {
      * 
      * @access public
      * @param AbstractUploadFile $file 文件实例
-     * @return self
+     * @return static
      */
-    public function addFile(AbstractUploadFile $file): self {
+    public function addFile(AbstractUploadFile $file): static {
         $this->files[]=$file;
         return $this;
     }
@@ -53,9 +53,9 @@ abstract class AbstractUploadFiles implements IteratorAggregate,Countable {
      * 
      * @access public
      * @param AbstractUploadFile[] $files 文件实例列表
-     * @return self
+     * @return static
      */
-    public function addFiles(array $files): self {
+    public function addFiles(array $files): static {
         foreach($files as $file) {
             $this->addFile($file);
         }
@@ -77,9 +77,9 @@ abstract class AbstractUploadFiles implements IteratorAggregate,Countable {
      * 
      * @access public
      * @param string $dir 上传目录
-     * @return self
+     * @return static
      */
-    public function setDir(string $dir): self {
+    public function setDir(string $dir): static {
         $this->dir=$dir;
         return $this;
     }
@@ -98,7 +98,7 @@ abstract class AbstractUploadFiles implements IteratorAggregate,Countable {
      * 获取迭代器
      * 
      * @access public
-     * @return ArrayIterator<int, AbstractUploadFile>
+     * @return ArrayIterator<int,AbstractUploadFile>
      */
     public function getIterator(): ArrayIterator {
         return new ArrayIterator($this->getFiles());

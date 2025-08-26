@@ -2,17 +2,16 @@
 
 namespace base;
 
-use \Iterator;
 use \Generator;
-use \LogicException;
+use \IteratorAggregate;
 
 /**
- * 游标集合类
+ * 一次性游标集合类
  * 
  * @package base
  * @template T of Model
  */
-class CursorCollection implements Iterator {
+class CursorCollection implements IteratorAggregate {
 
     /**
      * 模型对象
@@ -29,18 +28,11 @@ class CursorCollection implements Iterator {
     protected Generator $source;
 
     /**
-     * 当前元素
+     * 游标是否已耗尽
      * 
-     * @var T|null
+     * @var bool
      */
-    protected ?Model $current=null;
-
-    /**
-     * 当前键名
-     * 
-     * @var int
-     */
-    protected int $key=0;
+    protected bool $exhausted=false;
 
     /**
      * 构造函数
@@ -60,60 +52,17 @@ class CursorCollection implements Iterator {
                 }
             })();
         }
-        // 初始化游标
-        $this->next();
     }
 
     /**
-     * 获取当前元素
+     * 获取生成器
      * 
-     * @return T|null
+     * @return Generator<int,T>
      */
-    public function current(): Model|null {
-        return $this->current;
-    }
-
-    /**
-     * 获取当前键名
-     * 
-     * @return int
-     */
-    public function key(): int {
-        return $this->key;
-    }
-
-    /**
-     * 移动到下一个元素
-     * 
-     * @return void
-     */
-    public function next(): void {
-        if($this->source->valid()) {
-            $this->current=$this->model::new($this->source->current());
-            $this->source->next();
-            $this->key++;
-        } else {
-            $this->current=null;
+    public function getIterator(): Generator {
+        while($row=$this->fetch()) {
+            yield $row;
         }
-    }
-
-    /**
-     * 重置指针 (游标集合不支持)
-     * 
-     * @throws LogicException
-     * @return void
-     */
-    public function rewind(): void {
-        throw new LogicException("CursorCollection cannot be rewound");
-    }
-
-    /**
-     * 检查当前指针位置是否有效
-     * 
-     * @return bool
-     */
-    public function valid(): bool {
-        return $this->current!==null;
     }
 
     /**
@@ -122,9 +71,13 @@ class CursorCollection implements Iterator {
      * @return T|null
      */
     public function fetch(): Model|null {
-        if(!$this->valid()) return null;
-        $row=$this->current;
-        $this->next();
+        if($this->exhausted) return null;
+        if(!$this->source->valid()) {
+            $this->exhausted=true;
+            return null;
+        }
+        $row=$this->model::new($this->source->current());
+        $this->source->next();
         return $row;
     }
 

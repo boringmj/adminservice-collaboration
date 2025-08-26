@@ -463,7 +463,7 @@ abstract class Model {
      * 设置下一次返回数据为迭代器而非对象集合(仅对 select 生效)
      * 
      * @access public
-     * @param bool $cursor_collection 是否返回游标集合类(游标集合类不支持rewind,所以无法使用foreach)
+     * @param bool $cursor_collection 是否返回游标集合类(游标集合类是一次性消费类)
      * @return static
      */
     public function iterator(bool $cursor_collection=false): static {

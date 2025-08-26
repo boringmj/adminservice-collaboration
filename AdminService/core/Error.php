@@ -258,15 +258,15 @@ final class Error extends BaseError {
             $badge_class='error-badge ';
             if($error['is_fatal'])
                 $badge_class.='fatal-badge';
-            elseif ($error['type']===E_WARNING)
+            elseif($error['type']===E_WARNING)
                 $badge_class.='warning-badge';
             else
                 $badge_class.='notice-badge';
-            if ($error['is_exception'])
+            if($error['is_exception'])
                 $badge_class.=' exception-badge';
             // 处理堆栈跟踪
             $stack_trace=$error['stack_trace']??'';
-            if (!$debug_mode&&!empty($stack_trace)) {
+            if(!$debug_mode&&!empty($stack_trace)) {
                 $stack_trace='堆栈跟踪信息已被隐藏-请在日志中查看或开启调试模式'.PHP_EOL.
                     '如想开启调试模式,请在配置文件中配置 `app.debug` 为 `true`';
             } elseif($debug_mode&&is_array($stack_trace)) {

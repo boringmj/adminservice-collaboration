@@ -56,15 +56,15 @@
       );
       document.write("</div>");
       function toggleAllStacks() {
-        var allStacks = document.querySelectorAll(".stack-trace");
-        var allButtons = document.querySelectorAll(".toggle-stack");
-        if (allStacks.length > 0) {
-          var isVisible = allStacks[0].style.display === "block";
-          allStacks.forEach(function (stack) {
-            stack.style.display = isVisible ? "none" : "block";
+        var allStacks=document.querySelectorAll(".stack-trace");
+        var allButtons=document.querySelectorAll(".toggle-stack");
+        if(allStacks.length>0) {
+          var isVisible=allStacks[0].style.display==="block";
+          allStacks.forEach(function(stack) {
+            stack.style.display=isVisible ? "none" : "block";
           });
-          allButtons.forEach(function (button) {
-            button.style.display = isVisible ? "inline-block" : "none";
+          allButtons.forEach(function(button) {
+            button.style.display=isVisible?"inline-block":"none";
           });
         }
       }

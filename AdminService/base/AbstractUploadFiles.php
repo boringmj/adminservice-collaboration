@@ -31,7 +31,7 @@ abstract class AbstractUploadFiles implements IteratorAggregate,Countable {
      * @param array $files 上传文件列表
      * @return void
      */
-    public function __construct(string $dir, array $files) {
+    public function __construct(string $dir,array $files) {
         $this->dir=$dir;
         $this->parse($files);
     }

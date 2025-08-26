@@ -94,7 +94,7 @@ class FormValidator extends SceneValidator {
      * @return string
      */
     protected function replacePlaceholders(string $template,array $context): string {
-        foreach ($context as $key=>$val) {
+        foreach($context as $key=>$val) {
             $placeholder='{'.$key.'}';
             if(strpos($template,$placeholder)!==false) {
                 $template=str_replace($placeholder,$this->stringify($val),$template);

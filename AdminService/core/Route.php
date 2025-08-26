@@ -115,7 +115,7 @@ final class Route extends BaseRoute {
         self::dispatch(
             $before_middlewares,
             $after_middlewares,
-            function () use ($method,$args,$response) {
+            function() use ($method,$args,$response) {
                 $data=App::exec_class_function($method[0],$method[1],$args);
                 $response->setControllerReturn($data);
             }
@@ -171,22 +171,22 @@ final class Route extends BaseRoute {
         $beforeChain=array_reduce(
             array_reverse($before),
             function($next,$middleware) {
-                return function () use ($middleware,$next) {
+                return function() use ($middleware,$next) {
                     (new $middleware())->handle($next);
                 };
             },
-            function () use ($core,$after) {
+            function() use ($core,$after) {
                 // 前置执行完后，调用核心逻辑
                 $core();
                 // 构造后置中间件链
                 $afterChain=array_reduce(
                     $after,
                     function($next,$middleware) {
-                        return function () use ($middleware,$next) {
+                        return function() use ($middleware,$next) {
                             (new $middleware())->handle($next);
                         };
                     },
-                    function () {
+                    function() {
                         // 后置执行完后的处理
                     }
                 );

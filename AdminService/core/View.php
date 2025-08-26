@@ -102,7 +102,7 @@ final class View extends BaseView {
             $loopStart=$startPos+strlen($startMatches[0][0]);
             // 查找对应的结束标签
             $endPos=$this->findMatchingEndTag($content,$loopStart,'foreach');
-            if ($endPos===false) break;
+            if($endPos===false) break;
             $loopBlock=substr($content,$loopStart,$endPos-$loopStart);
             // 解析变量
             $dataPath=trim($startMatches[1][0],'$');
@@ -115,7 +115,7 @@ final class View extends BaseView {
                 $itemVar=trim($startMatches[2][0],'$');
             }
             $loopData=$this->getDataByPath($dataPath);
-            if (!is_array($loopData)) {
+            if(!is_array($loopData)) {
                 $result.='';
             } else {
                 foreach($loopData as $loopKey=>$loopValue) {
@@ -295,12 +295,12 @@ final class View extends BaseView {
                 if(is_scalar($value)) {
                     return (string)$value;
                 } elseif(is_array($value)||is_object($value)) {
-                    return json_encode($value, JSON_UNESCAPED_UNICODE);
+                    return json_encode($value,JSON_UNESCAPED_UNICODE);
                 }
                 return '';
             },
             '/\{\{!\s*(\$?[\w\.\[\]\'"]+)\s*\}\}/'=>function($matches) {
-                $varPath=ltrim($matches[1], '$');
+                $varPath=ltrim($matches[1],'$');
                 $value=$this->getDataByPath($varPath);
                 if(is_scalar($value)) {
                     return (string)$value;
@@ -311,7 +311,7 @@ final class View extends BaseView {
             },
             // 普通变量标签：{{var}}(默认转义)
             '/\{\{\s*(\$?[\w\.\[\]\'"]+)\s*\}\}/'=>function($matches) {
-                $varPath=ltrim($matches[1], '$');
+                $varPath=ltrim($matches[1],'$');
                 $value=$this->getDataByPath($varPath);
                 if(is_scalar($value)) {
                     if(is_string($value))
@@ -370,7 +370,7 @@ final class View extends BaseView {
                 }
                 // 如果有子键，则进一步获取
                 if($subKey!==null) {
-                    if (is_array($data)) {
+                    if(is_array($data)) {
                         $data=$data[$subKey]??null;
                     } elseif(is_object($data)) {
                         $data=$data->$subKey??null;
@@ -426,7 +426,7 @@ final class View extends BaseView {
                 // 排除数字和布尔字面量
                 if(is_numeric($varPath)||in_array(strtolower($varPath),['true','false','null']))
                     return $matches[0];
-                $val = $this->getDataByPath($varPath);
+                $val=$this->getDataByPath($varPath);
                 if(is_bool($val)) return $val?'true':'false';
                 if(is_null($val)) return 'null';
                 if(is_numeric($val)) return $val;

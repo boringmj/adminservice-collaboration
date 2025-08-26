@@ -130,7 +130,7 @@ abstract class Model {
      */
     public function __set(string $name,mixed $value): void {
         // 检查结果集中是否存在该属性
-        if (!array_key_exists($name,$this->result))
+        if(!array_key_exists($name,$this->result))
             throw new Exception('Property "'.$name.'" not found.');
         // 设置结果集中的属性值
         $this->result[$name]=$value;
@@ -251,7 +251,7 @@ abstract class Model {
      * @return Generator
      */
     protected function yieldResult(Generator $result): Generator {
-        foreach ($result as $data) {
+        foreach($result as $data) {
             yield static::new($data);
         }
     }

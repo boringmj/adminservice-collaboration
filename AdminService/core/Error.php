@@ -189,12 +189,13 @@ final class Error extends BaseError {
         while(ob_get_level()>0) {
             ob_end_clean();
         }
-        // 尝试强制设置响应头
-        if(!headers_sent()) {
-            header('Is-Error: true');
-        }
         // 输出错误信息
-        echo App::get(Response::class)->html(self::renderErrors());
+        $response=App::get(Response::class);
+        $response->setStatusCode(500);
+        $response->html();
+        $response->setHeader('Is-Error','true');
+        $response->sendHeaders();
+        echo self::renderErrors();
         // 记录所有错误到日志
         if(self::$initialized) {
             try {

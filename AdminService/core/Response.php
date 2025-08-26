@@ -24,7 +24,7 @@ final class Response extends BaseResponse {
      */
     static public Data $cookies;
 
-        /**
+    /**
      * 获取一个标准的返回类型
      * 
      * @access public
@@ -207,13 +207,12 @@ final class Response extends BaseResponse {
     }
 
     /**
-     * 结束响应并发送数据
+     * 发送请求头和状态码
      * 
      * @access public
      * @return void
      */
-    static public function send(): void {
-        $temp=self::render();
+    static public function sendHeaders(): void {
         // 判断是否还可以返回请求头
         if(!headers_sent()) {
             http_response_code(self::getStatusCode());
@@ -222,6 +221,18 @@ final class Response extends BaseResponse {
             $cookie=App::get(Cookie::class);
             $cookie->setByArray(self::$cookies->all());
         }
+    }
+
+    /**
+     * 结束响应并发送数据
+     * 
+     * @access public
+     * @return void
+     */
+    static public function send(): void {
+        $temp=self::render();
+        // 发送请求头
+        self::sendHeaders();
         // 渲染结果
         echo $temp;
     }

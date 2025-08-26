@@ -21,7 +21,7 @@ class Json extends AbstractResponseProcessor {
         $flag=$this->config['flag']??0;
         // 将不为数组和对象的值使用数组包裹
         if(!is_array($temp)&&!is_object($temp)) {
-            $temp=['data'=>$temp];
+            $temp=[$temp];
         }
         $temp=json_encode($temp,$flag);
         $this->getResponse()->setReturnContent($temp);

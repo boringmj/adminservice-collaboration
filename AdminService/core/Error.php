@@ -189,12 +189,12 @@ final class Error extends BaseError {
         while(ob_get_level()>0) {
             ob_end_clean();
         }
-        // 尝试强制设置响应类型为HTML
+        // 尝试强制设置响应头
         if(!headers_sent()) {
-            header('Content-Type: text/html; charset=utf-8');
+            header('Is-Error: true');
         }
         // 输出错误信息
-        echo self::renderErrors();
+        echo App::get(Response::class)->html(self::renderErrors());
         // 记录所有错误到日志
         if(self::$initialized) {
             try {

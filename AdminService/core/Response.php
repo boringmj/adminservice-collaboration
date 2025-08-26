@@ -3,6 +3,7 @@
 namespace AdminService;
 
 use base\Cookie;
+use base\Request;
 use base\Response as BaseResponse;
 use AdminService\ResponseProcessor\Http;
 
@@ -23,17 +24,21 @@ final class Response extends BaseResponse {
      */
     static public Data $cookies;
 
-    /**
+        /**
      * 获取一个标准的返回类型
      * 
      * @access public
+     * @param string|null $type 类型
      * @return string
      */
-    static public function getStandardContentType(): string {
+    static public function getStandardContentType(
+        ?string $type=null
+    ): string {
+        $type=$type??self::$contentType;
         $type_list=array_keys(Config::get('response.default.type',[]));
         // 判断当前类型是否存在
-        if(in_array(self::$contentType,$type_list))
-            return self::$contentType;
+        if(in_array($type,$type_list))
+            return $type;
         return $type_list[0];
     }
 
@@ -46,7 +51,7 @@ final class Response extends BaseResponse {
     static public function init(): void {
         self::$headers=new Data();
         self::$cookies=new Data();
-        self::setContentType('text/html');
+        self::setContentType('*/*');
     }
 
     /**
@@ -154,13 +159,51 @@ final class Response extends BaseResponse {
     static public function render(): string {
         if(self::$return_content!==null) return self::$return_content;
         $type=self::getStandardContentType();
-        $config=Config::get('response.default.type.'.$type);
+        if($type=='*/*') {
+            // 获取 Accept 头信息
+            $accept_headers=App::get(Request::class)->getHeader('accept');
+            $accept_headers=explode(',',$accept_headers);
+            // 通过递归寻找匹配的类型
+            $type=self::findAcceptType($accept_headers);
+        }
+        $config=Config::get('response.default.type.'.$type,[]);
         $class=$config['class']??Http::class;
         App::new($class,config:$config);
         // 合并header
         $headers=$config['headers']??[];
         self::$headers->batchSet($headers);
         return self::$return_content??'';
+    }
+
+    /**
+     * 寻找匹配的类型
+     * 
+     * @access private
+     * @param array $accept_headers Accept头信息
+     * @return string
+     */
+    private static function findAcceptType(array $accept_headers): string {
+        $allow_types=array_keys(Config::get('response.default.type',[]));
+        $matches=[];
+        foreach($accept_headers as $header) {
+            // 拆分类型和权重
+            $parts=explode(';',trim($header));
+            $type=strtolower(trim($parts[0]));
+            $q=1.0; // 默认权重
+            if(isset($parts[1])&&str_starts_with(trim($parts[1]),'q='))
+                $q=(float) substr(trim($parts[1]),2);
+            // 匹配允许的类型或通配符
+            if(in_array($type,$allow_types)||$type==='*/*')
+                $matches[$type]=$q;
+        }
+        // 按权重排序,权重高的优先
+        if(!empty($matches)) {
+            arsort($matches,SORT_NUMERIC);
+            foreach($matches as $type=>$q)
+                if($type!=='*/*') return $type;
+        }
+        // 如果都不匹配或只匹配通配符，返回默认类型
+        return $allow_types[0]??'*/*';
     }
 
     /**

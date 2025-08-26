@@ -152,9 +152,12 @@ abstract class Response {
      * 获取一个标准的返回类型
      * 
      * @access public
+     * @param string|null $type 类型
      * @return string
      */
-    abstract static public function getStandardContentType(): string;
+    abstract static public function getStandardContentType(
+        ?string $type=null
+    ): string;
 
     /**
      * 初始化

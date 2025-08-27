@@ -282,7 +282,8 @@ abstract class Container {
         $list=array(
             'int'=>'integer',
             'bool'=>'boolean',
-            'float'=>'double'
+            'float'=>'double',
+            'null'=>'NULL'
         );
         if(isset($list[$type]))
             return $list[$type];

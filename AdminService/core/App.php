@@ -152,6 +152,9 @@ final class App extends Container {
             $types=self::getStandardTypes($types);
             // 获取参数名
             $name=$param->getName();
+            if($param->allowsNull())
+                $types[]='NULL';
+            $types=array_unique($types);
             // 判断参数类型是否为可变参数
             if($param->isVariadic()) {
                 $numeric_args=array_values(array_filter($args,'is_numeric',ARRAY_FILTER_USE_KEY));
@@ -181,13 +184,13 @@ final class App extends Container {
                 break;
             }
             // 先尝试在参数数组通过参数名查找
-            if(isset($args[$name])&&self::isValidType($args[$name],$types)) {
+            if(array_key_exists($name,$args)&&self::isValidType($args[$name],$types)) {
                 $params_temp[]=$args[$name];
                 unset($args[$name]);
                 continue;
             }
             // 判断是否存在顺位参数
-            if(isset($args[$arg_count])&&self::isValidType($args[$arg_count],$types)) {
+            if(array_key_exists($arg_count,$args)&&self::isValidType($args[$arg_count],$types)) {
                 $params_temp[]=$args[$arg_count];
                 unset($args[$arg_count]);
                 // 顺位参数自增

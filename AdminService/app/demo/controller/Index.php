@@ -26,12 +26,16 @@ use function AdminService\common\json;
 class Index extends Controller {
 
     public function index(): string {
-        // 返回组字符串
+        // 返回组字符串(默认情况下使用客户端发送的`Accept`头渲染结果)
         return "Hello World!";
     }
 
     public function request(): array {
         // 获取请求参数(更多用法请查看Request基类以及Request核心类)
+        // 如果不指定来源,则通过配置项`request.default.param.order` 来获取参数顺序
+        $name=$this->request->getParam('name');
+        // 如果控制器继承至`\base\Controller`, 则可以使用快捷方法访问
+        $name=$this->param('name');
         // 从get参数中获取指定参数
         $name=$this->request->getGet('name');
         // 从post参数中获取指定参数
@@ -43,8 +47,9 @@ class Index extends Controller {
             'raw_input'=>$this->request->getRawInput(),
             'get'=>$this->request->getGets(),
             'post'=>$this->request->getPosts(),
-            // 因为request_cookie是实现类成员,不属于基类成员,所以一般编辑器都会提示错误
-            // 'cookie'=>$this->request::$request_cookie->all() // 看着难受等后续更新吧
+            'cookie'=>$this->request->getCookies(),
+            'server'=>$this->request->getServers(),
+            'headers'=>$this->request->getHeaders(),
         ],200);
     }
 
@@ -53,6 +58,7 @@ class Index extends Controller {
         // 也可以直接传入视图名称 (不带后缀名),此时会在默认视图路径下查找
         return view(array(
             'name'=>'AdminService',
+            'msg'=>'<b>Hello World!</b>',
             'list1'=>array(
                 'list1.demo1','list1.demo2'
             ),
@@ -124,20 +130,20 @@ class Index extends Controller {
         return "日志存放目录: ".realpath(Config::get('log.path',''));
     }
 
-    public function exec(): array {
+    public function exec(): mixed {
         // 补充说明: 如果形参要求了类型,但传入参数不符合该类型,则会跳过该参数并采用默认值,如果没有默认值则会抛出异常
         // 如果传入的是顺位参数且该参数同样不符合形参类型,则该参数不计入顺位参数的位置且同样使用默认值或抛出异常
 
         // 调用类方法(如果第一个参数是类名则会自动实例化,如果是对象会直接调用)
         App::exec_class_function(Log::class,'write',array(
-            'This is a debug message in {app} demo1.',
+            'This is a debug message in {app} demo.',
             array(
                 'app'=>App::getAppName()
             )
         ));
         // 调用函数
-        return App::exec_function('AdminService\common\json',array(
-            "msg"=>"Hello World!", // 指定参数名
+        return App::exec_function('\AdminService\common\json',array(
+            "data"=>"Hello World!", // 指定参数名
             200, // 顺位参数(指定参数不占用顺位参数位置)
         ));
     }

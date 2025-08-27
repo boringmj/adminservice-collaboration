@@ -147,14 +147,14 @@ final class App extends Container {
         foreach($params as $param) {
             $type=$param->getType();
             $type=(string)$type;
-            //  将类型分割为数组
+            // 将类型分割为数组
             $types=explode('|',$type);
             $types=self::getStandardTypes($types);
             // 获取参数名
             $name=$param->getName();
             // 判断参数类型是否为可变参数
             if($param->isVariadic()) {
-                $numeric_args=array_values(array_filter($args, 'is_numeric',ARRAY_FILTER_USE_KEY));
+                $numeric_args=array_values(array_filter($args,'is_numeric',ARRAY_FILTER_USE_KEY));
                 $assoc_args=array_filter($args,'is_string',ARRAY_FILTER_USE_KEY);
                 $temp_args=array_merge($numeric_args,$assoc_args);
                 // 判断是否有类型限制
@@ -164,8 +164,7 @@ final class App extends Container {
                 }
                 // 判断每个参数是否符合类型限制
                 foreach($temp_args as $key=>$value) {
-                    $type=gettype($value);
-                    if(in_array($type,$types)) {
+                    if(self::isValidType($value,$types)) {
                         if(is_numeric($key))
                             $params_temp[]=$value;
                         else
@@ -182,27 +181,13 @@ final class App extends Container {
                 break;
             }
             // 先尝试在参数数组通过参数名查找
-            if(
-                isset($args[$name])&&(
-                    in_array(gettype($args[$name]),$types)||
-                    $type==''||
-                    // 当gettype()返回的类型为object时,获取参数类型是否为类且与type相同
-                    gettype($args[$name])=='object'&&class_exists($type)&&$args[$name] instanceof $type
-                )
-            ) {
+            if(isset($args[$name])&&self::isValidType($args[$name],$types)) {
                 $params_temp[]=$args[$name];
                 unset($args[$name]);
                 continue;
             }
             // 判断是否存在顺位参数
-            if(
-                isset($args[$arg_count])&&(
-                    in_array(gettype($args[$arg_count]),$types)||
-                    $type==''||
-                    // 当gettype()返回的类型为object时,获取参数类型是否为类且与type相同
-                    gettype($args[$arg_count])=='object'&&class_exists($type)&&$args[$arg_count] instanceof $type
-                )
-            ) {
+            if(isset($args[$arg_count])&&self::isValidType($args[$arg_count],$types)) {
                 $params_temp[]=$args[$arg_count];
                 unset($args[$arg_count]);
                 // 顺位参数自增
@@ -227,6 +212,33 @@ final class App extends Container {
                 ));
         }
         return $params_temp;
+    }
+
+    /**
+     * 判断参数是否符合预期类型
+     * 
+     * @access private
+     * @param mixed $arg 参数
+     * @param array $types 预期类型
+     * @return bool
+     */
+    static private function isValidType(mixed $arg,array $types): bool {
+        $arg_type=gettype($arg);
+        // 直接匹配 PHP 内置类型
+        if(in_array($arg_type,$types,true)) return true;
+        // 类型为空字符串(无类型约束)
+        if($types===['']||in_array('',$types,true)) return true;
+        // mixed 表示任何类型都合法
+        if(in_array('mixed',$types,true)) return true;
+        // 如果参数是对象，检查是否符合给定类名
+        if ($arg_type==='object') {
+            foreach($types as $t) {
+                if(class_exists($t) && $arg instanceof $t) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

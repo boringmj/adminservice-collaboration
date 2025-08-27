@@ -205,7 +205,7 @@ abstract class Container {
             foreach($params as $param) {
                 $type=$param->getType();
                 $type=(string)$type;
-                //  将类型分割为数组
+                // 将类型分割为数组
                 $types=explode('|',$type);
                 $types=self::getStandardTypes($types);
                 // 获取第一个可实例化的类

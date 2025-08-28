@@ -185,11 +185,20 @@ abstract class AbstractUploadFile {
     function getConfirmName(): string {
         if(!empty($this->confirm_name))
             return $this->confirm_name;
-        // 扩展名处理
-        $extension=$this->extension!==''?'.'.$this->extension:'';
-        // 随机文件名
-        $random=uniqid('upload_',false).bin2hex(random_bytes(4));
-        return $this->confirm_name=$random.$extension;
+        return $this->confirm_name=$this->generateRandomName();
+    }
+
+    /**
+     * 生成一个随机文件名(纯生成,不会修改确认名)
+     * 
+     * @access public
+     * @param string $prefix 前缀
+     * @param bool $with_extension 是否包含扩展名
+     * @return string
+     */
+    public function generateRandomName(string $prefix='upload_', bool $with_extension=true): string {
+        $extension=$with_extension&&$this->extension!==''?'.'.$this->extension:'';
+        return uniqid($prefix,false).bin2hex(random_bytes(4)).$extension;
     }
 
     /**

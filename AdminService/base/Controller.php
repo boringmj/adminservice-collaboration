@@ -150,6 +150,19 @@ abstract class Controller {
     }
 
     /**
+     * 设置返回内容为html
+     * 
+     * @access protected
+     * @param array|object|string|int|bool|null $html html内容
+     * @param int $code 状态码
+     * @return mixed
+     */
+    final protected function html(mixed $html,int $code=200): mixed {
+        $this->response::setStatusCode($code);
+        return $this->response::html($html);
+    }
+
+    /**
      * 显示视图
      *
      * @access protected
@@ -167,7 +180,7 @@ abstract class Controller {
             $template=App::getMethodName();
         $template=Config::get('app.path').'/'.App::getAppName().'/view'.'/'.App::getControllerName().'/'.$template.'.html';
         $this->view->init($template,$data);
-        return $this->view->render();
+        return $this->html($this->view->render());
     }
 
 }

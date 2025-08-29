@@ -29,8 +29,8 @@ class Http extends AbstractResponseProcessor {
             $this->getResponse()->setReturnContent($temp);
             return;
         }
-        // 如果是数组则转为JSON
-        if(is_array($temp)) {
+        // 如果是数组或对象则转为json字符串
+        if(is_array($temp)||is_object($temp)) {
             $temp=json_encode($temp);
             $this->getResponse()->setReturnContent($temp);
             return;

@@ -96,7 +96,7 @@ abstract class Response {
      * 设置返回类型为html
      * 
      * @access public
-     * @param string|int|bool|null $content 返回内容
+     * @param array|object|string|int|bool|null $content 返回内容
      * @return mixed
      */
     static public function html(null|string|int|bool $content=null): mixed {
@@ -108,7 +108,7 @@ abstract class Response {
      * 设置返回类型为text
      * 
      * @access public
-     * @param string|int|bool|null $content 返回内容
+     * @param array|object|string|int|bool|null $content 返回内容
      * @return mixed
      */
     static public function text(null|string|int|bool $content=null): mixed {

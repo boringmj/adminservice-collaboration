@@ -86,8 +86,8 @@ final class Error extends BaseError {
     public static function handleError(int $type,string $message,string $file,int $line): bool {
         // 清理错误消息(移除文件路径和行号)
         $message=self::cleanErrorMessage($message);
-        // 获取堆栈跟踪(忽略当前错误处理器这一层)
-        $stackTrace=debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+        // 获取堆栈跟踪(保留参数)
+        $stackTrace=debug_backtrace();
         // 移除错误处理器自身的调用
         array_shift($stackTrace);
         self::$errors[]=array(
@@ -150,8 +150,8 @@ final class Error extends BaseError {
                 list(,$stackTrace)=explode('Stack trace:',$lastError['message'],2);
                 $stackTrace='Stack trace:'.$stackTrace;
             } else {
-                // 获取当前堆栈(忽略shutdown函数这一层)
-                $stackTrace=debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+                // 获取当前堆栈(保留参数)
+                $stackTrace=debug_backtrace();
                 // 移除shutdown函数调用
                 array_shift($stackTrace);
             }
@@ -325,21 +325,24 @@ final class Error extends BaseError {
      */
     private static function formatStackTrace(array $stack_trace): string {
         $html='<table class="stack-table">';
-        $html.='<tr><th>#</th><th>函数/方法</th><th>文件</th><th>行号</th></tr>';
+        $html.='<tr><th>#</th><th>函数/方法</th><th>文件</th><th>行号</th><th>参数</th></tr>';
         foreach($stack_trace as $index=>$frame) {
             $file=$frame['file']??'[内部函数]';
             $line=$frame['line']??'N/A';
             $function=$frame['function']??'';
             $class=$frame['class']??'';
             $type=$frame['type']??'';
+            $args=$frame['args']??[];
+            $args_str=self::stringifyArgs($args);
             $html.=sprintf(
-                '<tr><td>%s</td><td>%s%s%s()</td><td>%s</td><td>%d</td></tr>',
+                '<tr><td>%s</td><td>%s%s%s()</td><td>%s</td><td>%s</td><td>%s</td></tr>',
                 $index+1,
                 htmlspecialchars($class),
                 htmlspecialchars($type),
                 htmlspecialchars($function),
                 htmlspecialchars($file),
-                htmlspecialchars($line)
+                htmlspecialchars((string)$line),
+                htmlspecialchars($args_str)
             );
         }
         $html.='</table>';
@@ -362,16 +365,47 @@ final class Error extends BaseError {
             $function=$frame['function']??'';
             $class=$frame['class']??'';
             $type=$frame['type']??'';
+            $args=$frame['args']??[];
+            $args_str=self::stringifyArgs($args);
             $formatted.="#{$index} {$file}({$line}): ";
             if($class) {
-                $formatted.="{$class}{$type}{$function}()";
+                $formatted.="{$class}{$type}{$function}({$args_str})";
             } else {
-                $formatted.="{$function}()";
+                $formatted.="{$function}({$args_str})";
             }
             $formatted.="\n";
             $index++;
         }
         return $formatted;
+    }
+
+    /**
+     * 将参数转为字符串
+     * 
+     * @access private
+     * @param array $args
+     * @return string
+     */
+    private static function stringifyArgs(array $args): string {
+        $out=[];
+        foreach($args as $arg) {
+            if(is_object($arg)) {
+                $out[]='Object('.get_class($arg).')';
+            } elseif(is_array($arg)) {
+                $out[]='Array['.count($arg).']';
+            } elseif(is_resource($arg)) {
+                $out[]='Resource';
+            } elseif(is_string($arg)) {
+                $out[]="'".substr($arg,0,50).(strlen($arg)>50?'...':'')."'";
+            } elseif(is_null($arg)) {
+                $out[]='NULL';
+            } elseif(is_bool($arg)) {
+                $out[]=$arg?'true':'false';
+            } else {
+                $out[]=(string)$arg;
+            }
+        }
+        return implode(', ',$out);
     }
 
     /**

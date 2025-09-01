@@ -141,9 +141,10 @@ class Log {
      * @return string
      */
     protected function filter(string $content):string {
-        // 将换行符替换为"\\n"
+        // 自动转义
+        $content=addslashes($content);
+        // 其他过滤规则
         $eol=array(
-            "\\"=>"\\\\",
             "\n"=>"\\n",
             "\r"=>"\\r"
         );

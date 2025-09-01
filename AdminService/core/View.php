@@ -430,14 +430,14 @@ final class View extends BaseView {
                 if(is_bool($val)) return $val?'true':'false';
                 if(is_null($val)) return 'null';
                 if(is_numeric($val)) return $val;
-                if(is_string($val)) return '"'.addslashes($val).'"';
+                if(is_string($val)) return json_encode($val,JSON_UNESCAPED_UNICODE);
                 return 'false';
             },
             $condition
         );
         // 词法分析
         $tokens=[];
-        $pattern='/(\|\||&&|==|!=|<=|>=|<|>|\(|\)|!|true|false|null|"(?:\\.|[^"])*"|\'(?:\\.|[^\'])*\'|\d+|\w+)/';
+        $pattern='/(\|\||&&|==|!=|<=|>=|<|>|\(|\)|!|true|false|null|"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'|\d+|\w+)/xs';
         preg_match_all($pattern,$condition,$matches);
         foreach($matches[0] as $token) {
             $tokens[]=$token;
@@ -527,10 +527,10 @@ final class View extends BaseView {
                     break;
                 default:
                     // 字符串或数字
-                    if(preg_match('/^"(.*)"$/',$token,$m)) {
-                        $calc[]=$m[1];
-                    } elseif(preg_match("/^'(.*)'$/",$token,$m)) {
-                        $calc[]=$m[1];
+                    if(preg_match('/^"(.*)"$/s',$token,$m)) {
+                        $calc[]=stripslashes($m[1]);
+                    } elseif(preg_match("/^'(.*)'$/s",$token,$m)) {
+                        $calc[]=stripslashes($m[1]);
                     } elseif(is_numeric($token)) {
                         $calc[]=$token+0;
                     }
@@ -559,27 +559,6 @@ final class View extends BaseView {
         if(is_numeric($input)) return $input+0;
         // 变量
         return $this->getDataByPath(ltrim($input,'$'));
-    }
-
-    /**
-     * 比较两个值
-     * 
-     * @access protected
-     * @param mixed $left 左侧值
-     * @param string $operator 比较运算符
-     * @param mixed $right 右侧值
-     * @return bool 返回比较结果
-     */
-    protected function compareValues(mixed $left,string $operator,$right): bool {
-        switch($operator) {
-            case '==': return $left==$right;
-            case '!=': return $left!=$right;
-            case '<':  return $left<$right;
-            case '>':  return $left>$right;
-            case '<=': return $left<=$right;
-            case '>=': return $left>=$right;
-            default: return false;
-        }
     }
 
     /**

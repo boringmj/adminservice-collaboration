@@ -41,7 +41,7 @@ class Collection implements IteratorAggregate,Countable {
     protected function buildCollection(string $model,array $data): array {
         $collection=[];
         foreach($data as $item) {
-            $collection[]=$model::new($item);
+            $collection[]=$model::new($item,false);
         }
         return $collection;
     }

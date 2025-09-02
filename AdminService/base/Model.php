@@ -42,6 +42,11 @@ abstract class Model {
      */
     protected bool $cursor_collection=false;
 
+    /**
+     * 上一次查询结果是否为空
+     * @var bool
+     */
+    protected bool $last_is_empty=true;
 
     /**
      * Database对象
@@ -55,13 +60,15 @@ abstract class Model {
      * 
      * @access public
      * @param array $data 结果集
+     * @param bool $last_is_empty 上一次查询结果是否为空
      * @return void
      * @throws Exception
      */
-    public function __construct(array $data=[]) {
+    public function __construct(array $data=[],$last_is_empty=true) {
         $this->result=$data;
         $this->db=App::new(Database::class);
         $this->autoGetTable();
+        $this->last_is_empty=$last_is_empty;
     }
 
     /**
@@ -137,6 +144,16 @@ abstract class Model {
     }
 
     /**
+     * 判断上一次Sql语句执行结果是否为空
+     * 
+     * @access public
+     * @return bool
+     */
+    public function isEmpty(): bool {
+        return $this->last_is_empty;
+    }
+
+    /**
      * 以数组的形式获取结果集
      * 
      * @access public
@@ -151,11 +168,12 @@ abstract class Model {
      * 
      * @access public
      * @param array $data 数据
+     * @param bool $last_is_empty 上一次查询结果是否为空
      * @return T
      * @throws Exception
      */
-    static public function new(array $data=[]): static {
-        return new static($data);
+    static public function new(array $data=[],bool $last_is_empty=true): static {
+        return new static($data,$last_is_empty);
     }
 
     /**
@@ -200,11 +218,12 @@ abstract class Model {
      */
     public function find(string|array $fields='*'): static {
         $result=$this->db->find($fields);
+        $last_is_empty=$this->db->isEmpty();
         if(is_string($fields)&&$fields!=='*')
-            return static::new([$fields=>$result]);
+            return static::new([$fields=>$result],$last_is_empty);
         if(empty($result))
-            return static::new($this->buildEmptyResult($fields));
-        return static::new($result);
+            return static::new($this->buildEmptyResult($fields),$last_is_empty);
+        return static::new($result,$last_is_empty);
     }
 
     /**
@@ -251,8 +270,9 @@ abstract class Model {
      * @return Generator
      */
     protected function yieldResult(Generator $result): Generator {
+        $last_is_empty=$this->db->isEmpty();
         foreach($result as $data) {
-            yield static::new($data);
+            yield static::new($data,$last_is_empty);
         }
     }
 

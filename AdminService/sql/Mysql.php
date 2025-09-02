@@ -502,6 +502,38 @@ final class Mysql extends SqlDrive {
     }
 
     /**
+     * 判断上一次Sql语句执行结果是否为空
+     * 
+     * @access public
+     * @return bool
+     */
+    public function isEmpty(): bool {
+        return $this->last_is_empty;
+    }
+
+    /**
+     * 获取最后插入的ID
+     * 
+     * @access public
+     * @param string|null $name 序列名称
+     * @return string|false
+     */
+    public function getLastInsertId(?string $name=null): string|false {
+        $this->check_connect();
+        return $this->db->lastInsertId($name);
+    }
+
+    /**
+     * 获取受影响的行数
+     * 
+     * @access public
+     * @return int
+     */
+    public function rowCount(): int {
+        return $this->last_row_count;
+    }
+
+    /**
      * 准备sql语句
      *
      * @access public
@@ -534,6 +566,10 @@ final class Mysql extends SqlDrive {
      * @throws Exception
      */
     public function select(string|array $fields='*'): Generator|array|bool {
+        // 重置上一次查询结果是否为空
+        $this->last_is_empty=true;
+        // 重置影响的行数
+        $this->last_row_count=0;
         // 如果传入的fields不为“*”则需要过滤字段
         if($fields!=='*')
             $this->field($fields);
@@ -546,6 +582,10 @@ final class Mysql extends SqlDrive {
             $i++;
         }
         if($stmt->execute()) {
+            // 记录影响的行数
+            $this->last_row_count=$stmt->rowCount();
+            // 设置上一次查询结果是否为空
+            $this->last_is_empty=$this->last_row_count===0;
             // 判断是否需要返回迭代器
             if($this->iterator) {
                 return $this->iterator_select($stmt);
@@ -604,6 +644,10 @@ final class Mysql extends SqlDrive {
      * @throws Exception
      */
     public function find(string|array $fields='*'): mixed {
+        // 重置上一次查询结果是否为空
+        $this->last_is_empty=true;
+        // 重置影响的行数
+        $this->last_row_count=0;
         // 如果传入的fields不为“*”则需要过滤字段
         if($fields!=='*')
             $this->field($fields);
@@ -616,6 +660,10 @@ final class Mysql extends SqlDrive {
             $i++;
         }
         if($stmt->execute()) {
+            // 记录影响的行数
+            $this->last_row_count=$stmt->rowCount();
+            // 设置上一次查询结果是否为空
+            $this->last_is_empty=$this->last_row_count===0;
             $result=$stmt->fetch(PDO::FETCH_ASSOC);
             // 如果$fields不是数组且不为*, 则返回对应字段的值
             if((!is_array($fields)&&$fields!=='*')&&(!is_bool($result))&&isset($result[$fields]))
@@ -670,7 +718,9 @@ final class Mysql extends SqlDrive {
      * @return int
      * @throws Exception
      */
-    public function insert(array ...$data): int {
+    public function insert(array ...$data): int {;
+        // 重置影响的行数
+        $this->last_row_count=0;
         $count=0;
         // 先检查传入数据是否有效
         $data=$this->format_data(...$data);
@@ -692,6 +742,8 @@ final class Mysql extends SqlDrive {
                     'error'=>$stmt->errorInfo()
                 ));
             }
+            // 记录影响的行数
+            $this->last_row_count=$stmt->rowCount();
             // 获取插入了多少条数据
             $count+=$stmt->rowCount();
         }
@@ -709,6 +761,8 @@ final class Mysql extends SqlDrive {
      * @throws Exception
      */
     public function update(array ...$data): int {
+        // 重置影响的行数
+        $this->last_row_count=0;
         $count=0;
         // 先检查传入数据是否有效
         $data=$this->format_data(...$data);
@@ -742,6 +796,8 @@ final class Mysql extends SqlDrive {
                     'error'=>$stmt->errorInfo()
                 ));
             }
+            // 记录影响的行数
+            $this->last_row_count=$stmt->rowCount();
             // 获取更新了多少条数据
             $count+=$stmt->rowCount();
         }
@@ -947,6 +1003,8 @@ final class Mysql extends SqlDrive {
      * @throws Exception
      */
     public function delete(int|string|array|null $data=null): int {
+        // 重置影响的行数
+        $this->last_row_count=0;
         $data_temp=array();
         // 先判断传入的数据类型
         if(is_array($data)) {
@@ -981,11 +1039,11 @@ final class Mysql extends SqlDrive {
                 'error'=>$stmt->errorInfo()
             ));
         }
-        // 获取删除了多少条数据
-        $result=$stmt->rowCount();
+        // 记录影响的行数
+        $this->last_row_count=$stmt->rowCount();
         // 重置查询状态
         $this->reset();
-        return $result;
+        return $this->last_row_count;
     }
 
     /**

@@ -296,6 +296,39 @@ class Database {
         return $this->db_object->getLastFields();
     }
 
+    /**
+     * 判断上一次Sql语句执行结果是否为空
+     * 
+     * @access public
+     * @return bool
+     */
+    public function isEmpty(): bool {
+        return $this->db_object->isEmpty();
+    }
+
+        /**
+     * 获取最后插入的ID
+     * 
+     * @access public
+     * @param string|null $name 序列名称
+     * @return string|false
+     */
+    public function getLastInsertId(?string $name=null): string|false {
+        return $this->db_object->getLastInsertId($name);
+    }
+
+
+    /**
+     * 获取受影响的行数,
+     * 更新和插入可能分多次进行,所以可能与实际受影响行数不符,
+     * 建议直接使用相关方法返回值以确保准确性
+     * 
+     * @access public
+     * @return int
+     */
+    public function rowCount(): int {
+        return $this->db_object->rowCount();
+    }
 
     /**
      * 插入数据

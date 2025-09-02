@@ -76,7 +76,7 @@ class CursorCollection implements IteratorAggregate {
             $this->exhausted=true;
             return null;
         }
-        $row=$this->model::new($this->source->current());
+        $row=$this->model::new($this->source->current(),false);
         $this->source->next();
         return $row;
     }

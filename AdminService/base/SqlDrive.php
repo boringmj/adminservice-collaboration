@@ -57,6 +57,18 @@ abstract class SqlDrive implements Sql {
     protected array $last_filter;
 
     /**
+     * 上一次查询结果是否为空
+     * @var bool
+     */
+    protected bool $last_is_empty;
+
+    /**
+     * 上一次执行SQL影响的行数
+     * @var int
+     */
+    protected int $last_row_count;
+
+    /**
      * 是否开启distinct
      * @var bool
      */
@@ -76,12 +88,42 @@ abstract class SqlDrive implements Sql {
      * @return array
      */
     abstract public function getFields(): array;
+
     /**
      * 返回上一次的过滤字段
      * @access public
      * @return array
      */
     abstract public function getLastFields(): array;
+
+    /**
+     * 获取最后插入的ID
+     * 
+     * @access public
+     * @param string|null $name 序列名称
+     * @return string|false
+     */
+    abstract public function getLastInsertId(?string $name=null): string|false;
+
+    /**
+     * 判断上一次Sql语句执行结果是否为空
+     * 
+     * @access public
+     * @return bool
+     */
+    abstract public function isEmpty(): bool;
+
+    /**
+     * 获取受影响的行数
+     * 
+     * @access public
+     * @return int
+     */
+    abstract public function rowCount(): int;
+
+    /**
+     * 获取
+     */
 
     /**
      * 开启事务
@@ -146,6 +188,8 @@ abstract class SqlDrive implements Sql {
         $this->lock='';
         $this->last_sql='';
         $this->last_filter=array();
+        $this->last_is_empty=true;
+        $this->last_row_count=0;
         $this->distinct=false;
         $this->reset();
     }

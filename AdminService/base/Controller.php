@@ -84,7 +84,7 @@ abstract class Controller {
      *
      * @access protected
      * @param string|array $params 参数(string时为cookie名,array时为cookie数组)
-     * @param string $value Cookie值($params 参数为数组时此参数无效)
+     * @param string|null $value Cookie值($params 参数为数组时此参数无效)
      * @param int|null $expire 过期时间($params 参数为数组时此参数无效)
      * @param string|null $path 路径($params 参数为数组时此参数无效)
      * @param string|null $domain 域名($params 参数为数组时此参数无效)
@@ -94,7 +94,7 @@ abstract class Controller {
      */
     final protected function cookie(
         string|array $params,
-        string $value,
+        ?string $value=null,
         ?int $expire=null,
         ?string $path=null,
         ?string $domain=null,

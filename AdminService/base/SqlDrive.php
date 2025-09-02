@@ -122,10 +122,6 @@ abstract class SqlDrive implements Sql {
     abstract public function rowCount(): int;
 
     /**
-     * 获取
-     */
-
-    /**
      * 开启事务
      *
      * @access public

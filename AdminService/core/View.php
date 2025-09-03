@@ -73,6 +73,8 @@ final class View extends BaseView {
     protected function processTemplateTags(): void {
         $maxDepth=16; // 防止无限递归(最高深度)
         $depth=0;
+        // 清理独占行的标签，避免输出多余空行
+        $this->cleanStandaloneTags();
         while(
             ($depth<$maxDepth)&&
             ($this->containsLoop()||$this->containsCondition()||$this->containsVariables())
@@ -82,6 +84,22 @@ final class View extends BaseView {
             $this->processVariables();
             $depth++;
         }
+    }
+
+    /**
+     * 清理独占行的标签，避免输出多余空行
+     * 
+     * @access protected
+     * @return void
+     */
+    protected function cleanStandaloneTags(): void {
+        $this->template_content = preg_replace_callback(
+            '/^[ \t]*(\{\{\/?(?:if|foreach)[^}]*\}\}|\{\{else\}\})[ \t]*[\r\n]+/m',
+            function($matches) {
+                return trim($matches[1]);
+            },
+            $this->template_content
+        );
     }
 
     /**

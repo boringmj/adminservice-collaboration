@@ -144,6 +144,36 @@ abstract class Model {
     }
 
     /**
+     * 获取结果集中的属性是否存在
+     * 
+     * @access public
+     * @param string $name 属性名
+     */
+    public function __isset(string $name): bool {
+        return isset($this->result[$name]);
+    }
+
+    /**
+     * 检查属性是否存在
+     * 
+     * @access public
+     * @param string $name 属性名
+     */
+    public function has(string $name): bool {
+        return array_key_exists($name,$this->result);
+    }
+
+    /**
+     * 检查属性是否为空
+     * 
+     * @access public
+     * @param string $name 属性名
+     */
+    public function empty(string $name): bool {
+        return empty($this->result[$name]);
+    }
+
+    /**
      * 判断上一次Sql语句执行结果是否为空
      * 
      * @access public
@@ -174,6 +204,18 @@ abstract class Model {
      */
     static public function new(array $data=[],bool $last_is_empty=true): static {
         return new static($data,$last_is_empty);
+    }
+
+    /**
+     * 创建新的实例并切换数据表
+     * 
+     * @access public
+     * @param string|array|null $table 数据库表名
+     */
+    static public function tableNew(null|array|string $table=null): static {
+        $instance=self::new();
+        $instance->table($table);
+        return $instance;
     }
 
     /**

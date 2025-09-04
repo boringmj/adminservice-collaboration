@@ -169,7 +169,7 @@ abstract class Model {
      * @access public
      * @param string $name 属性名
      */
-    public function empty(string $name): bool {
+    public function emptyValue(string $name): bool {
         return empty($this->result[$name]);
     }
 

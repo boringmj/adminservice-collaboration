@@ -16,6 +16,20 @@ final class UploadFile extends AbstractUploadFile {
     protected ?string $save_path=null;
 
     /**
+     * 设置最终上传目录
+     * @access public
+     * @param string $dir 最终上传目录
+     * @throws UploadExceptionInterface
+     * @return void
+     */
+    public function setConfirmDir(string $dir): void {
+        if(!is_dir($dir)||!is_writable($dir)) {
+            throw new UploadException('上传目录不存在或不可写');
+        }
+        $this->confirm_dir=$dir;
+    }
+
+    /**
      * 计算文件哈希值
      * 
      * @access public

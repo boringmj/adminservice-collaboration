@@ -202,6 +202,15 @@ abstract class AbstractUploadFile {
     }
 
     /**
+     * 设置最终上传目录
+     * @access public
+     * @param string $dir 最终上传目录
+     * @throws UploadExceptionInterface
+     * @return void
+     */
+    abstract public function setConfirmDir(string $dir): void;
+
+    /**
      * 计算文件哈希值
      * 
      * @access public

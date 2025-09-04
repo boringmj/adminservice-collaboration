@@ -63,16 +63,6 @@ abstract class AbstractUploadFiles implements IteratorAggregate,Countable {
     }
 
     /**
-     * 获取上传目录
-     * 
-     * @access public
-     * @return string
-     */
-    public function getDir(): string {
-        return $this->dir;
-    }
-
-    /**
      * 设置上传目录
      * 
      * @access public
@@ -80,6 +70,9 @@ abstract class AbstractUploadFiles implements IteratorAggregate,Countable {
      * @return static
      */
     public function setDir(string $dir): static {
+        foreach($this->files as $file) {
+            $file->setConfirmDir($dir);
+        }
         $this->dir=$dir;
         return $this;
     }

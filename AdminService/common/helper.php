@@ -16,5 +16,5 @@ use \ReflectionException;
  * @throws Exception|ReflectionException
  */
 function param(int|string $param,mixed $default=null): mixed {
-    return App::get(Request::class)->get($param,$default);
+    return App::get(Request::class)->getParam($param,$default);
 }

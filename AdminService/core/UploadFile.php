@@ -69,7 +69,7 @@ final class UploadFile extends AbstractUploadFile {
      * @throws UploadException
      * @return string
      */
-    function getSavePath(): string {
+    public function getSavePath(): string {
         if($this->save_path!==null) return $this->save_path;
         throw new UploadException('文件未保存');
     }

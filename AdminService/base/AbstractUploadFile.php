@@ -182,7 +182,7 @@ abstract class AbstractUploadFile {
      * @access public
      * @return string
      */
-    function getConfirmName(): string {
+    public function getConfirmName(): string {
         if(!empty($this->confirm_name))
             return $this->confirm_name;
         return $this->confirm_name=$this->generateRandomName();
@@ -237,7 +237,7 @@ abstract class AbstractUploadFile {
      * @throws UploadExceptionInterface
      * @return string
      */
-    abstract function getSavePath(): string;
+    abstract public function getSavePath(): string;
 
     /**
      * 返回文件信息数组

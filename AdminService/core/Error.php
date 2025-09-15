@@ -3,6 +3,8 @@
 namespace AdminService;
 
 use base\Error as BaseError;
+use base\Response;
+use base\View;
 
 /**
  * 错误处理类
@@ -190,11 +192,13 @@ final class Error extends BaseError {
             ob_end_clean();
         }
         // 输出错误信息
-        $response=App::get(Response::class);
-        $response->setStatusCode(500);
-        $response->html();
-        $response->setHeader('Is-Error','true');
-        $response->sendHeaders();
+        if(self::$initialized) {
+            $response=App::get(Response::class);
+            $response->setStatusCode(500);
+            $response->html();
+            $response->setHeader('Is-Error','true');
+            $response->sendHeaders();
+        }
         echo self::renderErrors();
         // 记录所有错误到日志
         if(self::$initialized) {
@@ -292,7 +296,7 @@ final class Error extends BaseError {
             'output_content'=>null,
         ];
         // 在调试模式下添加输出内容
-        if($debug_mode) {
+        if($debug_mode&&self::$initialized) {
             $response=App::get(Response::class);
             $response->render();
             $output_content=$response->getReturnContent();

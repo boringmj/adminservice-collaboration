@@ -33,7 +33,7 @@ final class Main {
         // 初始化请求
         HttpRequest::init();
         // 响应初始化
-        Response::class::init();
+        Response::init();
         // 初始化完成
         Error::setInitialized(true);
         return $this;

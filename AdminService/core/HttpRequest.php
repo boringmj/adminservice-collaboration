@@ -73,13 +73,41 @@ final class HttpRequest extends Request {
     static protected string $request_order='';
 
     /**
+     * 获取全部请求头信息
+     * 
+     * @access protected
+     * @return array
+     */
+    static protected function getAllHeaders() {
+        // 判断是否存在getallheaders函数
+        if(function_exists('getallheaders'))
+            return getallheaders();
+        // 如果不存在则手动获取
+        $headers=[];
+        foreach($_SERVER as $key=>$value) {
+            if(str_starts_with($key,'HTTP_')) {
+                // 去掉前缀并格式化为标准Header格式
+                $name=str_replace('_','-',substr($key,5));
+                $name=ucwords(strtolower($name),'-');
+                $headers[$name]=$value;
+            } elseif(in_array($key,['CONTENT_TYPE','CONTENT_LENGTH','CONTENT_MD5'])) {
+                // 部分Header不会带HTTP_前缀
+                $name=str_replace('_','-',$key);
+                $name=ucwords(strtolower($name),'-');
+                $headers[$name]=$value;
+            }
+        }
+        return $headers;
+    }
+
+    /**
      * 初始化请求
      *
      * @access public
      * @return void
      */
     static public function init(): void {
-        self::$request_headers=new Data(getallheaders()?:[]);
+        self::$request_headers=new Data(self::getAllHeaders());
         self::$request_headers->setCaseSensitive(false)->resetKey();
         self::$request_get=new Data($_GET??[]);
         self::$request_post=new Data($_POST??[]);

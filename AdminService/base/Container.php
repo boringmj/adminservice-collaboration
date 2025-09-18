@@ -92,8 +92,13 @@ abstract class Container {
      * @return string
      */
     static public function getRealClass(string $name): string {
-        if(isset(self::$class_container[$name]))
-            return self::$class_container[$name];
+        if(isset(self::$class_container[$name])) {
+            // 判断该类是绑定了其他类
+            if(isset(self::$class_container[self::$class_container[$name]])) {
+                $name=self::getRealClass(self::$class_container[$name]);
+            } else
+                $name=self::$class_container[$name];
+        }
         return $name;
     }
 
@@ -109,7 +114,7 @@ abstract class Container {
     static public function setClass(string $name,string $class): void {
         // 如果类不存在则抛出异常
         if(!class_exists($class))
-            throw new Exception('Class "'.$name.'" not found.');
+            throw new Exception('Class "'.$class.'" not found.');
         self::$class_container[$name]=$class;
     }
 
@@ -251,7 +256,7 @@ abstract class Container {
     }
 
     /**
-     * 寻找一个类的可实例化的子类
+     * 寻找一个类的可实例化的子类(注意这里不支持别名和绑定)
      * 
      * @access public
      * @param string $class 类名
@@ -318,7 +323,7 @@ abstract class Container {
     }
 
     /**
-     * 获取给出类型中的第一个可实例化的类
+     * 获取给出类型中的第一个可实例化的类(支持别名和绑定)
      * 
      * @access public
      * @param array $types 类型数组

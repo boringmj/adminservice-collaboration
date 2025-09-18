@@ -89,13 +89,21 @@ abstract class Container {
      * 
      * @access public
      * @param string $name 类名
+     * @param bool $recursive 是否递归查找(默认为true)
+     * @param bool $max_depth 最大递归深度
      * @return string
      */
-    static public function getRealClass(string $name): string {
+    static public function getRealClass(
+        string $name,
+        bool $recursive=true,
+        int $max_depth=255
+        ): string {
         if(isset(self::$class_container[$name])) {
+            if($max_depth<=0)
+                throw new Exception('Maximum recursion depth exceeded while resolving class "'.$name.'"');
             // 判断该类是绑定了其他类
-            if(isset(self::$class_container[self::$class_container[$name]])) {
-                $name=self::getRealClass(self::$class_container[$name]);
+            if($recursive&&isset(self::$class_container[self::$class_container[$name]])) {
+                $name=self::getRealClass(self::$class_container[$name],$recursive,$max_depth-1);
             } else
                 $name=self::$class_container[$name];
         }
@@ -106,8 +114,8 @@ abstract class Container {
      * 设置或添加未被实例化的类(会覆盖已存在的别名等)
      *
      * @access public
-     * @param string $name 类名
-     * @param string $class 类
+     * @param string $name 别名或父类类名
+     * @param string $class 真实类名(需存在)
      * @return void
      * @throws Exception
      */
@@ -115,15 +123,39 @@ abstract class Container {
         // 如果类不存在则抛出异常
         if(!class_exists($class))
             throw new Exception('Class "'.$class.'" not found.');
+        // 判断新绑定是否会形成循环关系
+        if(self::isCircular($name,$class))
+            throw new Exception('Circular dependency detected for "'.$name.'" and "'.$class.'"');
         self::$class_container[$name]=$class;
+    }
+
+    /**
+     * 判断绑定是否会形成循环关系
+     * 
+     * @access public
+     * @param string $abstract 别名或父类类名
+     * @param string $concrete 目标类名
+     * @return bool
+     */
+    static public function isCircular(string $abstract,string $concrete): bool {
+        $visited=[$abstract];
+        while(isset(self::$class_container[$concrete])) {
+            if(in_array($concrete,$visited,true))
+                // 检查到循环
+                return true;
+            $visited[]=$concrete;
+            $concrete=self::$class_container[$concrete];
+        }
+        // 最终还需要是否自循环
+        return $concrete===$abstract;
     }
 
     /**
      * 为抽象类或接口绑定实现类(会覆盖已存在的绑定或别名)
      * 
      * @access public
-     * @param string $abstract 抽象类名
-     * @param string $concrete 实现类名
+     * @param string $abstract 别名或父类类名
+     * @param string $concrete 真实类名(需存在)
      * @return void
      * @throws Exception
      */

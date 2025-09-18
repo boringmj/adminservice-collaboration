@@ -99,6 +99,9 @@ final class App extends Container {
             // 如果是类名则通过自动依赖注入实例化一个对象
             $object=self::make($object);
         }
+        // 判断方法是否存在
+        if(!method_exists($object,$method))
+            throw new Exception('Method "'.$method.'" not found.');
         // 获取方法参数
         $ref=new ReflectionMethod($object,$method);
         $params=$ref->getParameters();
@@ -111,13 +114,20 @@ final class App extends Container {
      * 执行函数
      *
      * @access public
-     * @param string $function 函数名
+     * @param string|array|callable $function 函数名
      * @param array $args 函数参数(如果为关系型数组,则会将key作为参数名,value作为参数值,如果索引数组,则会逐一赋值,没有赋值的参数会使用默认值)
      * @return mixed
      * @throws Exception
      * @throws ReflectionException
      */
-    static public function exec_function(string|callable $function,array $args=array()): mixed {
+    static public function exec_function(
+        string|array|callable $function,array $args=array()
+    ): mixed {
+        if(is_array($function)) {
+            // 类方法调用
+            [$classOrObj,$method]=$function;
+            return self::exec_class_function($classOrObj,$method,$args);
+        }
         if(is_string($function)) {
             // 判断是否存在
             if(!function_exists($function))

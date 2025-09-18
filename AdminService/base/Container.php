@@ -114,6 +114,19 @@ abstract class Container {
     }
 
     /**
+     * 为抽象类或接口绑定实现类(会覆盖已存在的绑定或别名)
+     * 
+     * @access public
+     * @param string $abstract 抽象类名
+     * @param string $concrete 实现类名
+     * @return void
+     * @throws Exception
+     */
+    static public function bind(string $abstract,string $concrete): void {
+        self::setClass($abstract,$concrete);
+    }
+
+    /**
      * 批量设置或添加对象
      * 
      * @access public
@@ -246,7 +259,7 @@ abstract class Container {
      */
     static public function findSubClass(string $class): ?string {
         // 判断类是否存在
-        if(!class_exists($class))
+        if(!class_exists($class)&&!interface_exists($class))
             return null;
         // 获取所有子类
         $sub_classes=get_declared_classes();
@@ -327,6 +340,14 @@ abstract class Container {
                         continue;
                 }
                 return $class_name;
+            }
+            // 处理接口
+            if(interface_exists($class_name)) {
+                // 尝试寻找可实例化的实现类
+                $class_name=self::findSubClass($class_name);
+                if($class_name!==null)
+                    return $class_name;
+                continue;
             }
         }
         return null;

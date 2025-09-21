@@ -112,6 +112,7 @@ abstract class Container {
 
     /**
      * 设置或添加未被实例化的类(会覆盖已存在的别名等)
+     * 因为寻找子类时不会逐级查找,所以请确保起始类或结果类被正确绑定
      *
      * @access public
      * @param string $name 别名或父类类名
@@ -152,6 +153,7 @@ abstract class Container {
 
     /**
      * 为抽象类或接口绑定实现类(会覆盖已存在的绑定或别名)
+     * 因为寻找子类时不会逐级查找,所以请确保起始类或结果类被正确绑定
      * 
      * @access public
      * @param string $abstract 别名或父类类名
@@ -288,7 +290,7 @@ abstract class Container {
     }
 
     /**
-     * 寻找一个类的可实例化的子类(支持别名和绑定)
+     * 寻找一个类的可实例化的子类(仅结果支持别名和绑定)
      * 
      * @access public
      * @param string $class 类名
@@ -310,7 +312,7 @@ abstract class Container {
             if($ref->isInstantiable())
                 return $sub_class;
         }
-        // 如果均不可实例化则递归查找,知道找到可实例化的子类
+        // 如果均不可实例化则递归查找,直到找到可实例化的子类
         foreach($sub_classes as $sub_class) {
             $sub_class=self::findSubClass($sub_class);
             if($sub_class!==null)

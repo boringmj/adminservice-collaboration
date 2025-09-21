@@ -322,6 +322,63 @@ abstract class Container {
     }
 
     /**
+     * 逐级寻找一个类的直接子类并查找可实例化的子类(支持别名和绑定)
+     * 
+     * @access public
+     * @param string $class 类名
+     * @param array $flags 标识(请不要传入该参数,该参数主要用于防止解析死循环)
+     * @return ?string
+     */
+    static public function findDirectSubClassRecursive(string $class,array &$flags=array()): ?string {
+        // 获取真实类名
+        $class=self::getRealClass($class);
+        // 如果标识重复则直接返回
+        if(in_array($class,$flags))
+            return null;
+        $flags[]=$class;
+        // 判断类是否存在
+        if(!class_exists($class)&&!interface_exists($class))
+            return null;
+        // 判断自身是否可实例化
+        $ref=new ReflectionClass($class);
+        if($ref->isInstantiable())
+            return $class;
+        // 获取所有已声明类
+        $all_classes=get_declared_classes();
+        // 区分是类还是接口
+        $is_class=class_exists($class);
+        $is_interface=interface_exists($class);
+        // 筛选直接子类或直接实现接口的类
+        $direct_sub_classes=array_filter($all_classes,function($sub_class) use ($class,$is_class,$is_interface) {
+            // 直接继承
+            if($is_class&&get_parent_class($sub_class)===$class)
+                return true;
+            // 直接实现接口
+            if($is_interface) {
+                $all_interfaces=class_implements($sub_class,true);
+                $parent=get_parent_class($sub_class);
+                $parent_interfaces=$parent?class_implements($parent,true):[];
+                $direct_interfaces=array_diff($all_interfaces,$parent_interfaces);
+                if(in_array($class,$direct_interfaces,true))
+                    return true;
+            }
+            return false;
+        });
+        // 遍历直接子类，找到可实例化的
+        foreach($direct_sub_classes as $sub_class) {
+            $sub_ref=new ReflectionClass($sub_class);
+            if($sub_ref->isInstantiable())
+                return $sub_class;
+            // 递归查找子类的子类
+            $found=self::findDirectSubClassRecursive($sub_class,$flags);
+            if($found!==null)
+                return $found;
+        }
+        // 没有找到可实例化子类
+        return null;
+    }
+
+    /**
      * 将一个PHP类型转为gettype()返回的类型
      * 
      * @access public
@@ -372,7 +429,7 @@ abstract class Container {
                 $ref_type=new ReflectionClass($class_name);
                 if(!$ref_type->isInstantiable()) {
                     // 如果不可以实例化则尝试寻找一个可实例化的子类
-                    $class_name=self::findSubClass($class_name);
+                    $class_name=self::findDirectSubClassRecursive($class_name);
                     if($class_name!==null)
                         return $class_name;
                     else
@@ -383,7 +440,7 @@ abstract class Container {
             // 处理接口
             if(interface_exists($class_name)) {
                 // 尝试寻找可实例化的实现类
-                $class_name=self::findSubClass($class_name);
+                $class_name=self::findDirectSubClassRecursive($class_name);
                 if($class_name!==null)
                     return $class_name;
                 continue;

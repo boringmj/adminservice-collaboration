@@ -288,7 +288,7 @@ abstract class Container {
     }
 
     /**
-     * 寻找一个类的可实例化的子类(注意这里不支持别名和绑定)
+     * 寻找一个类的可实例化的子类(支持别名和绑定)
      * 
      * @access public
      * @param string $class 类名

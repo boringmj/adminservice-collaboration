@@ -335,7 +335,6 @@ abstract class Container {
         // 如果标识重复则直接返回
         if(in_array($class,$flags))
             return null;
-        $flags[]=$class;
         // 判断类是否存在
         if(!class_exists($class)&&!interface_exists($class))
             return null;
@@ -370,7 +369,10 @@ abstract class Container {
             if($sub_ref->isInstantiable())
                 return $sub_class;
             // 递归查找子类的子类
+            $flags[]=$class;
             $found=self::findDirectSubClassRecursive($sub_class,$flags);
+            // 移出标识中的目标类
+            array_pop($flags);
             if($found!==null)
                 return $found;
         }

@@ -3,7 +3,6 @@
 namespace AdminService;
 
 use base\Container;
-use \ReflectionClass;
 use \ReflectionException;
 use \ReflectionFunction;
 use \ReflectionMethod;
@@ -69,7 +68,7 @@ final class App extends Container {
         // 判断类是否存在,如果不存在则在容器中寻找
         if(!class_exists($__name))
             $__name=parent::getClass($__name);
-        $ref=new ReflectionClass($__name);
+        $ref=self::getReflection($__name);
         // 获取构造函数的参数
         $constructor=$ref->getConstructor();
         if($constructor===null) {

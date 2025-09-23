@@ -5,7 +5,6 @@ namespace AdminService\common;
 use base\Response;
 use AdminService\App;
 use AdminService\Exception;
-use \ReflectionClass;
 use \ReflectionException;
 
 /**
@@ -17,7 +16,7 @@ use \ReflectionException;
  * @throws ReflectionException|Exception
  */
 function view(null|string|array $template=null,array $data=array()): string {
-    $reflector=new ReflectionClass(App::get('Controller'));
+    $reflector=App::getReflectionByObject(App::get('Controller'));
     $method=$reflector->getMethod('view');
     $method->setAccessible(true);
     return $method->invoke(App::get('Controller'),$template,$data);

@@ -25,6 +25,12 @@ abstract class Container {
     protected static array $data_container;
 
     /**
+     * 缓存的反射解析对象
+     * @var array<string, ReflectionClass>
+     */
+    protected static array $reflection_container;
+
+    /**
      * 初始化
      * 
      * @access public
@@ -32,6 +38,31 @@ abstract class Container {
      * @return void
      */
     abstract static public function init(array $classes=array()): void;
+
+    /**
+     * 获取反射对象(会缓存结果,不支持别名和绑定)
+     * 
+     * @access public
+     * @param string $name 类名
+     * @return ReflectionClass
+     */
+    static public function getReflection(string $name): ReflectionClass {
+        if(!isset(self::$reflection_container[$name])) {
+            self::$reflection_container[$name]=new ReflectionClass($name);
+        }
+        return self::$reflection_container[$name];
+    }
+
+    /**
+     * 通过已有对象获取反射对象(不会缓存)
+     * 
+     * @access public
+     * @param object $object 对象
+     * @return ReflectionClass
+     */
+     static public function getReflectionByObject(object $object): ReflectionClass {
+        return new ReflectionClass($object);
+    }
 
     /**
      * 获取对象(如果不存在则自动实例化,自动实例化的前提是构造函数不含任何参数且在类容器中存在)
@@ -48,7 +79,7 @@ abstract class Container {
             if(!class_exists($name))
                 throw new Exception('Class "'.$name.'" not found.');
             // 如果存在则判断是否可以实例化
-            $ref=new ReflectionClass($name);
+            $ref=self::getReflection($name);
             if(!$ref->isInstantiable())
                 throw new Exception('Class "'.$name.'" is not instantiable.');
             // 如果可以实例化则实例化一个新的对象
@@ -249,7 +280,7 @@ abstract class Container {
             return self::get($name);
         // 将当前对象添加到标识中
         $flags[]=$name;
-        $ref=new ReflectionClass($name);
+        $ref=self::getReflection($name);
         $constructor=$ref->getConstructor();
         if($constructor!==null) {
             $params=$constructor->getParameters();
@@ -308,7 +339,7 @@ abstract class Container {
         // 判断是否存在可实例化的子类
         foreach($sub_classes as $sub_class) {
             $sub_class=self::getRealClass($sub_class);
-            $ref=new ReflectionClass($sub_class);
+            $ref=self::getReflection($sub_class);
             if($ref->isInstantiable())
                 return $sub_class;
         }
@@ -339,7 +370,7 @@ abstract class Container {
         if(!class_exists($class)&&!interface_exists($class))
             return null;
         // 判断自身是否可实例化
-        $ref=new ReflectionClass($class);
+        $ref=self::getReflection($class);
         if($ref->isInstantiable())
             return $class;
         // 获取所有已声明类
@@ -365,7 +396,7 @@ abstract class Container {
         });
         // 遍历直接子类，找到可实例化的
         foreach($direct_sub_classes as $sub_class) {
-            $sub_ref=new ReflectionClass($sub_class);
+            $sub_ref=self::getReflection($sub_class);
             if($sub_ref->isInstantiable())
                 return $sub_class;
             // 递归查找子类的子类
@@ -428,7 +459,7 @@ abstract class Container {
             $class_name=self::getRealClass($type);
             if(class_exists($class_name)) {
                 // 通过反射判断是否可以实例化该类
-                $ref_type=new ReflectionClass($class_name);
+                $ref_type=self::getReflection($class_name);
                 if(!$ref_type->isInstantiable()) {
                     // 如果不可以实例化则尝试寻找一个可实例化的子类
                     $class_name=self::findDirectSubClassRecursive($class_name);

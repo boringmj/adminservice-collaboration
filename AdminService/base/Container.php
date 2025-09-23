@@ -44,6 +44,7 @@ abstract class Container {
      * 
      * @access public
      * @param string $name 类名
+     * @throws ReflectionException
      * @return ReflectionClass
      */
     static public function getReflection(string $name): ReflectionClass {
@@ -58,6 +59,7 @@ abstract class Container {
      * 
      * @access public
      * @param object $object 对象
+     * @throws ReflectionException
      * @return ReflectionClass
      */
      static public function getReflectionByObject(object $object): ReflectionClass {

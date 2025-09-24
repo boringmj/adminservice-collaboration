@@ -178,8 +178,8 @@ class Index extends Controller {
                 'body'=>$body,
                 'headers'=>$headers,
                 'error'=>$error
-            ),true); // 注意,disable_ssl_verify参数是true则会禁用ssl验证,这可能会导致安全问题
-        });
+            ));
+        },true); // 注意,disable_ssl_verify参数是true则会禁用ssl验证,这可能会导致安全问题
     }
 
 }

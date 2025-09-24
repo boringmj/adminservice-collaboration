@@ -8,6 +8,7 @@ use \ReflectionException;
  * 动态代理类
  * 
  * @template T of object
+ * @mixin T
  */
 class DynamicProxy {
 

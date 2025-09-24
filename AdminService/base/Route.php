@@ -80,7 +80,7 @@ abstract class Route {
     final public function __construct(?Request $request=null) {
         $this->is_init=false;
         $this->uri=array();
-        return $this->init($request);
+        $this->init($request);
     }
 
     /**

@@ -19,7 +19,7 @@ final class UploadFile extends AbstractUploadFile {
      * 设置最终上传目录
      * @access public
      * @param string $dir 最终上传目录
-     * @throws UploadExceptionInterface
+     * @throws UploadException
      * @return void
      */
     public function setConfirmDir(string $dir): void {

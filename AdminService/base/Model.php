@@ -308,7 +308,7 @@ abstract class Model {
      * 迭代器处理结果
      *  
      * @access public
-     * @param Generator<static> $result 数据
+     * @param Generator $result 数据
      * @return Generator
      */
     protected function yieldResult(Generator $result): Generator {

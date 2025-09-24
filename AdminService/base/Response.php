@@ -190,6 +190,14 @@ abstract class Response {
     ): void;
 
     /**
+     * 发送请求头和状态码
+     * 
+     * @access public
+     * @return void
+     */
+    abstract static public function sendHeaders(): void;
+
+    /**
      * 获取Cookie
      * 
      * @access public

@@ -274,15 +274,32 @@ abstract class Container {
      * @throws Exception|ReflectionException
      */
     static public function make(string $name,bool $is_force=false,array &$flags=array()): object {
-        // 判断类是否存在,如果不存在则在容器中寻找
-        if(!class_exists($name))
-            $name=self::getClass($name);
+        $name=self::getRealClass($name);
         // 如果不强制实例化且容器中存在该对象则直接返回,如果标识重复也会直接返回
         if((!$is_force&&isset(self::$container[$name])||in_array($name,$flags)))
             return self::get($name);
+        // 判断是否为接口
+        if(interface_exists($name)) {
+            // 寻找一个可实例化的子类
+            $real_class=self::getFirstInstantiableClass(array($name));
+            if($real_class===null)
+                throw new Exception('Class "'.$name.'" is not instantiable.');
+            return self::make($real_class,false,$flags);
+        }
+        // 判断类或接口是否存在
+        if(!class_exists($name))
+            throw new Exception('Class "'.$name.'" not found.');
         // 将当前对象添加到标识中
         $flags[]=$name;
         $ref=self::getReflection($name);
+        // 判断自身是否可以被实例化
+        if(!$ref->isInstantiable()) {
+            // 寻找一个可实例化的子类
+            $real_class=self::getFirstInstantiableClass(array($name));
+            if($real_class===null)
+                throw new Exception('Class "'.$name.'" is not instantiable.');
+            return self::make($real_class,false,$flags);
+        }
         $constructor=$ref->getConstructor();
         if($constructor!==null) {
             $params=$constructor->getParameters();
@@ -320,6 +337,155 @@ abstract class Container {
         // 移出标识中的当前对象
         array_pop($flags);
         return $object;
+    }
+
+    /**
+     * 实例化一个新对象(不添加到实例容器中)
+     * 
+     * @access public
+     * @template T of object
+     * @param class-string<T> $__name 对象名
+     * @param mixed ...$args 构造函数参数($args中不允许传入“__name”参数)
+     * @return T|object
+     * @throws Exception|ReflectionException
+     */
+    static public function new(string $__name,...$args): object {
+        // 获取真实类名
+        $__name=self::getRealClass($__name);
+        // 判断类或接口是否存在
+        if(!class_exists($__name)&&!interface_exists($__name))
+            throw new Exception('Class "'.$__name.'" not found.');
+        $ref=self::getReflection($__name);
+        // 判断是否可以被实例化,如果不能则尝试寻找一个可实例化的子类
+        if(!$ref->isInstantiable()) {
+            $real_class=self::getFirstInstantiableClass(array($__name));
+            if($real_class===null)
+                throw new Exception('Class "'.$__name.'" is not instantiable.');
+            return self::new($real_class,...$args);
+        }
+        // 获取构造函数的参数
+        $constructor=$ref->getConstructor();
+        if($constructor===null) {
+            // 如果构造函数不存在则直接实例化一个对象
+            return $ref->newInstance();
+        }
+        $params=$constructor->getParameters();
+        $args_temp=self::mergeParams($params,$args);
+        // 直接返回对象,不添加到父容器中
+        return $ref->newInstanceArgs($args_temp);
+    }
+
+    /**
+     * 整理和合并参数
+     *
+     * @access protected
+     * @param array $params 参数
+     * @param array $args 参数
+     * @return array
+     * @throws Exception
+     * @throws ReflectionException
+     */
+    static protected function mergeParams(array $params,array $args): array {
+        $params_temp=array();
+        $arg_count=0;
+        foreach($params as $param) {
+            $type=$param->getType();
+            $type=(string)$type;
+            // 将类型分割为数组
+            $types=explode('|',$type);
+            $types=self::getStandardTypes($types);
+            // 获取参数名
+            $name=$param->getName();
+            if($param->allowsNull())
+                $types[]='NULL';
+            $types=array_unique($types);
+            // 判断参数类型是否为可变参数
+            if($param->isVariadic()) {
+                $numeric_args=array_values(array_filter($args,'is_numeric',ARRAY_FILTER_USE_KEY));
+                $assoc_args=array_filter($args,'is_string',ARRAY_FILTER_USE_KEY);
+                $temp_args=array_merge($numeric_args,$assoc_args);
+                // 判断是否有类型限制
+                if(count($types)===1&&$types[0]==='') {
+                    $params_temp=array_merge($params_temp,$temp_args);
+                    break;
+                }
+                // 判断每个参数是否符合类型限制
+                foreach($temp_args as $key=>$value) {
+                    if(self::isValidType($value,$types)) {
+                        if(is_numeric($key))
+                            $params_temp[]=$value;
+                        else
+                            $params_temp[$key]=$value;
+                        unset($args[$key]);
+                    } else {
+                        throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" is not valid.',0,array(
+                            'class'=>$param,
+                            'parameter'=>$param->getName(),
+                            'error'=>'The parameter type is not valid.'
+                        ));
+                    }
+                }
+                break;
+            }
+            // 先尝试在参数数组通过参数名查找
+            if(array_key_exists($name,$args)&&self::isValidType($args[$name],$types)) {
+                $params_temp[]=$args[$name];
+                unset($args[$name]);
+                continue;
+            }
+            // 判断是否存在顺位参数
+            if(array_key_exists($arg_count,$args)&&self::isValidType($args[$arg_count],$types)) {
+                $params_temp[]=$args[$arg_count];
+                unset($args[$arg_count]);
+                // 顺位参数自增
+                $arg_count++;
+                continue;
+            }
+            // 获取第一个可实例化的类
+            $real_class=self::getFirstInstantiableClass($types);
+            if($real_class!==null) {
+                $params_temp[]=self::make($real_class);
+                continue;
+            }
+            elseif($param->isDefaultValueAvailable())
+                $params_temp[]=$param->getDefaultValue();
+            else if($param->allowsNull())
+                $params_temp[]=null;
+            else
+                throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" is not valid.',0,array(
+                    'class'=>$param,
+                    'parameter'=>$param->getName(),
+                    'error'=>'The parameter type is not valid or the parameter value is not set.'
+                ));
+        }
+        return $params_temp;
+    }
+
+    /**
+     * 判断参数是否符合预期类型
+     * 
+     * @access protected
+     * @param mixed $arg 参数
+     * @param array $types 预期类型
+     * @return bool
+     */
+    static protected function isValidType(mixed $arg,array $types): bool {
+        $arg_type=gettype($arg);
+        // 直接匹配 PHP 内置类型
+        if(in_array($arg_type,$types,true)) return true;
+        // 类型为空字符串(无类型约束)
+        if($types===['']||in_array('',$types,true)) return true;
+        // mixed 表示任何类型都合法
+        if(in_array('mixed',$types,true)) return true;
+        // 如果参数是对象，检查是否符合给定类名
+        if($arg_type==='object') {
+            foreach($types as $t) {
+                if(class_exists($t) && $arg instanceof $t) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

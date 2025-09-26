@@ -14,8 +14,10 @@ git clone https://github.com/boringmj/adminservice-collaboration.git
 ```
 // 前往项目路径
 cd adminservice-collaboration
-// composer 安装依赖
+// 开发或测试环境直接使用 composer 安装依赖
 composer install
+// 生产环境下, 建议使用下面的命令
+composer install --optimize-autoloader --no-dev
 ```
 3. 启动 [php webserver](https://www.php.net/manual/zh/features.commandline.webserver.php), 我们提供了简单的快捷启动脚本
 ```

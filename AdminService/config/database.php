@@ -17,9 +17,9 @@ return array(
         'charset'=>'utf8mb4', // 数据库编码 default: utf8, utf8mb4 需要mysql5.5.3及以上且数据库、表和字段都支持
         'prefix'=>'', // 数据表前缀 default: ''
         'options'=>array( // 数据库连接选项
-            PDO::ATTR_STRINGIFY_FETCHES=>false, // 是否将数据库查询结果转换为字符串
-            PDO::ATTR_EMULATE_PREPARES=>true, // 是否由PDO模拟Prepare(开启后性能会明显提高,但存在一定风险)
-            PDO::ATTR_PERSISTENT=>true, // 是否开启持久连接(开启后性能会明显提高)
+            PDO::ATTR_STRINGIFY_FETCHES=>false, // 是否将数值字段强制转换为字符串 (false 保持原生类型)
+            PDO::ATTR_EMULATE_PREPARES=>true, // 是否使用PDO模拟预处理 (true性能可能会更好,但失去原生类型检查/安全保障)
+            PDO::ATTR_PERSISTENT=>true, // 是否开启持久连接 (减少建连开销,但可能引发连接状态污染)
         )
     ),
     'rule'=>array(

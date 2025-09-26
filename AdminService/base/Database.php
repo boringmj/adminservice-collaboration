@@ -66,11 +66,12 @@ class Database {
         $this::$db=new PDO(
             $dsn,
             $this->db_config['user'],
-            $this->db_config['password']
+            $this->db_config['password'],
+            $this->db_config['options'],
         );
         // 这是为了防止 PDO::FETCH_ASSOC 返回的数据类型为 string
-        $this::$db->setAttribute(PDO::ATTR_STRINGIFY_FETCHES,false);
-        $this::$db->setAttribute(PDO::ATTR_EMULATE_PREPARES,false);
+        // $this::$db->setAttribute(PDO::ATTR_STRINGIFY_FETCHES,false);
+        // $this::$db->setAttribute(PDO::ATTR_EMULATE_PREPARES,false);
     }
 
     /**
@@ -88,7 +89,8 @@ class Database {
             'user'=>$config['user']??Config::get('database.default.user',''),
             'password'=>$config['password']??Config::get('database.default.password',''),
             'dbname'=>$config['dbname']??Config::get('database.default.dbname',''),
-            'charset'=>$config['charset']??Config::get('database.default.charset','utf8')
+            'charset'=>$config['charset']??Config::get('database.default.charset','utf8'),
+            'options'=>$config['options']??Config::get('database.default.options',array()),
         );
         $this->db_type=$this->db_config['type'];
     }

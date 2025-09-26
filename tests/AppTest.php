@@ -38,6 +38,10 @@ class AppTest extends TestCase {
     public function testAutoFindInterfaceImplementation(): void {
         $service=App::make(ServiceInterface::class);
         $this->assertInstanceOf(ConcreteService::class, $service);
+        $service=App::get(ServiceInterface::class);
+        $this->assertInstanceOf(ConcreteService::class, $service);
+        $service=App::new(ServiceInterface::class);
+        $this->assertInstanceOf(ConcreteService::class, $service);
     }
 
     /**
@@ -46,6 +50,10 @@ class AppTest extends TestCase {
      */
     public function testAbstractBinding(): void {
         App::bind(AbstractService::class, ConcreteService::class);
+        $service=App::make(AbstractService::class);
+        $this->assertSame(ConcreteService::class, get_class($service));
+        $service=App::get(AbstractService::class);
+        $this->assertSame(ConcreteService::class, get_class($service));
         $service=App::new(AbstractService::class);
         $this->assertSame(ConcreteService::class, get_class($service));
     }

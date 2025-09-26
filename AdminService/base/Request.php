@@ -8,25 +8,25 @@ abstract class Request {
      * ALL参数
      * @var int
      */
-    const ALL_PARAM=0;
+    public const ALL_PARAM=0;
 
     /**
      * GET参数
      * @var int
      */
-    const GET_PARAM=1;
+    public const GET_PARAM=1;
     
     /**
      * POST参数
      * @var int
      */
-    const POST_PARAM=2;
+    public const POST_PARAM=2;
      
     /**
      * COOKIE参数
      * @var int
      */
-    const COOKIE_PARAM=4;
+    public const COOKIE_PARAM=4;
 
     /**
      * 初始化请求

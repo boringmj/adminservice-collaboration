@@ -180,7 +180,7 @@ abstract class Controller {
             $template=App::getMethodName();
         $template=Config::get('app.path').'/'.App::getAppName().'/view'.'/'.App::getControllerName().'/'.$template.'.html';
         $this->view->init($template,$data);
-        return $this->html($this->view->render());
+        return $this->html($this->view->render(),$this->response->getStatusCode());
     }
 
 }

@@ -39,8 +39,6 @@ final class Config {
             $config_name=basename($config_file,'.php');
             // 使用正则表达式匹配文件名是否符合规范
             if(preg_match('/^[a-zA-Z0-9_]+$/',$config_name)) {
-                // 检查文件内容是否安全
-                self::checkFile($config_file);
                 // 将配置文件的内容写入到配置文件中
                 $temp[$config_name]=include $config_file;
             }
@@ -112,63 +110,6 @@ final class Config {
                 return $default;
         }
         return $configs;
-    }
-
-    /**
-     * 检查文件内容是否安全
-     * 我们无法提供更完善的安全检查，只能提供一个简单的安全检查，只需要简单的方法即可绕过，因此建议管理员自行检查配置文件的安全性
-     * 
-     * @access private
-     * @param string $file
-     * @return void
-     * @throws Exception
-     */
-    static private function checkFile(string $file): void {
-        // 将文件转为绝对路径
-        $file=realpath($file);
-        $file_content=file_get_contents($file);
-        // 判断是否是一个合法的php文件
-        if(!preg_match('/^\s*(<\?(php|=)?)/',$file_content))
-            throw new Exception("Config file is not safe: $file, please use the php tag");
-        // 去除所有行注释和块注释的内容
-        $file_content=preg_replace('/\(\/\/|#.*$/m','',$file_content);
-        $file_content=preg_replace('/\/\*.*\*\//s','',$file_content);
-        // 先判断最终返回的结果是否是数组
-        if(!preg_match('/return\s+(array\(|\[)/',$file_content))
-            throw new Exception("Config file is not safe: $file, please return an array");
-        // 再判断是否有危险的函数
-        $list=array(
-            'exec',
-            'system',
-            'shell_exec',
-            'passthru',
-            'popen',
-            'proc_open',
-            'pcntl_exec',
-            'eval',
-            'assert',
-            'include',
-            'require',
-            'include_once',
-            'require_once',
-            'import',
-            'include_once',
-            'require_once'
-        );
-        $preg_str=implode('|',$list);
-        if(preg_match('/\b('.$preg_str.')\b\s*\(/',$file_content,$matches))
-            throw new Exception("Config file is not safe: $file, please remove the function: $matches[1]");
-        // 判断是否有危险的关键字
-        $list=array(
-            'include',
-            'require',
-            'include_once',
-            'require_once'
-        );
-        $preg_str=implode('|',$list);
-        // 禁止引入上级目录和协议地址
-        if(preg_match('/\b('.$preg_str.')\b\s*[\'"](\.{2}|.*(\/{2}|\\{2}))/',$file_content,$matches))
-            throw new Exception("Config file is not safe: $file, please remove the keyword: $matches[1]");
     }
 
 }

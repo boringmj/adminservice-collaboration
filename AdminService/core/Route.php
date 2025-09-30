@@ -54,7 +54,7 @@ final class Route extends BaseRoute {
             $this->toGet($route_info['params']);
             // 将控制器类名存入容器
             App::setClass('Controller',$controller_name);
-            $controller=new $controller_name();
+            $controller=App::get($controller_name);
             // 将控制器实例存入容器
             App::set('Controller',$controller);
             // 判断类方法是否存在且是否为public,且排除构造方法
@@ -145,7 +145,7 @@ final class Route extends BaseRoute {
                 $count=count($params);
                 for($i=0;$i<$count;$i+=2) {
                     // 清除不符合规则的键值对(规则为空则不清除)
-                    if(empty(Config::get('route.params.rule.get')) || preg_match(Config::get('route.params.rule.get'),$params[$i])) {
+                    if(empty(Config::get('route.params.rule.get'))||preg_match(Config::get('route.params.rule.get'),$params[$i])) {
                         $get[$params[$i]]=$params[$i+1]??null;
                         // 如果不为null则解码
                         if(!is_null($get[$params[$i]]))

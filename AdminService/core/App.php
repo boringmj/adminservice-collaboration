@@ -113,20 +113,6 @@ final class App extends Container {
     }
 
     /**
-     * 生成一个类的代理实例
-     *
-     * @access public
-     * @template T of object
-     * @param class-string<T> $name 类名
-     * @param array $args 构造函数参数
-     * @return DynamicProxy<T>
-     * @throws Exception
-     */
-    static public function proxy(string $name,array $args=array()): DynamicProxy {
-        return new DynamicProxy($name,...$args);
-    }
-
-    /**
      * 获取当前应用名称
      *
      * @access public

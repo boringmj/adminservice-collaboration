@@ -2,9 +2,11 @@
 
 namespace base;
 
-use AdminService\Exception;
 use \ReflectionClass;
 use \ReflectionException;
+use AdminService\Exception;
+use AdminService\DynamicProxy;
+use AdminService\AutowireProperty;
 
 abstract class Container {
 
@@ -260,6 +262,71 @@ abstract class Container {
     }
 
     /**
+     * 自动注入属性
+     * 
+     * @access protected
+     * @param object $instance 需要注入属性的对象实例
+     * @throws Exception
+     * @return void
+     */
+    static public function autowireProperty(
+        object $instance
+    ): void {
+        // 获取对象的反射
+        $ref=self::getReflectionByObject($instance);
+        // 获取类的所有属性
+        $properties=$ref->getProperties();
+        foreach($properties as $property) {
+            // 获取属性是否有 AutowireProperty 特性
+            $attributes=$property->getAttributes(AutowireProperty::class);
+            if(empty($attributes))
+                continue;
+            // 获取属性的类型
+            $type=$property->getType();
+            // 获取 AutowireProperty 实例
+            $autowire_attr=$attributes[0]->newInstance();
+            // 获取目标类名
+            $class_name=$autowire_attr->getName();
+            if($class_name===null) {
+                if($type&&!$type->isBuiltin()) {
+                    $class_name=$type->getName();
+                }
+                else
+                    throw new Exception('Property "'.$property->getName().'" of class "'.$ref->getName().'" has no type declaration and no class name is specified in AutowireProperty attribute.');
+            } else {
+                // 获取真实类名
+                $class_name=self::getRealClass($class_name);
+                // 判断类或接口是否存在
+                if(!class_exists($class_name)&&!interface_exists($class_name))
+                    throw new Exception('Class "'.$class_name.'" not found.');
+                // 判断类是否属于属性声明的类型
+                if($type&&!$type->isBuiltin()&&!is_a($class_name,$type->getName(),true))
+                    throw new Exception('Class "'.$class_name.'" is not a subclass of the property type "'.$type->getName().'" in class "'.$ref->getName().'".');
+            }
+            // 设置属性可访问
+            $property->setAccessible(true);
+            $value=($autowire_attr->getProxy()&&$type===null) 
+                ?self::proxy($class_name) 
+                :self::make($class_name);
+            $property->setValue($instance,$value);
+        }
+    }
+
+    /**
+     * 生成一个类的代理实例
+     *
+     * @access public
+     * @template T of object
+     * @param class-string<T> $name 类名
+     * @param array $args 构造函数参数
+     * @return DynamicProxy<T>
+     * @throws Exception
+     */
+    static public function proxy(string $name,array $args=array()): DynamicProxy {
+        return new DynamicProxy($name,...$args);
+    }
+
+    /**
      * 通过自动依赖注入实例化一个对象
      *
      * 注意: 依赖简单支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
@@ -332,6 +399,8 @@ abstract class Container {
         } else
             // 如果没有构造函数则直接实例化一个新的对象
             $object=$ref->newInstance();
+        // 自动注入属性
+        self::autowireProperty($object);
         // 将对象添加到容器中
         self::set($name,$object);
         // 移出标识中的当前对象

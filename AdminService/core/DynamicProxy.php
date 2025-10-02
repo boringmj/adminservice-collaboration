@@ -34,7 +34,7 @@ class DynamicProxy {
      * 构造函数
      *
      * @access public
-     * @param class-string<T> $target 目标类名
+     * @param class-string<T> $target 目标类名或接口名
      * @param mixed ...$args 构造函数参数
      * @throws Exception
      */
@@ -139,13 +139,13 @@ class DynamicProxy {
      * 设置目标类
      *
      * @access protected
-     * @param string $__target 目标类
+     * @param class-string<T> $__target 目标类
      * @return void
      * @throws Exception
      */
     protected function __setTarget(string $__target): void {
-        // 判断目标类是否存在
-        if(!class_exists($__target))
+        // 判断目标类或接口是否存在
+        if(!class_exists($__target)&&!interface_exists($__target))
             throw new Exception('Class "'.$__target.'" not found.');
         $this->__target=$__target;
     }

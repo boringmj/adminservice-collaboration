@@ -13,18 +13,27 @@ final class App extends Container {
      * 初始化
      *
      * @access public
-     * @param array $classes 需要初始化的类
+     * @param array<int|string,string> $classes 需要初始化的类
      * @return void
      * @throws Exception
      */
     static public function init(array $classes=array()): void {
-        // 获取配置文件中的别名
-        $classes=array_merge($classes,Config::get('app.alias',array()));
-        // 获取配置文件中的类
+        // 获取配置文件中需要直接绑定到容器中的类
+        $binds=array();
         $classes=array_merge($classes,Config::get('app.classes',array()));
+        foreach($classes as $alias=>$class) {
+            if(is_int($alias))
+                $binds[$class]=$class;
+            else
+                $binds[$alias]=$class;
+        }
+        // 获取配置文件中的别名
+        $aliases=Config::get('app.alias',array());
+        // 合并所有类
+        $classes=array_merge($binds,$aliases);
         // 遍历类是否存在
         foreach($classes as $class)
-            if(!class_exists($class))
+            if(!class_exists($class)&&!interface_exists($class))
                 throw new Exception('Class "'.$class.'" not found.');
         parent::$class_container=$classes;
     }
@@ -46,9 +55,6 @@ final class App extends Container {
         if(count($args)>0) {
             return self::new($__name,...$args);
         } else {
-            // 判断父容器中是否存在该类
-            if(isset(parent::$class_container[$__name]))
-                return parent::get($__name);
             // 如果不存在则通过自动依赖注入实例化一个对象
             return parent::make($__name);
         }

@@ -136,9 +136,16 @@ abstract class Container {
         if(isset(self::$class_container[$name])) {
             if($max_depth<=0)
                 throw new Exception('Maximum recursion depth exceeded while resolving class "'.$name.'"');
+            // 判断是否为自身循环
+            if(self::$class_container[$name]===$name)
+                return $name;
             // 判断该类是绑定了其他类
             if($recursive&&isset(self::$class_container[self::$class_container[$name]])) {
-                $name=self::getRealClass(self::$class_container[$name],$recursive,$max_depth-1);
+                $name=self::getRealClass(
+                    self::$class_container[$name],
+                    $recursive,
+                    $max_depth-1
+                );
             } else
                 $name=self::$class_container[$name];
         }

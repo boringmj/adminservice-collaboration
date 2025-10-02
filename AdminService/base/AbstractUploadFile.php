@@ -2,6 +2,8 @@
 
 namespace base;
 
+use AdminService\exception\UploadExceptionInterface;
+
 /**
  * 上传文件类
  */

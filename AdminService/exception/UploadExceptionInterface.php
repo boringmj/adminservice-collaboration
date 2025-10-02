@@ -1,6 +1,6 @@
 <?php
 
-namespace base;
+namespace AdminService\exception;
 
 use \Throwable;
 

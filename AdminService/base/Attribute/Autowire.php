@@ -1,14 +1,11 @@
 <?php
 
-namespace AdminService;
-
-use \Attribute;
+namespace base\Attribute;
 
 /**
- * 属性自动注入(只能注入类,支持别名和绑定,支持抽象类和接口)
+ * 自动注入基类
  */
-#[Attribute(Attribute::TARGET_PROPERTY)]
-class AutowireProperty {
+class Autowire {
 
     /**
      * 依赖的类名
@@ -24,17 +21,32 @@ class AutowireProperty {
 
     /**
      * @param ?string $name 依赖的类名
-     * @param bool $proxy 是否注入动态代理类(需字段没有显示声明类型,否则本属性无效)
+     * @param bool $proxy 是否注入动态代理类
+     *  - 需要`$name`参数不为`null`
+     *  - 需要属性未声明类型,或类型为 {@see \AdminService\DynamicProxy}
+     *  - 否则此参数无效
      */
     public function __construct(?string $name=null,bool $proxy=false) {
         $this->name=$name;
         $this->proxy=$proxy;
     }
 
+    /**
+     * 获取依赖的类名
+     * 
+     * @access public
+     * @return string|null
+     */
     public function getName(): ?string {
         return $this->name;
     }
 
+    /**
+     * 获取是否注入动态代理类
+     * 
+     * @access public
+     * @return bool
+     */
     public function getProxy(): bool {
         return $this->proxy;
     }

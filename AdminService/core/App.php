@@ -4,8 +4,6 @@ namespace AdminService;
 
 use base\Container;
 use \ReflectionException;
-use \ReflectionFunction;
-use \ReflectionMethod;
 
 final class App extends Container {
 
@@ -76,11 +74,8 @@ final class App extends Container {
             // 如果是类名则通过自动依赖注入实例化一个对象
             $object=self::make($object);
         }
-        // 判断方法是否存在
-        if(!method_exists($object,$method))
-            throw new Exception('Method "'.$method.'" not found.');
         // 获取方法参数
-        $ref=new ReflectionMethod($object,$method);
+        $ref=self::getReflectionMethodByObject($object,$method);
         $params=$ref->getParameters();
         $args_temp=self::mergeParams($params,$args);
         // 调用方法
@@ -91,11 +86,10 @@ final class App extends Container {
      * 执行函数
      *
      * @access public
-     * @param string|array|callable $function 函数名
+     * @param string|array|callable $function 函数名(支持数组形式的类方法调用和闭包)
      * @param array $args 函数参数(如果为关系型数组,则会将key作为参数名,value作为参数值,如果索引数组,则会逐一赋值,没有赋值的参数会使用默认值)
      * @return mixed
-     * @throws Exception
-     * @throws ReflectionException
+     * @throws Exception|ReflectionException
      */
     static public function exec_function(
         string|array|callable $function,array $args=array()
@@ -105,13 +99,8 @@ final class App extends Container {
             [$classOrObj,$method]=$function;
             return self::exec_class_function($classOrObj,$method,$args);
         }
-        if(is_string($function)) {
-            // 判断是否存在
-            if(!function_exists($function))
-                throw new Exception('Function "'.$function.'" not found.');
-        }
         // 获取函数参数
-        $ref=new ReflectionFunction($function);
+        $ref=self::getReflectionFunction($function);
         $params=$ref->getParameters();
         $args_temp=self::mergeParams($params,$args);
         // 调用函数

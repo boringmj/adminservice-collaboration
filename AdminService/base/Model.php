@@ -3,12 +3,13 @@
 namespace base;
 
 use \Generator;
+use \ArrayAccess;
 use AdminService\App;
 use AdminService\Config;
 use AdminService\Exception;
 
 /**
- * 模型基类
+ * 模型基类(允许通过数组形式访问,但不允许通过数组形式删除)
  * 
  * @access public
  * @abstract
@@ -16,7 +17,7 @@ use AdminService\Exception;
  * @version 1.0.0
  * @template T of static
  */
-abstract class Model {
+abstract class Model implements ArrayAccess {
 
     /**
      * 数据表名(自动添加数据表前缀,优先级高于 $table_name)
@@ -603,6 +604,54 @@ abstract class Model {
     public function field(array|string $fields): static {
         $this->db->field($fields);
         return $this;
+    }
+
+    /**
+     * 偏移量是否存在
+     * 
+     * @param int|string $offset 偏移量
+     * @return bool
+     */
+    public function offsetExists(mixed $offset): bool {
+        return $this->has($offset);
+    }
+
+    /**
+     * 获取偏移量对应的值
+     * 
+     * @param int|string $offset 偏移量
+     * @return mixed
+     */
+    public function offsetGet(mixed $offset): mixed {
+        return $this->__get($offset);
+    }
+
+    /**
+     * 设置偏移量对应的值
+     * 
+     * @param int|string $offset 偏移量
+     * @param mixed $value 值
+     * @return void
+     */
+    public function offsetSet(mixed $offset,mixed $value): void {
+        $this->__set($offset,$value);
+    }
+
+    /**
+     * 删除偏移量对应的值
+     * 
+     * @param int|string $offset 偏移量
+     * @return void
+     */
+    public function offsetUnset(mixed $offset): void {
+        throw new Exception(
+            'Unsupported operation',
+            0,
+            array(
+                'offset'=>$offset,
+                'method'=>__METHOD__
+            )
+        );
     }
 
 }

@@ -8,6 +8,4 @@ use AdminService\exception\UploadExceptionInterface;
 /**
  * 文件上传异常
  */
-class UploadException extends Exception implements UploadExceptionInterface {
-
-}
+class UploadException extends Exception implements UploadExceptionInterface { }

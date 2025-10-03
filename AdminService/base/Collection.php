@@ -3,16 +3,18 @@
 namespace base;
 
 use \Countable;
+use \ArrayAccess;
 use \ArrayIterator;
 use \IteratorAggregate;
+use AdminService\exception\CollectionException;
 
 /**
- * 静态集合类 (一次性加载所有数据)
+ * 静态集合类 (一次性加载所有数据,允许数组访问,但不允许修改)
  * 
  * @package base
  * @template T of Model
  */
-class Collection implements IteratorAggregate,Countable {
+class Collection implements IteratorAggregate,Countable,ArrayAccess {
 
     /**
      * 保存数据集
@@ -129,6 +131,62 @@ class Collection implements IteratorAggregate,Countable {
      */
     public function count(): int {
         return count($this->data);
+    }
+
+    /**
+     * 偏移量是否存在
+     * 
+     * @param int|string $offset 偏移量
+     * @return bool
+     */
+    public function offsetExists(mixed $offset): bool {
+        return isset($this->data[$offset]);
+    }
+
+    /**
+     * 获取偏移量对应的值
+     * 
+     * @param int|string $offset 偏移量
+     * @return T|null
+     */
+    public function offsetGet(mixed $offset): Model|null {
+        return $this->data[$offset]??null;
+    }
+
+    /**
+     * 设置偏移量对应的值
+     * 
+     * @param int|string $offset 偏移量
+     * @param mixed $value 值
+     * @return void
+     */
+    public function offsetSet(mixed $offset,mixed $value): void {
+        throw new CollectionException(
+            'Collection is read-only',
+            0,
+            array(
+                'method'=>__METHOD__,
+                'offset'=>$offset,
+                'value'=>$value
+            )
+        );
+    }
+
+    /**
+     * 删除偏移量对应的值
+     * 
+     * @param int|string $offset 偏移量
+     * @return void
+     */
+    public function offsetUnset(mixed $offset): void {
+        throw new CollectionException(
+            'Collection is read-only',
+            0,
+            array(
+                'method'=>__METHOD__,
+                'offset'=>$offset
+            )
+        );
     }
 
 }

@@ -6,7 +6,7 @@ use \Generator;
 use \IteratorAggregate;
 
 /**
- * 一次性游标集合类
+ * 一次性游标集合类(不支持数组形式访问)
  * 
  * @package base
  * @template T of Model

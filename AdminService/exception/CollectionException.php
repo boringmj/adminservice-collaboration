@@ -4,4 +4,4 @@ namespace AdminService\exception;
 
 use AdminService\Exception;
 
-class AutowireException extends Exception { }
+class CollectionException extends Exception { }

@@ -117,12 +117,11 @@ abstract class Model implements ArrayAccess {
      * @access public
      * @param string $name 属性名
      * @return mixed
-     * @throws Exception
      */
     public function __get(string $name): mixed {
         // 检查结果集中是否存在该属性
-        if(!array_key_exists($name,$this->result))
-            throw new Exception('Property "'.$name.'" not found.');
+        if(!$this->has($name))
+           return null;
         // 返回结果集中的属性值
         return $this->result[$name];
     }
@@ -134,12 +133,8 @@ abstract class Model implements ArrayAccess {
      * @param string $name 属性名
      * @param mixed $value 属性值
      * @return void
-     * @throws Exception
      */
     public function __set(string $name,mixed $value): void {
-        // 检查结果集中是否存在该属性
-        if(!array_key_exists($name,$this->result))
-            throw new Exception('Property "'.$name.'" not found.');
         // 设置结果集中的属性值
         $this->result[$name]=$value;
     }
@@ -151,7 +146,18 @@ abstract class Model implements ArrayAccess {
      * @param string $name 属性名
      */
     public function __isset(string $name): bool {
-        return isset($this->result[$name]);
+        return $this->has($name);
+    }
+
+    /**
+     * 删除结果集中的属性
+     * 
+     * @access public
+     * @param string $name 属性名
+     * @return void
+     */
+    public function __unset(string $name): void {
+        unset($this->result[$name]);
     }
 
     /**
@@ -172,6 +178,16 @@ abstract class Model implements ArrayAccess {
      */
     public function emptyValue(string $name): bool {
         return empty($this->result[$name]);
+    }
+
+    /**
+     * 检查属性是否设置
+     * 
+     * @access public
+     * @param string $name 属性名
+     */
+    public function issetValue(string $name): bool {
+        return isset($this->result[$name]);
     }
 
     /**
@@ -644,14 +660,7 @@ abstract class Model implements ArrayAccess {
      * @return void
      */
     public function offsetUnset(mixed $offset): void {
-        throw new Exception(
-            'Unsupported operation',
-            0,
-            array(
-                'offset'=>$offset,
-                'method'=>__METHOD__
-            )
-        );
+        $this->__unset($offset);
     }
 
 }

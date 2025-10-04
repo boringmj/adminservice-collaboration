@@ -2,7 +2,7 @@
 
 namespace base;
 
-use ReflectionType;
+use \ReflectionType;
 use \ReflectionClass;
 use \ReflectionMethod;
 use \ReflectionFunction;
@@ -14,7 +14,6 @@ use \ReflectionProperty;
 use \ReflectionException;
 use AdminService\Exception;
 use AdminService\DynamicProxy;
-use AdminService\Autowire\PostConstruct;
 use AdminService\Autowire\AutowireSetter;
 use AdminService\Autowire\AutowireProperty;
 use AdminService\exception\AutowireException;
@@ -236,12 +235,13 @@ abstract class Container {
     }
 
     /**
-     * 设置或添加未被实例化的类(会覆盖已存在的别名等)
-     * 因为寻找子类时不会逐级查找,所以请确保起始类或结果类被正确绑定
-     *
+     * 为抽象类或接口绑定实现类(会覆盖已存在的绑定或别名)
+     * - 支持子类逐级查找(除非方法特殊说明)
+     * - 支持嵌套绑定
+     * 
      * @access public
-     * @param string $name 别名或父类类名
-     * @param string $class 真实类名(需存在)
+     * @param string $abstract 别名或抽象类或接口名
+     * @param string $concrete 目标类名
      * @return void
      * @throws Exception
      */
@@ -278,11 +278,12 @@ abstract class Container {
 
     /**
      * 为抽象类或接口绑定实现类(会覆盖已存在的绑定或别名)
-     * 因为寻找子类时不会逐级查找,所以请确保起始类或结果类被正确绑定
+     * - 支持子类逐级查找(除非方法特殊说明)
+     * - 支持嵌套绑定
      * 
      * @access public
-     * @param string $abstract 别名或父类类名
-     * @param string $concrete 真实类名(需存在)
+     * @param string $abstract 别名或抽象类或接口名
+     * @param string $concrete 目标类名
      * @return void
      * @throws Exception
      */

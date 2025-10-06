@@ -664,6 +664,8 @@ final class Mysql extends SqlDrive {
             $this->last_row_count=$stmt->rowCount();
             // 设置上一次查询结果是否为空
             $this->last_is_empty=$this->last_row_count===0;
+            if($this->last_is_empty)
+                return null;
             $result=$stmt->fetch(PDO::FETCH_ASSOC);
             // 如果$fields不是数组且不为*, 则返回对应字段的值
             if((!is_array($fields)&&$fields!=='*')&&(!is_bool($result))&&isset($result[$fields]))

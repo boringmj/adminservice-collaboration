@@ -278,11 +278,10 @@ abstract class Model implements ArrayAccess {
     public function find(string|array $fields='*'): static {
         $result=$this->db->find($fields);
         $last_is_empty=$this->db->isEmpty();
-        if(is_string($fields)&&$fields!=='*')
-            return static::new([$fields=>$result],$last_is_empty);
-        if(empty($result))
+        if($last_is_empty)
             return static::new($this->buildEmptyResult($fields),$last_is_empty);
-        return static::new($result,$last_is_empty);
+        if(is_string($fields)&&$fields!=='*')
+            return static::new([$fields=>$result],$last_is_empty);        return static::new($result,$last_is_empty);
     }
 
     /**

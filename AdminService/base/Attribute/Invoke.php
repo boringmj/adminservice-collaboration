@@ -5,7 +5,7 @@ namespace base\Attribute;
 /**
  * 方法或函数标记基类
  */
-abstract class Parameter {
+abstract class Invoke {
 
     /**
      * 依赖的类名

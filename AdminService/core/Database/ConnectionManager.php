@@ -1,34 +1,20 @@
 <?php
 
-namespace base\Database;
+namespace AdminService\Database;
 
 use \PDO;
 use \Closure;
 use \Throwable;
+use AdminService\App;
+use base\Database\ConfigInterface as Config;
+use base\Database\ConnectionInterface as Connection;
+use base\Database\ConnectionManagerInterface;
 use AdminService\exception\sql\ConnectionException;
 
 /**
  * 数据库连接管理器
  */
-class ConnectionManager {
-
-    /**
-     * 普通连接(可复用)
-     * @var int
-     */
-    public const NORMAL_CONNECTION=1;
-
-    /**
-     * 不可复用连接
-     * @var int
-     */
-    public const UNREUSABLE_CONNECTION=2;
-    
-    /**
-     * 事务连接(调度管理,空闲连接可复用)
-     * @var int
-     */
-    public const TRANSACTION_CONNECTION=3;
+class ConnectionManager implements ConnectionManagerInterface {
 
     /**
      * 可复用连接池
@@ -161,9 +147,9 @@ class ConnectionManager {
         // 连接池标识自增
         $this->connectionId++;
         // 实例化连接实例
-        $connection=new Connection(
-            $this->buildPdoLazy($this->configs[$name]),
-            $this->connectionId
+        $connection=App::new(Connection::class,
+            pdoLazy:$this->buildPdoLazy($this->configs[$name]),
+            connectionId:$this->connectionId
         );
         // 缓存连接实例
         switch($type) {
@@ -192,7 +178,7 @@ class ConnectionManager {
      *  - 大量或反复创建会严重影响性能, 请优先考虑创建不可复用连接实例并手动管理
      * @template T
      * @param Closure(Connection): T $callback 回调函数
-     *  - 回调函数仅接受一个参数, 即连接实例({@see \base\Sql\Connection})
+     *  - 回调函数仅接受一个参数, 即连接实例({@see \base\Database\AbstractConnection})
      * @param string|null $name 数据库配置名称
      * @param Closure|null $onCloseError 连接关闭时发生的错误的回调
      *  - 回调函数仅接受一个参数, 即异常对象({@see \PDOException})

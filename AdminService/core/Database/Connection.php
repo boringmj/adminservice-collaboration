@@ -1,10 +1,11 @@
 <?php
 
-namespace base\Database;
+namespace AdminService\Database;
 
 use \PDO;
 use \Closure;
 use \PDOException;
+use base\Database\ConnectionInterface;
 use AdminService\exception\Sql\ConnectionException;
 
 /**
@@ -14,44 +15,7 @@ use AdminService\exception\Sql\ConnectionException;
  *  - 连接被关闭时, 如果存在未完成的事务(PDO未被销毁前)
  *  - 则根据 transactionCloseBehavior 属性决定行为
  */
-class Connection {
-
-    /**
-     * 连接关闭时提交未完成事务
-     * @var int
-     */
-    public const TX_BEHAVIOR_COMMIT=1;
-
-    /**
-     * 连接关闭时回滚未完成事务
-     * @var int
-     */
-    public const TX_BEHAVIOR_ROLLBACK=2;
-
-    
-    /**
-     * 事务处于空闲状态
-     * @var int
-     */
-    public const TX_IDLE=1;
-
-    /**
-     * 事务处于忙碌状态
-     * @var int
-     */
-    public const TX_BUSY=2;
-    
-    /**
-     * 不可开启事务(非强制, 强行开启事务可能会污染事务状态)
-     * @var int
-     */
-    public const TX_NOT_ALLOWED=3;
-
-    /**
-     * 事务状态未知
-     * @var int
-     */
-    public const TX_UNKNOW=4;
+class Connection implements ConnectionInterface {
 
     /**
      * 连接标识(仅用于标识连接池中的连接ID)

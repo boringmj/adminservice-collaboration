@@ -1,13 +1,14 @@
 <?php
 
-namespace base\Database;
+namespace AdminService\Database;
 
+use base\Database\ConfigInterface;
 use AdminService\exception\sql\ConfigException;
 
 /**
  * 数据库配置类
  */
-class Config {
+class Config implements ConfigInterface {
 
     /**
      * 默认数据库连接名称

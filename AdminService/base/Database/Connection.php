@@ -1,6 +1,6 @@
 <?php
 
-namespace base\Sql;
+namespace base\Database;
 
 use \PDO;
 use \Closure;

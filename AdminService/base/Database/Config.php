@@ -1,6 +1,6 @@
 <?php
 
-namespace base\Sql;
+namespace base\Database;
 
 use AdminService\exception\sql\ConfigException;
 

@@ -6,3 +6,4 @@ AdminService/uploads/
 .env
 .idea/
 .vscode/
+.phpunit.result.cache

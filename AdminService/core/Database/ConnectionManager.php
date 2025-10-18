@@ -8,6 +8,7 @@ use \Throwable;
 use AdminService\App;
 use base\Database\ConfigInterface as Config;
 use base\Database\ConnectionInterface as Connection;
+use base\Database\AbstractConnectionPool as ConnectionPool;
 use base\Database\ConnectionManagerInterface;
 use AdminService\exception\sql\ConnectionException;
 
@@ -71,9 +72,9 @@ class ConnectionManager implements ConnectionManagerInterface {
         $this->configs=$configs;
         $this->defaultConnectionName=$default;
         $this->normalConnections=$normalConnections
-            ??new ConnectionPool();
+            ??App::new(ConnectionPool::class);
         $this->unreusableConnections=$unreusableConnections
-            ??new ConnectionPool();
+            ??App::new(ConnectionPool::class);
         $this->transactionConnections=$transactionConnections
             ??[];
     }
@@ -219,7 +220,7 @@ class ConnectionManager implements ConnectionManagerInterface {
     ): void {
         // 判断是否存在对应的连接池
         if(!isset($this->transactionConnections[$name])) {
-            $this->transactionConnections[$name]=new ConnectionPool();
+            $this->transactionConnections[$name]=App::new(ConnectionPool::class);
         }
         // 存储连接实例
         $this->transactionConnections[$name]->set(
@@ -246,7 +247,7 @@ class ConnectionManager implements ConnectionManagerInterface {
         if(isset($this->transactionConnections[$name])) {
             $connectionPool=$this->transactionConnections[$name];
         } else {
-            $connectionPool=new ConnectionPool();
+            $connectionPool=App::new(ConnectionPool::class);
         }
         // 尝试从连接池获取闲置的事务连接
         foreach($connectionPool as $connection) {

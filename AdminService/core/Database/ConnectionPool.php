@@ -45,7 +45,7 @@ class ConnectionPool extends AbstractConnectionPool {
      * @return bool
      */
     public function has(int|string $name): bool {
-        return $this->__isset($name);
+        return isset($this->connections[$name]);
     }
 
     /**

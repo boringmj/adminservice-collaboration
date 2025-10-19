@@ -92,7 +92,7 @@ interface ConnectionManagerInterface {
      * 创建一次性连接实例(建议优先考虑使用不可复用连接)
      * @template T
      * @param Closure(Connection): T $callback 回调函数
-     *  - 回调函数仅接受一个参数, 即连接实例({@see \base\Database\AbstractConnection})
+     *  - 回调函数仅接受一个参数, 即连接实例({@see \base\Database\ConnectionInterface})
      * @param string|null $name 数据库配置名称
      * @param Closure|null $onCloseError 连接关闭时发生的错误的回调
      *  - 回调函数仅接受一个参数, 即异常对象({@see \PDOException})

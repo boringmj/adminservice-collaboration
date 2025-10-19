@@ -179,7 +179,7 @@ class ConnectionManager implements ConnectionManagerInterface {
      *  - 大量或反复创建会严重影响性能, 请优先考虑创建不可复用连接实例并手动管理
      * @template T
      * @param Closure(Connection): T $callback 回调函数
-     *  - 回调函数仅接受一个参数, 即连接实例({@see \base\Database\AbstractConnection})
+     *  - 回调函数仅接受一个参数, 即连接实例({@see \base\Database\ConnectionInterface})
      * @param string|null $name 数据库配置名称
      * @param Closure|null $onCloseError 连接关闭时发生的错误的回调
      *  - 回调函数仅接受一个参数, 即异常对象({@see \PDOException})

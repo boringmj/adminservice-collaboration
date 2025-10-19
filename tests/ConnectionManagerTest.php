@@ -34,7 +34,7 @@ class ConnectionManagerTest extends TestCase {
         $connectionManager = new ConnectionManager(
             ['default'=>$dbConfig]
         );
-        $connection=$connectionManager->get();
+        $connection = $connectionManager->get();
         $this->assertInstanceOf(Connection::class, $connection);
     }
 

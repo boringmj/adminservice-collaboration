@@ -8,7 +8,7 @@ use \Closure;
 /**
  * 连接实例接口
  */
-interface ConnectionInterface {
+abstract class AbstractConnection {
 
     /**
      * 连接关闭时提交未完成事务
@@ -44,7 +44,37 @@ interface ConnectionInterface {
      * 事务状态未知
      * @var int
      */
-    public const TX_UNKNOW=4;
+    public const TX_UNKNOWN=4;
+
+    /**
+     * PDO 连接对象
+     * @var PDO
+     */
+    protected ?PDO $pdo=null;
+
+    /**
+     * 懒加载的 PDO 连接闭包
+     * @var Closure
+     */
+    protected Closure $pdoLazy;
+
+    /**
+     * 关闭连接时发生的错误的回调
+     * @var Closure|null
+     */
+    protected ?Closure $onCloseError=null;
+
+    /**
+     * 连接关闭时未完成事务的处理行为
+     * @var int
+     */
+    protected int $transactionCloseBehavior=0;
+
+    /**
+     * 连接标识(仅用于标识连接池中的连接ID)
+     * @var int
+     */
+    protected int $connectionId=0;
 
     /**
      * 构造函数
@@ -62,56 +92,77 @@ interface ConnectionInterface {
         int $connectionId,
         int $transactionCloseBehavior=self::TX_BEHAVIOR_ROLLBACK,
         ?Closure $onCloseError=null,
-    );
-
-    /**
-     * 检查是否已经连接
-     * @return bool
-     */
-    public function isConnected(): bool;
+    ) {
+        $this->pdoLazy=$pdoLazy;
+        $this->connectionId=$connectionId;
+        $this->transactionCloseBehavior=$transactionCloseBehavior;
+        $this->onCloseError=$onCloseError;
+    }
 
     /**
      * 获取当前事务状态
      * @return int
      */
-    public function getTransactionStates(): int;
+    abstract public function getTransactionStates(): int;
 
     /**
      * 开启事务
      * @return void
      */
-    public function beginTransaction(): void;
+    abstract public function beginTransaction(): void;
 
     /**
      * 提交事务
      * @return void
      */
-    public function commit(): void;
+    abstract public function commit(): void;
 
     /**
      * 回滚事务
      * @return void
      */
-    public function rollBack(): void;
+    abstract public function rollBack(): void;
 
     /**
      * 设置当前事务状态
      * @param int $states 事务状态
      * @return void
      */
-    public function setTransactionStates(int $states): void;
-
-    /**
-     * 获取连接标识
-     * @return int
-     */
-    public function getConnectionId(): int;
+    abstract public function setTransactionStates(int $states): void;
 
     /**
      * 判断连接是否在事务中
      * @return bool
      */
-    public function inTransaction(): bool;
+    abstract public function inTransaction(): bool;
+
+    /**
+     * 获取 PDO 连接对象
+     * @return PDO
+     */
+    abstract public function getPdo(): PDO;
+
+    /**
+     * 关闭数据库连接
+     * @return void
+     */
+    abstract public function close(): void;
+
+    /**
+     * 获取连接标识
+     * @return int
+     */
+    public function getConnectionId(): int {
+        return $this->connectionId;
+    }
+
+    /**
+     * 检查是否已经连接
+     * @return bool
+     */
+    public function isConnected(): bool {
+        return $this->pdo!==null;
+    }
 
     /**
      * 设置事务关闭行为
@@ -120,12 +171,17 @@ interface ConnectionInterface {
      *  - 如果为 `self::TX_BEHAVIOR_COMMIT`, 则在请求结束时自动提交事务
      * @return void
      */
-    public function setTransactionCloseBehavior(int $behavior): void;
+    public function setTransactionCloseBehavior(int $behavior): void {
+        $this->transactionCloseBehavior=$behavior;
+    }
+
     /**
      * 获取事务关闭行为
      * @return int
      */
-    public function getTransactionCloseBehavior(): int;
+    public function getTransactionCloseBehavior(): int {
+        return $this->transactionCloseBehavior;
+    }
 
     /**
      * 设置关闭连接时发生的错误的回调
@@ -135,18 +191,8 @@ interface ConnectionInterface {
      *  - 仅支持一个参数: 第一个参数为 `PDOException` 对象
      * @return void
      */
-    public function setOnCloseError(?Closure $onCloseError): void;
-
-    /**
-     * 获取 PDO 连接对象
-     * @return PDO
-     */
-    public function getPdo(): PDO;
-
-    /**
-     * 关闭数据库连接
-     * @return void
-     */
-    public function close(): void;
+    public function setOnCloseError(?Closure $onCloseError): void {
+        $this->onCloseError=$onCloseError;
+    }
 
 }

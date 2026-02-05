@@ -3,14 +3,12 @@
 namespace base\Database;
 
 use \Closure;
-use base\Database\ConfigInterface as Config;
-use base\Database\ConnectionInterface as Connection;
-use base\Database\AbstractConnectionPool as ConnectionPool;
+use base\Database\AbstractConnection as Connection;
 
 /**
- * 数据库连接管理器接口
+ * 数据库连接管理器抽象类
  */
-interface ConnectionManagerInterface {
+abstract class AbstractConnectionManager {
 
     /**
      * 普通连接(可复用)
@@ -31,28 +29,11 @@ interface ConnectionManagerInterface {
     public const TRANSACTION_CONNECTION=3;
 
     /**
-     * 构造函数
-     * 
-     * @param array<string,Config> $configs 数据库连接配置
-     * @param string $default 默认连接名称
-     * @param ConnectionPool|null $normalConnections 已存在的可复用连接池
-     * @param ConnectionPool|null $unreusableConnections 已存在的不可复用连接池
-     * @param array<string,ConnectionPool>|null $transactionConnections 已存在的事务连接池
-     */
-    public function __construct(
-        array $configs,
-        string $default='default',
-        ?ConnectionPool $normalConnections=null,
-        ?ConnectionPool $unreusableConnections=null,
-        ?array $transactionConnections=null
-    );
-
-    /**
      * 注册自动销毁
      * 
      * @return void
      */
-    public function registerAutoDestroy(): void;
+    abstract public function registerAutoDestroy(): void;
 
     /**
      * 获取数据库连接实例
@@ -66,7 +47,7 @@ interface ConnectionManagerInterface {
      * @param string|null $name 数据库连接实例名称
      * @return Connection 数据库连接实例
      */
-    public function get(?string $name=null): Connection;
+    abstract public function get(?string $name=null): Connection;
 
     /**
      * 新建数据库连接实例
@@ -83,7 +64,7 @@ interface ConnectionManagerInterface {
      *  - 不同类型的连接实例由不同的连接池缓存
      * @return Connection 数据库连接实例
      */
-    public function create(
+    abstract public function create(
         ?string $name=null,
         int $type=self::UNREUSABLE_CONNECTION
     ): Connection;
@@ -92,14 +73,14 @@ interface ConnectionManagerInterface {
      * 创建一次性连接实例(建议优先考虑使用不可复用连接)
      * @template T
      * @param Closure(Connection): T $callback 回调函数
-     *  - 回调函数仅接受一个参数, 即连接实例({@see \base\Database\ConnectionInterface})
+     *  - 回调函数仅接受一个参数, 即连接实例({@see \base\Database\AbstractConnection})
      * @param string|null $name 数据库配置名称
      * @param Closure|null $onCloseError 连接关闭时发生的错误的回调
      *  - 回调函数仅接受一个参数, 即异常对象({@see \PDOException})
      *  - 如果为 `null`, 则不执行回调
      * @return T 回调函数返回值
      */
-    public function createTemporaryConnection(
+    abstract public function createTemporaryConnection(
         Closure $callback,
         ?string $name=null,
         ?Closure $onCloseError=null
@@ -112,7 +93,7 @@ interface ConnectionManagerInterface {
      * @param Connection $connection 连接实例
      * @return void
      */
-    public function setTransactionalConnection(
+    abstract public function setTransactionalConnection(
         string $name,
         Connection $connection
     ): void;
@@ -126,7 +107,7 @@ interface ConnectionManagerInterface {
      * @param string|null $name 数据库配置名称
      * @return Connection 事务连接实例
      */
-    public function getIdleTransactionalConnection(
+    abstract public function getIdleTransactionalConnection(
         ?string $name=null,
     ): Connection;
 
@@ -136,13 +117,13 @@ interface ConnectionManagerInterface {
      * @param int $connectionId 连接实例标识
      * @return void
      */
-    public function destroyUnreusableConnections(int $connectionId): void;
+    abstract public function destroyUnreusableConnections(int $connectionId): void;
 
     /**
      * 销毁所有连接实例
      * 
      * @return void
      */
-    public function destroyAllConnections(): void;
+    abstract public function destroyAllConnections(): void;
 
 }

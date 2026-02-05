@@ -6,7 +6,7 @@ use \Countable;
 use \ArrayAccess;
 use \ArrayIterator;
 use \IteratorAggregate;
-use base\Database\ConnectionInterface as Connection;
+use base\Database\AbstractConnection as Connection;
 
 /**
  * 数据库连接池抽象类

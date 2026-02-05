@@ -3,7 +3,7 @@
 namespace AdminService\Database;
 
 use \ArrayIterator;
-use base\Database\ConnectionInterface as Connection;
+use base\Database\AbstractConnection as Connection;
 use base\Database\AbstractConnectionPool;
 
 /**

@@ -5,17 +5,30 @@ namespace AdminService\Database;
 use \PDO;
 use \Closure;
 use \Throwable;
-use AdminService\App;
 use base\Database\ConfigInterface as Config;
-use base\Database\ConnectionInterface as Connection;
+use base\Database\AbstractConnection as Connection;
 use base\Database\AbstractConnectionPool as ConnectionPool;
-use base\Database\ConnectionManagerInterface;
+use base\Database\AbstractConnectionManager;
+use base\Database\ConnectionFactoryInterface as ConnectionFactory;
+use base\Database\ConnectionPoolFactoryInterface as ConnectionPoolFactory;
 use AdminService\exception\sql\ConnectionException;
 
 /**
  * 数据库连接管理器
  */
-class ConnectionManager implements ConnectionManagerInterface {
+class ConnectionManager extends AbstractConnectionManager {
+
+    /**
+     * 连接池工厂
+     * @var ConnectionPoolFactory
+     */
+    protected ConnectionPoolFactory $connectionPoolFactory;
+
+    /**
+     * 连接工厂
+     * @var ConnectionFactory
+     */
+    protected ConnectionFactory $connectionFactory;
 
     /**
      * 可复用连接池
@@ -58,6 +71,8 @@ class ConnectionManager implements ConnectionManagerInterface {
      * 
      * @param array<string,Config> $configs 数据库连接配置
      * @param string $default 默认连接名称
+     * @param ConnectionPoolFactory $connectionPoolFactory 连接池工厂
+     * @param ConnectionFactory $connectionFactory 连接工厂
      * @param ConnectionPool|null $normalConnections 已存在的可复用连接池
      * @param ConnectionPool|null $unreusableConnections 已存在的不可复用连接池
      * @param array<string,ConnectionPool>|null $transactionConnections 已存在的事务连接池
@@ -65,16 +80,20 @@ class ConnectionManager implements ConnectionManagerInterface {
     public function __construct(
         array $configs,
         string $default='default',
+        ConnectionPoolFactory $connectionPoolFactory,
+        ConnectionFactory $connectionFactory,
         ?ConnectionPool $normalConnections=null,
         ?ConnectionPool $unreusableConnections=null,
         ?array $transactionConnections=null
     ) {
         $this->configs=$configs;
         $this->defaultConnectionName=$default;
+        $this->connectionPoolFactory=$connectionPoolFactory;
+        $this->connectionFactory=$connectionFactory;
         $this->normalConnections=$normalConnections
-            ??App::new(ConnectionPool::class);
+            ??$this->connectionPoolFactory->create();
         $this->unreusableConnections=$unreusableConnections
-            ??App::new(ConnectionPool::class);
+            ??$this->connectionPoolFactory->create();
         $this->transactionConnections=$transactionConnections
             ??[];
     }
@@ -148,7 +167,7 @@ class ConnectionManager implements ConnectionManagerInterface {
         // 连接池标识自增
         $this->connectionId++;
         // 实例化连接实例
-        $connection=App::new(Connection::class,
+        $connection=$this->connectionFactory->create(
             pdoLazy:$this->buildPdoLazy($this->configs[$name]),
             connectionId:$this->connectionId
         );
@@ -179,7 +198,7 @@ class ConnectionManager implements ConnectionManagerInterface {
      *  - 大量或反复创建会严重影响性能, 请优先考虑创建不可复用连接实例并手动管理
      * @template T
      * @param Closure(Connection): T $callback 回调函数
-     *  - 回调函数仅接受一个参数, 即连接实例({@see \base\Database\ConnectionInterface})
+     *  - 回调函数仅接受一个参数, 即连接实例({@see \base\Database\AbstractConnection})
      * @param string|null $name 数据库配置名称
      * @param Closure|null $onCloseError 连接关闭时发生的错误的回调
      *  - 回调函数仅接受一个参数, 即异常对象({@see \PDOException})
@@ -220,7 +239,7 @@ class ConnectionManager implements ConnectionManagerInterface {
     ): void {
         // 判断是否存在对应的连接池
         if(!isset($this->transactionConnections[$name])) {
-            $this->transactionConnections[$name]=App::new(ConnectionPool::class);
+            $this->transactionConnections[$name]=$this->connectionPoolFactory->create();
         }
         // 存储连接实例
         $this->transactionConnections[$name]->set(
@@ -247,7 +266,7 @@ class ConnectionManager implements ConnectionManagerInterface {
         if(isset($this->transactionConnections[$name])) {
             $connectionPool=$this->transactionConnections[$name];
         } else {
-            $connectionPool=App::new(ConnectionPool::class);
+            $connectionPool=$this->connectionPoolFactory->create();
         }
         // 尝试从连接池获取闲置的事务连接
         foreach($connectionPool as $connection) {

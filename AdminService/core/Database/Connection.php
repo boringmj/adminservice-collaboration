@@ -5,7 +5,7 @@ namespace AdminService\Database;
 use \PDO;
 use \Closure;
 use \PDOException;
-use base\Database\ConnectionInterface;
+use base\Database\AbstractConnection;
 use AdminService\exception\Sql\ConnectionException;
 
 /**
@@ -15,74 +15,13 @@ use AdminService\exception\Sql\ConnectionException;
  *  - 连接被关闭时, 如果存在未完成的事务(PDO未被销毁前)
  *  - 则根据 transactionCloseBehavior 属性决定行为
  */
-class Connection implements ConnectionInterface {
-
-    /**
-     * 连接标识(仅用于标识连接池中的连接ID)
-     * @var int
-     */
-    protected int $connectionId=0;
+class Connection extends AbstractConnection {
 
     /**
      * 事务状态标记
      * @var int
      */
     protected int $transactionStates=self::TX_IDLE;
-
-    /**
-     * PDO 连接对象
-     * @var PDO
-     */
-    protected ?PDO $pdo=null;
-
-    /**
-     * 懒加载的 PDO 连接闭包
-     * @var Closure
-     */
-    protected Closure $pdoLazy;
-
-    /**
-     * 关闭连接时发生的错误的回调
-     * @var Closure|null
-     */
-    protected ?Closure $onCloseError=null;
-
-    /**
-     * 连接关闭时未完成事务的处理行为
-     * @var int
-     */
-    protected int $transactionCloseBehavior=0;
-
-    /**
-     * 构造函数
-     * @param Closure $pdoLazy 懒加载的 PDO 连接闭包
-     * @param int $connectionId 连接标识(仅用于标识连接池中的连接ID)
-     * @param int $transactionCloseBehavior 连接关闭时未完成事务的处理行为
-     *  - 如果为 `self::TX_BEHAVIOR_ROLLBACK`, 则在请求结束时自动回滚事务
-     *  - 如果为 `self::TX_BEHAVIOR_COMMIT`, 则在请求结束时自动提交事务
-     * @param Closure|null $onCloseError 关闭连接时发生的错误的回调
-     *  - 仅支持一个参数: 第一个参数为 `PDOException` 对象
-     * @return void
-     */
-    public function __construct(
-        Closure $pdoLazy,
-        int $connectionId,
-        int $transactionCloseBehavior=self::TX_BEHAVIOR_ROLLBACK,
-        ?Closure $onCloseError=null,
-    ) {
-        $this->pdoLazy=$pdoLazy;
-        $this->connectionId=$connectionId;
-        $this->transactionCloseBehavior=$transactionCloseBehavior;
-        $this->onCloseError=$onCloseError;
-    }
-
-    /**
-     * 检查是否已经连接
-     * @return bool
-     */
-    public function isConnected(): bool {
-        return $this->pdo!==null;
-    }
 
     /**
      * 获取当前事务状态
@@ -100,7 +39,7 @@ class Connection implements ConnectionInterface {
     public function beginTransaction(): void {
         if(
             $this->transactionStates===self::TX_NOT_ALLOWED
-            || $this->transactionStates===self::TX_UNKNOW
+            || $this->transactionStates===self::TX_UNKNOWN
         ) {
             throw new ConnectionException('Transaction is not allowed');
         }
@@ -133,7 +72,7 @@ class Connection implements ConnectionInterface {
                 $this->getPdo()->commit();
                 $this->transactionStates=self::TX_IDLE;
             } catch(PDOException $e) {
-                $this->transactionStates=self::TX_UNKNOW;
+                $this->transactionStates=self::TX_UNKNOWN;
                 throw new ConnectionException(
                     'Commit transaction failed',
                     0,
@@ -157,7 +96,7 @@ class Connection implements ConnectionInterface {
                 $this->getPdo()->rollBack();
                 $this->transactionStates=self::TX_IDLE;
             } catch(PDOException $e) {
-                $this->transactionStates=self::TX_UNKNOW;
+                $this->transactionStates=self::TX_UNKNOWN;
                 throw new ConnectionException(
                     'Rollback transaction failed',
                     0,
@@ -180,14 +119,6 @@ class Connection implements ConnectionInterface {
     }
 
     /**
-     * 获取连接标识
-     * @return int
-     */
-    public function getConnectionId(): int {
-        return $this->connectionId;
-    }
-
-    /**
      * 判断连接是否在事务中
      * @return bool
      */
@@ -197,37 +128,6 @@ class Connection implements ConnectionInterface {
         } catch(PDOException) {
             return false;
         }
-    }
-
-    /**
-     * 设置事务关闭行为
-     * @param int $behavior 事务关闭行为
-     *  - 如果为 `self::TX_BEHAVIOR_ROLLBACK`, 则在请求结束时自动回滚事务
-     *  - 如果为 `self::TX_BEHAVIOR_COMMIT`, 则在请求结束时自动提交事务
-     * @return void
-     */
-    public function setTransactionCloseBehavior(int $behavior): void {
-        $this->transactionCloseBehavior=$behavior;
-    }
-
-    /**
-     * 获取事务关闭行为
-     * @return int
-     */
-    public function getTransactionCloseBehavior(): int {
-        return $this->transactionCloseBehavior;
-    }
-
-    /**
-     * 设置关闭连接时发生的错误的回调
-     * @param Closure|null $onCloseError 关闭连接时发生的错误的回调
-     *  - 如果`$onCloseError`为`null`, 则关闭连接发生错误时不执行任何操作
-     *  - 如果`$onCloseError`为`Closure`, 则在关闭连接发生错误时执行`$onCloseError`
-     *  - 仅支持一个参数: 第一个参数为 `PDOException` 对象
-     * @return void
-     */
-    public function setOnCloseError(?Closure $onCloseError): void {
-        $this->onCloseError=$onCloseError;
     }
 
     /**
@@ -280,7 +180,7 @@ class Connection implements ConnectionInterface {
             // 将忙碌和未知状态置为空闲状态
             if(
                 $this->transactionStates===self::TX_BUSY
-                || $this->transactionStates===self::TX_UNKNOW
+                || $this->transactionStates===self::TX_UNKNOWN
                 ) {
                 $this->transactionStates=self::TX_IDLE;
             }

@@ -6,7 +6,7 @@ use \PDO;
 use \Closure;
 
 /**
- * 连接实例接口
+ * 连接实例抽象类
  */
 abstract class AbstractConnection {
 

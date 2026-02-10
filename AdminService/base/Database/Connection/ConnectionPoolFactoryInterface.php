@@ -1,6 +1,6 @@
 <?php
 
-namespace base\Database;
+namespace base\Database\Connection;
 
 /**
  * 数据库连接池工厂接口
@@ -9,8 +9,8 @@ interface ConnectionPoolFactoryInterface {
 
     /**
      * 创建连接池
-     * @return AbstractConnectionPool
+     * @return ConnectionPoolInterface
      */
-    public function create(): AbstractConnectionPool;
+    public function create(): ConnectionPoolInterface;
 
 }

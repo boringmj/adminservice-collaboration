@@ -1,6 +1,8 @@
 <?php
 
-namespace base\Database\Sql;
+namespace base\Database\Compiler;
+
+use base\Database\Builder\BuilderInterface;
 
 /**
  * SQL编译器接口

@@ -2,8 +2,8 @@
 
 namespace base\Database\Coordinator;
 
-use base\Database\Sql\BuilderInterface;
 use base\Database\Result\ResultInterface;
+use base\Database\Builder\BuilderInterface;
 
 /**
  * 查询协调器接口

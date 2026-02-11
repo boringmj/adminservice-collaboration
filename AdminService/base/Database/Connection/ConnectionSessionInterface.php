@@ -2,26 +2,34 @@
 
 namespace base\Database\Connection;
 
-use base\Database\Sql\SqlExecutorInterface;
+use base\Database\Execution\SqlExecutorInterface;
+use base\Database\Execution\TransactionExecutorInterface;
 use base\Database\Transaction\TransactionContextInterface;
 
 /**
  * 连接会话接口
  * - 负责管理连接资源、事务和执行器
+ * - 内部需持有事务上下文对象和事务状态对象
  */
 interface ConnectionSessionInterface {
 
     /**
-     * 获取执行器实例
+     * 获取Sql执行器
      * @return SqlExecutorInterface
      */
-    public function getExecutor(): SqlExecutorInterface;
+    public function getSqlExecutor(): SqlExecutorInterface;
 
     /**
      * 获取事务上下文
      * @return TransactionContextInterface
      */
     public function getTransactionContext(): TransactionContextInterface;
+
+    /**
+     * 获取事务执行器
+     * @return TransactionExecutorInterface
+     */
+    public function getTransactionExecutor(): TransactionExecutorInterface;
 
     /**
      * 释放连接资源

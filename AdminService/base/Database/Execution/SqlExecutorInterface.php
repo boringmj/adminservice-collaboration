@@ -1,8 +1,9 @@
 <?php
 
-namespace base\Database\Sql;
+namespace base\Database\Execution;
 
 use base\Database\Result\ResultInterface;
+use base\Database\Compiler\CompiledQueryInterface;
 
 /**
  * SQL 执行器接口

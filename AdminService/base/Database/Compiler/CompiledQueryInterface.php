@@ -1,6 +1,6 @@
 <?php
 
-namespace base\Database\Sql;
+namespace base\Database\Compiler;
 
 /**
  * 编译后的查询接口

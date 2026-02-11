@@ -4,31 +4,30 @@ namespace base\Database\Transaction;
 
 /**
  * 事务上下文接口
+ * 
+ * - 仅承担对外暴露事务状态的职责
+ * - 未来扩展严禁添加任何执行事务的逻辑
+ * - 需要在内部持有一个事务状态对象
  */
 interface TransactionContextInterface {
 
     /**
-     * 是否在事务中
-     * @return bool
+     * 是否处于事务活跃状态
+     * @return bool 是否处于事务活跃状态
      */
-    public function isInTransaction(): bool;
+    public function isActive(): bool;
 
     /**
-     * 开始事务
-     * @return void
+     * 获取事务级别
+     * @return int 事务级别
      */
-    public function begin();
+
+    public function getLevel(): int;
 
     /**
-     * 提交事务
-     * @return void
+     * 事务是否只读
+     * @return bool 是否只读
      */
-    public function commit();
-
-    /**
-     * 回滚事务
-     * @return void
-     */
-    public function rollBack();
+    public function isReadOnly(): bool;
 
 }

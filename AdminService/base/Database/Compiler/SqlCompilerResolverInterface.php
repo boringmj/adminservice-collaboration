@@ -2,6 +2,7 @@
 
 namespace base\Database\Sql;
 
+use base\Database\Compiler\SqlCompilerInterface;
 use base\Database\Connection\ConnectionSessionInterface;
 
 /**

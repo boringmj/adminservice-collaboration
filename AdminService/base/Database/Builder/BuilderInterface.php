@@ -1,6 +1,9 @@
 <?php
 
-namespace base\Database\Sql;
+namespace base\Database\Builder;
+
+use base\Database\Compiler\SqlCompilerInterface;
+use base\Database\Compiler\CompiledQueryInterface;
 
 /**
  * 查询构建器接口

@@ -19,5 +19,11 @@ final class QueryType {
      * @var int
      */
     public const WRITE=0x04;
-    
+
+    /**
+     * 允许读写
+     * @var int
+     */
+    public const READ_WRITE=self::READ|self::WRITE;
+
 }

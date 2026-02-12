@@ -1,18 +1,19 @@
 <?php
 
-namespace base\Database\Execution;
+namespace base\Database\Coordinator\Handler;
 
 use base\Database\Result\ResultInterface;
+use base\Database\Execution\SqlExecutorInterface;
 use base\Database\Coordinator\QueryContextInterface;
 
 
 /**
- * 查询执行器接口
+ * 查询执行处理器接口
  * 
- * - 仅能承载查询执行逻辑
- * - 需保持自身无状态
+ * - 负责执行查询
+ * - 分担中心协调器调度执行器的职责
  */
-interface QueryExecutorInterface {
+interface QueryExecutionHandlerInterface {
 
     /**
      * 执行查询

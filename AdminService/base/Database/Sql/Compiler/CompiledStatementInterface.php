@@ -1,11 +1,11 @@
 <?php
 
-namespace base\Database\Compiler;
+namespace base\Database\Sql\Compiler;
 
 /**
- * 编译后的查询接口
+ * 编译后的SQL语句接口
  */
-interface CompiledQueryInterface {
+interface CompiledStatementInterface {
 
     /**
      * 获取编译后的SQL

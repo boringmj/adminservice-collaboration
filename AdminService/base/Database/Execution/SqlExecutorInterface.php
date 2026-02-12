@@ -3,7 +3,7 @@
 namespace base\Database\Execution;
 
 use base\Database\Result\ResultInterface;
-use base\Database\Compiler\CompiledQueryInterface;
+use base\Database\Sql\Compiler\CompiledStatementInterface;
 
 /**
  * SQL 执行器接口
@@ -13,9 +13,9 @@ interface SqlExecutorInterface {
     /**
      * 执行一条 SQL
      * 
-     * @param CompiledQueryInterface $query 编译后的查询对象
+     * @param CompiledStatementInterface $query 编译后的 SQL 语句对象
      * @return ResultInterface
      */
-    public function execute(CompiledQueryInterface $query): ResultInterface;
+    public function execute(CompiledStatementInterface $query): ResultInterface;
 
 }

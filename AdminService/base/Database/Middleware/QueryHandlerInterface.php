@@ -1,11 +1,14 @@
 <?php
 
-namespace base\Database\Coordinator;
+namespace base\Database\Middleware;
 
 use base\Database\Result\ResultInterface;
+use base\Database\Coordinator\QueryContextInterface;
 
 /**
  * 查询处理器接口
+ * 
+ * - 为中间件提供的类型安全的处理器
  */
 interface QueryHandlerInterface {
 

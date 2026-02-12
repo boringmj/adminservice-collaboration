@@ -1,8 +1,9 @@
 <?php
 
-namespace base\Database\Coordinator;
+namespace base\Database\Middleware;
 
 use base\Database\Result\ResultInterface;
+use base\Database\Coordinator\QueryContextInterface;
 
 /**
  * 查询中间件接口
@@ -17,7 +18,7 @@ interface QueryMiddlewareInterface {
      * @param QueryHandlerInterface $next 下一个查询处理器
      * @return ResultInterface
      */
-    public function handle(
+    public function process(
         QueryContextInterface $query,
         QueryHandlerInterface $next
     ): ResultInterface;

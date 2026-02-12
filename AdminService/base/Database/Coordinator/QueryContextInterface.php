@@ -2,7 +2,7 @@
 
 namespace base\Database\Coordinator;
 
-use base\Database\Compiler\CompiledQueryInterface;
+use base\Database\Sql\Compiler\CompiledStatementInterface;
 
 /**
  * 查询上下文接口
@@ -10,9 +10,10 @@ use base\Database\Compiler\CompiledQueryInterface;
 interface QueryContextInterface {
 
     /**
-     * 获取已编译的查询实例
+     * 获取已编译的 SQL 语句对象
+     * @return CompiledStatementInterface
      */
-    public function getCompiledQuery(): CompiledQueryInterface;
+    public function getCompiledStatement(): CompiledStatementInterface;
 
     /**
      * 获取查询类型

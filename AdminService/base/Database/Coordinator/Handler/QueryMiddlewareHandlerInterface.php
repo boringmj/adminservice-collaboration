@@ -18,13 +18,13 @@ interface QueryMiddlewareHandlerInterface {
     /**
      * 执行查询中间件链
      * @param QueryContextInterface $context 查询上下文对象
-     * @param QueryExecutionHandlerInterface $finalExecutor 最终执行器对象
+     * @param QueryExecutorHandlerInterface $finalExecutor 最终执行器对象
      * @param QueryMiddlewareInterface[] $middlewares 中间件数组
      * @return ResultInterface
      */
     public function execute(
         QueryContextInterface $context,
-        QueryExecutionHandlerInterface $finalExecutor,
+        QueryExecutorHandlerInterface $finalExecutor,
         array $middlewares
     ): ResultInterface;
 

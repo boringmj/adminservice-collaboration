@@ -8,12 +8,12 @@ use base\Database\Coordinator\QueryContextInterface;
 
 
 /**
- * 查询执行处理器接口
+ * 查询执行器处理接口
  * 
  * - 负责执行查询
  * - 分担中心协调器调度执行器的职责
  */
-interface QueryExecutionHandlerInterface {
+interface QueryExecutorHandlerInterface {
 
     /**
      * 执行查询

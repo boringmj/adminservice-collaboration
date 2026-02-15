@@ -4,7 +4,6 @@ namespace base\Database\Connection;
 
 use base\Database\Sql\Dialect\DialectInterface;
 use base\Database\Execution\SqlExecutorInterface;
-use base\Database\Sql\Compiler\SqlCompilerInterface;
 use base\Database\Execution\TransactionExecutorInterface;
 use base\Database\Transaction\TransactionContextInterface;
 
@@ -13,7 +12,6 @@ use base\Database\Transaction\TransactionContextInterface;
  * - 负责管理连接资源、事务和执行器
  * - 内部需持有事务上下文对象和事务状态对象
  * - 内部需要持有支持的方言对象 (连接与方言本身就是强关联的, 解耦或复用无意义)
- * - 内部需要持有Sql编译器对象 (连接与Sql编译本身就是强关联的, 解耦或复用无意义)
  */
 interface ConnectionSessionInterface {
 
@@ -40,12 +38,6 @@ interface ConnectionSessionInterface {
      * @return DialectInterface
      */
     public function getDialect(): DialectInterface;
-
-    /**
-     * 获取Sql编译器
-     * @return SqlCompilerInterface
-     */
-    public function getSqlCompiler(): SqlCompilerInterface;
 
     /**
      * 释放连接资源

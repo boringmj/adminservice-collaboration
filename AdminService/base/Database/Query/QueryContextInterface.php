@@ -1,6 +1,6 @@
 <?php
 
-namespace base\Database\Coordinator;
+namespace base\Database\Query;
 
 use base\Database\Sql\Compiler\CompiledStatementInterface;
 

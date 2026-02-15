@@ -13,9 +13,9 @@ interface SqlExecutorInterface {
     /**
      * 执行一条 SQL
      * 
-     * @param CompiledStatementInterface $query 编译后的 SQL 语句对象
+     * @param CompiledStatementInterface $statement 编译后的 SQL 语句对象
      * @return ResultInterface
      */
-    public function execute(CompiledStatementInterface $query): ResultInterface;
+    public function execute(CompiledStatementInterface $statement): ResultInterface;
 
 }

@@ -3,7 +3,7 @@
 namespace base\Database\Middleware;
 
 use base\Database\Result\ResultInterface;
-use base\Database\Coordinator\QueryContextInterface;
+use base\Database\Query\QueryContextInterface;
 
 /**
  * 查询中间件接口

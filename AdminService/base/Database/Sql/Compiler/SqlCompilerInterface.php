@@ -2,7 +2,7 @@
 
 namespace base\Database\Sql\Compiler;
 
-use base\Database\Coordinator\QueryDefinitionInterface;
+use base\Database\Sql\Definition\StatementDefinitionInterface;
 
 /**
  * SQL编译器接口
@@ -11,12 +11,12 @@ interface SqlCompilerInterface {
 
     /**
      * 编译查询
-     * @param QueryDefinitionInterface $builder 查询构建器
+     * @param StatementDefinitionInterface $definition 语句定义
      * @param CompilerContextInterface $context 编译器上下文
      * @return CompiledStatementInterface
      */
     public function compile(
-        QueryDefinitionInterface $builder,
+        StatementDefinitionInterface $definition,
         CompilerContextInterface $context
     ): CompiledStatementInterface;
 

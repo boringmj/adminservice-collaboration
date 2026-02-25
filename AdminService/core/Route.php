@@ -109,12 +109,10 @@ final class Route extends BaseRoute {
         foreach($args as $k=>$v)
             if(is_numeric($k))
                 unset($args[$k]);
-        $before_middlewares=Config::get('middlewares.before',[]);
-        $after_middlewares=Config::get('middlewares.after',[]);
+        $middlewares=Config::get('middlewares.controller',[]);
         $response=App::get(Response::class);
         self::dispatch(
-            $before_middlewares,
-            $after_middlewares,
+            $middlewares,
             function() use ($method,$args,$response) {
                 $data=App::exec_class_function($method[0],$method[1],$args);
                 $response->setControllerReturn($data);
@@ -161,41 +159,25 @@ final class Route extends BaseRoute {
     /**
      * 执行中间件
      *
-     * @param array $before 请求前中间件列表
-     * @param array $after 请求后中间件列表
+     * @param array $middlewares 中间件
      * @param callable $core 核心逻辑
      * @return void
      */
-    static public function dispatch(array $before,array $after,callable $core): void {
-        // 构造前置中间件链
-        $beforeChain=array_reduce(
-            array_reverse($before),
+    static public function dispatch(array $middlewares,callable $core): void {
+        $pipeline=array_reduce(
+            array_reverse($middlewares),
             function($next,$middleware) {
                 return function() use ($middleware,$next) {
-                    (new $middleware())->handle($next);
+                    // 从容器拿实例，支持构造函数自动注入
+                    $instance=App::get($middleware);
+                    App::exec_class_function($instance,'handle',[
+                        $next,
+                    ]);
                 };
             },
-            function() use ($core,$after) {
-                // 前置执行完后，调用核心逻辑
-                $core();
-                // 构造后置中间件链
-                $afterChain=array_reduce(
-                    $after,
-                    function($next,$middleware) {
-                        return function() use ($middleware,$next) {
-                            (new $middleware())->handle($next);
-                        };
-                    },
-                    function() {
-                        // 后置执行完后的处理
-                    }
-                );
-                // 启动后置中间件链
-                $afterChain();
-            }
+            $core // 核心逻辑
         );
-        // 启动前置中间件链
-        $beforeChain();
+        $pipeline();
     }
 
 }

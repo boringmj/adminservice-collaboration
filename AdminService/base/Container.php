@@ -838,6 +838,10 @@ abstract class Container {
         if($types===['']||in_array('',$types,true)) return true;
         // mixed 表示任何类型都合法
         if(in_array('mixed',$types,true)) return true;
+        // 处理可执行类型
+        if(in_array('callable',$types,true)) {
+            if(is_callable($arg)) return true;
+        }
         // 如果参数是对象，检查是否符合给定类名
         if($arg_type==='object') {
             foreach($types as $t) {

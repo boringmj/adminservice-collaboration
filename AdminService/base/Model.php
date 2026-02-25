@@ -216,7 +216,7 @@ abstract class Model implements ArrayAccess {
      * @access public
      * @param array $data 数据
      * @param bool $last_is_empty 上一次查询结果是否为空
-     * @return T
+     * @return static
      * @throws Exception
      */
     static public function new(array $data=[],bool $last_is_empty=true): static {
@@ -281,7 +281,8 @@ abstract class Model implements ArrayAccess {
         if($last_is_empty)
             return static::new($this->buildEmptyResult($fields),$last_is_empty);
         if(is_string($fields)&&$fields!=='*')
-            return static::new([$fields=>$result],$last_is_empty);        return static::new($result,$last_is_empty);
+            return static::new([$fields=>$result],$last_is_empty);
+        return static::new($result,$last_is_empty);
     }
 
     /**

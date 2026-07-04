@@ -155,7 +155,7 @@ abstract class Container {
      *
      * @access public
      * @template T of object
-     * @param class-string<T> $__name 对象名（类名）
+     * @param class-string<T> $name 对象名（类名）
      * @return T|object 返回指定类的实例
      */
     static public function get(string $name): object {
@@ -240,8 +240,8 @@ abstract class Container {
      * - 支持嵌套绑定
      * 
      * @access public
-     * @param string $abstract 别名或抽象类或接口名
-     * @param string $concrete 目标类名
+     * @param string $name 别名或抽象类或接口名
+     * @param string $class 目标类名
      * @return void
      * @throws Exception
      */
@@ -530,6 +530,7 @@ abstract class Container {
         ReflectionClass $ref,
         array &$flags=[]
     ): void {
+        $method=null;
         try{
             foreach($methods as $method) {
                 // 获取属性是否有 AutowireSetter 标签
@@ -564,7 +565,7 @@ abstract class Container {
                 $e->getMessage(),
                 0,
                 [
-                    'property'=>$method->getName(),
+                    'property'=>$method?->getName(),
                     'class'=>$ref->getName()
                 ]
             );

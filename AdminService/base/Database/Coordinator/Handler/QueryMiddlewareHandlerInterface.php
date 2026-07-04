@@ -20,12 +20,12 @@ interface QueryMiddlewareHandlerInterface {
      * - 此方法必须遵循【不可变模式】, 实现类绝不允许修改当前实例($this)的内部状态
      * @param QueryExecutionDispatcherInterface $dispatcher 查询执行分发器对象
      * @param QueryMiddlewareInterface[] $middlewares 中间件数组
-     * @return self
+     * @return static
      */
     public function wrap(
         QueryExecutionDispatcherInterface $dispatcher,
         array $middlewares
-    ): self;
+    ): static;
 
     /**
      * 执行查询中间件链

@@ -26,7 +26,7 @@ abstract class SceneValidator extends Validator {
      * @param array $messages 自定义错误信息
      * @return void
      */
-    public function __construct(array $data=[],$rules=[],$messages=[]) {
+    public function __construct(array $data=[],array $rules=[],array $messages=[]) {
         parent::__construct($data,$rules,$messages);
         $this->scenes=$this->scenes();
     }
@@ -44,17 +44,18 @@ abstract class SceneValidator extends Validator {
 
     /**
      * 获取当前场景的规则
-     * 
+     *
+     * @param array $rules 合并后的规则集
      * @return array
      */
-    protected function getSceneRules(): array {
+    protected function getSceneRules(array $rules): array {
         if($this->scene===null)
-            return $this->rules;
+            return $rules;
         $sceneFields=$this->scenes[$this->scene]??[];
         $sceneRules=[];
         foreach($sceneFields as $field) {
-            if(isset($this->rules[$field])) {
-                $sceneRules[$field]=$this->rules[$field];
+            if(isset($rules[$field])) {
+                $sceneRules[$field]=$rules[$field];
             }
         }
         return $sceneRules;
@@ -70,12 +71,11 @@ abstract class SceneValidator extends Validator {
     public function validate(array $data=[],array $rules=[]): bool {
         if(!empty($data))
             $this->data=$data;
-        // 合并默认和外部规则
-        $this->rules=array_merge($this->rules,$rules);
         $this->errors=[];
-        $rulesToApply=$this->getSceneRules();
-        // 验证并重置场景
-        return $this->scene()->doValidate($this->data,$rulesToApply);
+        $mergedRules=array_merge($this->rules,$rules);
+        $rulesToApply=$this->getSceneRules($mergedRules);
+        $this->scene=null;
+        return $this->doValidate($this->data,$rulesToApply);
     }
 
     /**

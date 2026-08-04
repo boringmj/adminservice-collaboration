@@ -40,7 +40,7 @@ abstract class Validator {
      * @param array $messages 自定义错误信息
      * @return void
      */
-    public function __construct(array $data=[],$rules=[],$messages=[]) {
+    public function __construct(array $data=[],array $rules=[],array $messages=[]) {
         $this->data=$data;
         // 外部规则覆盖默认规则
         $this->rules=array_merge($this->rules(),$rules);
@@ -75,19 +75,18 @@ abstract class Validator {
     public function validate(array $data=[],array $rules=[]): bool {
         if(!empty($data))
             $this->data=$data;
-        // 合并默认和外部规则
-        $this->rules=array_merge($this->rules,$rules);
-        return $this->doValidate($this->data,$this->rules);
+        $rulesToApply=array_merge($this->rules,$rules);
+        return $this->doValidate($this->data,$rulesToApply);
     }
 
     /**
      * 执行验证
-     * 
+     *
      * @param array $data 待验证的数据
      * @param array $rules 验证规则
      * @return bool
      */
-    public function doValidate(array $data,array $rules): bool {
+    protected function doValidate(array $data,array $rules): bool {
         $this->errors=[];
         $validate_result=true;
         foreach($rules as $field=>$rule_list) {

@@ -221,7 +221,7 @@ class FormValidator extends SceneValidator {
      * @param string $pattern 脱敏方式
      * @return string 脱敏后的值
      */
-    protected function applySanitization($value,string $pattern): string {
+    protected function applySanitization(mixed $value, string $pattern): string {
         // 非字符串值转为字符串
         $strValue=is_scalar($value)?(string)$value:'';
         $length=$this->stringLength($strValue);
@@ -264,7 +264,7 @@ class FormValidator extends SceneValidator {
 
     // ===================== 验证规则实现 =====================
 
-    protected function validateRequired(string $field,$value,$_): bool {
+    protected function validateRequired(string $field, mixed $value, mixed $_): bool {
         if(is_null($value)) {
             return $this->addError($field,'required');
         }
@@ -280,70 +280,70 @@ class FormValidator extends SceneValidator {
         return true;
     }
 
-    protected function validateEmail(string $field,$value,$_): bool {
+    protected function validateEmail(string $field, mixed $value, mixed $_): bool {
         if($value&&!filter_var($value,FILTER_VALIDATE_EMAIL)) {
             return $this->addError($field,'email');
         }
         return true;
     }
 
-    protected function validateMin(string $field,$value,$param): bool {
+    protected function validateMin(string $field, mixed $value, mixed $param): bool {
         if(is_numeric($value)&&$value<$param) {
             return $this->addError($field,'min',$param);
         }
         return true;
     }
 
-    protected function validateMax(string $field,$value,$param): bool {
+    protected function validateMax(string $field, mixed $value, mixed $param): bool {
         if(is_numeric($value)&&$value>$param) {
             return $this->addError($field,'max',$param);
         }
         return true;
     }
 
-    protected function validateMinLength(string $field,$value,$param): bool {
+    protected function validateMinLength(string $field, mixed $value, mixed $param): bool {
         if(is_string($value)&&$this->stringLength($value)<$param) {
             return $this->addError($field,'min_length',$param);
         }
         return true;
     }
 
-    protected function validateMaxLength(string $field,$value,$param): bool {
+    protected function validateMaxLength(string $field, mixed $value, mixed $param): bool {
         if(is_string($value)&&$this->stringLength($value)>$param) {
             return $this->addError($field,'max_length',$param);
         }
         return true;
     }
 
-    protected function validateNumeric(string $field,$value,$_): bool {
+    protected function validateNumeric(string $field, mixed $value, mixed $_): bool {
         if(!is_numeric($value)) {
             return $this->addError($field,'numeric');
         }
         return true;
     }
 
-    protected function validateInteger(string $field,$value,$_): bool {
+    protected function validateInteger(string $field, mixed $value, mixed $_): bool {
         if(!filter_var($value,FILTER_VALIDATE_INT)) {
             return $this->addError($field,'integer');
         }
         return true;
     }
 
-    protected function validateUrl(string $field,$value,$_): bool {
+    protected function validateUrl(string $field, mixed $value, mixed $_): bool {
         if($value&&!filter_var($value,FILTER_VALIDATE_URL)) {
             return $this->addError($field,'url');
         }
         return true;
     }
 
-    protected function validateRegex(string $field,$value,$param): bool {
+    protected function validateRegex(string $field, mixed $value, mixed $param): bool {
         if(!preg_match($param,(string)$value)) {
             return $this->addError($field,'regex',$param);
         }
         return true;
     }
 
-    protected function validateIn(string $field,$value,$param): bool {
+    protected function validateIn(string $field, mixed $value, mixed $param): bool {
         $options=explode(',',$param);
         if(!in_array($value,$options)) {
             return $this->addError($field,'in',$param);
@@ -351,7 +351,7 @@ class FormValidator extends SceneValidator {
         return true;
     }
 
-    protected function validateNotIn(string $field,$value,$param): bool {
+    protected function validateNotIn(string $field, mixed $value, mixed $param): bool {
         $options=explode(',',$param);
         if(in_array($value,$options)) {
             return $this->addError($field,'not_in',$param);
@@ -359,7 +359,7 @@ class FormValidator extends SceneValidator {
         return true;
     }
 
-    protected function validateSame(string $field,$value,$param): bool {
+    protected function validateSame(string $field, mixed $value, mixed $param): bool {
         $otherValue=$this->data[$param]??null;
         if($value!==$otherValue) {
             return $this->addError($field,'same',$param);
@@ -367,7 +367,7 @@ class FormValidator extends SceneValidator {
         return true;
     }
 
-    protected function validateDifferent(string $field,$value,$param): bool {
+    protected function validateDifferent(string $field, mixed $value, mixed $param): bool {
         $otherValue=$this->data[$param]??null;
         if($value===$otherValue) {
             return $this->addError($field,'different',$param);
@@ -375,14 +375,14 @@ class FormValidator extends SceneValidator {
         return true;
     }
 
-    protected function validateDate(string $field,$value,$_): bool {
+    protected function validateDate(string $field, mixed $value, mixed $_): bool {
         if(strtotime($value)===false) {
             return $this->addError($field,'date');
         }
         return true;
     }
 
-    protected function validateAfter(string $field,$value,$param): bool {
+    protected function validateAfter(string $field, mixed $value, mixed $param): bool {
         $time=strtotime($value);
         $paramTime=strtotime($param);
         if($time===false||$paramTime===false||$time<=$paramTime) {
@@ -391,7 +391,7 @@ class FormValidator extends SceneValidator {
         return true;
     }
 
-    protected function validateBefore(string $field,$value,$param): bool {
+    protected function validateBefore(string $field, mixed $value, mixed $param): bool {
         $time=strtotime($value);
         $paramTime=strtotime($param);
         if($time===false||$paramTime===false||$time>=$paramTime) {
@@ -400,7 +400,7 @@ class FormValidator extends SceneValidator {
         return true;
     }
 
-    protected function validateBetween(string $field,$value,$param): bool {
+    protected function validateBetween(string $field, mixed $value, mixed $param): bool {
         list($min,$max)=explode(',',$param);
         if(is_numeric($value)) {
             if($value<$min||$value>$max) {
@@ -415,7 +415,7 @@ class FormValidator extends SceneValidator {
         return true;
     }
 
-    protected function validateNotBetween(string $field,$value,$param): bool {
+    protected function validateNotBetween(string $field, mixed $value, mixed $param): bool {
         list($min,$max)=explode(',',$param);
         if(is_numeric($value)) {
             if($value>=$min&&$value<=$max) {
@@ -430,21 +430,21 @@ class FormValidator extends SceneValidator {
         return true;
     }
 
-    protected function validateIp(string $field,$value,$_): bool {
+    protected function validateIp(string $field, mixed $value, mixed $_): bool {
         if(!filter_var($value,FILTER_VALIDATE_IP)) {
             return $this->addError($field,'ip');
         }
         return true;
     }
 
-    protected function validatePhone(string $field,$value,$_): bool {
+    protected function validatePhone(string $field, mixed $value, mixed $_): bool {
         if(!preg_match('/^1[3-9]\d{9}$/',$value)) {
             return $this->addError($field,'phone');
         }
         return true;
     }
 
-    protected function validateJson(string $field,$value,$_): bool {
+    protected function validateJson(string $field, mixed $value, mixed $_): bool {
         if(!is_string($value)) {
             return $this->addError($field,'json');
         }
@@ -455,14 +455,14 @@ class FormValidator extends SceneValidator {
         return true;
     }
 
-    protected function validateArray(string $field,$value,$_): bool {
+    protected function validateArray(string $field, mixed $value, mixed $_): bool {
         if(!is_array($value)) {
             return $this->addError($field,'array');
         }
         return true;
     }
 
-    protected function validateSensitive(string $field,$_,$param): bool {
+    protected function validateSensitive(string $field, mixed $_, mixed $param): bool {
         return $this->addSensitiveField($field,$param);
     }
 

@@ -138,7 +138,7 @@ final class HttpRequest extends Request {
         );
         self::$request_files=new UploadFilesForm($save_dir,$_FILES);
         // 处理input信息
-        self::$request_raw_input=@file_get_contents('php://input'?:'');
+        self::$request_raw_input=@file_get_contents('php://input')?:'';
         // 获取Content-Type的值
         $content_type_header=self::$request_headers->get('content-type','');
         $content_type=strtolower(trim(explode(';',$content_type_header)[0]));

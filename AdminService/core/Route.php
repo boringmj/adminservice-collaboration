@@ -163,7 +163,7 @@ final class Route extends BaseRoute {
      * @param callable $core 核心逻辑
      * @return void
      */
-    static public function dispatch(array $middlewares,callable $core): void {
+    public static function dispatch(array $middlewares,callable $core): void {
         $pipeline=array_reduce(
             array_reverse($middlewares),
             function($next,$middleware) {

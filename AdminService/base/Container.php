@@ -61,7 +61,7 @@ abstract class Container {
      * @param array $classes 需要初始化的类
      * @return void
      */
-    abstract static public function init(array $classes=array()): void;
+    abstract public static function init(array $classes=array()): void;
 
     /**
      * 获取反射对象(会缓存结果,不支持别名和绑定)
@@ -71,7 +71,7 @@ abstract class Container {
      * @throws ReflectionException
      * @return ReflectionClass
      */
-    static public function getReflection(string $name): ReflectionClass {
+    public static function getReflection(string $name): ReflectionClass {
         if(!isset(self::$class_reflection_container[$name])) {
             self::$class_reflection_container[$name]=new ReflectionClass($name);
         }
@@ -86,7 +86,7 @@ abstract class Container {
      * @throws ReflectionException
      * @return ReflectionClass
      */
-     static public function getReflectionByObject(object $object): ReflectionClass {
+     public static function getReflectionByObject(object $object): ReflectionClass {
         $class=$object::class;
         return self::getReflection($class);
     }
@@ -100,7 +100,7 @@ abstract class Container {
      * @throws ReflectionException
      * @return ReflectionMethod
      */
-    static public function getReflectionMethod(
+    public static function getReflectionMethod(
         string $class,
         ?string $method=null
     ): ReflectionMethod {
@@ -127,7 +127,7 @@ abstract class Container {
      * @throws ReflectionException
      * @return ReflectionMethod
      */
-    static public function getReflectionMethodByObject(
+    public static function getReflectionMethodByObject(
         object $object,
         string $method
     ): ReflectionMethod {
@@ -143,7 +143,7 @@ abstract class Container {
      * @throws ReflectionException
      * @return ReflectionFunction
      */
-    static public function getReflectionFunction(string $name): ReflectionFunction {
+    public static function getReflectionFunction(string $name): ReflectionFunction {
         if(!isset(self::$function_reflection_container[$name])) {
             self::$function_reflection_container[$name]=new ReflectionFunction($name);
         }
@@ -158,7 +158,7 @@ abstract class Container {
      * @param class-string<T> $name 对象名（类名）
      * @return T|object 返回指定类的实例
      */
-    static public function get(string $name): object {
+    public static function get(string $name): object {
         $name=self::getRealClass($name);
         if(!isset(self::$container[$name])) {
             // 如果不存在则判断是否存在该类
@@ -182,7 +182,7 @@ abstract class Container {
      * @param object $object 对象
      * @return void
      */
-    static public function set(string $name,object $object): void {
+    public static function set(string $name,object $object): void {
         $name=self::getRealClass($name);
         self::$container[$name]=$object;
     }
@@ -193,7 +193,7 @@ abstract class Container {
      * @access public
      * @param string $name 类名
      */
-    static public function getClass(string $name): string {
+    public static function getClass(string $name): string {
         $name=self::getRealClass($name);
         // 如果类容器中不存在该类则返回原类名
         if(!isset(self::$class_container[$name]))
@@ -210,7 +210,7 @@ abstract class Container {
      * @param bool $max_depth 最大递归深度
      * @return string
      */
-    static public function getRealClass(
+    public static function getRealClass(
         string $name,
         bool $recursive=true,
         int $max_depth=255
@@ -245,7 +245,7 @@ abstract class Container {
      * @return void
      * @throws Exception
      */
-    static public function setClass(string $name,string $class): void {
+    public static function setClass(string $name,string $class): void {
         // 如果类不存在则抛出异常
         if(!class_exists($class))
             throw new Exception('Class "'.$class.'" not found.');
@@ -263,7 +263,7 @@ abstract class Container {
      * @param string $concrete 目标类名
      * @return bool
      */
-    static public function isCircular(string $abstract,string $concrete): bool {
+    public static function isCircular(string $abstract,string $concrete): bool {
         $visited=[$abstract];
         while(isset(self::$class_container[$concrete])) {
             if(in_array($concrete,$visited,true))
@@ -287,7 +287,7 @@ abstract class Container {
      * @return void
      * @throws Exception
      */
-    static public function bind(string $abstract,string $concrete): void {
+    public static function bind(string $abstract,string $concrete): void {
         self::setClass($abstract,$concrete);
     }
 
@@ -298,7 +298,7 @@ abstract class Container {
      * @param array $objects 对象数组
      * @return void
      */
-    static public function setByArray(array $objects): void {
+    public static function setByArray(array $objects): void {
         foreach($objects as $name=>$object)
             self::set($name,$object);
     }
@@ -311,7 +311,7 @@ abstract class Container {
      * @return void
      * @throws Exception
      */
-    static public function setClassByArray(array $classes): void {
+    public static function setClassByArray(array $classes): void {
         foreach($classes as $name=>$class)
             self::setClass($name,$class);
     }
@@ -324,7 +324,7 @@ abstract class Container {
      * @param mixed $default 默认值
      * @return mixed
      */
-    static public function getData(string $name,mixed $default=null): mixed {
+    public static function getData(string $name,mixed $default=null): mixed {
         return self::$data_container[$name]??$default;
     }
 
@@ -336,7 +336,7 @@ abstract class Container {
      * @param mixed $data 数据
      * @return void
      */
-    static public function setData(string $name,mixed $data): void {
+    public static function setData(string $name,mixed $data): void {
         self::$data_container[$name]=$data;
     }
 
@@ -347,7 +347,7 @@ abstract class Container {
      * @param array $data 数据数组
      * @return void
      */
-    static public function setDataByArray(array $data): void {
+    public static function setDataByArray(array $data): void {
         foreach($data as $name=>$value)
             self::setData($name,$value);
     }
@@ -361,7 +361,7 @@ abstract class Container {
      * @throws Exception
      * @return void
      */
-    static protected function autowire(object $instance,array &$flags=[]): void {
+    protected static function autowire(object $instance,array &$flags=[]): void {
         // 获取对象的反射
         $ref=self::getReflectionByObject($instance);
         // 获取类的所有属性
@@ -382,7 +382,7 @@ abstract class Container {
      * @param bool $allow_builtin 是否允许返回内置类型 
      * @return string[] 类型名数组
      */
-    static protected function reflectionTypeToArray(
+    protected static function reflectionTypeToArray(
         ?ReflectionType $type,
         bool $allow_builtin=true
     ): array {
@@ -420,7 +420,7 @@ abstract class Container {
      * @throws AutowireException
      * @return object
      */
-    static protected function getReflectionPropertyValue(
+    protected static function getReflectionPropertyValue(
         ReflectionProperty|ReflectionParameter $parameter,
         ReflectionClass $ref,
         ?string $explicit_class=null,
@@ -485,7 +485,7 @@ abstract class Container {
      * @throws AutowireException
      * @return void
      */
-    static protected function autowireProperty(
+    protected static function autowireProperty(
         array $properties,
         object $instance,
         ReflectionClass $ref,
@@ -524,7 +524,7 @@ abstract class Container {
      * @throws AutowireException
      * @return void
      */
-    static protected function autowireSetter(
+    protected static function autowireSetter(
         array $methods,
         object $instance,
         ReflectionClass $ref,
@@ -583,7 +583,7 @@ abstract class Container {
     //  * @throws AutowireException
     //  * @return void
     //  */
-    // static protected function autowireMethod(
+    // protected static function autowireMethod(
     //     array $methods,
     //     object $instance,
     //     ReflectionClass $ref,
@@ -615,7 +615,7 @@ abstract class Container {
      * @return DynamicProxy<T>
      * @throws Exception
      */
-    static public function proxy(string $name,array $args=array()): DynamicProxy {
+    public static function proxy(string $name,array $args=array()): DynamicProxy {
         return new DynamicProxy($name,...$args);
     }
 
@@ -633,7 +633,7 @@ abstract class Container {
      * @return T|object
      * @throws Exception|ReflectionException
      */
-    static public function make(string $name,bool $is_force=false,array &$flags=array()): object {
+    public static function make(string $name,bool $is_force=false,array &$flags=array()): object {
         $name=self::getRealClass($name);
         // 如果不强制实例化且容器中存在该对象则直接返回,如果标识重复也会直接返回
         if((!$is_force&&isset(self::$container[$name])||in_array($name,$flags)))
@@ -711,7 +711,7 @@ abstract class Container {
      * @return T|object
      * @throws Exception|ReflectionException
      */
-    static public function new(string $__name,...$args): object {
+    public static function new(string $__name,...$args): object {
         // 获取真实类名
         $__name=self::getRealClass($__name);
         // 判断类或接口是否存在
@@ -747,7 +747,7 @@ abstract class Container {
      * @throws Exception
      * @throws ReflectionException
      */
-    static protected function mergeParams(array $params,array $args): array {
+    protected static function mergeParams(array $params,array $args): array {
         $params_temp=array();
         $arg_count=0;
         foreach($params as $param) {
@@ -831,7 +831,7 @@ abstract class Container {
      * @param array $types 预期类型
      * @return bool
      */
-    static protected function isValidType(mixed $arg,array $types): bool {
+    protected static function isValidType(mixed $arg,array $types): bool {
         $arg_type=gettype($arg);
         // 直接匹配 PHP 内置类型
         if(in_array($arg_type,$types,true)) return true;
@@ -861,7 +861,7 @@ abstract class Container {
      * @param string $class 类名
      * @return ?string
      */
-    static public function findSubClass(string $class): ?string {
+    public static function findSubClass(string $class): ?string {
         // 判断类是否存在
         if(!class_exists($class)&&!interface_exists($class))
             return null;
@@ -894,7 +894,7 @@ abstract class Container {
      * @param array $flags 标识(请不要传入该参数,该参数主要用于防止解析死循环)
      * @return ?string
      */
-    static public function findDirectSubClassRecursive(string $class,array &$flags=array()): ?string {
+    public static function findDirectSubClassRecursive(string $class,array &$flags=array()): ?string {
         // 获取真实类名
         $class=self::getRealClass($class);
         // 如果标识重复则直接返回
@@ -952,7 +952,7 @@ abstract class Container {
      * @param string $type 类型
      * @return string
      */
-    static public function getStandardType(string $type): string {
+    public static function getStandardType(string $type): string {
         // 清除类型前缀
         $type=str_replace('?','',$type);
         $list=array(
@@ -973,7 +973,7 @@ abstract class Container {
      * @param array $types 类型数组
      * @return array
      */
-    static public function getStandardTypes(array $types): array {
+    public static function getStandardTypes(array $types): array {
         $result=array();
         foreach($types as $type)
             $result[]=self::getStandardType($type);
@@ -987,7 +987,7 @@ abstract class Container {
      * @param array $types 类型数组
      * @return ?string
      */
-    static public function getFirstInstantiableClass(array $types): ?string {
+    public static function getFirstInstantiableClass(array $types): ?string {
         foreach($types as $type) {
             // 判断是否可以实例化该类
             $class_name=self::getRealClass($type);

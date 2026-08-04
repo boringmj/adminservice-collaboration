@@ -13,7 +13,7 @@ final class Cookie extends BaseCookie {
      * @param array $data 数据
      * @return void
      */
-    static public function setByArray(array $data): void {
+    public static function setByArray(array $data): void {
         foreach($data as $key=>$value)
             if(is_array($value))
                 self::set(
@@ -42,7 +42,7 @@ final class Cookie extends BaseCookie {
      * @param bool $httponly 是否仅http
      * @return void
      */
-    static public function set(
+    public static function set(
         string $name,mixed $value,
         ?int $expire=null,?string $path=null,?string $domain=null,
         ?bool $secure=null,?bool $httponly=null

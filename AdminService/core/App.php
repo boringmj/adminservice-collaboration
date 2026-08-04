@@ -15,7 +15,7 @@ final class App extends Container {
      * @return void
      * @throws Exception
      */
-    static public function init(array $classes=array()): void {
+    public static function init(array $classes=array()): void {
         // 获取配置文件中需要直接绑定到容器中的类
         $binds=array();
         $classes=array_merge($classes,Config::get('app.classes',array()));
@@ -49,7 +49,7 @@ final class App extends Container {
      * @return T|object 返回指定类的实例
      * @throws Exception|ReflectionException
      */
-    static public function get(string $__name,...$args): object {
+    public static function get(string $__name,...$args): object {
         if(count($args)>0) {
             return self::new($__name,...$args);
         } else {
@@ -68,7 +68,7 @@ final class App extends Container {
      * @return mixed
      * @throws Exception|ReflectionException
      */
-    static public function exec_class_function(object|string $object,string $method,array $args=array()): mixed {
+    public static function exec_class_function(object|string $object,string $method,array $args=array()): mixed {
         // 判断是否为类名
         if(is_string($object)) {
             // 如果是类名则通过自动依赖注入实例化一个对象
@@ -91,7 +91,7 @@ final class App extends Container {
      * @return mixed
      * @throws Exception|ReflectionException
      */
-    static public function exec_function(
+    public static function exec_function(
         string|array|callable $function,array $args=array()
     ): mixed {
         if(is_array($function)) {
@@ -115,7 +115,7 @@ final class App extends Container {
      * @throws Exception
      * @throws ReflectionException
      */
-    static public function getAppName(): ?string {
+    public static function getAppName(): ?string {
         self::initRouteInfo();
         if(self::getData('route_info')!==null)
             return self::getData('route_info')['app']??null;
@@ -130,7 +130,7 @@ final class App extends Container {
      * @throws Exception
      * @throws ReflectionException
      */
-    static public function getControllerName(): ?string {
+    public static function getControllerName(): ?string {
         self::initRouteInfo();
         if(self::getData('route_info')!==null)
             return self::getData('route_info')['controller']??null;
@@ -145,7 +145,7 @@ final class App extends Container {
      * @throws Exception
      * @throws ReflectionException
      */
-    static public function getMethodName(): ?string {
+    public static function getMethodName(): ?string {
         self::initRouteInfo();
         if(self::getData('route_info')!==null)
             return self::getData('route_info')['method']??null;
@@ -160,7 +160,7 @@ final class App extends Container {
      * @throws Exception
      * @throws ReflectionException
      */
-    static private function initRouteInfo(): void {
+    private static function initRouteInfo(): void {
         // 检查是否存在缓存
         if(self::getData('route_info')===null) {
             // 获取路由信息

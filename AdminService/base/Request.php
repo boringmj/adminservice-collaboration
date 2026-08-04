@@ -34,7 +34,7 @@ abstract class Request {
      * @access public
      * @return void
      */
-    abstract static public function init(): void;
+    abstract public static function init(): void;
 
     /**
      * 获取上传的文件信息,
@@ -45,7 +45,7 @@ abstract class Request {
      * @param string|null $name 字段名(null时获取全部)
      * @return AbstractUploadFilesForm|AbstractUploadFiles
      */
-    abstract static public function getUploadFiles(
+    abstract public static function getUploadFiles(
         ?string $name=null
     ): AbstractUploadFilesForm|AbstractUploadFiles;
 
@@ -57,7 +57,7 @@ abstract class Request {
      * @param string $value Cookie值($params 参数为数组时此参数无效)
      * @return void
      */
-    abstract static public function setCookie(
+    abstract public static function setCookie(
         string|array $params,
         string $value=''
     ): void;
@@ -70,7 +70,7 @@ abstract class Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    abstract static public function getCookie(
+    abstract public static function getCookie(
         string $name,
         mixed $default=null
     ): mixed;
@@ -81,7 +81,7 @@ abstract class Request {
      * @access public
      * @return array
      */
-    abstract static public function getCookies(): array;
+    abstract public static function getCookies(): array;
 
     /**
      * 设置Header信息(为中间件修改提供便利,修改有效周期为本次请求,不提供跨会话持久化)
@@ -91,7 +91,7 @@ abstract class Request {
      * @param string $value Cookie值($params 参数为数组时此参数无效)
      * @return void
      */
-    abstract static public function setHeader(
+    abstract public static function setHeader(
         string|array $params,
         string $value=''
     ): void;
@@ -104,7 +104,7 @@ abstract class Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    abstract static public function getHeader(
+    abstract public static function getHeader(
         string $name,
         mixed $default=null
     ): mixed;
@@ -115,7 +115,7 @@ abstract class Request {
      * @access public
      * @return array
      */
-    abstract static public function getHeaders(): array;
+    abstract public static function getHeaders(): array;
 
     /**
      * 设置Input参数
@@ -125,7 +125,7 @@ abstract class Request {
      * @param string $value Cookie值($params 参数为数组时此参数无效)
      * @return void
      */
-    abstract static public function setInput(
+    abstract public static function setInput(
         string|array $params,
         string $value=''
     ): void;
@@ -138,7 +138,7 @@ abstract class Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    abstract static public function getInput(
+    abstract public static function getInput(
         string $name,
         mixed $default=null
     ): mixed;
@@ -149,7 +149,7 @@ abstract class Request {
      * @access public
      * @return array
      */
-    abstract static public function getInputs(): array;
+    abstract public static function getInputs(): array;
 
     /**
      * 获取原始Input数据
@@ -157,7 +157,7 @@ abstract class Request {
      * @access public
      * @return string
      */
-    abstract static public function getRawInput(): string;
+    abstract public static function getRawInput(): string;
 
     /**
      * 设置Server参数
@@ -167,7 +167,7 @@ abstract class Request {
      * @param mixed $value Cookie值($params 参数为数组时此参数无效)
      * @return void
      */
-    abstract static public function setServer(
+    abstract public static function setServer(
         string|array $params,
         mixed $value=null
     ): void;
@@ -180,7 +180,7 @@ abstract class Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    abstract static public function getServer(
+    abstract public static function getServer(
         string $name,
         mixed $default=null
     ): mixed;
@@ -191,7 +191,7 @@ abstract class Request {
      * @access public
      * @return array
      */
-    abstract static public function getServers(): array;
+    abstract public static function getServers(): array;
 
     /**
      * 设置GET参数
@@ -201,7 +201,7 @@ abstract class Request {
      * @param mixed $value Cookie值($params 参数为数组时此参数无效)
      * @return void
      */
-    abstract static public function setGet(
+    abstract public static function setGet(
         string|array $params,
         mixed $value=null
     ): void;
@@ -214,7 +214,7 @@ abstract class Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    abstract static public function getGet(
+    abstract public static function getGet(
         string $name,
         mixed $default=null
     ): mixed;
@@ -225,7 +225,7 @@ abstract class Request {
      * @access public
      * @return array
      */
-    abstract static public function getGets(): array;
+    abstract public static function getGets(): array;
 
     /**
      * 设置POST参数
@@ -235,7 +235,7 @@ abstract class Request {
      * @param mixed $value Cookie值($params 参数为数组时此参数无效)
      * @return void
      */
-    abstract static public function setPost(
+    abstract public static function setPost(
         string|array $params,
         mixed $value=null
     ): void;
@@ -248,7 +248,7 @@ abstract class Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    abstract static public function getPost(
+    abstract public static function getPost(
         string $name,
         mixed $default=null
     ): mixed;
@@ -259,7 +259,7 @@ abstract class Request {
      * @access public
      * @return array
      */
-    abstract static public function getPosts(): array;
+    abstract public static function getPosts(): array;
 
     /**
      * 设置Session参数
@@ -269,7 +269,7 @@ abstract class Request {
      * @param string $value Cookie值($params 参数为数组时此参数无效) 
      * @return void
      */
-    abstract static public function setSession(
+    abstract public static function setSession(
         string|array $params,
         string $value=''
     ): void;
@@ -282,7 +282,7 @@ abstract class Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    abstract static public function getSession(
+    abstract public static function getSession(
         string $name,
         mixed $default=null
     ): mixed;
@@ -294,7 +294,7 @@ abstract class Request {
      * @param int $type 参数类型
      * @return array
      */
-    abstract static public function getParamKeys(
+    abstract public static function getParamKeys(
         int $type=self::ALL_PARAM
     ): array;
 
@@ -307,7 +307,7 @@ abstract class Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    abstract static public function getParam(
+    abstract public static function getParam(
         string $name,
         int $type=self::ALL_PARAM,
         mixed $default=null
@@ -322,7 +322,7 @@ abstract class Request {
      * @param int $type 参数类型
      * @return void
      */
-    abstract static public function setParam(
+    abstract public static function setParam(
         string|array $params,
         mixed $value=null,
         int $type=self::ALL_PARAM
@@ -336,7 +336,7 @@ abstract class Request {
      * @param int $type 参数类型
      * @return void
      */
-    abstract static public function removeParam(
+    abstract public static function removeParam(
         string|array $params,
         int $type=self::ALL_PARAM
     ): void;
@@ -347,7 +347,7 @@ abstract class Request {
      * @access public
      * @return AbstractUploadFilesForm
      */
-    abstract static public function getUploadFilesInstance(): AbstractUploadFilesForm;
+    abstract public static function getUploadFilesInstance(): AbstractUploadFilesForm;
 
     /**
      * 获取Session实例
@@ -355,6 +355,6 @@ abstract class Request {
      * @access public
      * @return AbstractSession
      */
-    abstract static public function getSessionInstance(): AbstractSession;
+    abstract public static function getSessionInstance(): AbstractSession;
 
 }

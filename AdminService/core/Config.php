@@ -10,7 +10,7 @@ final class Config {
      * 配置信息
      * @var array
      */
-    static private array $configs;
+    private static array $configs;
 
     /**
      * 构造方法
@@ -30,7 +30,7 @@ final class Config {
      * @return void
      * @throws Exception
      */
-    final static public function load(): void {
+    final public static function load(): void {
         $temp=array();
         // 读取配置文件目录中所有“.php”文件
         $config_dir=__DIR__.'/../config';
@@ -88,7 +88,7 @@ final class Config {
      * @param array $configs
      * @return void
      */
-    final static public function set(array $configs): void {
+    final public static function set(array $configs): void {
         self::$configs=$configs;
     }
 
@@ -100,7 +100,7 @@ final class Config {
      * @param mixed $default 默认值
      * @return mixed
      */
-    final static public function get(string $key,mixed $default=null): mixed {
+    final public static function get(string $key,mixed $default=null): mixed {
         $keys=explode(".",$key);
         $configs=self::$configs;
         foreach($keys as $key) {

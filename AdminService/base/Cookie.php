@@ -11,7 +11,7 @@ abstract class Cookie {
      * @param array $data 数据
      * @return void
      */
-    abstract static public function setByArray(array $data): void;
+    abstract public static function setByArray(array $data): void;
 
     /**
      * 设置Cookie
@@ -26,7 +26,7 @@ abstract class Cookie {
      * @param bool $httponly 是否仅http
      * @return void
      */
-    abstract static public function set(
+    abstract public static function set(
         string $name,mixed $value,
         ?int $expire=null,?string $path=null,?string $domain=null,
         ?bool $secure=null,?bool $httponly=null

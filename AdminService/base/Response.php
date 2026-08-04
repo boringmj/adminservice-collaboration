@@ -8,25 +8,25 @@ abstract class Response {
      * 状态码
      * @var int
      */
-    static public int $code=200;
+    public static int $code=200;
 
     /**
      * 控制器返回数据
      * @var mixed
      */
-    static public mixed $controller_return=null;
+    public static mixed $controller_return=null;
 
     /**
      * 返回内容类型
      * @var string
      */
-    static protected string $contentType='*/*';
+    protected static string $contentType='*/*';
 
     /**
      * 待返回内容
      * @var ?string
      */
-    static protected ?string $return_content=null;
+    protected static ?string $return_content=null;
 
     /**
      * 获取状态码
@@ -34,7 +34,7 @@ abstract class Response {
      * @access public
      * @return int
      */
-    static public function getStatusCode(): int {
+    public static function getStatusCode(): int {
         return self::$code;
     }
 
@@ -45,7 +45,7 @@ abstract class Response {
      * @param int $code 状态码
      * @return void
      */
-    static public function setStatusCode(int $code): void {
+    public static function setStatusCode(int $code): void {
         self::$code=$code;
     }
 
@@ -55,7 +55,7 @@ abstract class Response {
      * @access public
      * @return mixed
      */
-    static public function getControllerReturn(): mixed {
+    public static function getControllerReturn(): mixed {
         return self::$controller_return;
     }
 
@@ -66,7 +66,7 @@ abstract class Response {
      * @param mixed $return 控制器返回值
      * @return void
      */
-    static public function setControllerReturn(mixed $return): void {
+    public static function setControllerReturn(mixed $return): void {
         self::$controller_return=$return;
     }
 
@@ -76,7 +76,7 @@ abstract class Response {
      * @access public
      * @return string
      */
-    static public function getContentType(): string {
+    public static function getContentType(): string {
         return self::$contentType;
     }
 
@@ -87,7 +87,7 @@ abstract class Response {
      * @param mixed $data 返回的数据
      * @return mixed
      */
-    static public function json(mixed $data=null): mixed {
+    public static function json(mixed $data=null): mixed {
         self::$contentType='application/json';
         return $data;
     }
@@ -99,7 +99,7 @@ abstract class Response {
      * @param array|object|string|int|bool|null $content 返回内容
      * @return mixed
      */
-    static public function html(null|string|int|bool $content=null): mixed {
+    public static function html(null|string|int|bool $content=null): mixed {
         self::$contentType='text/html';
         return $content;
     }
@@ -111,7 +111,7 @@ abstract class Response {
      * @param array|object|string|int|bool|null $content 返回内容
      * @return mixed
      */
-    static public function text(null|string|int|bool $content=null): mixed {
+    public static function text(null|string|int|bool $content=null): mixed {
         self::$contentType='text/plain';
         return $content;
     }
@@ -123,7 +123,7 @@ abstract class Response {
      * @param string $type 类型
      * @return void
      */
-    static public function setContentType(string $type): void {
+    public static function setContentType(string $type): void {
         self::$contentType=$type;
     }
 
@@ -133,7 +133,7 @@ abstract class Response {
      * @access public
      * @return ?string
      */
-    static public function getReturnContent(): ?string {
+    public static function getReturnContent(): ?string {
         return self::$return_content;
     }
 
@@ -144,7 +144,7 @@ abstract class Response {
      * @param string $content 内容
      * @return void
      */
-    static public function setReturnContent(string $content): void {
+    public static function setReturnContent(string $content): void {
         self::$return_content=$content;
     }
 
@@ -155,7 +155,7 @@ abstract class Response {
      * @param string|null $type 类型
      * @return string
      */
-    abstract static public function getStandardContentType(
+    abstract public static function getStandardContentType(
         ?string $type=null
     ): string;
 
@@ -165,7 +165,7 @@ abstract class Response {
      * @access public
      * @return void
      */
-    abstract static public function init(): void;
+    abstract public static function init(): void;
 
     /**
      * 获取Header
@@ -174,7 +174,7 @@ abstract class Response {
      * @param string $name Header名
      * @return string
      */
-    abstract static public function getHeader(string $name): string;
+    abstract public static function getHeader(string $name): string;
 
     /**
      * 设置Header
@@ -184,7 +184,7 @@ abstract class Response {
      * @param string $value $params 参数为数组时此参数无效)
      * @return void
      */
-    abstract static public function setHeader(
+    abstract public static function setHeader(
         string|array $params,
         string $value
     ): void;
@@ -195,7 +195,7 @@ abstract class Response {
      * @access public
      * @return void
      */
-    abstract static public function sendHeaders(): void;
+    abstract public static function sendHeaders(): void;
 
     /**
      * 获取Cookie
@@ -204,7 +204,7 @@ abstract class Response {
      * @param string $name Cookie名
      * @return string
      */
-    abstract static public function getCookie(string $name): string;
+    abstract public static function getCookie(string $name): string;
 
     /**
      * 设置Cookie信息
@@ -219,7 +219,7 @@ abstract class Response {
      * @param bool $httponly 是否仅http传输($params 参数为数组时此参数无效)
      * @return void
      */
-    abstract static public function setCookie(
+    abstract public static function setCookie(
         string|array $params,
         ?string $value=null,
         ?int $expire=null,
@@ -235,7 +235,7 @@ abstract class Response {
      * @access public
      * @return string
      */
-    abstract static public function render(): string;
+    abstract public static function render(): string;
 
     /**
      * 结束响应并发送数据
@@ -243,6 +243,6 @@ abstract class Response {
      * @access public
      * @return void
      */
-    abstract static public function send(): void;
+    abstract public static function send(): void;
 
 }

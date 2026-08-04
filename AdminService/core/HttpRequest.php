@@ -16,61 +16,61 @@ final class HttpRequest extends Request {
      * 请求头数据
      * @var Data
      */
-    static public Data $request_headers;
+    public static Data $request_headers;
 
     /**
      * GET请求参数
      * @var Data
      */
-    static public Data $request_get;
+    public static Data $request_get;
     
     /**
      * POST请求参数
      * @var Data
      */
-    static public Data $request_post;
+    public static Data $request_post;
     
     /**
      * Cookie信息
      * @var Data
      */
-    static public Data $request_cookie;
+    public static Data $request_cookie;
 
     /**
      * Input信息
      * @var Data
      */
-    static public Data $request_input;
+    public static Data $request_input;
 
     /**
      * Server信息
      * @var Data
      */
-    static public Data $request_server;
+    public static Data $request_server;
 
     /**
      * Session信息
      * @var AbstractSession|null
      */
-    static public ?AbstractSession $request_session=null;
+    public static ?AbstractSession $request_session=null;
 
     /**
      * 表单文件
      * @var UploadFilesForm|null
      */
-    static public ?UploadFilesForm $request_files=null;
+    public static ?UploadFilesForm $request_files=null;
 
     /**
      * 原始Input信息
      * @var string
      */
-    static protected string $request_raw_input='';
+    protected static string $request_raw_input='';
 
     /**
      * 参数处理顺序
      * @var string
      */
-    static protected string $request_order='';
+    protected static string $request_order='';
 
     /**
      * 获取全部请求头信息
@@ -78,7 +78,7 @@ final class HttpRequest extends Request {
      * @access protected
      * @return array
      */
-    static protected function getAllHeaders() {
+    protected static function getAllHeaders() {
         // 判断是否存在getallheaders函数
         if(function_exists('getallheaders'))
             return getallheaders();
@@ -106,7 +106,7 @@ final class HttpRequest extends Request {
      * @access public
      * @return void
      */
-    static public function init(): void {
+    public static function init(): void {
         self::$request_headers=new Data(self::getAllHeaders());
         self::$request_headers->setCaseSensitive(false)->resetKey();
         self::$request_get=new Data($_GET??[]);
@@ -180,7 +180,7 @@ final class HttpRequest extends Request {
      * @param string|null $name 字段名(null时获取全部)
      * @return UploadFilesForm|UploadFiles
      */
-    static public function getUploadFiles(
+    public static function getUploadFiles(
         ?string $name=null
     ): UploadFilesForm|UploadFiles {
         if($name===null) return self::$request_files;
@@ -197,7 +197,7 @@ final class HttpRequest extends Request {
      * @param string $value Cookie值($params 参数为数组时此参数无效)
      * @return void
      */
-    static public function setCookie(string|array $params,string $value=''): void {
+    public static function setCookie(string|array $params,string $value=''): void {
         if(is_array($params))
             self::$request_cookie->batchSet($params);
         else self::$request_cookie->set($params,$value);
@@ -211,7 +211,7 @@ final class HttpRequest extends Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    static public function getCookie(
+    public static function getCookie(
         string $name,
         mixed $default=null
     ): mixed {
@@ -224,7 +224,7 @@ final class HttpRequest extends Request {
      * @access public
      * @return array
      */
-    static public function getCookies(): array {
+    public static function getCookies(): array {
         return self::$request_cookie->all();
     }
 
@@ -236,7 +236,7 @@ final class HttpRequest extends Request {
      * @param string $value Cookie值($params 参数为数组时此参数无效)
      * @return void
      */
-    static public function setHeader(string|array $params,string $value=''): void {
+    public static function setHeader(string|array $params,string $value=''): void {
         if(is_array($params))
             self::$request_headers->batchSet($params);
         else self::$request_headers->set($params,$value);
@@ -250,7 +250,7 @@ final class HttpRequest extends Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    static public function getHeader(
+    public static function getHeader(
         string $name,
         mixed $default=null
     ): mixed {
@@ -263,7 +263,7 @@ final class HttpRequest extends Request {
      * @access public
      * @return array
      */
-    static public function getHeaders(): array {
+    public static function getHeaders(): array {
         return self::$request_headers->all();
     }
 
@@ -275,7 +275,7 @@ final class HttpRequest extends Request {
      * @param string $value Cookie值($params 参数为数组时此参数无效)
      * @return void
      */
-    static public function setInput(
+    public static function setInput(
         string|array $params,
         string $value=''
     ): void {
@@ -292,7 +292,7 @@ final class HttpRequest extends Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    static public function getInput(
+    public static function getInput(
         string $name,
         mixed $default=null
     ): mixed {
@@ -305,7 +305,7 @@ final class HttpRequest extends Request {
      * @access public
      * @return array
      */
-    static public function getInputs(): array {
+    public static function getInputs(): array {
         return self::$request_input->all();
     }
 
@@ -315,7 +315,7 @@ final class HttpRequest extends Request {
      * @access public
      * @return string
      */
-    static public function getRawInput(): string {
+    public static function getRawInput(): string {
         return self::$request_raw_input;
     }
 
@@ -327,7 +327,7 @@ final class HttpRequest extends Request {
      * @param mixed $value Cookie值($params 参数为数组时此参数无效)
      * @return void
      */
-    static public function setServer(
+    public static function setServer(
         string|array $params,
         mixed $value=null
     ): void {
@@ -344,7 +344,7 @@ final class HttpRequest extends Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    static public function getServer(
+    public static function getServer(
         string $name,
         mixed $default=null
     ): mixed {
@@ -357,7 +357,7 @@ final class HttpRequest extends Request {
      * @access public
      * @return array
      */
-    static public function getServers(): array {
+    public static function getServers(): array {
         return self::$request_server->all();
     }
 
@@ -369,7 +369,7 @@ final class HttpRequest extends Request {
      * @param mixed $value Cookie值($params 参数为数组时此参数无效)
      * @return void
      */
-    static public function setGet(
+    public static function setGet(
         string|array $params,
         mixed $value=null
     ): void {
@@ -386,7 +386,7 @@ final class HttpRequest extends Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    static public function getGet(
+    public static function getGet(
         string $name,
         mixed $default=null
     ): mixed {
@@ -399,7 +399,7 @@ final class HttpRequest extends Request {
      * @access public
      * @return array
      */
-    static public function getGets(): array {
+    public static function getGets(): array {
         return self::$request_get->all();
     }
 
@@ -411,7 +411,7 @@ final class HttpRequest extends Request {
      * @param mixed $value Cookie值($params 参数为数组时此参数无效)
      * @return void
      */
-    static public function setPost(
+    public static function setPost(
         string|array $params,
         mixed $value=null
     ): void {
@@ -428,7 +428,7 @@ final class HttpRequest extends Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    static public function getPost(
+    public static function getPost(
         string $name,
         mixed $default=null
     ): mixed {
@@ -441,7 +441,7 @@ final class HttpRequest extends Request {
      * @access public
      * @return array
      */
-    static public function getPosts(): array {
+    public static function getPosts(): array {
         return self::$request_post->all();
     }
 
@@ -453,7 +453,7 @@ final class HttpRequest extends Request {
      * @param string $value Cookie值($params 参数为数组时此参数无效) 
      * @return void
      */
-    static public function setSession(
+    public static function setSession(
         string|array $params,
         string $value=''
     ): void {
@@ -473,7 +473,7 @@ final class HttpRequest extends Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    static public function getSession(
+    public static function getSession(
         string $name,
         mixed $default=null
     ): mixed {
@@ -489,7 +489,7 @@ final class HttpRequest extends Request {
      * @param int $type 参数类型
      * @return array
      */
-    static public function getParamKeys(
+    public static function getParamKeys(
         int $type=self::ALL_PARAM
     ): array {
         $keys=[];
@@ -524,7 +524,7 @@ final class HttpRequest extends Request {
      * @param mixed $default 默认值
      * @return mixed
      */
-    static public function getParam(
+    public static function getParam(
         string $name,
         int $type=self::ALL_PARAM,
         mixed $default=null
@@ -569,7 +569,7 @@ final class HttpRequest extends Request {
      * @param int $type 参数类型
      * @return void
      */
-    static public function setParam(
+    public static function setParam(
         string|array $params,
         mixed $value=null,
         int $type=self::ALL_PARAM
@@ -596,7 +596,7 @@ final class HttpRequest extends Request {
      * @param int $type 参数类型
      * @return void
      */
-    static public function removeParam(
+    public static function removeParam(
         string|array $params,
         int $type=self::ALL_PARAM
     ): void {
@@ -620,7 +620,7 @@ final class HttpRequest extends Request {
      * @access public
      * @return UploadFilesForm
      */
-    static public function getUploadFilesInstance(): UploadFilesForm {
+    public static function getUploadFilesInstance(): UploadFilesForm {
         return self::$request_files;
     }
 
@@ -630,7 +630,7 @@ final class HttpRequest extends Request {
      * @access public
      * @return AbstractSession
      */
-    static public function getSessionInstance(): AbstractSession {
+    public static function getSessionInstance(): AbstractSession {
         return self::$request_session;
     }
 

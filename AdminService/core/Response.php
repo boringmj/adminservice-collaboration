@@ -16,13 +16,13 @@ final class Response extends BaseResponse {
      * 请求头信息
      * @var Data
      */
-    static public Data $headers;
+    public static Data $headers;
 
     /**
      * Cookie信息
      * @var Data
      */
-    static public Data $cookies;
+    public static Data $cookies;
 
     /**
      * 获取一个标准的返回类型
@@ -31,7 +31,7 @@ final class Response extends BaseResponse {
      * @param string|null $type 类型
      * @return string
      */
-    static public function getStandardContentType(
+    public static function getStandardContentType(
         ?string $type=null
     ): string {
         $type=$type??self::$contentType;
@@ -48,7 +48,7 @@ final class Response extends BaseResponse {
      * @access public
      * @return void
      */
-    static public function init(): void {
+    public static function init(): void {
         self::$headers=new Data();
         self::$cookies=new Data();
         self::setContentType('*/*');
@@ -61,7 +61,7 @@ final class Response extends BaseResponse {
      * @param string $name Header名
      * @return string
      */
-    static public function getHeader(string $name): string {
+    public static function getHeader(string $name): string {
         return self::$headers->get($name);
     }
 
@@ -73,7 +73,7 @@ final class Response extends BaseResponse {
      * @param string $value $params 参数为数组时此参数无效)
      * @return void
      */
-    static public function setHeader(
+    public static function setHeader(
         string|array $params,
         string $value
     ): void {
@@ -93,7 +93,7 @@ final class Response extends BaseResponse {
      * @param string $name Cookie名
      * @return string
      */
-    static public function getCookie(string $name): string {
+    public static function getCookie(string $name): string {
         return self::$cookies->get($name);
     }
 
@@ -110,7 +110,7 @@ final class Response extends BaseResponse {
      * @param bool $httponly 是否仅http传输($params 参数为数组时此参数无效)
      * @return void
      */
-    static public function setCookie(
+    public static function setCookie(
         string|array $params,
         ?string $value=null,
         ?int $expire=null,
@@ -156,7 +156,7 @@ final class Response extends BaseResponse {
      * @access public
      * @return string
      */
-    static public function render(): string {
+    public static function render(): string {
         if(self::$return_content!==null) return self::$return_content;
         $type=self::getStandardContentType();
         if($type=='*/*') {
@@ -212,7 +212,7 @@ final class Response extends BaseResponse {
      * @access public
      * @return void
      */
-    static public function sendHeaders(): void {
+    public static function sendHeaders(): void {
         // 判断是否还可以返回请求头
         if(!headers_sent()) {
             http_response_code(self::getStatusCode());
@@ -229,7 +229,7 @@ final class Response extends BaseResponse {
      * @access public
      * @return void
      */
-    static public function send(): void {
+    public static function send(): void {
         $temp=self::render();
         // 发送请求头
         self::sendHeaders();

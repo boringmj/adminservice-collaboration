@@ -12,7 +12,7 @@ class Database {
      * 数据库连接对象
      * @var PDO
      */
-    static protected PDO $db;
+    protected static PDO $db;
 
     /**
      * 数据库表名

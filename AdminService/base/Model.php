@@ -219,7 +219,7 @@ abstract class Model implements ArrayAccess {
      * @return static
      * @throws Exception
      */
-    static public function new(array $data=[],bool $last_is_empty=true): static {
+    public static function new(array $data=[],bool $last_is_empty=true): static {
         return new static($data,$last_is_empty);
     }
 
@@ -229,7 +229,7 @@ abstract class Model implements ArrayAccess {
      * @access public
      * @param string|array|null $table 数据库表名
      */
-    static public function tableNew(null|array|string $table=null): static {
+    public static function tableNew(null|array|string $table=null): static {
         $instance=self::new();
         $instance->table($table);
         return $instance;

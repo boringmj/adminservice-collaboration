@@ -7,6 +7,23 @@ use base\AbstractInputProcessor;
 use base\AbstractSession;
 use AdminService\Exception;
 
+use function array_key_exists;
+use function array_merge;
+use function array_unique;
+use function array_values;
+use function explode;
+use function file_get_contents;
+use function function_exists;
+use function in_array;
+use function is_array;
+use function is_subclass_of;
+use function str_replace;
+use function str_starts_with;
+use function strtolower;
+use function substr;
+use function trim;
+use function ucwords;
+
 /**
  * HttpRequest核心类
  */
@@ -125,6 +142,7 @@ final class HttpRequest extends Request {
         // 获取Content-Type的值
         $content_type_header=self::$request_headers->get('content-type','');
         $content_type=strtolower(trim(explode(';',$content_type_header)[0]));
+        /** @var array<string, string> $input_list */
         $input_list=Config::get('request.default.input',[]);
         if(array_key_exists($content_type,$input_list)) {
             // 验证是否属于 AbstractInputProcessor

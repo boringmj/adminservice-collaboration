@@ -2,6 +2,8 @@
 
 namespace base;
 
+use function array_merge;
+
 abstract class SceneValidator extends Validator {
 
     /**

@@ -4,6 +4,8 @@ namespace AdminService;
 
 use base\Cookie as BaseCookie;
 
+use function is_array;
+
 final class Cookie extends BaseCookie {
 
     /**

@@ -5,7 +5,9 @@ namespace base;
 use AdminService\App;
 use AdminService\Config;
 use AdminService\Exception;
-use \ReflectionException;
+use ReflectionException;
+
+use function is_array;
 
 /**
  * 控制器基类

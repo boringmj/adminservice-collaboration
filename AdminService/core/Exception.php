@@ -3,7 +3,7 @@
 namespace AdminService;
 
 use base\Exception as BaseException;
-use \ReflectionException;
+use ReflectionException;
 
 class Exception extends BaseException {
 

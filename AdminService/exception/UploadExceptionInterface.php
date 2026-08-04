@@ -2,7 +2,7 @@
 
 namespace AdminService\exception;
 
-use \Throwable;
+use Throwable;
 
 /**
  * 文件上传异常接口

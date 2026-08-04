@@ -2,7 +2,7 @@
 
 namespace AdminService\config;
 
-use \PDO;
+use PDO;
 use AdminService\sql\Mysql;
 
 // database 相关配置

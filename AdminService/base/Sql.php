@@ -2,7 +2,7 @@
 
 namespace base;
 
-use \PDO;
+use PDO;
 
 interface Sql {
 

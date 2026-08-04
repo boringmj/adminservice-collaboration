@@ -2,6 +2,9 @@
 
 namespace AdminService\common;
 
+use function strtolower;
+use function substr;
+
 /**
  * 生成UUID
  * 

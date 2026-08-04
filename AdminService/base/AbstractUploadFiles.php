@@ -2,9 +2,11 @@
 
 namespace base;
 
-use \Countable;
-use \ArrayIterator;
-use \IteratorAggregate;
+use Countable;
+use ArrayIterator;
+use IteratorAggregate;
+
+use function count;
 
 /**
  * 上传文件列表类

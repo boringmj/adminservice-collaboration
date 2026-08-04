@@ -5,7 +5,7 @@ namespace AdminService\common;
 use base\Request;
 use AdminService\App;
 use AdminService\Exception;
-use \ReflectionException;
+use ReflectionException;
 
 /**
  * 获取参数

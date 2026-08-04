@@ -2,7 +2,7 @@
 
 namespace app\index\controller;
 
-use \Exception;
+use Exception;
 use base\Controller;
 use AdminService\Log;
 use AdminService\Autowire\AutowireProperty;

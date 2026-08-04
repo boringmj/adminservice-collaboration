@@ -2,7 +2,7 @@
 
 namespace AdminService\Autowire;
 
-use \Attribute;
+use Attribute;
 use base\Attribute\Autowire;
 
 /**

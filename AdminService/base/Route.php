@@ -4,7 +4,12 @@ namespace base;
 
 use AdminService\Exception;
 use AdminService\App;
-use \ReflectionException;
+use ReflectionException;
+
+use function array_values;
+use function count;
+use function explode;
+use function preg_match;
 
 abstract class Route {
 

@@ -4,6 +4,8 @@ namespace AdminService\common;
 
 use AdminService\App;
 
+use function is_array;
+
 /**
  * http请求工具类
  *

@@ -5,7 +5,7 @@ namespace AdminService\common;
 use base\Response;
 use AdminService\App;
 use AdminService\Exception;
-use \ReflectionException;
+use ReflectionException;
 
 /**
  * 显示视图

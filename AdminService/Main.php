@@ -3,7 +3,9 @@
 namespace AdminService;
 
 use base\Route;
-use \ReflectionException;
+use ReflectionException;
+
+use function is_array;
 
 final class Main {
 

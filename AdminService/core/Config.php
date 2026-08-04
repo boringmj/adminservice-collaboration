@@ -2,7 +2,18 @@
 
 namespace AdminService;
 
-use \Exception;
+use Exception;
+
+use function basename;
+use function explode;
+use function file_exists;
+use function file_get_contents;
+use function gettype;
+use function glob;
+use function preg_match;
+use function str_starts_with;
+use function strtolower;
+use function trim;
 
 final class Config {
 

@@ -3,11 +3,21 @@
 namespace AdminService\sql;
 
 use Generator;
-use \PDO;
-use \PDOStatement;
-use \PDOException;
+use PDO;
+use PDOStatement;
+use PDOException;
 use base\SqlDrive;
 use AdminService\Exception;
+
+use function array_map;
+use function array_merge;
+use function count;
+use function explode;
+use function in_array;
+use function is_array;
+use function is_string;
+use function substr;
+use function trim;
 
 /**
  * Mysql 驱动类

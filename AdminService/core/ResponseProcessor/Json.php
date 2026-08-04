@@ -4,6 +4,9 @@ namespace AdminService\ResponseProcessor;
 
 use base\AbstractResponseProcessor;
 
+use function is_array;
+use function is_object;
+
 /**
  * JSON响应处理器
  */

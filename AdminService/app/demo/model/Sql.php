@@ -3,7 +3,7 @@
 namespace app\demo\model;
 
 use base\Model;
-use \PDOException;
+use PDOException;
 use AdminService\Exception;
 
 class Sql extends Model {

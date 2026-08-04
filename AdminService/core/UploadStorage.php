@@ -6,6 +6,8 @@ use base\AbstractUploadFile;
 use base\UploadStorageInterface;
 use AdminService\exception\UploadStorageException;
 
+use function file_exists;
+
 final class UploadStorage implements UploadStorageInterface {
 
     /**

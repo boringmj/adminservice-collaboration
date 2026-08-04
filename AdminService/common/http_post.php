@@ -2,6 +2,8 @@
 
 namespace AdminService\common;
 
+use function file_get_contents;
+
 /**
  * 发送HTTP POST请求
  * 

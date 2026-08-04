@@ -4,7 +4,16 @@ namespace AdminService;
 
 use base\Response;
 use base\Route as BaseRoute;
-use \ReflectionException;
+use ReflectionException;
+
+use function array_reduce;
+use function array_reverse;
+use function class_exists;
+use function count;
+use function explode;
+use function file_exists;
+use function in_array;
+use function preg_match;
 
 final class Route extends BaseRoute {
 

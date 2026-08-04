@@ -2,9 +2,13 @@
 
 namespace AdminService;
 
-use \Throwable;
+use Throwable;
 
 use function AdminService\common\uuid;
+
+use function array_keys;
+use function file_get_contents;
+use function preg_match;
 
 final class File {
 

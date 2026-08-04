@@ -3,7 +3,14 @@
 namespace AdminService;
 
 use base\Container;
-use \ReflectionException;
+use ReflectionException;
+
+use function array_merge;
+use function class_exists;
+use function count;
+use function interface_exists;
+use function is_array;
+use function is_string;
 
 final class App extends Container {
 

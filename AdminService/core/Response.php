@@ -7,6 +7,18 @@ use base\Request;
 use base\Response as BaseResponse;
 use AdminService\ResponseProcessor\Http;
 
+use function array_keys;
+use function explode;
+use function headers_sent;
+use function http_response_code;
+use function in_array;
+use function is_array;
+use function is_string;
+use function str_starts_with;
+use function strtolower;
+use function substr;
+use function trim;
+
 /**
  * Response核心类
  */

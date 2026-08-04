@@ -8,6 +8,12 @@ use AdminService\Exception;
 use AdminService\UploadFile;
 use base\AbstractUploadFiles;
 
+use function array_keys;
+use function array_map;
+use function file_exists;
+use function is_array;
+use function strtolower;
+
 final class UploadFiles extends AbstractUploadFiles {
 
     /**

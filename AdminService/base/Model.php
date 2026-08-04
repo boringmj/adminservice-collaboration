@@ -2,10 +2,16 @@
 
 namespace base;
 
-use \Generator;
-use \ArrayAccess;
+use Generator;
+use ArrayAccess;
 use AdminService\App;
 use AdminService\Config;
+
+use function array_key_exists;
+use function count;
+use function is_array;
+use function is_string;
+use function strtolower;
 use AdminService\Exception;
 
 /**

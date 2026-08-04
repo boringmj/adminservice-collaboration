@@ -2,9 +2,14 @@
 
 namespace AdminService;
 
-use \Countable;
-use \ArrayIterator;
-use \IteratorAggregate;
+use Countable;
+use ArrayIterator;
+use IteratorAggregate;
+
+use function array_keys;
+use function array_merge;
+use function count;
+use function strtolower;
 
 /**
  * 数据类

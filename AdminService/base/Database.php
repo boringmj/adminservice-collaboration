@@ -4,7 +4,10 @@ namespace base;
 
 use AdminService\Config;
 use AdminService\Exception;
-use \PDO;
+use PDO;
+
+use function array_keys;
+use function in_array;
 
 class Database {
 

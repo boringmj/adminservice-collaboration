@@ -5,7 +5,7 @@ namespace app\demo\model;
 use AdminService\App;
 use AdminService\File;
 use AdminService\Exception;
-use \ReflectionException;
+use ReflectionException;
 
 class Count {
 

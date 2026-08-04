@@ -2,7 +2,13 @@
 
 namespace AdminService;
 
-use \Exception;
+use Exception;
+
+use function array_keys;
+use function array_values;
+use function is_string;
+use function preg_match;
+use function str_replace;
 
 class Log {
 

@@ -2,16 +2,30 @@
 
 namespace base;
 
-use \ReflectionType;
-use \ReflectionClass;
-use \ReflectionMethod;
-use \ReflectionFunction;
-use \ReflectionParameter;
-use \ReflectionNamedType;
-use \ReflectionUnionType;
-// use \ReflectionIntersectionType; // PHP 8.0 不支持
-use \ReflectionProperty;
-use \ReflectionException;
+use ReflectionType;
+use ReflectionClass;
+use ReflectionMethod;
+use ReflectionFunction;
+
+use function array_filter;
+use function array_key_exists;
+use function array_merge;
+use function array_unique;
+use function array_values;
+use function class_exists;
+use function count;
+use function explode;
+use function gettype;
+use function in_array;
+use function interface_exists;
+use function is_subclass_of;
+use function str_replace;
+use ReflectionParameter;
+use ReflectionNamedType;
+use ReflectionUnionType;
+// use ReflectionIntersectionType; // PHP 8.0 不支持
+use ReflectionProperty;
+use ReflectionException;
 use AdminService\Exception;
 use AdminService\DynamicProxy;
 use AdminService\Autowire\AutowireSetter;

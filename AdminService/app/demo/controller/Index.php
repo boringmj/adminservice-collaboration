@@ -23,6 +23,8 @@ use AdminService\common\HttpHelper;
 use function AdminService\common\view;
 use function AdminService\common\json;
 
+use function count;
+
 class Index extends Controller {
 
     public function index(): string {

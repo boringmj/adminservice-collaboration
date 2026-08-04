@@ -4,6 +4,8 @@ namespace AdminService;
 
 use base\AbstractSession;
 
+use function is_array;
+
 class NativeSession extends AbstractSession {
 
     /**

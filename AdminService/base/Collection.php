@@ -2,11 +2,13 @@
 
 namespace base;
 
-use \Countable;
-use \ArrayAccess;
-use \ArrayIterator;
-use \IteratorAggregate;
+use Countable;
+use ArrayAccess;
+use ArrayIterator;
+use IteratorAggregate;
 use AdminService\exception\CollectionException;
+
+use function count;
 
 /**
  * 静态集合类 (一次性加载所有数据,允许数组访问,但不允许修改)

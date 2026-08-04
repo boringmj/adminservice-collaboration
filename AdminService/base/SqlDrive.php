@@ -2,9 +2,15 @@
 
 namespace base;
 
-use \PDO;
+use PDO;
 use AdminService\Config;
 use AdminService\Exception;
+
+use function explode;
+use function in_array;
+use function is_string;
+use function preg_match;
+use function strtolower;
 
 /**
  * Sql驱动基类

@@ -2,6 +2,11 @@
 
 namespace base;
 
+use function array_map;
+use function array_merge;
+use function explode;
+use function is_array;
+
 abstract class Validator {
     /**
      * 验证数据

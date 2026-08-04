@@ -6,6 +6,16 @@ use base\Error as BaseError;
 use base\Response;
 use base\View;
 
+use function count;
+use function explode;
+use function in_array;
+use function is_array;
+use function is_object;
+use function is_string;
+use function preg_match;
+use function substr;
+use function trim;
+
 /**
  * 错误处理类
  * 

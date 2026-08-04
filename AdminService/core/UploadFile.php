@@ -7,6 +7,9 @@ use base\UploadStorageInterface;
 use AdminService\exception\UploadException;
 use AdminService\exception\UploadStorageException;
 
+use function file_exists;
+use function in_array;
+
 final class UploadFile extends AbstractUploadFile {
 
     /**

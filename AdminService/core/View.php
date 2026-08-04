@@ -4,6 +4,19 @@ namespace AdminService;
 
 use base\View as BaseView;
 
+use function array_filter;
+use function count;
+use function explode;
+use function file_get_contents;
+use function is_array;
+use function is_object;
+use function is_string;
+use function preg_match;
+use function preg_match_all;
+use function strtolower;
+use function substr;
+use function trim;
+
 final class View extends BaseView {
 
     /**

@@ -2,7 +2,10 @@
 
 namespace AdminService;
 
-use \ReflectionException;
+use ReflectionException;
+
+use function class_exists;
+use function interface_exists;
 
 /**
  * 动态代理类

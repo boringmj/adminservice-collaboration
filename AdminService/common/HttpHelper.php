@@ -164,7 +164,7 @@ class HttpHelper {
         }
         $method=strtoupper($this->request['method']??'GET');
         curl_setopt($ch,CURLOPT_CUSTOMREQUEST,$method);
-        curl_setopt($ch,CURLOPT_HTTPHEADER,$this->request['headers']??array());
+        curl_setopt($ch,CURLOPT_HTTPHEADER,$this->dedupeHeaders($this->request['headers']??array()));
         if($method=='POST')
             curl_setopt($ch,CURLOPT_POSTFIELDS,$this->request['body']??'');
         curl_setopt($ch,CURLOPT_RETURNTRANSFER,true);
@@ -186,6 +186,32 @@ class HttpHelper {
         $this->response['body']=$response;
         curl_close($ch);
         return $this;
+    }
+
+    /**
+     * 去除重复的请求头
+     *
+     * 按请求头名称(冒号前的部分,大小写不敏感)去重,后添加的覆盖先添加的
+     * 无法解析名称的请求头(不含冒号)原样保留
+     *
+     * @access private
+     * @param array $headers 请求头数组
+     * @return array
+     */
+    private function dedupeHeaders(array $headers): array {
+        $result=array();
+        foreach($headers as $header) {
+            // 提取请求头名称(冒号前的部分)
+            $name=strstr($header,':',true);
+            // 无法解析名称的请求头原样保留
+            if($name===false||trim($name)==='') {
+                $result[]=$header;
+                continue;
+            }
+            // 请求头名称大小写不敏感,后添加的覆盖先添加的
+            $result[strtolower(trim($name))]=$header;
+        }
+        return array_values($result);
     }
 
     /**
@@ -257,7 +283,7 @@ class HttpHelper {
         ?callable $error_callback=null,
         bool $disable_ssl_verify=false
     ): string {
-        $response=App::get(
+        $response=App::new(
             HttpHelper::class,$url,'GET',$headers,null,$timeout
         )->disableSslVerify($disable_ssl_verify)->execute();
         if($response->getStatusCode()!=200&&$error_callback!=null) {
@@ -293,7 +319,7 @@ class HttpHelper {
     ): string {
         if(is_array($data))
             $data=json_encode($data);
-        $response=App::get(
+        $response=App::new(
             HttpHelper::class,$url,'POST',$headers,$data,$timeout
         )->disableSslVerify($disable_ssl_verify)->execute();
         if($response->getStatusCode()!=200&&$error_callback!=null) {

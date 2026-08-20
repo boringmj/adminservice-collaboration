@@ -307,4 +307,57 @@ class RelationTest extends TestCase {
         $this->assertSame('a',$post->user->name);
     }
 
+    /**
+     * 测试 belongsToMany 关系写入(创建相关模型 + 写中间表)
+     * @return void
+     */
+    public function testBelongsToManyCreate(): void {
+        $this->pdo->affectedRows=1;
+        $user=User::newFromRow(['id'=>1,'name'=>'张三']);
+        $role=$user->roles()->create(['name'=>'staff','status'=>1]);
+        $this->assertInstanceOf(Role::class,$role);
+        // 两步: 先建角色(含时间戳), 再写中间表
+        $this->assertCount(2,$this->pdo->executed);
+        $this->assertSame(
+            'INSERT INTO `roles` (`name`, `status`, `created_at`, `updated_at`) VALUES (?, ?, ?, ?)',
+            $this->pdo->executed[0]
+        );
+        $this->assertSame(
+            'INSERT INTO `role_user` (`user_id`, `role_id`) VALUES (?, ?)',
+            $this->pdo->executed[1]
+        );
+    }
+
+    /**
+     * 测试 belongsToMany 不支持批量更新
+     * @return void
+     */
+    public function testBelongsToManyUpdateThrows(): void {
+        $this->expectException(OrmException::class);
+        $user=User::newFromRow(['id'=>1,'name'=>'张三']);
+        $user->roles()->update(array('name'=>'x'));
+    }
+
+    /**
+     * 测试 belongsToMany 不支持批量删除
+     * @return void
+     */
+    public function testBelongsToManyDeleteThrows(): void {
+        $this->expectException(OrmException::class);
+        $user=User::newFromRow(['id'=>1,'name'=>'张三']);
+        $user->roles()->delete();
+    }
+
+    /**
+     * 测试 belongsToMany 父模型未持久化时返回空集合且不发查询
+     * @return void
+     */
+    public function testBelongsToManyUnpersistedParent(): void {
+        $user=new User();
+        $roles=$user->roles;
+        $this->assertInstanceOf(ModelCollection::class,$roles);
+        $this->assertCount(0,$roles);
+        $this->assertCount(0,$this->pdo->executed);
+    }
+
 }

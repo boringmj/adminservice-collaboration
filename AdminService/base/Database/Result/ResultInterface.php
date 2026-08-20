@@ -43,4 +43,10 @@ interface ResultInterface {
      */
     public function getAffectedRows(): int;
 
+    /**
+     * 获取最后插入的 ID(仅 INSERT 语句)
+     * @return string|null
+     */
+    public function getLastInsertId(): ?string;
+
 }

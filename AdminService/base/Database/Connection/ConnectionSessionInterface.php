@@ -3,6 +3,7 @@
 namespace base\Database\Connection;
 
 use base\Database\Sql\Dialect\DialectInterface;
+use base\Database\Sql\Compiler\CompilerContextInterface;
 use base\Database\Execution\SqlExecutorInterface;
 use base\Database\Execution\TransactionExecutorInterface;
 use base\Database\Transaction\TransactionContextInterface;
@@ -38,6 +39,14 @@ interface ConnectionSessionInterface {
      * @return DialectInterface
      */
     public function getDialect(): DialectInterface;
+
+    /**
+     * 获取编译器上下文
+     *
+     * - 会话持有方言、表前缀与命名策略, 可直接提供编译上下文
+     * @return CompilerContextInterface
+     */
+    public function getCompilerContext(): CompilerContextInterface;
 
     /**
      * 释放连接资源

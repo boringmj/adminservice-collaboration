@@ -14,4 +14,10 @@ interface QueryContextInterface {
      */
     public function getQueryType(): int;
 
+    /**
+     * 获取查询对象
+     * @return QueryInterface
+     */
+    public function getQuery(): QueryInterface;
+
 }

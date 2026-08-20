@@ -1,0 +1,237 @@
+<?php
+
+namespace base\Database\Connection;
+
+use PDO;
+use base\Database\Exception\TransactionException;
+use base\Database\Execution\PdoSqlExecutor;
+use base\Database\Execution\SqlExecutorInterface;
+use base\Database\Execution\TransactionExecutorInterface;
+use base\Database\Sql\Compiler\CompileModeSet;
+use base\Database\Sql\Compiler\CompilerContext;
+use base\Database\Sql\Compiler\CompilerContextInterface;
+use base\Database\Sql\Compiler\DefaultNamingStrategy;
+use base\Database\Sql\Compiler\NamingStrategyInterface;
+use base\Database\Sql\Dialect\DialectInterface;
+use base\Database\Sql\Dialect\MysqlDialect;
+use base\Database\Transaction\NestedTransactionExecutor;
+use base\Database\Transaction\TransactionContext;
+use base\Database\Transaction\TransactionContextInterface;
+use base\Database\Transaction\TransactionState;
+
+/**
+ * PDO 连接会话
+ *
+ * - 管理连接资源、事务与执行器
+ * - 持有方言、表前缀与命名策略, 可提供编译器上下文
+ * - 支持归属连接池: 释放时回到连接池(先清理事务状态)
+ */
+final class PdoConnectionSession implements ConnectionSessionInterface {
+
+    /**
+     * 裸连接对象
+     * @var PDO
+     */
+    private PDO $connection;
+
+    /**
+     * 方言
+     * @var DialectInterface
+     */
+    private DialectInterface $dialect;
+
+    /**
+     * 表前缀
+     * @var string
+     */
+    private string $tablePrefix;
+
+    /**
+     * 命名策略
+     * @var NamingStrategyInterface
+     */
+    private NamingStrategyInterface $namingStrategy;
+
+    /**
+     * SQL 执行器
+     * @var SqlExecutorInterface
+     */
+    private SqlExecutorInterface $sqlExecutor;
+
+    /**
+     * 事务上下文
+     * @var TransactionContextInterface
+     */
+    private TransactionContextInterface $transactionContext;
+
+    /**
+     * 事务执行器
+     * @var TransactionExecutorInterface
+     */
+    private TransactionExecutorInterface $transactionExecutor;
+
+    /**
+     * 编译器上下文
+     * @var CompilerContextInterface
+     */
+    private CompilerContextInterface $compilerContext;
+
+    /**
+     * 所属连接池
+     * @var PdoConnectionPool|null
+     */
+    private ?PdoConnectionPool $pool=null;
+
+    /**
+     * 是否已释放
+     * @var bool
+     */
+    private bool $released=false;
+
+    /**
+     * 构造方法
+     *
+     * @access public
+     * @param PDO $connection 裸连接对象
+     * @param DialectInterface|null $dialect 方言
+     * @param string $tablePrefix 表前缀
+     * @param NamingStrategyInterface|null $namingStrategy 命名策略
+     */
+    public function __construct(
+        PDO $connection,
+        ?DialectInterface $dialect=null,
+        string $tablePrefix='',
+        ?NamingStrategyInterface $namingStrategy=null
+    ) {
+        $this->connection=$connection;
+        $this->dialect=$dialect??new MysqlDialect();
+        $this->tablePrefix=$tablePrefix;
+        $this->namingStrategy=$namingStrategy??new DefaultNamingStrategy();
+        $this->sqlExecutor=new PdoSqlExecutor($connection);
+        $state=new TransactionState();
+        $this->transactionExecutor=new NestedTransactionExecutor($connection,$state);
+        $this->transactionContext=new TransactionContext($state);
+        $this->compilerContext=new CompilerContext(
+            $this->dialect,
+            CompileModeSet::none(),
+            $this->tablePrefix,
+            $this->namingStrategy
+        );
+    }
+
+    /**
+     * 获取 SQL 执行器
+     *
+     * @access public
+     * @return SqlExecutorInterface
+     */
+    public function getSqlExecutor(): SqlExecutorInterface {
+        return $this->sqlExecutor;
+    }
+
+    /**
+     * 获取事务上下文
+     *
+     * @access public
+     * @return TransactionContextInterface
+     */
+    public function getTransactionContext(): TransactionContextInterface {
+        return $this->transactionContext;
+    }
+
+    /**
+     * 获取事务执行器
+     *
+     * @access public
+     * @return TransactionExecutorInterface
+     */
+    public function getTransactionExecutor(): TransactionExecutorInterface {
+        return $this->transactionExecutor;
+    }
+
+    /**
+     * 获取支持的方言
+     *
+     * @access public
+     * @return DialectInterface
+     */
+    public function getDialect(): DialectInterface {
+        return $this->dialect;
+    }
+
+    /**
+     * 获取编译器上下文
+     *
+     * @access public
+     * @return CompilerContextInterface
+     */
+    public function getCompilerContext(): CompilerContextInterface {
+        return $this->compilerContext;
+    }
+
+    /**
+     * 设置所属连接池(仅连接池调用)
+     *
+     * @access public
+     * @param PdoConnectionPool|null $pool 连接池
+     * @return void
+     */
+    public function setPool(?PdoConnectionPool $pool): void {
+        $this->pool=$pool;
+    }
+
+    /**
+     * 标记会话已取出使用(仅连接池调用)
+     *
+     * @access public
+     * @return void
+     */
+    public function checkout(): void {
+        $this->released=false;
+    }
+
+    /**
+     * 释放连接资源
+     *
+     * - 归属连接池时释放后回到连接池
+     *
+     * @access public
+     * @return void
+     */
+    public function release(): void {
+        if($this->released)
+            return;
+        $this->released=true;
+        if($this->pool!==null)
+            $this->pool->returnToPool($this);
+    }
+
+    /**
+     * 获取是否已释放
+     *
+     * @access public
+     * @return bool
+     */
+    public function isReleased(): bool {
+        return $this->released;
+    }
+
+    /**
+     * 重置连接会话
+     *
+     * - 回滚未完成的事务, 清理会话状态
+     *
+     * @access public
+     * @return void
+     */
+    public function reset(): void {
+        if($this->transactionContext->isActive()) {
+            try {
+                $this->transactionExecutor->rollback();
+            } catch(TransactionException $ignored) {
+                // 清理过程中的回滚失败不阻断
+            }
+        }
+    }
+
+}

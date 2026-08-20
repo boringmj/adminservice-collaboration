@@ -11,9 +11,7 @@ use AdminService\Config;
 use AdminService\Exception;
 use AdminService\UploadStorage;
 // 模型
-use app\demo\model\Sql;
 use app\demo\model\Count;
-use app\demo\model\SystemInfo;
 // 过滤器
 use app\demo\validator\Test as TestValidator;
 // 公共类
@@ -104,23 +102,6 @@ class Index extends Controller {
             return json($name);
         }
         return json($validator->getErrors(false,true));
-    }
-
-    public function sql(SystemInfo $systemInfo): array {
-        // 这里展示动态代理类的使用(只有当你调用这个类时才会实例化,属于懒加载)
-        // 调用被代理类的方法时,支持自动参数注入
-        // 必须说明,因为动态代理的兼容性问题,所以不建议用在定义复杂的类上
-        // `instance()` 方法属于助手类方法,传入true则返回代理类
-        // 但编辑器会把他当做被代理的类,所以使用这种方法让编辑器支持代理类解析是有风险的
-        // 默认为false,即返回真实对象,后续调用将失去代理类的支持,但无类型安全无风险
-        $test=App::proxy(Sql::class)->instance(true);
-        // 返回json
-        return json($test->test());
-        // 这里还展示了ORM的用法(目前支持有限,将来会支持更多)
-        // return json($systemInfo->select()->toArray());
-        // 更多用法(注意可能会抛出异常,特别是查找不存在的字段时,还需要注意结果是否为空)
-        // $data=$systemInfo->test();
-        // $id=$data->id;
     }
 
     public function log(): string {

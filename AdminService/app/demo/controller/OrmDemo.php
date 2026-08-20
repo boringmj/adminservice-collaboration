@@ -3,6 +3,7 @@
 namespace app\demo\controller;
 
 use Throwable;
+use app\demo\model\Order;
 use app\demo\model\User;
 use base\Controller;
 use base\Database\Db;
@@ -33,6 +34,48 @@ class OrmDemo extends Controller {
         } catch(Throwable $e) {
             return $this->json(array('fatal_error'=>$e->getMessage()));
         }
+    }
+
+    /**
+     * 关系示例(hasMany / belongsTo / 惰性加载 / 预加载)
+     *
+     * @access public
+     * @return mixed
+     */
+    public function relation(): mixed {
+        $data=array();
+        $run=function($name,$callback) use (&$data) {
+            try {
+                $data[$name]=$callback();
+            } catch(Throwable $e) {
+                $data[$name]=array('error'=>$e->getMessage());
+            }
+        };
+        // 惰性加载: $user->orders (hasMany)
+        $run('lazy_orders',function() {
+            $user=User::find(1);
+            return array(
+                'user_id'=>$user?->getKey(),
+                'count'=>$user?->orders?->count()??0,
+                'rows'=>$user?->orders?->toArray()??array(),
+            );
+        });
+        // 预加载: with('orders') 批量取回, 避免 N+1
+        $run('eager_orders',function() {
+            $users=User::with('orders')->where('age',18,'>=')->limit(3)->get();
+            return array_map(function($u) {
+                return array('id'=>$u->getKey(),'orders'=>$u->orders->count());
+            },$users->all());
+        });
+        // belongsTo: 订单属于用户
+        $run('belongs_to',function() {
+            $order=Order::with('user')->limit(3)->first();
+            return array(
+                'order_id'=>$order?->getKey(),
+                'user_name'=>$order?->user?->name,
+            );
+        });
+        return $this->json($data);
     }
 
     /**

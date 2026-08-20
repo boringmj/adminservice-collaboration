@@ -20,6 +20,36 @@ use function strtolower;
  * - 查询通过静态入口(如 Model::query() / Model::where())委托给 ModelQueryBuilder
  * - 行与对象的转换(水合)由构建器与 newFromRow 完成
  * - 关系: 通过 hasMany/hasOne/belongsTo 声明, $model->relation 惰性加载
+ *
+ * @method static ModelQueryBuilder from(string|\base\Database\Sql\Definition\Table $table, ?string $alias=null)
+ * @method static ModelQueryBuilder field(string|\base\Database\Sql\Definition\Field|array $columns, ?string $alias=null)
+ * @method static ModelQueryBuilder distinct()
+ * @method static ModelQueryBuilder where(string|\base\Database\Sql\Definition\Field $field, mixed $value=null, string $operator='=')
+ * @method static ModelQueryBuilder whereIn(string|\base\Database\Sql\Definition\Field $field, array $values, bool $not=false)
+ * @method static ModelQueryBuilder whereNotIn(string|\base\Database\Sql\Definition\Field $field, array $values)
+ * @method static ModelQueryBuilder whereBetween(string|\base\Database\Sql\Definition\Field $field, mixed $min, mixed $max, bool $not=false)
+ * @method static ModelQueryBuilder whereNull(string|\base\Database\Sql\Definition\Field $field, bool $not=false)
+ * @method static ModelQueryBuilder whereGroup(string $connector, callable $callback)
+ * @method static ModelQueryBuilder join(string $type, string|\base\Database\Sql\Definition\Table $table, array $on)
+ * @method static ModelQueryBuilder order(string|\base\Database\Sql\Definition\Field $field, string $direction='ASC')
+ * @method static ModelQueryBuilder orderBy(string|\base\Database\Sql\Definition\Field $field, string $direction='ASC')
+ * @method static ModelQueryBuilder group(string|\base\Database\Sql\Definition\Field $field)
+ * @method static ModelQueryBuilder groupBy(string|\base\Database\Sql\Definition\Field $field)
+ * @method static ModelQueryBuilder limit(int $limit, ?int $offset=null)
+ * @method static ModelQueryBuilder offset(int $offset)
+ * @method static ModelQueryBuilder lock(string $type='update')
+ * @method static ModelQueryBuilder alias(string $alias)
+ * @method static ModelQueryBuilder with(array|string $relations)
+ * @method static ModelCollection get()
+ * @method static ?Model first()
+ * @method static int count()
+ * @method static mixed value(string $field)
+ * @method static array pluck(string $field)
+ * @method static Paginator paginate(int $perPage=15, int $page=1)
+ * @method static int update(array $data)
+ * @method static int delete()
+ * @method static int forceDelete()
+ * @method static string getLastSql()
  */
 abstract class Model {
 

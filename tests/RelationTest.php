@@ -392,6 +392,57 @@ class RelationTest extends TestCase {
     }
 
     /**
+     * 测试关系惰性加载走相关模型自身的连接(而非父模型连接)
+     * @return void
+     */
+    public function testRelationUsesRelatedModelConnection(): void {
+        $pdoUser=new FakePdo();
+        $pdoPost=new FakePdo();
+        $pdoPost->selectRows=[['id'=>1,'title'=>'p1','user_id'=>1,'deleted_at'=>null]];
+        $userDb=$this->createDb($pdoUser);
+        $postDb=$this->createDb($pdoPost);
+        User::setDb($userDb);
+        Post::setDb($postDb);
+        $user=User::newFromRow(['id'=>1,'name'=>'张三']);
+        $posts=$user->posts;
+        $this->assertCount(1,$posts);
+        // 关系查询落在相关模型(Post)的连接上, 父模型(User)连接无查询
+        $this->assertCount(0,$pdoUser->executed);
+        $this->assertCount(1,$pdoPost->executed);
+        $this->assertSame(
+            'SELECT * FROM `posts` WHERE `user_id` = ? AND `deleted_at` IS NULL',
+            $pdoPost->executed[0]
+        );
+    }
+
+    /**
+     * 测试关系预加载: 父查询与关联批量分别走各自模型的连接
+     * @return void
+     */
+    public function testEagerLoadUsesRelatedModelConnection(): void {
+        $pdoUser=new FakePdo();
+        $pdoPost=new FakePdo();
+        $pdoUser->selectRowsQueue=[
+            [['id'=>1,'name'=>'a','age'=>1,'status'=>1]],
+        ];
+        $pdoPost->selectRowsQueue=[
+            [['id'=>1,'title'=>'p1','user_id'=>1,'deleted_at'=>null]],
+        ];
+        $userDb=$this->createDb($pdoUser);
+        $postDb=$this->createDb($pdoPost);
+        User::setDb($userDb);
+        Post::setDb($postDb);
+        $users=User::query()->with('posts')->get();
+        $this->assertCount(1,$pdoUser->executed);
+        $this->assertCount(1,$pdoPost->executed);
+        $this->assertSame('SELECT * FROM `users`',$pdoUser->executed[0]);
+        $this->assertSame(
+            'SELECT * FROM `posts` WHERE `user_id` IN (?) AND `deleted_at` IS NULL',
+            $pdoPost->executed[0]
+        );
+    }
+
+    /**
      * 测试 belongsToMany attach 写入中间表(单条多行插入)
      * @return void
      */

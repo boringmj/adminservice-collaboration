@@ -56,10 +56,14 @@ use function strtolower;
 abstract class Model {
 
     /**
-     * 数据库入口(共享, 测试可通过 setDb 注入)
-     * @var Db|null
+     * 按类名注入的数据库入口缓存(setDb 专用, 测试注入 FakePdo)
+     *
+     * - 使用 self::(而非 static::)确保所有模型共享这一块存储, 按类名区分
+     * - 模型自身的连接经 Db::fromConfig(static::$connection) 解析(每类独立)
+     *
+     * @var array
      */
-    protected static ?Db $db=null;
+    private static array $dbCache=array();
 
     /**
      * 数据库连接名(经 Db::fromConfig 注册表解析, 同名连接共享单例)
@@ -141,7 +145,10 @@ abstract class Model {
      * @return void
      */
     public static function setDb(?Db $db): void {
-        static::$db=$db;
+        if($db===null)
+            unset(self::$dbCache[static::class]);
+        else
+            self::$dbCache[static::class]=$db;
     }
 
     /**
@@ -154,7 +161,10 @@ abstract class Model {
      * @return Db
      */
     protected static function db(): Db {
-        return static::$db??=Db::fromConfig(static::$connection);
+        // setDb 注入优先(测试); 否则按本类 $connection 经注册表解析(每类独立)
+        if(isset(self::$dbCache[static::class]))
+            return self::$dbCache[static::class];
+        return Db::fromConfig(static::$connection);
     }
 
     /**
@@ -468,7 +478,8 @@ abstract class Model {
     protected function hasMany(string $related,?string $foreignKey=null,?string $ownerKey=null): HasMany {
         $ownerKey=$ownerKey??static::$primaryKey;
         $foreignKey=$foreignKey??self::classToTable(static::class).'_id';
-        return new HasMany(static::db(),$related,$this,$foreignKey,$ownerKey);
+        // 关系查询走相关模型自身的连接(支持跨库关系查询)
+        return new HasMany($related::db(),$related,$this,$foreignKey,$ownerKey);
     }
 
     /**
@@ -485,7 +496,8 @@ abstract class Model {
     protected function hasOne(string $related,?string $foreignKey=null,?string $ownerKey=null): HasOne {
         $ownerKey=$ownerKey??static::$primaryKey;
         $foreignKey=$foreignKey??self::classToTable(static::class).'_id';
-        return new HasOne(static::db(),$related,$this,$foreignKey,$ownerKey);
+        // 关系查询走相关模型自身的连接(支持跨库关系查询)
+        return new HasOne($related::db(),$related,$this,$foreignKey,$ownerKey);
     }
 
     /**
@@ -503,7 +515,8 @@ abstract class Model {
     protected function belongsTo(string $related,?string $foreignKey=null,?string $ownerKey=null): BelongsTo {
         $ownerKey=$ownerKey??$related::primaryKey();
         $foreignKey=$foreignKey??self::classToTable($related).'_id';
-        return new BelongsTo(static::db(),$related,$this,$foreignKey,$ownerKey);
+        // 关系查询走相关模型自身的连接(支持跨库关系查询)
+        return new BelongsTo($related::db(),$related,$this,$foreignKey,$ownerKey);
     }
 
     /**
@@ -535,8 +548,9 @@ abstract class Model {
         $foreignPivotKey=$foreignPivotKey??self::classToTable(static::class).'_id';
         $relatedPivotKey=$relatedPivotKey??self::classToTable($related).'_id';
         $pivotTable=$pivotTable??$this->pivotTableName($related);
+        // 中间表与相关查询均走相关模型自身的连接(支持跨库关系查询)
         return new BelongsToMany(
-            static::db(),$related,$this,
+            $related::db(),$related,$this,
             $pivotTable,$foreignPivotKey,$relatedPivotKey,$parentKey,$relatedKey
         );
     }

@@ -12,6 +12,8 @@ use AdminService\Exception;
 use AdminService\UploadStorage;
 // 模型
 use app\demo\model\Count;
+// 数据库示例
+use app\demo\DatabaseDemo;
 // 过滤器
 use app\demo\validator\Test as TestValidator;
 // 公共类
@@ -111,6 +113,13 @@ class Index extends Controller {
         ));
         // 输出日志文件路径
         return "日志存放目录: ".realpath(Config::get('log.path',''));
+    }
+
+    public function database(): array {
+        // 新 DBAL(Query + Db)完整用法示例
+        // 访问前需在 config/database.php 配置好连接, 并准备 users / orders 等示例表
+        $demo=new DatabaseDemo();
+        return json($demo->test());
     }
 
     public function exec(): mixed {

@@ -96,10 +96,18 @@ final class Db {
             throw new ConfigException('Database connection "'.$name.'" is not configured.',100801,array(
                 'name'=>$name
             ));
-        $db_config=self::buildConfig(array_merge($base,$config));
+        $merged=array_merge($base,$config);
+        $db_config=self::buildConfig($merged);
         $factory=$db_config->sessionFactory();
         $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
-        return new static($manager,new MysqlCompiler(),Config::get('database.middlewares',array()));
+        // 编译器可通过配置手动绑定, 未指定则使用 MySQL
+        $compilerClass=$merged['compiler']??MysqlCompiler::class;
+        $compiler=new $compilerClass();
+        if(!$compiler instanceof SqlCompilerInterface)
+            throw new ConfigException('Invalid compiler class.',100803,array(
+                'class'=>$compilerClass
+            ));
+        return new static($manager,$compiler,Config::get('database.middlewares',array()));
     }
 
     /**
@@ -119,7 +127,8 @@ final class Db {
             $config['dbname']??'',
             $config['charset']??'utf8mb4',
             $config['options']??array(),
-            $config['prefix']??''
+            $config['prefix']??'',
+            $config['dialect']??null
         );
     }
 

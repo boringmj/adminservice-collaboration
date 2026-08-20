@@ -6,7 +6,6 @@ use base\Database\Db;
 use base\Database\Query\Query;
 
 use function basename;
-use function count;
 use function in_array;
 use function preg_replace;
 use function str_replace;
@@ -58,6 +57,36 @@ abstract class Model {
     protected bool $exists=false;
 
     /**
+     * 是否自动维护时间戳
+     * @var bool
+     */
+    protected static bool $timestamps=true;
+
+    /**
+     * 是否启用软删除
+     * @var bool
+     */
+    protected static bool $softDelete=false;
+
+    /**
+     * 创建时间字段名
+     * @var string
+     */
+    protected static string $createdAtField='created_at';
+
+    /**
+     * 更新时间字段名
+     * @var string
+     */
+    protected static string $updatedAtField='updated_at';
+
+    /**
+     * 软删除字段名
+     * @var string
+     */
+    protected static string $deletedAtField='deleted_at';
+
+    /**
      * 注入数据库入口(供测试/自定义连接)
      *
      * @access public
@@ -100,6 +129,66 @@ abstract class Model {
      */
     public static function primaryKey(): string {
         return static::$primaryKey;
+    }
+
+    /**
+     * 是否自动维护时间戳
+     *
+     * @access public
+     * @return bool
+     */
+    public static function usesTimestamps(): bool {
+        return static::$timestamps;
+    }
+
+    /**
+     * 是否启用软删除
+     *
+     * @access public
+     * @return bool
+     */
+    public static function usesSoftDelete(): bool {
+        return static::$softDelete;
+    }
+
+    /**
+     * 获取创建时间字段名
+     *
+     * @access public
+     * @return string
+     */
+    public static function createdAtField(): string {
+        return static::$createdAtField;
+    }
+
+    /**
+     * 获取更新时间字段名
+     *
+     * @access public
+     * @return string
+     */
+    public static function updatedAtField(): string {
+        return static::$updatedAtField;
+    }
+
+    /**
+     * 获取软删除字段名
+     *
+     * @access public
+     * @return string
+     */
+    public static function deletedAtField(): string {
+        return static::$deletedAtField;
+    }
+
+    /**
+     * 生成当前时间戳(可覆盖以自定义格式/时区)
+     *
+     * @access public
+     * @return string
+     */
+    public static function freshTimestamp(): string {
+        return date('Y-m-d H:i:s');
     }
 
     /**
@@ -320,10 +409,33 @@ abstract class Model {
     /**
      * 删除当前记录
      *
+     * - 启用软删除时标记 deleted_at, 否则物理删除
+     *
      * @access public
      * @return bool
      */
     public function delete(): bool {
+        if(!$this->exists)
+            return false;
+        if(static::usesSoftDelete()) {
+            $this->attributes[static::deletedAtField()]=static::freshTimestamp();
+            $result=static::db()->query(
+                Query::update(array(static::deletedAtField()=>$this->attributes[static::deletedAtField()]))
+                    ->from(static::tableName())
+                    ->where(static::$primaryKey,$this->getKey())
+            );
+            return $result->isSuccess();
+        }
+        return $this->forceDelete();
+    }
+
+    /**
+     * 物理删除当前记录(无视软删除)
+     *
+     * @access public
+     * @return bool
+     */
+    public function forceDelete(): bool {
         if(!$this->exists)
             return false;
         $result=static::db()->query(
@@ -336,12 +448,42 @@ abstract class Model {
     }
 
     /**
+     * 是否已软删除
+     *
+     * @access public
+     * @return bool
+     */
+    public function trashed(): bool {
+        return static::usesSoftDelete()&&$this->getAttribute(static::deletedAtField())!==null;
+    }
+
+    /**
+     * 恢复软删除的记录
+     *
+     * @access public
+     * @return bool
+     */
+    public function restore(): bool {
+        if(!static::usesSoftDelete()||!$this->exists)
+            return false;
+        $this->attributes[static::deletedAtField()]=null;
+        $result=static::db()->query(
+            Query::update(array(static::deletedAtField()=>null))
+                ->from(static::tableName())
+                ->where(static::$primaryKey,$this->getKey())
+        );
+        return $result->isSuccess();
+    }
+
+    /**
      * 更新已存在的记录
      *
      * @access private
      * @return bool
      */
     private function updateExisting(): bool {
+        if(static::usesTimestamps())
+            $this->attributes[static::updatedAtField()]=static::freshTimestamp();
         $sets=$this->attributes;
         unset($sets[static::$primaryKey]);
         if(empty($sets))
@@ -361,6 +503,13 @@ abstract class Model {
      * @return bool
      */
     private function insertNew(): bool {
+        if(static::usesTimestamps()) {
+            $now=static::freshTimestamp();
+            if(($this->attributes[static::createdAtField()]??null)===null)
+                $this->attributes[static::createdAtField()]=$now;
+            if(($this->attributes[static::updatedAtField()]??null)===null)
+                $this->attributes[static::updatedAtField()]=$now;
+        }
         $result=static::db()->query(
             Query::insert($this->attributes)->from(static::tableName())
         );

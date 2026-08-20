@@ -10,7 +10,6 @@ use base\Database\Sql\Definition\Table;
 use base\Database\Type\StatementType;
 
 use function array_map;
-use function count;
 
 /**
  * 模型查询构建器
@@ -49,6 +48,18 @@ class ModelQueryBuilder {
      * @var string|null
      */
     protected ?string $alias=null;
+
+    /**
+     * 是否包含软删除记录
+     * @var bool
+     */
+    protected bool $withTrashed=false;
+
+    /**
+     * 是否仅查询软删除记录
+     * @var bool
+     */
+    protected bool $onlyTrashed=false;
 
     /**
      * 构造方法
@@ -306,6 +317,28 @@ class ModelQueryBuilder {
     }
 
     /**
+     * 包含软删除记录
+     *
+     * @access public
+     * @return static
+     */
+    public function withTrashed(): static {
+        $this->withTrashed=true;
+        return $this;
+    }
+
+    /**
+     * 仅查询软删除记录
+     *
+     * @access public
+     * @return static
+     */
+    public function onlyTrashed(): static {
+        $this->onlyTrashed=true;
+        return $this;
+    }
+
+    /**
      * 查询并返回模型集合
      *
      * @access public
@@ -314,6 +347,7 @@ class ModelQueryBuilder {
     public function get(): ModelCollection {
         $this->prepareTable();
         $this->query->type(StatementType::SELECT);
+        $this->applySoftDeleteFilter();
         $result=$this->run();
         $models=array();
         foreach($result->getResults() as $row)
@@ -330,6 +364,7 @@ class ModelQueryBuilder {
     public function first(): ?Model {
         $this->prepareTable();
         $this->query->type(StatementType::FIND);
+        $this->applySoftDeleteFilter();
         $result=$this->run();
         $rows=$result->getResults()->toArray();
         if(empty($rows))
@@ -357,6 +392,7 @@ class ModelQueryBuilder {
     public function count(): int {
         $this->prepareTable();
         $this->query->type(StatementType::COUNT);
+        $this->applySoftDeleteFilter();
         $result=$this->run();
         $rows=$result->getResults()->toArray();
         return (int)($rows[0]['__count']??0);
@@ -397,13 +433,8 @@ class ModelQueryBuilder {
     public function create(array $data): Model {
         $model=new ($this->modelClass)();
         $model->fill($data);
-        $result=$this->db->query(
-            Query::insert($model->getAttributes())->from(($this->modelClass)::tableName())
-        );
-        if($result->isSuccess()) {
-            $model->setAttribute(($this->modelClass)::primaryKey(),$result->getLastInsertId());
-            $model->markExists();
-        }
+        // 复用模型的插入逻辑(自动时间戳/主键回填)
+        $model->save();
         return $model;
     }
 
@@ -417,17 +448,40 @@ class ModelQueryBuilder {
     public function update(array $data): int {
         $this->prepareTable();
         $this->query->type(StatementType::UPDATE)->sets($data);
+        $this->applySoftDeleteFilter();
         return $this->run()->getAffectedRows();
     }
 
     /**
      * 按当前条件删除
      *
+     * - 启用软删除时标记 deleted_at, 否则物理删除
+     *
      * @access public
      * @return int 受影响行数
      */
     public function delete(): int {
         $this->prepareTable();
+        $this->applySoftDeleteFilter();
+        if(($this->modelClass)::usesSoftDelete()) {
+            $this->query->type(StatementType::UPDATE)->sets(array(
+                ($this->modelClass)::deletedAtField()=>($this->modelClass)::freshTimestamp()
+            ));
+            return $this->run()->getAffectedRows();
+        }
+        $this->query->type(StatementType::DELETE);
+        return $this->run()->getAffectedRows();
+    }
+
+    /**
+     * 按当前条件物理删除(无视软删除)
+     *
+     * @access public
+     * @return int 受影响行数
+     */
+    public function forceDelete(): int {
+        $this->prepareTable();
+        $this->applySoftDeleteFilter();
         $this->query->type(StatementType::DELETE);
         return $this->run()->getAffectedRows();
     }
@@ -450,6 +504,25 @@ class ModelQueryBuilder {
      */
     private function prepareTable(): void {
         $this->query->from(($this->modelClass)::tableName(),$this->alias);
+    }
+
+    /**
+     * 应用软删除过滤条件
+     *
+     * - 默认排除已软删除记录; withTrashed 包含全部; onlyTrashed 仅查询已删除
+     *
+     * @access private
+     * @return void
+     */
+    private function applySoftDeleteFilter(): void {
+        if(!($this->modelClass)::usesSoftDelete())
+            return;
+        if($this->withTrashed)
+            return;
+        if($this->onlyTrashed)
+            $this->query->whereNull(($this->modelClass)::deletedAtField(),true);
+        else
+            $this->query->whereNull(($this->modelClass)::deletedAtField());
     }
 
     /**

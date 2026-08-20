@@ -4,11 +4,13 @@ namespace app\demo\model;
 
 use base\Orm\Model;
 use base\Orm\HasMany;
+use base\Orm\BelongsToMany;
 
 /**
  * 示例用户模型(表前缀 admin_service_ 由编译器统一添加)
  *
  * @property-read \base\Orm\ModelCollection $orders 用户的订单
+ * @property-read \base\Orm\ModelCollection $roles 用户的角色
  */
 class User extends Model {
 
@@ -38,6 +40,18 @@ class User extends Model {
      */
     public function orders(): HasMany {
         return $this->hasMany(Order::class);
+    }
+
+    /**
+     * 多对多关系(用户的角色)
+     *
+     * - 默认中间表 role_user(user_id, role_id)
+     *
+     * @access public
+     * @return BelongsToMany
+     */
+    public function roles(): BelongsToMany {
+        return $this->belongsToMany(Role::class);
     }
 
 }

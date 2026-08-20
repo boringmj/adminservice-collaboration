@@ -7,9 +7,11 @@ use base\Database\Query\Query;
 
 use function array_key_exists;
 use function basename;
+use function implode;
 use function in_array;
 use function method_exists;
 use function preg_replace;
+use function sort;
 use function str_replace;
 use function strtolower;
 
@@ -493,6 +495,54 @@ abstract class Model {
         $ownerKey=$ownerKey??$related::primaryKey();
         $foreignKey=$foreignKey??self::classToTable($related).'_id';
         return new BelongsTo(static::db(),$related,$this,$foreignKey,$ownerKey);
+    }
+
+    /**
+     * 声明多对多关系(通过中间表)
+     *
+     * - 默认中间表 = 双方表名(类名 snake)按字母序拼接, 例: User↔Role → role_user
+     * - 默认中间表外键 = 当前模型类名 snake + _id, 关联键 = 关联模型类名 snake + _id
+     * - 例: $this->belongsToMany(Role::class) → role_user(user_id, role_id)
+     *
+     * @access protected
+     * @param string $related 关联模型类名
+     * @param string|null $pivotTable 中间表名
+     * @param string|null $foreignPivotKey 中间表外键(父侧)
+     * @param string|null $relatedPivotKey 中间表关联键(相关侧)
+     * @param string|null $parentKey 父模型主键
+     * @param string|null $relatedKey 相关模型主键
+     * @return BelongsToMany
+     */
+    protected function belongsToMany(
+        string $related,
+        ?string $pivotTable=null,
+        ?string $foreignPivotKey=null,
+        ?string $relatedPivotKey=null,
+        ?string $parentKey=null,
+        ?string $relatedKey=null
+    ): BelongsToMany {
+        $parentKey=$parentKey??static::$primaryKey;
+        $relatedKey=$relatedKey??$related::primaryKey();
+        $foreignPivotKey=$foreignPivotKey??self::classToTable(static::class).'_id';
+        $relatedPivotKey=$relatedPivotKey??self::classToTable($related).'_id';
+        $pivotTable=$pivotTable??$this->pivotTableName($related);
+        return new BelongsToMany(
+            static::db(),$related,$this,
+            $pivotTable,$foreignPivotKey,$relatedPivotKey,$parentKey,$relatedKey
+        );
+    }
+
+    /**
+     * 计算默认中间表名(双方表名按字母序用下划线拼接)
+     *
+     * @access protected
+     * @param string $related 关联模型类名
+     * @return string
+     */
+    protected function pivotTableName(string $related): string {
+        $tables=array(self::classToTable(static::class),self::classToTable($related));
+        sort($tables);
+        return implode('_',$tables);
     }
 
     /**

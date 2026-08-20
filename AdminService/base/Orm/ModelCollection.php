@@ -42,6 +42,16 @@ class ModelCollection implements Countable, IteratorAggregate {
     }
 
     /**
+     * 获取模型类名
+     *
+     * @access public
+     * @return string
+     */
+    public function getModelClass(): string {
+        return $this->modelClass;
+    }
+
+    /**
      * 获取全部模型实例
      *
      * @access public

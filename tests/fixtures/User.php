@@ -41,4 +41,16 @@ class User extends Model {
         return $this->hasOne(Profile::class);
     }
 
+    /**
+     * 多对多关系(用户的角色)
+     *
+     * - 默认中间表 role_user(user_id, role_id)
+     *
+     * @access public
+     * @return \base\Orm\BelongsToMany
+     */
+    public function roles(): \base\Orm\BelongsToMany {
+        return $this->belongsToMany(Role::class);
+    }
+
 }

@@ -9,16 +9,18 @@ use base\Database\Connection\PdoConnectionPool;
 use base\Database\Connection\PdoConnectionSession;
 use base\Database\Db;
 use base\Database\Sql\Dialect\MysqlDialect;
+use base\Orm\Exception\OrmException;
 use base\Orm\ModelCollection;
 use Tests\Fixtures\FakePdo;
 use Tests\Fixtures\Post;
 use Tests\Fixtures\Profile;
+use Tests\Fixtures\Role;
 use Tests\Fixtures\User;
 
 /**
  * 关系测试
  *
- * - 验证 hasMany/hasOne/belongsTo 查询、惰性加载与预加载
+ * - 验证 hasMany/hasOne/belongsTo/belongsToMany 查询、惰性加载、预加载、关系写入与嵌套预加载
  */
 class RelationTest extends TestCase {
 
@@ -33,6 +35,7 @@ class RelationTest extends TestCase {
         User::setDb($this->createDb($this->pdo));
         Post::setDb($this->createDb($this->pdo));
         Profile::setDb($this->createDb($this->pdo));
+        Role::setDb($this->createDb($this->pdo));
     }
 
     /**
@@ -43,6 +46,7 @@ class RelationTest extends TestCase {
         User::setDb(null);
         Post::setDb(null);
         Profile::setDb(null);
+        Role::setDb(null);
     }
 
     /**
@@ -155,6 +159,152 @@ class RelationTest extends TestCase {
         $this->assertSame('SELECT * FROM `posts` WHERE `deleted_at` IS NULL',$this->pdo->executed[0]);
         $this->assertSame('SELECT * FROM `users` WHERE `id` IN (?)',$this->pdo->executed[1]);
         $this->assertSame('a',$posts->first()->user->name);
+    }
+
+    /**
+     * 测试 belongsToMany 惰性加载(两步查询: 中间表 → 相关表 IN)
+     * @return void
+     */
+    public function testBelongsToManyLazyLoad(): void {
+        $this->pdo->selectRowsQueue=[
+            [['role_id'=>1],['role_id'=>2]],
+            [['id'=>1,'name'=>'admin'],['id'=>2,'name'=>'editor']],
+        ];
+        $user=User::newFromRow(['id'=>1,'name'=>'张三']);
+        $roles=$user->roles;
+        $this->assertInstanceOf(ModelCollection::class,$roles);
+        $this->assertCount(2,$roles);
+        $this->assertSame('admin',$roles->first()->name);
+        $this->assertCount(2,$this->pdo->executed);
+        $this->assertSame('SELECT `role_id` FROM `role_user` WHERE `user_id` = ?',$this->pdo->executed[0]);
+        $this->assertSame('SELECT * FROM `roles` WHERE `id` IN (?, ?)',$this->pdo->executed[1]);
+        $this->assertSame([1=>1,2=>1,3=>2],$this->pdo->bound);
+    }
+
+    /**
+     * 测试 belongsToMany 无关联记录返回空集合(不查询相关表)
+     * @return void
+     */
+    public function testBelongsToManyEmpty(): void {
+        $this->pdo->selectRowsQueue=[
+            array(), // 中间表无该用户的关联
+        ];
+        $user=User::newFromRow(['id'=>9,'name'=>'孤立用户']);
+        $roles=$user->roles;
+        $this->assertInstanceOf(ModelCollection::class,$roles);
+        $this->assertCount(0,$roles);
+        $this->assertCount(1,$this->pdo->executed);
+    }
+
+    /**
+     * 测试 belongsToMany 链式查询(中间表过滤 + 额外条件)
+     * @return void
+     */
+    public function testBelongsToManyChaining(): void {
+        $this->pdo->selectRowsQueue=[
+            [['role_id'=>1],['role_id'=>2]],
+            [['id'=>1,'name'=>'admin'],['id'=>2,'name'=>'editor']],
+        ];
+        $user=User::newFromRow(['id'=>1,'name'=>'张三']);
+        $roles=$user->roles()->where('status',1)->get();
+        $this->assertCount(2,$roles);
+        $this->assertSame(
+            'SELECT * FROM `roles` WHERE `status` = ? AND `id` IN (?, ?)',
+            $this->pdo->executed[1]
+        );
+    }
+
+    /**
+     * 测试 belongsToMany 预加载(父集合 + 中间表 + 相关表, 共三次查询)
+     * @return void
+     */
+    public function testEagerLoadBelongsToMany(): void {
+        $this->pdo->selectRowsQueue=[
+            [['id'=>1,'name'=>'a','age'=>1,'status'=>1],['id'=>2,'name'=>'b','age'=>2,'status'=>2]],
+            [['user_id'=>1,'role_id'=>1],['user_id'=>2,'role_id'=>2],['user_id'=>1,'role_id'=>3]],
+            [['id'=>1,'name'=>'admin'],['id'=>2,'name'=>'editor'],['id'=>3,'name'=>'viewer']],
+        ];
+        $users=User::query()->with('roles')->get();
+        $this->assertCount(3,$this->pdo->executed);
+        $this->assertSame('SELECT * FROM `users`',$this->pdo->executed[0]);
+        $this->assertSame(
+            'SELECT `user_id`, `role_id` FROM `role_user` WHERE `user_id` IN (?, ?)',
+            $this->pdo->executed[1]
+        );
+        $this->assertSame('SELECT * FROM `roles` WHERE `id` IN (?, ?, ?)',$this->pdo->executed[2]);
+        $first=$users->first();
+        $this->assertCount(2,$first->roles);
+        $this->assertSame('admin',$first->roles->first()->name);
+        $this->assertSame('viewer',$first->roles->last()->name);
+        $this->assertCount(1,$users->last()->roles);
+        $this->assertSame('editor',$users->last()->roles->first()->name);
+    }
+
+    /**
+     * 测试 hasMany 关系写入(自动设置外键)
+     * @return void
+     */
+    public function testRelationWriteHasManyCreate(): void {
+        $this->pdo->affectedRows=1;
+        $user=User::newFromRow(['id'=>1,'name'=>'张三']);
+        $post=$user->posts()->create(['title'=>'新文章','content'=>'内容','status'=>1]);
+        $this->assertInstanceOf(Post::class,$post);
+        $this->assertSame(1,$post->getAttribute('user_id'));
+        $this->assertSame('新文章',$post->title);
+        $this->assertSame(
+            'INSERT INTO `posts` (`title`, `content`, `status`, `user_id`, `created_at`, `updated_at`) VALUES (?, ?, ?, ?, ?, ?)',
+            $this->pdo->executed[0]
+        );
+    }
+
+    /**
+     * 测试 hasOne 关系写入(自动设置外键)
+     * @return void
+     */
+    public function testRelationWriteHasOneCreate(): void {
+        $this->pdo->affectedRows=1;
+        $user=User::newFromRow(['id'=>1,'name'=>'张三']);
+        $profile=$user->profile()->create(['bio'=>'你好']);
+        $this->assertInstanceOf(Profile::class,$profile);
+        $this->assertSame(1,$profile->getAttribute('user_id'));
+        $this->assertSame('你好',$profile->bio);
+        $this->assertSame(
+            'INSERT INTO `profiles` (`bio`, `user_id`, `created_at`, `updated_at`) VALUES (?, ?, ?, ?)',
+            $this->pdo->executed[0]
+        );
+    }
+
+    /**
+     * 测试 belongsTo 关系写入不被支持
+     * @return void
+     */
+    public function testBelongsToCreateThrows(): void {
+        $this->expectException(OrmException::class);
+        $post=Post::newFromRow(['id'=>10,'user_id'=>1,'title'=>'t','deleted_at'=>null]);
+        $post->user()->create(['name'=>'x']);
+    }
+
+    /**
+     * 测试嵌套预加载 with('posts.user')
+     * @return void
+     */
+    public function testNestedEagerLoad(): void {
+        $this->pdo->selectRowsQueue=[
+            [['id'=>1,'name'=>'a','age'=>1,'status'=>1]],
+            [['id'=>1,'title'=>'p1','user_id'=>1,'deleted_at'=>null]],
+            [['id'=>1,'name'=>'a','age'=>1,'status'=>1]],
+        ];
+        $users=User::query()->with('posts.user')->get();
+        $this->assertCount(3,$this->pdo->executed);
+        $this->assertSame('SELECT * FROM `users`',$this->pdo->executed[0]);
+        $this->assertSame(
+            'SELECT * FROM `posts` WHERE `user_id` IN (?) AND `deleted_at` IS NULL',
+            $this->pdo->executed[1]
+        );
+        $this->assertSame('SELECT * FROM `users` WHERE `id` IN (?)',$this->pdo->executed[2]);
+        $post=$users->first()->posts->first();
+        $this->assertInstanceOf(User::class,$post->user);
+        $this->assertSame('a',$post->user->name);
     }
 
 }

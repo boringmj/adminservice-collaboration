@@ -2,6 +2,8 @@
 
 namespace base\Orm;
 
+use base\Orm\Exception\OrmException;
+
 /**
  * 多对一关系(属于)
  *
@@ -18,6 +20,20 @@ class BelongsTo extends Relation {
      */
     protected function applyConstraint(): void {
         $this->where($this->ownerKey,$this->parent->getAttribute($this->foreignKey));
+    }
+
+    /**
+     * 通过关系创建关联记录
+     *
+     * - belongsTo 关系不支持 create(): 外键在子模型一侧, 语义应由子模型直接创建
+     *
+     * @access public
+     * @param array $data 数据
+     * @return Model
+     * @throws OrmException 始终抛出
+     */
+    public function create(array $data): Model {
+        throw new OrmException('Cannot create via belongsTo relation: foreign key lives on the child.',100722);
     }
 
     /**

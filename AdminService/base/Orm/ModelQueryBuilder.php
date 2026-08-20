@@ -10,10 +10,16 @@ use base\Database\Sql\Definition\Field;
 use base\Database\Sql\Definition\Table;
 use base\Database\Type\StatementType;
 
+use function array_filter;
+use function array_keys;
 use function array_map;
 use function array_merge;
+use function array_values;
+use function get_class;
 use function max;
 use function method_exists;
+use function strpos;
+use function substr;
 
 /**
  * 模型查询构建器
@@ -602,23 +608,95 @@ class ModelQueryBuilder {
     /**
      * 预加载关系
      *
-     * - 对每个关系名调用父模型的关系方法, 委托 Relation::eagerLoad 批量加载
+     * - 支持点号嵌套: with('orders.user') 先加载 orders, 再在订单集合上加载 user
      *
      * @access private
      * @param ModelCollection $parents 父模型集合
      * @return void
      */
     private function loadEager(ModelCollection $parents): void {
-        if(empty($this->eagerRelations)||$parents->isEmpty())
+        $this->eagerLoadLevel($parents,$this->eagerRelations);
+    }
+
+    /**
+     * 递归预加载一层关系
+     *
+     * - 每层先按顶层关系名批量加载, 再收集关联模型集合递归处理嵌套段
+     *
+     * @access private
+     * @param ModelCollection $parents 父模型集合
+     * @param array $relations 关系名列表(可能含点号)
+     * @return void
+     */
+    private function eagerLoadLevel(ModelCollection $parents,array $relations): void {
+        if(empty($relations)||$parents->isEmpty())
+            return;
+        $grouped=array();
+        foreach($relations as $name) {
+            $dot=strpos($name,'.');
+            if($dot===false)
+                $grouped[$name][]=null;
+            else
+                $grouped[substr($name,0,$dot)][]=substr($name,$dot+1);
+        }
+        foreach(array_keys($grouped) as $top)
+            $this->loadTopRelation($top,$parents);
+        foreach($grouped as $top=>$subs) {
+            $subs=array_values(array_filter($subs,function($sub) {
+                return $sub!==null;
+            }));
+            if(empty($subs))
+                continue;
+            $this->eagerLoadLevel($this->collectRelation($parents,$top),$subs);
+        }
+    }
+
+    /**
+     * 加载单个顶层关系(委托 Relation::eagerLoad 批量加载)
+     *
+     * @access private
+     * @param string $name 关系名
+     * @param ModelCollection $parents 父模型集合
+     * @return void
+     */
+    private function loadTopRelation(string $name,ModelCollection $parents): void {
+        if($parents->isEmpty())
             return;
         $first=$parents->first();
-        foreach($this->eagerRelations as $name) {
-            if(method_exists($first,$name)) {
-                $relation=$first->{$name}();
-                if($relation instanceof Relation)
-                    $relation->eagerLoad($name,$parents);
+        if(method_exists($first,$name)) {
+            $relation=$first->{$name}();
+            if($relation instanceof Relation)
+                $relation->eagerLoad($name,$parents);
+        }
+    }
+
+    /**
+     * 收集父模型集合中某个已加载关系对应的关联模型
+     *
+     * - 集合关系展开为多条, 单模型关系(hasOne/belongsTo)展开为一条
+     *
+     * @access private
+     * @param ModelCollection $parents 父模型集合
+     * @param string $name 关系名
+     * @return ModelCollection
+     */
+    private function collectRelation(ModelCollection $parents,string $name): ModelCollection {
+        $models=array();
+        $class='';
+        foreach($parents as $parent) {
+            $rel=$parent->getRelation($name);
+            if($rel instanceof ModelCollection) {
+                if($class===''&&$rel->getModelClass()!=='')
+                    $class=$rel->getModelClass();
+                foreach($rel->all() as $model)
+                    $models[]=$model;
+            } elseif($rel instanceof Model) {
+                if($class==='')
+                    $class=get_class($rel);
+                $models[]=$rel;
             }
         }
+        return new ModelCollection($class,$models);
     }
 
 }

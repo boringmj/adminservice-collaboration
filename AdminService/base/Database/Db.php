@@ -12,6 +12,7 @@ use base\Database\Connection\PdoConnectionPool;
 use base\Database\Coordinator\Handler\QueryMiddlewareHandler;
 use base\Database\Coordinator\QueryCoordinator;
 use base\Database\Coordinator\QueryExecutionDispatcher;
+use base\Database\Exception\ConfigException;
 use base\Database\Query\QueryContext;
 use base\Database\Query\QueryInterface;
 use base\Database\Result\ResultInterface;
@@ -19,6 +20,9 @@ use base\Database\Sql\Builder\QueryStatementBuilder;
 use base\Database\Sql\Compiler\MysqlCompiler;
 use base\Database\Sql\Compiler\SqlCompilerInterface;
 use base\Database\Transaction\TransactionContextInterface;
+
+use function array_merge;
+use function is_array;
 
 /**
  * 数据库入口(门面)
@@ -73,25 +77,48 @@ final class Db {
     /**
      * 从框架配置创建数据库入口
      *
+     * - 按名称选择配置文件中 database.connections.{name} 对应的连接
+     * - $config 可覆盖所选连接的任意配置项(也可全量手动配置)
+     *
      * @access public
-     * @param array $config 连接配置(覆盖框架配置)
+     * @param string $name 连接名称(默认 default)
+     * @param array $config 连接配置覆盖项
      * @return static
+     * @throws ConfigException 指定连接未配置且未提供覆盖
      */
-    public static function fromConfig(array $config=array()): static {
-        $db_config=new ConnectionConfig(
-            $config['type']??Config::get('database.default.type','mysql'),
-            $config['host']??Config::get('database.default.host','localhost'),
-            (int)($config['port']??Config::get('database.default.port',3306)),
-            $config['user']??Config::get('database.default.user',''),
-            $config['password']??Config::get('database.default.password',''),
-            $config['dbname']??Config::get('database.default.dbname',''),
-            $config['charset']??Config::get('database.default.charset','utf8mb4'),
-            $config['options']??Config::get('database.default.options',array()),
-            $config['prefix']??Config::get('database.default.prefix','')
-        );
+    public static function fromConfig(string $name='default',array $config=array()): static {
+        $base=Config::get('database.connections.'.$name,array());
+        if(!is_array($base))
+            $base=array();
+        if(empty($base)&&empty($config))
+            throw new ConfigException('Database connection "'.$name.'" is not configured.',100801,array(
+                'name'=>$name
+            ));
+        $db_config=self::buildConfig(array_merge($base,$config));
         $factory=$db_config->sessionFactory();
         $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
         return new static($manager,new MysqlCompiler(),Config::get('database.middlewares',array()));
+    }
+
+    /**
+     * 从配置数组构建连接配置
+     *
+     * @access private
+     * @param array $config 连接配置
+     * @return ConnectionConfig
+     */
+    private static function buildConfig(array $config): ConnectionConfig {
+        return new ConnectionConfig(
+            $config['type']??'mysql',
+            $config['host']??'localhost',
+            (int)($config['port']??3306),
+            $config['user']??'',
+            $config['password']??'',
+            $config['dbname']??'',
+            $config['charset']??'utf8mb4',
+            $config['options']??array(),
+            $config['prefix']??''
+        );
     }
 
     /**

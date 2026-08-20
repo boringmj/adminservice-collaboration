@@ -8,8 +8,10 @@ use base\Database\Connection\PdoConnectionManager;
 use base\Database\Connection\PdoConnectionPool;
 use base\Database\Connection\PdoConnectionSession;
 use base\Database\Db;
+use base\Database\Exception\QueryException;
 use base\Database\Sql\Dialect\MysqlDialect;
 use base\ModelCollection;
+use base\Paginator;
 use Tests\Fixtures\Post;
 use Tests\Fixtures\SystemInfo;
 use Tests\Fixtures\User;
@@ -331,6 +333,58 @@ class ModelTest extends TestCase {
         $this->assertTrue($post->forceDelete());
         $this->assertFalse($post->exists());
         $this->assertSame('DELETE FROM `posts` WHERE `id` = ?',$this->pdo->executed[1]);
+    }
+
+    /**
+     * 测试分页查询
+     * @return void
+     */
+    public function testPaginate(): void {
+        $this->pdo->selectRowsQueue=[
+            [['__count'=>5]],   // 统计总数
+            [['id'=>1,'name'=>'a'],['id'=>2,'name'=>'b']],  // 当前页
+        ];
+        $result=User::query()->where('status',1)->paginate(2,1);
+        $this->assertInstanceOf(Paginator::class,$result);
+        $this->assertSame(5,$result->total());
+        $this->assertSame(2,$result->items()->count());
+        $this->assertSame(2,$result->perPage());
+        $this->assertSame(3,$result->lastPage());
+        $this->assertTrue($result->hasMorePages());
+        // 统计与分页在独立查询上执行, 互不污染
+        $this->assertSame(
+            'SELECT COUNT(*) AS `__count` FROM `users` WHERE `status` = ?',
+            $this->pdo->executed[0]
+        );
+        $this->assertSame(
+            'SELECT * FROM `users` WHERE `status` = ? LIMIT 2 OFFSET 0',
+            $this->pdo->executed[1]
+        );
+    }
+
+    /**
+     * 测试空结果分页
+     * @return void
+     */
+    public function testPaginateEmpty(): void {
+        $this->pdo->selectRowsQueue=[
+            [['__count'=>0]],
+            array(),
+        ];
+        $result=User::query()->paginate(15,1);
+        $this->assertSame(0,$result->total());
+        $this->assertSame(0,$result->lastPage());
+        $this->assertTrue($result->isEmpty());
+        $this->assertFalse($result->hasMorePages());
+    }
+
+    /**
+     * 测试非法每页条数的负例
+     * @return void
+     */
+    public function testPaginateInvalidPerPage(): void {
+        $this->expectException(QueryException::class);
+        User::query()->paginate(0);
     }
 
 }

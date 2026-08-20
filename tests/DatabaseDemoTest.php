@@ -4,7 +4,7 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
-use app\demo\DatabaseDemo;
+use app\demo\controller\DatabaseDemo;
 use base\Database\Connection\PdoConnectionManager;
 use base\Database\Connection\PdoConnectionPool;
 use base\Database\Connection\PdoConnectionSession;
@@ -42,8 +42,7 @@ class DatabaseDemoTest extends TestCase {
         $pdo=new FakePdo();
         $pdo->selectRows=[['id'=>1,'name'=>'张三','age'=>20,'status'=>1]];
         $pdo->affectedRows=1;
-        $demo=new DatabaseDemo($this->createDb($pdo));
-        $data=$demo->test();
+        $data=DatabaseDemo::runDemo($this->createDb($pdo));
 
         // 查询
         $this->assertSame('SELECT * FROM `users`',$data['select_all']['sql']);

@@ -1,101 +1,100 @@
 <?php
 
-namespace app\demo;
+namespace app\demo\controller;
 
 use Throwable;
+use base\Controller;
 use base\Database\Db;
 use base\Database\Query\Query;
 use base\Database\Result\ResultInterface;
 
 /**
- * 数据库使用示例
+ * 数据库使用示例控制器
  *
- * - 新 DBAL 完整用法指南, 基于 Query 流式构建器 + Db 门面
- * - 每个示例都会真实执行, 并在返回数组中附带生成的 SQL 与结果, 便于对照学习
- * - 运行前需在 config/database.php 配置好连接, 并准备示例数据表
+ * - 新 DBAL(Query + Db)完整用法示例, 真实执行并返回 SQL 与结果
+ * - 访问: /demo/DatabaseDemo 或 /demo/DatabaseDemo/index(完整示例); /demo/DatabaseDemo/demo(简洁示例)
+ * - 需先配置数据库连接并创建示例数据表(见 AdminService/data/database.sql)
  */
-final class DatabaseDemo {
+class DatabaseDemo extends Controller {
 
     /**
-     * 数据库入口
-     * @var Db
-     */
-    private Db $db;
-
-    /**
-     * 构造方法
+     * 完整示例
      *
      * @access public
-     * @param Db|null $db 数据库入口(默认从框架配置创建, 测试可注入)
+     * @return mixed
      */
-    public function __construct(?Db $db=null) {
-        $this->db=$db??Db::fromConfig();
+    public function index(): mixed {
+        try {
+            return $this->json(self::runDemo());
+        } catch(Throwable $e) {
+            return $this->json(array('fatal_error'=>$e->getMessage()));
+        }
     }
 
     /**
-     * 完整示例(返回带标签的结果集)
+     * 简洁示例
      *
      * @access public
-     * @return array
+     * @return mixed
      */
-    public function test(): array {
+    public function demo(): mixed {
+        try {
+            return $this->json(self::runDemoSimple());
+        } catch(Throwable $e) {
+            return $this->json(array('fatal_error'=>$e->getMessage()));
+        }
+    }
+
+    /**
+     * 完整示例逻辑(可注入 Db 便于测试)
+     *
+     * @access public
+     * @param Db|null $db 数据库入口
+     * @return array 带标签的结果集
+     */
+    public static function runDemo(?Db $db=null): array {
+        $db=$db??Db::fromConfig();
         $data=array();
         try {
-            $db=$this->db; // 默认连接; 也可 Db::fromConfig('log') 切换命名连接
-
             // =====================================================
             // 一、查询
             // =====================================================
 
-            // 1. 查询全部字段
-            $data['select_all']=$this->dump(
+            $data['select_all']=self::dump(
                 $db->query(Query::select()->from('users'))
             );
-
-            // 2. 查询指定字段(支持逗号分隔字符串 / 数组 / 多次调用)
-            $data['select_fields']=$this->dump(
+            $data['select_fields']=self::dump(
                 $db->query(Query::select()->from('users')->field('id,name'))
             );
-            $data['select_fields_array']=$this->dump(
+            $data['select_fields_array']=self::dump(
                 $db->query(Query::select()->from('users')->field(array('id','name')))
             );
-
-            // 3. 字段别名与表限定
-            $data['select_alias']=$this->dump(
+            $data['select_alias']=self::dump(
                 $db->query(Query::select()->from('users','u')
                     ->field('u.id')
                     ->field(array('u.name'=>'nickname')))
             );
-
-            // 4. 去重
-            $data['distinct']=$this->dump(
+            $data['distinct']=self::dump(
                 $db->query(Query::select()->from('users')->distinct()->field('status'))
             );
-
-            // 5. 排序(ASC/DESC)
-            $data['order']=$this->dump(
+            $data['order']=self::dump(
                 $db->query(Query::select()->from('users')->order('id','DESC'))
             );
-            // 多字段排序
-            $data['order_multi']=$this->dump(
+            $data['order_multi']=self::dump(
                 $db->query(Query::select()->from('users')
                     ->order('status','ASC')
                     ->order('id','DESC'))
             );
-
-            // 6. 分页(LIMIT / OFFSET)
-            $data['limit']=$this->dump(
+            $data['limit']=self::dump(
                 $db->query(Query::select()->from('users')->limit(10))
             );
-            $data['limit_offset']=$this->dump(
+            $data['limit_offset']=self::dump(
                 $db->query(Query::select()->from('users')->limit(10,20))
             );
-            $data['offset']=$this->dump(
+            $data['offset']=self::dump(
                 $db->query(Query::select()->from('users')->offset(20))
             );
-
-            // 7. 分组
-            $data['group']=$this->dump(
+            $data['group']=self::dump(
                 $db->query(Query::select()->from('users')->group('status'))
             );
 
@@ -103,50 +102,39 @@ final class DatabaseDemo {
             // 二、条件
             // =====================================================
 
-            // 1. 比较操作符: =, >, <, >=, <=, !=, <>, LIKE, NOT LIKE
-            $data['where_eq']=$this->dump(
+            $data['where_eq']=self::dump(
                 $db->query(Query::select()->from('users')->where('id',1))
             );
-            $data['where_gt']=$this->dump(
+            $data['where_gt']=self::dump(
                 $db->query(Query::select()->from('users')->where('age',18,'>='))
             );
-            $data['where_like']=$this->dump(
+            $data['where_like']=self::dump(
                 $db->query(Query::select()->from('users')->where('name','张%','LIKE'))
             );
-
-            // 2. IN / NOT IN
-            $data['where_in']=$this->dump(
+            $data['where_in']=self::dump(
                 $db->query(Query::select()->from('users')->whereIn('status',array(1,2,3)))
             );
-            $data['where_not_in']=$this->dump(
+            $data['where_not_in']=self::dump(
                 $db->query(Query::select()->from('users')->whereNotIn('status',array(4,5)))
             );
-
-            // 3. BETWEEN / NOT BETWEEN
-            $data['where_between']=$this->dump(
+            $data['where_between']=self::dump(
                 $db->query(Query::select()->from('users')->whereBetween('age',18,60))
             );
-            $data['where_not_between']=$this->dump(
+            $data['where_not_between']=self::dump(
                 $db->query(Query::select()->from('users')->whereBetween('age',18,60,true))
             );
-
-            // 4. IS NULL / IS NOT NULL
-            $data['where_null']=$this->dump(
+            $data['where_null']=self::dump(
                 $db->query(Query::select()->from('users')->whereNull('deleted_at'))
             );
-            $data['where_not_null']=$this->dump(
+            $data['where_not_null']=self::dump(
                 $db->query(Query::select()->from('users')->whereNull('deleted_at',true))
             );
-
-            // 5. 链式条件(默认 AND)
-            $data['where_and']=$this->dump(
+            $data['where_and']=self::dump(
                 $db->query(Query::select()->from('users')
                     ->where('status',1)
                     ->where('age',18,'>='))
             );
-
-            // 6. 复合条件(嵌套 AND / OR)
-            $data['where_group']=$this->dump(
+            $data['where_group']=self::dump(
                 $db->query(Query::select()->from('users')
                     ->where('status',1)
                     ->whereGroup('OR',function($q) {
@@ -154,9 +142,7 @@ final class DatabaseDemo {
                           ->where('name','张%','LIKE');
                     }))
             );
-
-            // 7. 带表限定的条件
-            $data['where_qualified']=$this->dump(
+            $data['where_qualified']=self::dump(
                 $db->query(Query::select()->from('users','u')
                     ->where('u.id',1))
             );
@@ -165,8 +151,7 @@ final class DatabaseDemo {
             // 三、单条查询
             // =====================================================
 
-            // find 始终返回一条(自动 LIMIT 1)
-            $data['find']=$this->dump(
+            $data['find']=self::dump(
                 $db->query(Query::find()->from('users')->where('id',1))
             );
 
@@ -174,37 +159,28 @@ final class DatabaseDemo {
             // 四、写入
             // =====================================================
 
-            // 1. 插入单行
-            $data['insert']=$this->dump(
+            $data['insert']=self::dump(
                 $db->query(Query::insert(array(
                     'name'=>'张三',
                     'age'=>20,
                     'status'=>1,
                 ))->from('users'))
             );
-
-            // 2. 插入多行(一次 INSERT 多组 VALUES)
-            $data['insert_multi']=$this->dump(
+            $data['insert_multi']=self::dump(
                 $db->query(Query::insert(array(
                     array('name'=>'李四','age'=>21,'status'=>1),
                     array('name'=>'王五','age'=>22,'status'=>1),
                 ))->from('users'))
             );
-
-            // 3. 更新(必须带 where 条件)
-            $data['update']=$this->dump(
+            $data['update']=self::dump(
                 $db->query(Query::update(array('name'=>'张三三','age'=>21))
                     ->from('users')
                     ->where('id',1))
             );
-
-            // 4. 删除(必须带 where 条件)
-            $data['delete_where']=$this->dump(
+            $data['delete_where']=self::dump(
                 $db->query(Query::delete()->from('users')->where('status',0))
             );
-
-            // 5. 按主键删除
-            $data['delete_by_id']=$this->dump(
+            $data['delete_by_id']=self::dump(
                 $db->query(Query::delete()->from('users')->whereIn('id',array(10,11)))
             );
 
@@ -212,16 +188,13 @@ final class DatabaseDemo {
             // 五、聚合统计
             // =====================================================
 
-            // count 返回 COUNT(*)
-            $data['count']=$this->dump(
+            $data['count']=self::dump(
                 $db->query(Query::count()->from('users'))
             );
-            // 去重统计 COUNT(DISTINCT col)
-            $data['count_distinct']=$this->dump(
+            $data['count_distinct']=self::dump(
                 $db->query(Query::count()->from('users')->distinct()->field('status'))
             );
-            // 分组统计
-            $data['count_group']=$this->dump(
+            $data['count_group']=self::dump(
                 $db->query(Query::count()->from('users')->group('status'))
             );
 
@@ -229,8 +202,7 @@ final class DatabaseDemo {
             // 六、关联查询
             // =====================================================
 
-            // 1. 字段对字段关联
-            $data['join']=$this->dump(
+            $data['join']=self::dump(
                 $db->query(Query::select()->from('users','u')
                     ->join('left','orders o',array(
                         array('u.id','=','o.user_id'),
@@ -238,9 +210,7 @@ final class DatabaseDemo {
                     ->field('u.id')
                     ->field('o.id','order_id'))
             );
-
-            // 2. 关联条件带标量右值(绑定为参数)
-            $data['join_scalar']=$this->dump(
+            $data['join_scalar']=self::dump(
                 $db->query(Query::select()->from('users','u')
                     ->join('inner','orders o',array(
                         array('u.status','=',1),
@@ -251,10 +221,10 @@ final class DatabaseDemo {
             // 七、行锁(需在事务内生效)
             // =====================================================
 
-            $data['lock']=$this->dump(
+            $data['lock']=self::dump(
                 $db->query(Query::select()->from('users')->where('id',1)->lock())
             );
-            $data['lock_shared']=$this->dump(
+            $data['lock_shared']=self::dump(
                 $db->query(Query::select()->from('users')->where('id',1)->lock('shared'))
             );
 
@@ -262,28 +232,22 @@ final class DatabaseDemo {
             // 八、事务
             // =====================================================
 
-            // 1. 事务作用域: 回调内所有查询在同一个连接上执行, 抛异常自动回滚
-            $data['transaction']=$this->transactionScope($db,function($tx) {
+            $data['transaction']=self::transactionScope($db,function($tx) {
                 $tx->query(Query::insert(array('name'=>'事务A','age'=>30,'status'=>1))->from('users'));
                 $tx->query(Query::update(array('status'=>2))->from('users')->where('id',1));
             });
-
-            // 2. 嵌套事务(通过保存点实现)
-            $data['transaction_nested']=$this->transactionScope($db,function($tx) {
+            $data['transaction_nested']=self::transactionScope($db,function($tx) {
                 $tx->query(Query::insert(array('name'=>'外层','age'=>31,'status'=>1))->from('users'));
                 $tx->transaction(function($tx) {
                     $tx->query(Query::insert(array('name'=>'内层','age'=>32,'status'=>1))->from('users'));
                 });
             });
-
-            // 3. 手动事务
-            $data['transaction_manual']=$this->manualTransaction($db);
+            $data['transaction_manual']=self::manualTransaction($db);
 
             // =====================================================
             // 九、结果集遍历
             // =====================================================
 
-            // Result 的结果集为可迭代集合, 支持 foreach / count / toArray
             $result=$db->query(Query::select()->from('users'));
             $data['result_count']=$result->getResults()->count();
             $iterated=array();
@@ -296,7 +260,6 @@ final class DatabaseDemo {
             // 十、错误处理
             // =====================================================
 
-            // 执行失败时 Result 的 success 为 false, error 携带错误信息(不抛异常)
             $failed=$db->query(Query::select()->from('not_exist_table'));
             $data['error_handling']=array(
                 'success'=>$failed->isSuccess(),
@@ -310,13 +273,14 @@ final class DatabaseDemo {
     }
 
     /**
-     * 简洁示例(单条查询 + 结果检查)
+     * 简洁示例逻辑
      *
      * @access public
+     * @param Db|null $db 数据库入口
      * @return array
      */
-    public function demo(): array {
-        $db=$this->db;
+    public static function runDemoSimple(?Db $db=null): array {
+        $db=$db??Db::fromConfig();
         $result=$db->query(Query::select()->from('users')->where('id',1));
         $rows=$result->getResults()->toArray();
         return array(
@@ -334,7 +298,7 @@ final class DatabaseDemo {
      * @param callable $callback 回调
      * @return string 结果描述
      */
-    private function transactionScope(Db $db,callable $callback): string {
+    private static function transactionScope(Db $db,callable $callback): string {
         try {
             $db->transaction($callback);
             return 'success';
@@ -350,7 +314,7 @@ final class DatabaseDemo {
      * @param Db $db 数据库入口
      * @return string 结果描述
      */
-    private function manualTransaction(Db $db): string {
+    private static function manualTransaction(Db $db): string {
         try {
             $db->beginTransaction();
             $db->query(Query::insert(array('name'=>'手动','age'=>33,'status'=>1))->from('users'));
@@ -372,7 +336,7 @@ final class DatabaseDemo {
      * @param ResultInterface $result 查询结果
      * @return array
      */
-    private function dump(ResultInterface $result): array {
+    private static function dump(ResultInterface $result): array {
         return array(
             'sql'=>$result->getSql(),
             'params'=>$result->getParams(),

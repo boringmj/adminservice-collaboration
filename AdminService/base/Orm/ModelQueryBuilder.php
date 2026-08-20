@@ -1,6 +1,6 @@
 <?php
 
-namespace base;
+namespace base\Orm;
 
 use base\Database\Db;
 use base\Database\Exception\QueryException;
@@ -11,7 +11,9 @@ use base\Database\Sql\Definition\Table;
 use base\Database\Type\StatementType;
 
 use function array_map;
+use function array_merge;
 use function max;
+use function method_exists;
 
 /**
  * 模型查询构建器
@@ -62,6 +64,12 @@ class ModelQueryBuilder {
      * @var bool
      */
     protected bool $onlyTrashed=false;
+
+    /**
+     * 需预加载的关系名
+     * @var array
+     */
+    protected array $eagerRelations=array();
 
     /**
      * 构造方法
@@ -341,6 +349,21 @@ class ModelQueryBuilder {
     }
 
     /**
+     * 指定预加载的关系
+     *
+     * - 在 get()/first() 时批量加载, 避免 N+1 查询
+     *
+     * @access public
+     * @param array|string $relations 关系名(可多个)
+     * @return static
+     */
+    public function with(array|string $relations): static {
+        $relations=is_string($relations)?array($relations):$relations;
+        $this->eagerRelations=array_merge($this->eagerRelations,$relations);
+        return $this;
+    }
+
+    /**
      * 查询并返回模型集合
      *
      * @access public
@@ -354,7 +377,9 @@ class ModelQueryBuilder {
         $models=array();
         foreach($result->getResults() as $row)
             $models[]=($this->modelClass)::newFromRow($row);
-        return new ModelCollection($this->modelClass,$models);
+        $collection=new ModelCollection($this->modelClass,$models);
+        $this->loadEager($collection);
+        return $collection;
     }
 
     /**
@@ -371,7 +396,9 @@ class ModelQueryBuilder {
         $rows=$result->getResults()->toArray();
         if(empty($rows))
             return null;
-        return ($this->modelClass)::newFromRow($rows[0]);
+        $model=($this->modelClass)::newFromRow($rows[0]);
+        $this->loadEager(new ModelCollection($this->modelClass,array($model)));
+        return $model;
     }
 
     /**
@@ -570,6 +597,28 @@ class ModelQueryBuilder {
         $result=$this->db->query($query??$this->query);
         $this->lastResult=$result;
         return $result;
+    }
+
+    /**
+     * 预加载关系
+     *
+     * - 对每个关系名调用父模型的关系方法, 委托 Relation::eagerLoad 批量加载
+     *
+     * @access private
+     * @param ModelCollection $parents 父模型集合
+     * @return void
+     */
+    private function loadEager(ModelCollection $parents): void {
+        if(empty($this->eagerRelations)||$parents->isEmpty())
+            return;
+        $first=$parents->first();
+        foreach($this->eagerRelations as $name) {
+            if(method_exists($first,$name)) {
+                $relation=$first->{$name}();
+                if($relation instanceof Relation)
+                    $relation->eagerLoad($name,$parents);
+            }
+        }
     }
 
 }

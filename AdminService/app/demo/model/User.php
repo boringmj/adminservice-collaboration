@@ -2,7 +2,7 @@
 
 namespace app\demo\model;
 
-use base\Model;
+use base\Orm\Model;
 
 /**
  * 示例用户模型(表前缀 admin_service_ 由编译器统一添加)

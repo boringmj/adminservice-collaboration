@@ -2,7 +2,7 @@
 
 namespace Tests\Fixtures;
 
-use base\Model;
+use base\Orm\Model;
 
 /**
  * 测试用文章模型(启用软删除 + 自动时间戳)
@@ -26,5 +26,15 @@ class Post extends Model {
      * @var array
      */
     protected array $fillable=array('title','content','status');
+
+    /**
+     * 多对一关系(文章的作者)
+     *
+     * @access public
+     * @return \base\Orm\BelongsTo
+     */
+    public function user(): \base\Orm\BelongsTo {
+        return $this->belongsTo(User::class);
+    }
 
 }

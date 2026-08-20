@@ -1,12 +1,14 @@
 <?php
 
-namespace base;
+namespace base\Orm;
 
 use base\Database\Db;
 use base\Database\Query\Query;
 
+use function array_key_exists;
 use function basename;
 use function in_array;
+use function method_exists;
 use function preg_replace;
 use function str_replace;
 use function strtolower;
@@ -17,6 +19,7 @@ use function strtolower;
  * - 代表数据库中的一行记录, 纯数据职责
  * - 查询通过静态入口(如 Model::query() / Model::where())委托给 ModelQueryBuilder
  * - 行与对象的转换(水合)由构建器与 newFromRow 完成
+ * - 关系: 通过 hasMany/hasOne/belongsTo 声明, $model->relation 惰性加载
  */
 abstract class Model {
 
@@ -49,6 +52,12 @@ abstract class Model {
      * @var array
      */
     protected array $attributes=array();
+
+    /**
+     * 已加载的关系
+     * @var array
+     */
+    protected array $relations=array();
 
     /**
      * 是否已存在于数据库中
@@ -261,13 +270,22 @@ abstract class Model {
     }
 
     /**
-     * 获取属性
+     * 获取属性(已加载的关系直接返回, 同名关系方法则惰性加载)
      *
      * @access public
      * @param string $name 属性名
      * @return mixed
      */
     public function __get(string $name): mixed {
+        if(array_key_exists($name,$this->relations))
+            return $this->relations[$name];
+        if(method_exists($this,$name)) {
+            $relation=$this->{$name}();
+            if($relation instanceof Relation) {
+                $this->setRelation($name,$relation->getResults());
+                return $this->relations[$name];
+            }
+        }
         return $this->attributes[$name]??null;
     }
 
@@ -392,6 +410,83 @@ abstract class Model {
      */
     public function markExists(): void {
         $this->exists=true;
+    }
+
+    /**
+     * 声明一对多关系
+     *
+     * - 默认外键 = 当前模型类名 snake + _id, 默认主键 = 当前模型主键
+     * - 例: $this->hasMany(Post::class)  →  posts.user_id = users.id
+     *
+     * @access protected
+     * @param string $related 关联模型类名
+     * @param string|null $foreignKey 外键字段
+     * @param string|null $ownerKey 主键字段
+     * @return HasMany
+     */
+    protected function hasMany(string $related,?string $foreignKey=null,?string $ownerKey=null): HasMany {
+        $ownerKey=$ownerKey??static::$primaryKey;
+        $foreignKey=$foreignKey??self::classToTable(static::class).'_id';
+        return new HasMany(static::db(),$related,$this,$foreignKey,$ownerKey);
+    }
+
+    /**
+     * 声明一对一关系
+     *
+     * - 默认外键 = 当前模型类名 snake + _id, 默认主键 = 当前模型主键
+     *
+     * @access protected
+     * @param string $related 关联模型类名
+     * @param string|null $foreignKey 外键字段
+     * @param string|null $ownerKey 主键字段
+     * @return HasOne
+     */
+    protected function hasOne(string $related,?string $foreignKey=null,?string $ownerKey=null): HasOne {
+        $ownerKey=$ownerKey??static::$primaryKey;
+        $foreignKey=$foreignKey??self::classToTable(static::class).'_id';
+        return new HasOne(static::db(),$related,$this,$foreignKey,$ownerKey);
+    }
+
+    /**
+     * 声明多对一关系(属于)
+     *
+     * - 默认外键 = 关联模型类名 snake + _id, 默认主键 = 关联模型主键
+     * - 例: $this->belongsTo(User::class)  →  posts.user_id = users.id
+     *
+     * @access protected
+     * @param string $related 关联模型类名
+     * @param string|null $foreignKey 外键字段
+     * @param string|null $ownerKey 主键字段
+     * @return BelongsTo
+     */
+    protected function belongsTo(string $related,?string $foreignKey=null,?string $ownerKey=null): BelongsTo {
+        $ownerKey=$ownerKey??$related::primaryKey();
+        $foreignKey=$foreignKey??self::classToTable($related).'_id';
+        return new BelongsTo(static::db(),$related,$this,$foreignKey,$ownerKey);
+    }
+
+    /**
+     * 设置已加载的关系
+     *
+     * @access public
+     * @param string $name 关系名
+     * @param mixed $value 关系值
+     * @return static
+     */
+    public function setRelation(string $name,mixed $value): static {
+        $this->relations[$name]=$value;
+        return $this;
+    }
+
+    /**
+     * 获取已加载的关系
+     *
+     * @access public
+     * @param string $name 关系名
+     * @return mixed
+     */
+    public function getRelation(string $name): mixed {
+        return $this->relations[$name]??null;
     }
 
     /**

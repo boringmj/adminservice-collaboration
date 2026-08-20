@@ -6,6 +6,8 @@ use PDO;
 use PDOException;
 use PDOStatement;
 
+use function count;
+
 /**
  * 测试用假 PDO
  *
@@ -113,6 +115,11 @@ final class FakePdo extends PDO {
                 $this->fake->bound+=$this->bound;
                 $this->fake->boundTypes+=$this->boundTypes;
                 return true;
+            }
+
+            public function columnCount(): int {
+                // 以第一行列数近似结果集列数(空结果视为无列)
+                return count($this->fake->selectRows[0]??array());
             }
 
             public function fetchAll(int $mode=PDO::FETCH_DEFAULT,mixed ...$args): array {

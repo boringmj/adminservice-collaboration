@@ -101,6 +101,21 @@ final class MysqlDialect implements DialectInterface, InlineQuotingInterface {
     }
 
     /**
+     * 构建 PDO DSN
+     *
+     * @access public
+     * @param array $params 连接参数
+     * @return string
+     */
+    public function buildDsn(array $params): string {
+        return $params['type']
+            .':host='.$params['host']
+            .';dbname='.$params['dbname']
+            .';port='.$params['port']
+            .';charset='.$params['charset'];
+    }
+
+    /**
      * 将值转义为 SQL 字面量(供内联参数模式使用)
      *
      * @access public

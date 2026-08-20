@@ -11,7 +11,6 @@ use base\Database\Sql\Compiler\CompiledStatementInterface;
 
 use function count;
 use function ltrim;
-use function str_starts_with;
 use function strncasecmp;
 
 /**
@@ -59,7 +58,8 @@ final class PdoSqlExecutor implements SqlExecutorInterface {
                     $stmt->bindValue($i+1,$value);
             }
             $stmt->execute();
-            if($this->isQuery($sql)) {
+            // 以结果集列数判断是否返回数据(比文本前缀准确, 覆盖 CTE 等场景)
+            if($stmt->columnCount()>0) {
                 $rows=$stmt->fetchAll(PDO::FETCH_ASSOC);
                 $stmt->closeCursor();
                 return new Result(true,$sql,$params,new AbstractCollection($rows),'',count($rows));
@@ -74,25 +74,6 @@ final class PdoSqlExecutor implements SqlExecutorInterface {
         } catch(PDOException $e) {
             return new Result(false,$sql,$params,new AbstractCollection(),$e->getMessage(),0);
         }
-    }
-
-    /**
-     * 判断语句是否返回结果集(查询类)
-     *
-     * - 覆盖 SELECT 及 SHOW/DESCRIBE/EXPLAIN/PRAGMA/WITH 等原生查询前缀
-     *
-     * @access private
-     * @param string $sql SQL
-     * @return bool
-     */
-    private function isQuery(string $sql): bool {
-        $prefix=strtoupper(ltrim($sql));
-        return str_starts_with($prefix,'SELECT')
-            || str_starts_with($prefix,'SHOW')
-            || str_starts_with($prefix,'DESCRIBE')
-            || str_starts_with($prefix,'EXPLAIN')
-            || str_starts_with($prefix,'PRAGMA')
-            || str_starts_with($prefix,'WITH');
     }
 
     /**

@@ -96,4 +96,15 @@ final class FakeDialect implements DialectInterface {
         return preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/',$identifier)===1;
     }
 
+    /**
+     * 构建 PDO DSN
+     *
+     * @access public
+     * @param array $params 连接参数
+     * @return string
+     */
+    public function buildDsn(array $params): string {
+        return 'fake:'.$params['dbname'];
+    }
+
 }

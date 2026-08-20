@@ -145,4 +145,23 @@ class DbTest extends TestCase {
         $this->assertSame(['begin','commit'],$pdo->transactionCalls);
     }
 
+    /**
+     * 测试 raw 执行修改会话状态的 SQL(SET)后连接被标记脏并丢弃
+     * @return void
+     */
+    public function testRawSessionStateSqlDiscardsConnection(): void {
+        $pdo=new FakePdo();
+        $factoryCalls=0;
+        $factory=function() use ($pdo,&$factoryCalls) {
+            $factoryCalls++;
+            return new PdoConnectionSession($pdo,new MysqlDialect());
+        };
+        $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
+        $db=new Db($manager);
+        $db->raw("SET SESSION sql_mode = 'STRICT_ALL_TABLES'");
+        $db->raw('SHOW TABLES');
+        // SET 修改会话状态 → 该连接被丢弃; 下一条 raw 需新建连接
+        $this->assertSame(2,$factoryCalls);
+    }
+
 }

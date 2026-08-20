@@ -67,4 +67,20 @@ interface ConnectionSessionInterface {
      */
     public function reset(): void;
 
+    /**
+     * 标记会话已污染(查询失败或执行了修改会话状态的 SQL)
+     *
+     * - 标记后归还连接池时将被丢弃, 不复用, 避免污染其他使用者
+     *
+     * @return void
+     */
+    public function markDirty(): void;
+
+    /**
+     * 判断会话是否已被标记为污染
+     *
+     * @return bool
+     */
+    public function isDirty(): bool;
+
 }

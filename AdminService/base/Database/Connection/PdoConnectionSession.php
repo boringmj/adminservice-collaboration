@@ -89,6 +89,16 @@ final class PdoConnectionSession implements ConnectionSessionInterface {
     private bool $released=false;
 
     /**
+     * 是否已污染(查询失败或执行了修改会话状态的 SQL)
+     *
+     * - 标记后归还连接池时被丢弃, 不复用
+     * - 借出(checkout)时清除
+     *
+     * @var bool
+     */
+    private bool $dirty=false;
+
+    /**
      * 构造方法
      *
      * @access public
@@ -188,12 +198,14 @@ final class PdoConnectionSession implements ConnectionSessionInterface {
      */
     public function checkout(): void {
         $this->released=false;
+        $this->dirty=false;
     }
 
     /**
      * 释放连接资源
      *
-     * - 归属连接池时释放后回到连接池
+     * - 归属连接池时释放后回到连接池(由池决定复用或丢弃)
+     * - 独占会话(非池化)同样执行 reset(), 回滚残留事务后释放
      *
      * @access public
      * @return void
@@ -204,6 +216,31 @@ final class PdoConnectionSession implements ConnectionSessionInterface {
         $this->released=true;
         if($this->pool!==null)
             $this->pool->returnToPool($this);
+        else
+            $this->reset();
+    }
+
+    /**
+     * 标记会话已污染
+     *
+     * - 查询失败或执行了修改会话状态的 SQL 时调用
+     * - 归还连接池时将被丢弃, 不复用
+     *
+     * @access public
+     * @return void
+     */
+    public function markDirty(): void {
+        $this->dirty=true;
+    }
+
+    /**
+     * 判断会话是否已污染
+     *
+     * @access public
+     * @return bool
+     */
+    public function isDirty(): bool {
+        return $this->dirty;
     }
 
     /**

@@ -74,6 +74,50 @@ class DbalCoordinatorTest extends TestCase {
     }
 
     /**
+     * 测试写查询也走连接池(复用池化会话, 未新建连接)
+     * @return void
+     */
+    public function testWritesUsePooledConnection(): void {
+        $pdo=new FakePdo();
+        $pdo->affectedRows=1;
+        $factoryCalls=0;
+        $factory=function() use ($pdo,&$factoryCalls) {
+            $factoryCalls++;
+            return new PdoConnectionSession($pdo,new MysqlDialect());
+        };
+        $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
+        $context=new QueryContext(Query::update(array('name'=>'b'))->from('users')->where('id',1));
+        $coordinator=new QueryCoordinator($context,$manager,new MysqlCompiler());
+        $coordinator->query(new QueryStatementBuilder());
+        $coordinator->query(new QueryStatementBuilder());
+        // 两条写复用同一条池化会话, 会话工厂只调用一次
+        $this->assertSame(1,$factoryCalls);
+        $this->assertCount(2,$pdo->executed);
+    }
+
+    /**
+     * 测试查询失败后会话被标记脏并丢弃(下次新建连接)
+     * @return void
+     */
+    public function testDirtyConnectionDiscardedOnFailure(): void {
+        $pdo=new FakePdo();
+        $pdo->error='syntax error';
+        $factoryCalls=0;
+        $factory=function() use ($pdo,&$factoryCalls) {
+            $factoryCalls++;
+            return new PdoConnectionSession($pdo,new MysqlDialect());
+        };
+        $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
+        $context=new QueryContext(Query::select()->from('users'));
+        $coordinator=new QueryCoordinator($context,$manager,new MysqlCompiler());
+        $result=$coordinator->query(new QueryStatementBuilder());
+        $this->assertFalse($result->isSuccess());
+        // 失败 → 会话脏被丢弃, 再次查询需新建连接
+        $coordinator->query(new QueryStatementBuilder());
+        $this->assertSame(2,$factoryCalls);
+    }
+
+    /**
      * 测试中间件链按顺序执行
      * @return void
      */

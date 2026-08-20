@@ -392,6 +392,127 @@ class RelationTest extends TestCase {
     }
 
     /**
+     * 测试 belongsToMany attach 写入中间表(单条多行插入)
+     * @return void
+     */
+    public function testBelongsToManyAttach(): void {
+        $this->pdo->affectedRows=1;
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $user->roles()->attach(array(1,2));
+        $this->assertSame(
+            'INSERT INTO `role_user` (`user_id`, `role_id`) VALUES (?, ?), (?, ?)',
+            $this->pdo->executed[0]
+        );
+        $this->assertSame(array(1=>1,2=>1,3=>1,4=>2),$this->pdo->bound);
+    }
+
+    /**
+     * 测试 belongsToMany attach 支持中间表附加字段
+     * @return void
+     */
+    public function testBelongsToManyAttachWithPivotAttributes(): void {
+        $this->pdo->affectedRows=1;
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $user->roles()->attach(array(1=>array('level'=>'owner')));
+        $this->assertSame(
+            'INSERT INTO `role_user` (`user_id`, `role_id`, `level`) VALUES (?, ?, ?)',
+            $this->pdo->executed[0]
+        );
+        $this->assertSame(array(1=>1,2=>1,3=>'owner'),$this->pdo->bound);
+    }
+
+    /**
+     * 测试 belongsToMany detach 全部关联
+     * @return void
+     */
+    public function testBelongsToManyDetachAll(): void {
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $user->roles()->detach();
+        $this->assertSame('DELETE FROM `role_user` WHERE `user_id` = ?',$this->pdo->executed[0]);
+    }
+
+    /**
+     * 测试 belongsToMany detach 指定关联
+     * @return void
+     */
+    public function testBelongsToManyDetachIds(): void {
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $user->roles()->detach(array(1,2));
+        $this->assertSame(
+            'DELETE FROM `role_user` WHERE `user_id` = ? AND `role_id` IN (?, ?)',
+            $this->pdo->executed[0]
+        );
+    }
+
+    /**
+     * 测试 belongsToMany sync 只插缺失(目标 ⊇ 当前)
+     * @return void
+     */
+    public function testBelongsToManySync(): void {
+        $this->pdo->selectRowsQueue=array(
+            array(array('role_id'=>1)), // 当前关联
+        );
+        $this->pdo->affectedRows=1;
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $result=$user->roles()->sync(array(1,2,3));
+        $this->assertSame(array(1,2,3),$result);
+        // executed[0]=SELECT 当前关联, executed[1]=INSERT 缺失的 2,3
+        $this->assertSame(
+            'INSERT INTO `role_user` (`user_id`, `role_id`) VALUES (?, ?), (?, ?)',
+            $this->pdo->executed[1]
+        );
+    }
+
+    /**
+     * 测试 belongsToMany sync 删除多余并插入缺失
+     * @return void
+     */
+    public function testBelongsToManySyncDetaching(): void {
+        $this->pdo->selectRowsQueue=array(
+            array(array('role_id'=>1),array('role_id'=>2)), // 当前关联
+        );
+        $this->pdo->affectedRows=1;
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $result=$user->roles()->sync(array(2,3));
+        $this->assertSame(array(2,3),$result);
+        // executed[1]=DELETE 多余的 1, executed[2]=INSERT 缺失的 3
+        $this->assertSame(
+            'DELETE FROM `role_user` WHERE `user_id` = ? AND `role_id` IN (?)',
+            $this->pdo->executed[1]
+        );
+        $this->assertSame(
+            'INSERT INTO `role_user` (`user_id`, `role_id`) VALUES (?, ?)',
+            $this->pdo->executed[2]
+        );
+    }
+
+    /**
+     * 测试 belongsToMany sync 不删除模式(只增不删)
+     * @return void
+     */
+    public function testBelongsToManySyncWithoutDetaching(): void {
+        $this->pdo->selectRowsQueue=array(
+            array(array('role_id'=>1),array('role_id'=>2)), // 当前关联
+        );
+        $this->pdo->affectedRows=1;
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $result=$user->roles()->sync(array(2,3),false);
+        $this->assertSame(array(2,3),$result);
+        // 无 DELETE, 只有 SELECT + INSERT
+        $this->assertCount(2,$this->pdo->executed);
+    }
+
+    /**
+     * 测试 belongsToMany attach 父模型未持久化抛异常
+     * @return void
+     */
+    public function testBelongsToManyAttachUnpersistedThrows(): void {
+        $this->expectException(OrmException::class);
+        $user=new User();
+        $user->roles()->attach(array(1));
+    }
+
+    /**
      * 测试事务回调抛异常时模型写入一并回滚
      * @return void
      */

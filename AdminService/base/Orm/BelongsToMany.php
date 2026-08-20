@@ -6,9 +6,14 @@ use base\Database\Db;
 use base\Database\Query\Query;
 use base\Orm\Exception\OrmException;
 
+use function array_keys;
 use function array_merge;
 use function array_unique;
 use function array_values;
+use function count;
+use function in_array;
+use function is_array;
+use function range;
 
 /**
  * 多对多关系
@@ -217,6 +222,156 @@ class BelongsToMany extends Relation {
             'Cannot force delete through belongsToMany relation: related records may be shared by other parents.',
             100726
         );
+    }
+
+    /**
+     * 关联相关模型(写入中间表)
+     *
+     * - $ids 支持三种写法:
+     *   - 单个主键: attach(1)
+     *   - 主键数组: attach([1, 2])
+     *   - [主键 => 中间表附加字段]: attach([1=>['level'=>'owner'], 2=>['level'=>'member']])
+     *
+     * @access public
+     * @param mixed $ids 相关模型主键(或 [主键=>附加字段] 映射)
+     * @return void
+     * @throws OrmException 父模型未持久化
+     */
+    public function attach(mixed $ids): void {
+        $parentKey=$this->parent->getAttribute($this->parentKey);
+        if($parentKey===null)
+            throw new OrmException('Cannot attach related records: parent is not persisted.',100730);
+        $rows=$this->buildPivotRows($parentKey,$ids);
+        if(empty($rows))
+            return;
+        $this->db->query(
+            Query::insert($this->padPivotRows($rows))->from($this->pivotTable)
+        );
+    }
+
+    /**
+     * 取消关联(删除中间表行)
+     *
+     * - 不传 $ids 时解除全部关联
+     * - 例: detach() / detach(1) / detach([1, 2])
+     *
+     * @access public
+     * @param mixed $ids 相关模型主键(或主键数组), 为空则全部
+     * @return int 受影响行数
+     * @throws OrmException 父模型未持久化
+     */
+    public function detach(mixed $ids=null): int {
+        $parentKey=$this->parent->getAttribute($this->parentKey);
+        if($parentKey===null)
+            throw new OrmException('Cannot detach related records: parent is not persisted.',100731);
+        $query=Query::delete()->from($this->pivotTable)->where($this->foreignPivotKey,$parentKey);
+        if($ids!==null) {
+            $ids=is_array($ids)?$ids:array($ids);
+            $query->whereIn($this->relatedPivotKey,array_values($ids));
+        }
+        return $this->db->query($query)->getAffectedRows();
+    }
+
+    /**
+     * 同步关联(对账中间表)
+     *
+     * - 插入缺失、删除多余, 使中间表恰为目标集合
+     * - $detaching=false 时只增不删(保留未在列表中的已有关联)
+     * - 返回同步后的相关主键列表
+     *
+     * @access public
+     * @param mixed $ids 目标相关主键(或 [主键=>附加字段] 映射)
+     * @param bool $detaching 是否删除不在目标集合中的已有关联
+     * @return array 同步后的相关主键列表
+     * @throws OrmException 父模型未持久化
+     */
+    public function sync(mixed $ids,bool $detaching=true): array {
+        $parentKey=$this->parent->getAttribute($this->parentKey);
+        if($parentKey===null)
+            throw new OrmException('Cannot sync related records: parent is not persisted.',100732);
+        $rows=$this->buildPivotRows($parentKey,$ids);
+        $targetIds=array();
+        foreach($rows as $row)
+            $targetIds[$row[$this->relatedPivotKey]]=true;
+        $currentIds=$this->queryPivotKeys($parentKey);
+        // 待删除: 当前有但目标无
+        $toDetach=array();
+        foreach($currentIds as $id) {
+            if(!isset($targetIds[$id]))
+                $toDetach[]=$id;
+        }
+        if($detaching&&!empty($toDetach)) {
+            $this->db->query(
+                Query::delete()->from($this->pivotTable)
+                    ->where($this->foreignPivotKey,$parentKey)
+                    ->whereIn($this->relatedPivotKey,$toDetach)
+            );
+        }
+        // 待插入: 目标有但当前无
+        $toAttach=array();
+        foreach($rows as $row) {
+            if(!in_array($row[$this->relatedPivotKey],$currentIds,true))
+                $toAttach[]=$row;
+        }
+        if(!empty($toAttach))
+            $this->db->query(Query::insert($this->padPivotRows($toAttach))->from($this->pivotTable));
+        return array_keys($targetIds);
+    }
+
+    /**
+     * 归一化 $ids 为中间表行(统一含父键与关联键)
+     *
+     * @access private
+     * @param mixed $parentKey 父模型主键值
+     * @param mixed $ids 主键 / 主键数组 / [主键=>附加字段] 映射
+     * @return array
+     */
+    private function buildPivotRows(mixed $parentKey,mixed $ids): array {
+        $map=array();
+        if(is_array($ids)) {
+            $isList=(array_keys($ids)===range(0,count($ids)-1));
+            if($isList) {
+                foreach($ids as $id)
+                    $map[$id]=array();
+            } else {
+                foreach($ids as $id=>$attrs)
+                    $map[$id]=is_array($attrs)?$attrs:array();
+            }
+        } else {
+            $map[$ids]=array();
+        }
+        $rows=array();
+        foreach($map as $id=>$attrs) {
+            $rows[]=array_merge(array(
+                $this->foreignPivotKey=>$parentKey,
+                $this->relatedPivotKey=>$id,
+            ),$attrs);
+        }
+        return $rows;
+    }
+
+    /**
+     * 统一中间表行列(补齐缺失键为 null, 支持一次多行插入)
+     *
+     * @access private
+     * @param array $rows 中间表行列表
+     * @return array
+     */
+    private function padPivotRows(array $rows): array {
+        $columns=array();
+        foreach($rows as $row) {
+            foreach(array_keys($row) as $col)
+                $columns[$col]=true;
+        }
+        $columns=array_keys($columns);
+        $padded=array();
+        foreach($rows as $row) {
+            $paddedRow=array();
+            foreach($columns as $col)
+                $paddedRow[$col]=$row[$col]??null;
+            $padded[]=$paddedRow;
+        }
+        return $padded;
     }
 
     /**

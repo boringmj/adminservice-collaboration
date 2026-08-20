@@ -69,6 +69,12 @@ abstract class Container {
     protected static array $function_reflection_container;
 
     /**
+     * 是否允许标量参数静默转换(对齐 PHP 弱类型)
+     * @var bool
+     */
+    protected static bool $enable_param_cast=true;
+
+    /**
      * 初始化
      * 
      * @access public
@@ -76,6 +82,27 @@ abstract class Container {
      * @return void
      */
     abstract public static function init(array $classes=array()): void;
+
+    /**
+     * 设置是否允许标量参数静默转换
+     *
+     * @access public
+     * @param bool $enable 是否允许
+     * @return void
+     */
+    public static function setParamCast(bool $enable): void {
+        self::$enable_param_cast=$enable;
+    }
+
+    /**
+     * 获取是否允许标量参数静默转换
+     *
+     * @access public
+     * @return bool
+     */
+    public static function getParamCast(): bool {
+        return self::$enable_param_cast;
+    }
 
     /**
      * 获取反射对象(会缓存结果,不支持别名和绑定)
@@ -805,13 +832,13 @@ abstract class Container {
             }
             // 先尝试在参数数组通过参数名查找
             if(array_key_exists($name,$args)&&self::isValidType($args[$name],$types)) {
-                $params_temp[]=$args[$name];
+                $params_temp[]=self::castParam($args[$name],$types);
                 unset($args[$name]);
                 continue;
             }
             // 判断是否存在顺位参数
             if(array_key_exists($arg_count,$args)&&self::isValidType($args[$arg_count],$types)) {
-                $params_temp[]=$args[$arg_count];
+                $params_temp[]=self::castParam($args[$arg_count],$types);
                 unset($args[$arg_count]);
                 // 顺位参数自增
                 $arg_count++;
@@ -857,6 +884,25 @@ abstract class Container {
         if(in_array('callable',$types,true)) {
             if(is_callable($arg)) return true;
         }
+        // 标量弱类型兼容(对齐 PHP 非严格模式,反射调用默认是严格类型)
+        // 注意: $types 为 getStandardTypes() 标准化后的 gettype() 风格(integer/double/boolean)
+        if(self::$enable_param_cast) {
+            // 数字字符串 → int/float
+            if((in_array('integer',$types,true)||in_array('double',$types,true))&&is_numeric($arg))
+                return true;
+            // int/float/bool → string
+            if(in_array('string',$types,true)&&(is_int($arg)||is_float($arg)||is_bool($arg)))
+                return true;
+            // float/bool → int
+            if(in_array('integer',$types,true)&&(is_float($arg)||is_bool($arg)))
+                return true;
+            // int/bool → float
+            if(in_array('double',$types,true)&&(is_int($arg)||is_bool($arg)))
+                return true;
+            // int/float/string → bool
+            if(in_array('boolean',$types,true)&&(is_int($arg)||is_float($arg)||is_string($arg)))
+                return true;
+        }
         // 如果参数是对象，检查是否符合给定类名
         if($arg_type==='object') {
             foreach($types as $t) {
@@ -866,6 +912,61 @@ abstract class Container {
             }
         }
         return false;
+    }
+
+    /**
+     * 将参数转换为目标类型(对齐 PHP 非严格模式的标量转换规则)
+     *
+     * 反射调用为严格类型,当实参类型与目标标量类型不一致时需要在这里显式转换,
+     * 否则 invokeArgs 会抛出 TypeError。转换规则与 PHP 直接调用的弱类型行为一致:
+     * - 数字字符串 → int/float
+     * - int/float/bool → string
+     * - float/bool → int, int/bool → float
+     * - int/float/string → bool
+     *
+     * @access protected
+     * @param mixed $value 实参值
+     * @param array $types 目标类型列表
+     * @return mixed
+     */
+    protected static function castParam(mixed $value,array $types): mixed {
+        // 关闭静默转换时原样返回
+        if(!self::$enable_param_cast)
+            return $value;
+        // $types 为 getStandardTypes() 标准化后的 gettype() 风格(integer/double/boolean)
+        if(is_string($value)) {
+            if(in_array('integer',$types,true)&&is_numeric($value))
+                return (int)$value;
+            if(in_array('double',$types,true)&&is_numeric($value))
+                return (float)$value;
+            if(in_array('boolean',$types,true))
+                return (bool)$value;
+        }
+        elseif(is_int($value)) {
+            if(in_array('string',$types,true))
+                return (string)$value;
+            if(in_array('double',$types,true))
+                return (float)$value;
+            if(in_array('boolean',$types,true))
+                return (bool)$value;
+        }
+        elseif(is_float($value)) {
+            if(in_array('string',$types,true))
+                return (string)$value;
+            if(in_array('integer',$types,true))
+                return (int)$value;
+            if(in_array('boolean',$types,true))
+                return (bool)$value;
+        }
+        elseif(is_bool($value)) {
+            if(in_array('string',$types,true))
+                return $value?'1':'';
+            if(in_array('integer',$types,true))
+                return (int)$value;
+            if(in_array('double',$types,true))
+                return (float)$value;
+        }
+        return $value;
     }
 
     /**

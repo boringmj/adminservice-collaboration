@@ -40,6 +40,8 @@ final class App extends Container {
         foreach($classes as $class)
             if(!class_exists($class)&&!interface_exists($class))
                 throw new Exception('Class "'.$class.'" not found.');
+        // 设置是否允许标量参数静默转换(可在 config/app.php 中配置 app.param_cast)
+        parent::setParamCast(Config::get('app.param_cast',true));
         parent::$class_container=$classes;
     }
 

@@ -11,6 +11,7 @@ use base\Database\Exception\ConfigException;
 use base\Database\Sql\Compiler\MysqlCompiler;
 use base\Database\Sql\Dialect\MysqlDialect;
 use Tests\Fixtures\FakeDialect;
+use Tests\Fixtures\QueryLogger;
 
 /**
  * 数据库入口配置测试
@@ -156,6 +157,52 @@ class DbConfigTest extends TestCase {
         $this->expectException(ConfigException::class);
         $this->expectExceptionCode(100803);
         Db::fromConfig('default',array('compiler'=>\stdClass::class));
+    }
+
+    /**
+     * 测试类名中间件通过容器解析
+     * @return void
+     */
+    public function testClassNameMiddlewareResolves(): void {
+        Config::set(array(
+            'database'=>array(
+                'connections'=>array('default'=>array('type'=>'mysql')),
+                'middlewares'=>array(QueryLogger::class),
+            ),
+        ));
+        $db=Db::fromConfig('default');
+        $this->assertInstanceOf(Db::class,$db);
+    }
+
+    /**
+     * 测试实例中间件原样透传
+     * @return void
+     */
+    public function testInstanceMiddlewarePassesThrough(): void {
+        Config::set(array(
+            'database'=>array(
+                'connections'=>array('default'=>array('type'=>'mysql')),
+                'middlewares'=>array(new QueryLogger()),
+            ),
+        ));
+        $db=Db::fromConfig('default');
+        $this->assertInstanceOf(Db::class,$db);
+    }
+
+    /**
+     * 测试无效中间件的负例
+     * @return void
+     */
+    public function testInvalidMiddlewareThrows(): void {
+        Config::set(array(
+            'database'=>array(
+                'connections'=>array('default'=>array('type'=>'mysql')),
+                'middlewares'=>array(\stdClass::class),
+            ),
+        ));
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionCode(100804);
+        Db::fromConfig('default');
     }
 
 }

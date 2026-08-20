@@ -3,6 +3,7 @@
 namespace base\Database;
 
 use Throwable;
+use AdminService\App;
 use AdminService\Config;
 use base\Database\Connection\ConnectionConfig;
 use base\Database\Connection\ConnectionManagerInterface;
@@ -13,6 +14,7 @@ use base\Database\Coordinator\Handler\QueryMiddlewareHandler;
 use base\Database\Coordinator\QueryCoordinator;
 use base\Database\Coordinator\QueryExecutionDispatcher;
 use base\Database\Exception\ConfigException;
+use base\Database\Middleware\QueryMiddlewareInterface;
 use base\Database\Query\Query;
 use base\Database\Query\QueryContext;
 use base\Database\Query\QueryInterface;
@@ -107,7 +109,33 @@ final class Db {
             throw new ConfigException('Invalid compiler class.',100803,array(
                 'class'=>$compilerClass
             ));
-        return new static($manager,$compiler,Config::get('database.middlewares',array()));
+        $middlewares=self::resolveMiddlewares(Config::get('database.middlewares',array()));
+        return new static($manager,$compiler,$middlewares);
+    }
+
+    /**
+     * 解析中间件配置
+     *
+     * - 支持类名(通过框架容器 App::get 解析, 可依赖注入)与已实例化对象
+     * - 解析结果必须是 QueryMiddlewareInterface 实例
+     *
+     * @access private
+     * @param array $middlewares 中间件配置(类名或实例列表)
+     * @return QueryMiddlewareInterface[]
+     * @throws ConfigException 中间件未实现 QueryMiddlewareInterface
+     */
+    private static function resolveMiddlewares(array $middlewares): array {
+        $resolved=array();
+        foreach($middlewares as $middleware) {
+            if(is_string($middleware))
+                $middleware=App::get($middleware);
+            if(!$middleware instanceof QueryMiddlewareInterface)
+                throw new ConfigException('Invalid middleware.',100804,array(
+                    'middleware'=>get_debug_type($middleware)
+                ));
+            $resolved[]=$middleware;
+        }
+        return $resolved;
     }
 
     /**

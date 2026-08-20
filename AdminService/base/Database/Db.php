@@ -262,9 +262,11 @@ final class Db {
     /**
      * 事务作用域
      *
-     * - 回调内所有查询在同一个独占会话上执行
+     * - 事务独占会话就地绑定到本实例: 回调内所有查询(含经本实例的模型写入)
+     *   在同一会话上执行, 事务可跨模型覆盖
      * - 支持嵌套, 嵌套事务通过保存点模拟
      * - 回调抛出任何异常都会回滚并重新抛出
+     * - 结束后恢复原会话(外层手动事务不受影响)
      *
      * @access public
      * @param callable $callback 回调(callable(Db $db): mixed)
@@ -272,8 +274,10 @@ final class Db {
      * @throws Throwable
      */
     public function transaction(callable $callback): mixed {
-        if($this->session!==null) {
-            // 嵌套: 复用当前会话, 通过保存点实现
+        $previous=$this->session;
+        if($previous===null)
+            $this->session=$this->manager->getExclusiveConnection();
+        try {
             $tx=$this->session->getTransactionExecutor();
             $context=$this->session->getTransactionContext();
             $tx->begin();
@@ -292,12 +296,11 @@ final class Db {
                 }
                 throw $e;
             }
-        }
-        $session=$this->manager->getExclusiveConnection();
-        try {
-            return $this->withSession($session)->transaction($callback);
         } finally {
-            $session->release();
+            if($previous===null&&$this->session!==null) {
+                $this->session->release();
+                $this->session=null;
+            }
         }
     }
 
@@ -350,19 +353,6 @@ final class Db {
      */
     public function getTransactionContext(): ?TransactionContextInterface {
         return $this->session?->getTransactionContext();
-    }
-
-    /**
-     * 绑定事务会话(返回新实例, 不影响当前实例)
-     *
-     * @access private
-     * @param ConnectionSessionInterface $session 连接会话
-     * @return static
-     */
-    private function withSession(ConnectionSessionInterface $session): static {
-        $clone=clone $this;
-        $clone->session=$session;
-        return $clone;
     }
 
 }

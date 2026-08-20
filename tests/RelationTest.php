@@ -360,4 +360,66 @@ class RelationTest extends TestCase {
         $this->assertCount(0,$this->pdo->executed);
     }
 
+    /**
+     * 测试事务作用域覆盖模型写入(跨模型共用同一连接)
+     *
+     * - 事务独占会话就地绑定到共享 Db, 模型写入经 Model::db() 解析到同一实例 → 进同一事务
+     * - 以会话工厂调用次数断言: 模型写入复用事务会话, 未新增连接
+     *
+     * @return void
+     */
+    public function testTransactionCoversModelWrites(): void {
+        $factoryCalls=0;
+        $pdo=$this->pdo;
+        $factory=function() use ($pdo,&$factoryCalls) {
+            $factoryCalls++;
+            return new PdoConnectionSession($pdo,new MysqlDialect());
+        };
+        $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
+        $db=new Db($manager);
+        User::setDb($db);
+        Post::setDb($db);
+        $this->pdo->affectedRows=1;
+        $user=User::newFromRow(['id'=>1,'name'=>'张三']);
+        $db->transaction(function() use ($user) {
+            $user->posts()->create(array('title'=>'p1')); // 关系写入(模型写)
+            User::create(array('name'=>'李四','age'=>20,'status'=>1)); // 模型写
+        });
+        // 两次模型写入都复用事务独占会话, 未新增连接
+        $this->assertSame(1,$factoryCalls);
+        $this->assertSame(array('begin','commit'),$this->pdo->transactionCalls);
+        $this->assertCount(2,$this->pdo->executed);
+    }
+
+    /**
+     * 测试事务回调抛异常时模型写入一并回滚
+     * @return void
+     */
+    public function testTransactionRollsBackModelWrites(): void {
+        $factoryCalls=0;
+        $pdo=$this->pdo;
+        $factory=function() use ($pdo,&$factoryCalls) {
+            $factoryCalls++;
+            return new PdoConnectionSession($pdo,new MysqlDialect());
+        };
+        $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
+        $db=new Db($manager);
+        User::setDb($db);
+        Post::setDb($db);
+        $this->pdo->affectedRows=1;
+        $user=User::newFromRow(['id'=>1,'name'=>'张三']);
+        try {
+            $db->transaction(function() use ($user) {
+                $user->posts()->create(array('title'=>'p1'));
+                throw new \RuntimeException('boom');
+            });
+            $this->fail('预期抛出异常');
+        } catch(\RuntimeException $e) {
+            $this->assertSame('boom',$e->getMessage());
+        }
+        // 模型写入后抛异常 → 整个事务回滚
+        $this->assertSame(1,$factoryCalls);
+        $this->assertSame(array('begin','rollback'),$this->pdo->transactionCalls);
+    }
+
 }

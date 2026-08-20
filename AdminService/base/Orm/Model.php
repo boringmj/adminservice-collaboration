@@ -62,6 +62,12 @@ abstract class Model {
     protected static ?Db $db=null;
 
     /**
+     * 数据库连接名(经 Db::fromConfig 注册表解析, 同名连接共享单例)
+     * @var string
+     */
+    protected static string $connection='default';
+
+    /**
      * 数据表名(为空时由类名自动推导)
      * @var string
      */
@@ -139,13 +145,16 @@ abstract class Model {
     }
 
     /**
-     * 获取数据库入口(未注入时从框架配置创建)
+     * 获取数据库入口(未注入时经注册表按连接名解析, 同名连接共享单例)
+     *
+     * - setDb 注入优先(测试/自定义连接); 未注入则 Db::fromConfig(static::$connection)
+     * - 共享单例意味着模型写入与 Db::transaction() 落在同一连接, 可跨模型进事务
      *
      * @access protected
      * @return Db
      */
     protected static function db(): Db {
-        return static::$db??=Db::fromConfig();
+        return static::$db??=Db::fromConfig(static::$connection);
     }
 
     /**

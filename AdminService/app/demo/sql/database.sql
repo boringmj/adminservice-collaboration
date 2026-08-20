@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS `admin_service_orders` (
     `amount`     DECIMAL(10,2) NOT NULL DEFAULT '0.00' COMMENT '金额',
     `status`     TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '订单状态',
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='订单表';

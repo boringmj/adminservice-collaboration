@@ -2,6 +2,8 @@
 
 namespace base\Orm;
 
+use base\Orm\Exception\OrmException;
+
 /**
  * 一对多关系
  *
@@ -18,6 +20,28 @@ class HasMany extends Relation {
      */
     protected function applyConstraint(): void {
         $this->where($this->foreignKey,$this->parent->getAttribute($this->ownerKey));
+    }
+
+    /**
+     * 通过关系创建关联记录
+     *
+     * - 自动为关联记录设置外键(指向父模型主键)
+     * - 例: $user->orders()->create(['order_no'=>'...','amount'=>100])
+     *
+     * @access public
+     * @param array $data 数据
+     * @return Model 已保存的关联模型
+     * @throws OrmException 父模型未持久化
+     */
+    public function create(array $data): Model {
+        $parentKey=$this->parent->getAttribute($this->ownerKey);
+        if($parentKey===null)
+            throw new OrmException('Cannot create related record: parent is not persisted.',100720);
+        $model=new ($this->modelClass)();
+        $model->fill($data);
+        $model->setAttribute($this->foreignKey,$parentKey);
+        $model->save();
+        return $model;
     }
 
     /**

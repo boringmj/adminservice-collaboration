@@ -75,6 +75,49 @@ class OrmDemo extends Controller {
                 'user_name'=>$order?->user?->name,
             );
         });
+        // belongsToMany 惰性加载: $user->roles (两步查询: 中间表 → 相关表)
+        $run('lazy_roles',function() {
+            $user=User::find(1);
+            return array(
+                'user_id'=>$user?->getKey(),
+                'roles'=>$user?->roles?->toArray()??array(),
+            );
+        });
+        // belongsToMany 预加载: with('roles') 批量取回
+        $run('eager_roles',function() {
+            $users=User::with('roles')->limit(3)->get();
+            return array_map(function($u) {
+                return array('id'=>$u->getKey(),'roles'=>$u->roles->pluck('name'));
+            },$users->all());
+        });
+        // 关系写入: hasMany()->create() 自动补外键(展示后清理)
+        $run('relation_create',function() {
+            $user=User::find(1);
+            $order=$user->orders()->create(array(
+                'order_no'=>'REL'.date('YmdHis'),
+                'amount'=>mt_rand(1,1000).'.00',
+                'status'=>1,
+            ));
+            $result=array(
+                'order_id'=>$order->getKey(),
+                'user_id'=>$order->user_id,
+                'order_no'=>$order->order_no,
+            );
+            $order->delete(); // 清理演示数据
+            return $result;
+        });
+        // 嵌套预加载: with('orders.user') 两层批量取回
+        $run('nested_eager',function() {
+            $users=User::with('orders.user')->limit(3)->get();
+            return array_map(function($u) {
+                return array(
+                    'id'=>$u->getKey(),
+                    'orders'=>array_map(function($o) {
+                        return array('no'=>$o->order_no,'user'=>$o->user?->name);
+                    },$u->orders->all()),
+                );
+            },$users->all());
+        });
         return $this->json($data);
     }
 

@@ -72,3 +72,35 @@ INSERT INTO `admin_service_orders` (`user_id`,`order_no`,`amount`,`status`) VALU
 (6,  '202501080008', 399.00, 1),
 (7,  '202501090009',  49.00, 1),
 (8,  '202501100010', 899.00, 1);
+
+-- ---------- 角色表 ----------
+CREATE TABLE IF NOT EXISTS `admin_service_roles` (
+    `id`         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `name`       VARCHAR(32)  NOT NULL COMMENT '角色名',
+    `status`     TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '状态: 1启用 0停用',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='角色表';
+
+-- ---------- 角色数据 ----------
+INSERT INTO `admin_service_roles` (`name`,`status`) VALUES
+('admin', 1),
+('editor', 1),
+('viewer', 1);
+
+-- ---------- 用户角色中间表 ----------
+CREATE TABLE IF NOT EXISTS `admin_service_role_user` (
+    `user_id` INT UNSIGNED NOT NULL COMMENT '用户ID',
+    `role_id` INT UNSIGNED NOT NULL COMMENT '角色ID',
+    PRIMARY KEY (`user_id`,`role_id`),
+    KEY `idx_role_id` (`role_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户角色中间表';
+
+-- ---------- 用户角色关联数据 ----------
+INSERT INTO `admin_service_role_user` (`user_id`,`role_id`) VALUES
+(1, 1),
+(1, 2),
+(2, 2),
+(3, 3);

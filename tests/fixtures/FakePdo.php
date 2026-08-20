@@ -6,6 +6,7 @@ use PDO;
 use PDOException;
 use PDOStatement;
 
+use function array_key_exists;
 use function array_shift;
 use function count;
 
@@ -118,9 +119,20 @@ final class FakePdo extends PDO {
                 if($this->fake->error!==null)
                     throw new PDOException($this->fake->error);
                 $this->fake->executed[]=$this->query;
-                // 使用 += 保留数字键, array_merge 会重排数字键
-                $this->fake->bound+=$this->bound;
-                $this->fake->boundTypes+=$this->boundTypes;
+                // 跨语句合并绑定参数: 位置参数每条语句都从 1 开始,
+                // 用递增键合并, 避免后执行的语句覆盖/丢弃先前语句的参数
+                foreach($this->bound as $param=>$value) {
+                    $key=$param;
+                    while(array_key_exists($key,$this->fake->bound))
+                        $key++;
+                    $this->fake->bound[$key]=$value;
+                }
+                foreach($this->boundTypes as $param=>$type) {
+                    $key=$param;
+                    while(array_key_exists($key,$this->fake->boundTypes))
+                        $key++;
+                    $this->fake->boundTypes[$key]=$type;
+                }
                 return true;
             }
 

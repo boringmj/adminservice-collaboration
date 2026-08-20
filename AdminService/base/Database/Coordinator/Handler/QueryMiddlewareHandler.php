@@ -5,6 +5,7 @@ namespace base\Database\Coordinator\Handler;
 use base\Database\Coordinator\QueryExecutionDispatcherInterface;
 use base\Database\Exception\ExecutionException;
 use base\Database\Execution\SqlExecutorInterface;
+use base\Database\Middleware\QueryMiddlewareInterface;
 use base\Database\Query\QueryContextInterface;
 use base\Database\Result\ResultInterface;
 use base\Database\Sql\Compiler\CompiledStatementInterface;

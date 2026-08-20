@@ -205,4 +205,54 @@ class DbConfigTest extends TestCase {
         Db::fromConfig('default');
     }
 
+    /**
+     * 测试同一连接同一配置共享单例(缓存生效)
+     * @return void
+     */
+    public function testFromConfigCachesSameConfig(): void {
+        Config::set(array(
+            'database'=>array(
+                'connections'=>array('default'=>array('type'=>'mysql','dbname'=>'main')),
+            ),
+        ));
+        $a=Db::fromConfig('default');
+        $b=Db::fromConfig('default');
+        $this->assertSame($a,$b);
+    }
+
+    /**
+     * 测试手动覆盖参数不缓存(一次性调用)
+     * @return void
+     */
+    public function testFromConfigOverrideNotCached(): void {
+        Config::set(array(
+            'database'=>array(
+                'connections'=>array('default'=>array('type'=>'mysql','dbname'=>'main')),
+            ),
+        ));
+        $a=Db::fromConfig('default');
+        $b=Db::fromConfig('default',array('dbname'=>'override'));
+        $this->assertNotSame($a,$b);
+    }
+
+    /**
+     * 测试配置变化后自动失效重建
+     * @return void
+     */
+    public function testFromConfigConfigChangeRebuilds(): void {
+        Config::set(array(
+            'database'=>array(
+                'connections'=>array('default'=>array('type'=>'mysql','dbname'=>'main')),
+            ),
+        ));
+        $a=Db::fromConfig('default');
+        Config::set(array(
+            'database'=>array(
+                'connections'=>array('default'=>array('type'=>'mysql','dbname'=>'changed')),
+            ),
+        ));
+        $b=Db::fromConfig('default');
+        $this->assertNotSame($a,$b);
+    }
+
 }

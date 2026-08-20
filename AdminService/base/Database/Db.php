@@ -26,7 +26,12 @@ use base\Database\Sql\Compiler\SqlCompilerInterface;
 use base\Database\Transaction\TransactionContextInterface;
 
 use function array_merge;
+use function get_class;
+use function implode;
 use function is_array;
+use function is_object;
+use function serialize;
+use function spl_object_hash;
 
 /**
  * 数据库入口(门面)
@@ -59,6 +64,12 @@ final class Db {
      * @var ConnectionSessionInterface|null
      */
     private ?ConnectionSessionInterface $session=null;
+
+    /**
+     * 按「连接名 + 配置指纹」缓存的数据库入口(纯配置调用共享单例)
+     * @var array
+     */
+    private static array $instances=array();
 
     /**
      * 构造方法
@@ -99,6 +110,17 @@ final class Db {
                 'name'=>$name
             ));
         $merged=array_merge($base,$config);
+        $middleware_config=Config::get('database.middlewares',array());
+        // 纯配置调用(无手动覆盖)按「连接名 + 连接配置 + 中间件配置」缓存单例:
+        // - 同连接共享同一 Db → 同一连接池/编译器/方言, 连接真正复用
+        // - 配置变化(含中间件实例)指纹随之变化, 自动失效重建
+        // 手动覆盖($config 非空)视为一次性调用, 不缓存
+        $cache_key=null;
+        if(empty($config)) {
+            $cache_key=$name.'|'.self::configFingerprint($merged).'|'.self::configFingerprint($middleware_config);
+            if(isset(self::$instances[$cache_key]))
+                return self::$instances[$cache_key];
+        }
         $db_config=self::buildConfig($merged);
         $factory=$db_config->sessionFactory();
         $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
@@ -109,8 +131,32 @@ final class Db {
             throw new ConfigException('Invalid compiler class.',100803,array(
                 'class'=>$compilerClass
             ));
-        $middlewares=self::resolveMiddlewares(Config::get('database.middlewares',array()));
-        return new static($manager,$compiler,$middlewares);
+        $middlewares=self::resolveMiddlewares($middleware_config);
+        $instance=new static($manager,$compiler,$middlewares);
+        if($cache_key!==null)
+            self::$instances[$cache_key]=$instance;
+        return $instance;
+    }
+
+    /**
+     * 计算配置指纹(用于缓存键)
+     *
+     * - 标量/数组按值序列化, 对象按「类名 + 实例哈希」标记
+     *   (实例变化即视为不同配置, 防止中间件实例差异被缓存掩盖)
+     *
+     * @access private
+     * @param mixed $value 配置值
+     * @return string 指纹
+     */
+    private static function configFingerprint(mixed $value): string {
+        if(is_object($value))
+            return 'obj:'.get_class($value).':'.spl_object_hash($value);
+        if(!is_array($value))
+            return serialize($value);
+        $parts=array();
+        foreach($value as $k=>$v)
+            $parts[]=serialize($k).':'.self::configFingerprint($v);
+        return '['.implode(',',$parts).']';
     }
 
     /**

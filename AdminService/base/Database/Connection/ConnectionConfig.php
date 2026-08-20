@@ -137,40 +137,46 @@ final class ConnectionConfig {
     }
 
     /**
-     * 构建 DSN
-     *
-     * @access public
-     * @return string
-     */
-    public function buildDsn(): string {
-        return $this->type
-            .':host='.$this->host
-            .';dbname='.$this->dbname
-            .';port='.$this->port
-            .';charset='.$this->charset;
-    }
-
-    /**
      * 创建 PDO 连接
      *
+     * - DSN 由方言构建, 换方言时 DSN 随之变化
      * - 强制异常模式(ERRMODE_EXCEPTION), 使执行错误以 PDOException 抛出, 保证执行器"失败返回 Result"的错误契约生效
      * - 连接失败包装为 ConnectionException
      *
      * @access public
+     * @param DialectInterface|null $dialect 方言(不传则按配置创建)
      * @return PDO
      * @throws ConnectionException
      */
-    public function createPdo(): PDO {
+    public function createPdo(?DialectInterface $dialect=null): PDO {
+        $dialect=$dialect??$this->createDialect();
+        $dsn=$dialect->buildDsn($this->dsnParams());
         $options=$this->options;
         $options[PDO::ATTR_ERRMODE]=PDO::ERRMODE_EXCEPTION;
         try {
-            return new PDO($this->buildDsn(),$this->user,$this->password,$options);
+            return new PDO($dsn,$this->user,$this->password,$options);
         } catch(PDOException $e) {
             throw new ConnectionException('Database connection failed.',100802,array(
-                'dsn'=>$this->buildDsn(),
+                'dsn'=>$dsn,
                 'error'=>$e->getMessage()
             ));
         }
+    }
+
+    /**
+     * 汇总 DSN 所需连接参数
+     *
+     * @access private
+     * @return array
+     */
+    private function dsnParams(): array {
+        return array(
+            'type'=>$this->type,
+            'host'=>$this->host,
+            'port'=>$this->port,
+            'dbname'=>$this->dbname,
+            'charset'=>$this->charset,
+        );
     }
 
     /**
@@ -183,7 +189,8 @@ final class ConnectionConfig {
      * @throws ConfigException 方言类未实现 DialectInterface
      */
     public function createSession(): PdoConnectionSession {
-        return new PdoConnectionSession($this->createPdo(),$this->createDialect(),$this->tablePrefix);
+        $dialect=$this->createDialect();
+        return new PdoConnectionSession($this->createPdo($dialect),$dialect,$this->tablePrefix);
     }
 
     /**

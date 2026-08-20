@@ -1,6 +1,6 @@
 <?php
 
-namespace base;
+namespace base\Orm;
 
 use function ceil;
 

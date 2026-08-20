@@ -38,7 +38,7 @@ final class View extends BaseView {
      * @param string $template_path 模板文件路径
      * @param array $data 需要传递给模板的数据
      * @return void
-     * @throws Exception
+     * @throws \AdminService\Exception
      */
     public function init(string $template_path,array $data=array()): void {
         if(!is_file($template_path))

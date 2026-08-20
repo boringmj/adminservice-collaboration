@@ -29,7 +29,7 @@ final class File {
      *
      * @access public
      * @param string|null $file_name 文件名称(不含扩展名和多余的路径)
-     * @throws Exception
+     * @throws \AdminService\Exception
      */
     public function __construct(?string $file_name=null) {
         $this->init($file_name);
@@ -41,7 +41,7 @@ final class File {
      * @access public
      * @param string|null $file_name 文件名称(不含扩展名和多余的路径)
      * @return void
-     * @throws Exception
+     * @throws \AdminService\Exception
      */
     public function init(?string $file_name=null): void {
         if($file_name===null) {
@@ -67,7 +67,7 @@ final class File {
      *
      * @access private
      * @return void
-     * @throws Exception
+     * @throws \AdminService\Exception
      */
     private function read(): void {
         if(!is_file($this->file_path)) {
@@ -92,7 +92,7 @@ final class File {
      *
      * @access private
      * @return void
-     * @throws Exception
+     * @throws \AdminService\Exception
      */
     private function write(): void {
         $data=json_encode($this->data);
@@ -131,7 +131,7 @@ final class File {
      * @param mixed $value 值
      * @param bool $save 是否立即保存
      * @return void
-     * @throws Exception
+     * @throws \AdminService\Exception
      */
     public function set(string|int $key,mixed $value,bool $save=false): void {
         $this->data[$key]=$value;
@@ -146,7 +146,7 @@ final class File {
      * @param string|int $key 键名
      * @param bool $save 是否立即保存
      * @return void
-     * @throws Exception
+     * @throws \AdminService\Exception
      */
     public function delete(string|int $key,bool $save=false): void {
         if(isset($this->data[$key]))
@@ -161,7 +161,7 @@ final class File {
      * @access public
      * @param bool $save 是否立即保存
      * @return void
-     * @throws Exception
+     * @throws \AdminService\Exception
      */
     public function clear(bool $save=false): void {
         $this->data=array();
@@ -174,7 +174,7 @@ final class File {
      *
      * @access public
      * @return void
-     * @throws Exception
+     * @throws \AdminService\Exception
      */
     public function save(): void {
         if(empty($this->file_path))
@@ -187,7 +187,7 @@ final class File {
      *
      * @access public
      * @return void
-     * @throws Exception
+     * @throws \AdminService\Exception
      */
     public function destroy(): void {
         if(empty($this->file_path))

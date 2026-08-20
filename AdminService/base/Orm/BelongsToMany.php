@@ -4,6 +4,7 @@ namespace base\Orm;
 
 use base\Database\Db;
 use base\Database\Query\Query;
+use base\Orm\Exception\OrmException;
 
 use function array_merge;
 use function array_unique;
@@ -141,6 +142,84 @@ class BelongsToMany extends Relation {
     }
 
     /**
+     * 通过关系创建关联记录(并写入中间表关联)
+     *
+     * - 创建相关模型后自动插入中间表行, 使关联生效
+     * - 例: $user->roles()->create(['name'=>'admin']) → 新角色 + role_user(user_id, role_id)
+     *
+     * @access public
+     * @param array $data 数据
+     * @return Model 已保存的关联模型
+     * @throws OrmException 父模型未持久化
+     */
+    public function create(array $data): Model {
+        $parentKey=$this->parent->getAttribute($this->parentKey);
+        if($parentKey===null)
+            throw new OrmException('Cannot create related record: parent is not persisted.',100723);
+        // 先建相关模型, 再写中间表(两步, 非原子; 需要原子性时请在同一 Db 上包裹事务)
+        $model=new ($this->modelClass)();
+        $model->fill($data);
+        $model->save();
+        $this->db->query(
+            Query::insert(array(
+                $this->foreignPivotKey=>$parentKey,
+                $this->relatedPivotKey=>$model->getAttribute($this->relatedKey),
+            ))->from($this->pivotTable)
+        );
+        return $model;
+    }
+
+    /**
+     * 批量更新(不支持)
+     *
+     * - 多对多只反映父模型的关联集合, 更新语义属于相关模型本身;
+     *   关联的增删应通过中间表(attach/detach)处理
+     *
+     * @access public
+     * @param array $data 数据
+     * @return int
+     * @throws OrmException 始终抛出
+     */
+    public function update(array $data): int {
+        throw new OrmException(
+            'Cannot bulk update through belongsToMany relation: association changes belong to the pivot table. '
+            .'Query the related model directly instead.',
+            100724
+        );
+    }
+
+    /**
+     * 批量删除(不支持)
+     *
+     * - 相关记录可能被多个父模型共享, 直接删除会留下悬空中间表行
+     *
+     * @access public
+     * @return int
+     * @throws OrmException 始终抛出
+     */
+    public function delete(): int {
+        throw new OrmException(
+            'Cannot delete through belongsToMany relation: related records may be shared by other parents. '
+            .'Manage associations via the pivot table (attach/detach) instead.',
+            100725
+        );
+    }
+
+    /**
+     * 批量物理删除(不支持)
+     *
+     * @access public
+     * @return int
+     * @throws OrmException 始终抛出
+     */
+    public function forceDelete(): int {
+        throw new OrmException(
+            'Cannot force delete through belongsToMany relation: related records may be shared by other parents.',
+            100726
+        );
+    }
+
+    /**
      * 预加载关联到父模型集合
      *
      * @access public
@@ -198,7 +277,10 @@ class BelongsToMany extends Relation {
         if($this->pivotApplied)
             return true;
         $this->pivotApplied=true;
-        $keys=$this->queryPivotKeys($this->parent->getAttribute($this->parentKey));
+        $parentKey=$this->parent->getAttribute($this->parentKey);
+        if($parentKey===null)
+            return false; // 父模型未持久化, 无关联
+        $keys=$this->queryPivotKeys($parentKey);
         if(empty($keys))
             return false;
         $this->whereIn($this->relatedKey,$keys);

@@ -122,6 +122,60 @@ class OrmDemo extends Controller {
     }
 
     /**
+     * 跨模型事务示例(同一连接, 模型写入共享事务)
+     *
+     * - tx_success: 创建用户 + 关系创建订单, 同一事务提交
+     * - tx_rollback: 创建用户后抛异常 → 用户一并回滚
+     *
+     * @access public
+     * @return mixed
+     */
+    public function transaction(): mixed {
+        $data=array();
+        $run=function($name,$callback) use (&$data) {
+            try {
+                $data[$name]=$callback();
+            } catch(Throwable $e) {
+                $data[$name]=array('error'=>$e->getMessage());
+            }
+        };
+        // 成功事务: 两个模型写在同一事务里提交
+        $run('tx_success',function() {
+            $result=Db::fromConfig()->transaction(function() {
+                $user=User::create(array('name'=>'TX成功'.mt_rand(1000,9999),'age'=>30,'status'=>1));
+                $order=$user->orders()->create(array(
+                    'order_no'=>'TX'.date('YmdHis'),
+                    'amount'=>100,
+                    'status'=>1,
+                ));
+                return array('user_id'=>$user->getKey(),'order_id'=>$order->getKey());
+            });
+            // 清理演示数据(不污染后续演示)
+            $user=User::find($result['user_id']);
+            $order=Order::find($result['order_id']);
+            $order?->delete();
+            $user?->delete();
+            return $result;
+        });
+        // 回滚事务: 用户创建后抛异常 → 用户也应回滚(前后计数一致)
+        $run('tx_rollback',function() {
+            $db=Db::fromConfig();
+            $before=User::query()->count();
+            try {
+                $db->transaction(function() {
+                    User::create(array('name'=>'TX回滚'.mt_rand(1000,9999),'age'=>30,'status'=>1));
+                    throw new \RuntimeException('trigger rollback');
+                });
+            } catch(Throwable $e) {
+                // 期望回滚, 吞掉
+            }
+            $after=User::query()->count();
+            return array('before'=>$before,'after'=>$after,'rolled_back'=>($before===$after));
+        });
+        return $this->json($data);
+    }
+
+    /**
      * 为 users 表补充 updated_at 列(时间戳支持)
      *
      * @access public

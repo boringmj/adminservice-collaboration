@@ -4,7 +4,9 @@ namespace base\Database\Connection;
 
 use PDO;
 use PDOException;
+use base\Database\Exception\ConfigException;
 use base\Database\Exception\ConnectionException;
+use base\Database\Sql\Dialect\DialectInterface;
 use base\Database\Sql\Dialect\MysqlDialect;
 
 /**
@@ -70,6 +72,12 @@ final class ConnectionConfig {
     private string $tablePrefix;
 
     /**
+     * 方言类名(为空时使用 MySQL)
+     * @var string|null
+     */
+    private ?string $dialectClass;
+
+    /**
      * 构造方法
      *
      * @access public
@@ -82,6 +90,7 @@ final class ConnectionConfig {
      * @param string $charset 字符集
      * @param array $options PDO 连接选项
      * @param string $tablePrefix 表前缀
+     * @param string|null $dialectClass 方言类名(为空时按类型默认, 当前默认 MySQL)
      */
     public function __construct(
         string $type='mysql',
@@ -92,7 +101,8 @@ final class ConnectionConfig {
         string $dbname='',
         string $charset='utf8mb4',
         array $options=array(),
-        string $tablePrefix=''
+        string $tablePrefix='',
+        ?string $dialectClass=null
     ) {
         $this->type=$type;
         $this->host=$host;
@@ -103,6 +113,7 @@ final class ConnectionConfig {
         $this->charset=$charset;
         $this->options=$options;
         $this->tablePrefix=$tablePrefix;
+        $this->dialectClass=$dialectClass;
     }
 
     /**
@@ -165,13 +176,32 @@ final class ConnectionConfig {
     /**
      * 创建连接会话
      *
-     * - 目前仅支持 mysql 方言
+     * - 方言类可通过配置手动绑定, 未指定时使用 MySQL
      *
      * @access public
      * @return PdoConnectionSession
+     * @throws ConfigException 方言类未实现 DialectInterface
      */
     public function createSession(): PdoConnectionSession {
-        return new PdoConnectionSession($this->createPdo(),new MysqlDialect(),$this->tablePrefix);
+        return new PdoConnectionSession($this->createPdo(),$this->createDialect(),$this->tablePrefix);
+    }
+
+    /**
+     * 创建方言
+     *
+     * - 方言类可通过配置手动绑定, 未指定时使用 MySQL
+     *
+     * @access public
+     * @return DialectInterface
+     * @throws ConfigException 方言类未实现 DialectInterface
+     */
+    public function createDialect(): DialectInterface {
+        $dialect=$this->dialectClass!==null?new $this->dialectClass():new MysqlDialect();
+        if(!$dialect instanceof DialectInterface)
+            throw new ConfigException('Invalid dialect class.',100803,array(
+                'class'=>$this->dialectClass
+            ));
+        return $dialect;
     }
 
     /**

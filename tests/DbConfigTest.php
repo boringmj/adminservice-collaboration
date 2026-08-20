@@ -5,8 +5,12 @@ namespace Tests;
 use PHPUnit\Framework\TestCase;
 
 use AdminService\Config;
+use base\Database\Connection\ConnectionConfig;
 use base\Database\Db;
 use base\Database\Exception\ConfigException;
+use base\Database\Sql\Compiler\MysqlCompiler;
+use base\Database\Sql\Dialect\MysqlDialect;
+use Tests\Fixtures\FakeDialect;
 
 /**
  * 数据库入口配置测试
@@ -102,6 +106,56 @@ class DbConfigTest extends TestCase {
             'dbname'=>'manual',
         ));
         $this->assertInstanceOf(Db::class,$db);
+    }
+
+    /**
+     * 测试默认方言为 MySQL
+     * @return void
+     */
+    public function testDefaultDialectIsMysql(): void {
+        $config=new ConnectionConfig();
+        $this->assertInstanceOf(MysqlDialect::class,$config->createDialect());
+    }
+
+    /**
+     * 测试手动绑定方言类
+     * @return void
+     */
+    public function testCustomDialectClass(): void {
+        $config=new ConnectionConfig(dialectClass: FakeDialect::class);
+        $this->assertInstanceOf(FakeDialect::class,$config->createDialect());
+    }
+
+    /**
+     * 测试非法方言类的负例
+     * @return void
+     */
+    public function testInvalidDialectClassThrows(): void {
+        $config=new ConnectionConfig(dialectClass: \stdClass::class);
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionCode(100803);
+        $config->createDialect();
+    }
+
+    /**
+     * 测试手动绑定编译器类
+     * @return void
+     */
+    public function testCustomCompilerClass(): void {
+        Config::set(array('database'=>array('connections'=>array('default'=>array('type'=>'mysql')))));
+        $db=Db::fromConfig('default',array('compiler'=>MysqlCompiler::class));
+        $this->assertInstanceOf(Db::class,$db);
+    }
+
+    /**
+     * 测试非法编译器类的负例
+     * @return void
+     */
+    public function testInvalidCompilerClassThrows(): void {
+        Config::set(array('database'=>array('connections'=>array('default'=>array('type'=>'mysql')))));
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionCode(100803);
+        Db::fromConfig('default',array('compiler'=>\stdClass::class));
     }
 
 }

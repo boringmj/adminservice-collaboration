@@ -815,6 +815,8 @@ abstract class Container {
                 // 判断每个参数是否符合类型限制
                 foreach($temp_args as $key=>$value) {
                     if(self::isValidType($value,$types)) {
+                        // 对齐普通参数,通过校验后执行静默转换
+                        $value=self::castParam($value,$types);
                         if(is_numeric($key))
                             $params_temp[]=$value;
                         else
@@ -923,6 +925,9 @@ abstract class Container {
      * - int/float/bool → string
      * - float/bool → int, int/bool → float
      * - int/float/string → bool
+     *
+     * 注意: 转换规则必须与 isValidType() 的标量宽松规则保持一一对应,
+     * 否则会出现"验证通过但未转换"导致 TypeError 的遗漏
      *
      * @access protected
      * @param mixed $value 实参值

@@ -29,6 +29,10 @@ final class ParamCastTarget {
         return $x;
     }
 
+    public function sum(int ...$nums): int {
+        return array_sum($nums);
+    }
+
 }
 
 /**
@@ -159,6 +163,28 @@ class ParamCastTest extends TestCase {
         $this->assertSame(3.0, App::exec_class_function($target,'toFloat',array(
             'x'=>3
         )));
+    }
+
+    /**
+     * 测试可变参数(int ...$nums)也执行静默转换
+     * @return void
+     */
+    public function testDigitStringToVariadicInt(): void {
+        $target=new ParamCastTarget();
+        $this->assertSame(6, App::exec_class_function($target,'sum',array(
+            0=>'1',1=>'2',2=>'3'
+        )));
+    }
+
+    /**
+     * 测试关闭静默转换后可变参数类型不匹配抛出异常
+     * @return void
+     */
+    public function testStrictModeRejectsVariadicMismatch(): void {
+        App::setParamCast(false);
+        $target=new ParamCastTarget();
+        $this->expectException(Exception::class);
+        App::exec_class_function($target,'sum',array(0=>'1',1=>'2'));
     }
 
     /**

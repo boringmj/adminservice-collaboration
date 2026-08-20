@@ -10,7 +10,7 @@ interface ServiceInterface {
 
     /**
      * 执行
-     * @return void
+     * @return string
      */
     public function execute(): string;
 

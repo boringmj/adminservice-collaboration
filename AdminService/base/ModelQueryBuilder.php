@@ -3,6 +3,7 @@
 namespace base;
 
 use base\Database\Db;
+use base\Database\Exception\QueryException;
 use base\Database\Query\Query;
 use base\Database\Result\ResultInterface;
 use base\Database\Sql\Definition\Field;
@@ -10,6 +11,7 @@ use base\Database\Sql\Definition\Table;
 use base\Database\Type\StatementType;
 
 use function array_map;
+use function max;
 
 /**
  * 模型查询构建器
@@ -424,6 +426,36 @@ class ModelQueryBuilder {
     }
 
     /**
+     * 分页查询
+     *
+     * - 查询能力(与 get()/count() 同层), 返回分页结果对象
+     * - 统计总数与当前页数据在独立查询上执行, 互不污染
+     *
+     * @access public
+     * @param int $perPage 每页条数
+     * @param int $page 当前页码(从 1 开始)
+     * @return Paginator
+     * @throws QueryException perPage 小于 1
+     */
+    public function paginate(int $perPage=15,int $page=1): Paginator {
+        if($perPage<1)
+            throw new QueryException('Invalid per page.',100701,array(
+                'per_page'=>$perPage
+            ));
+        $page=max(1,$page);
+        // 统计总数(克隆当前条件, 避免影响分页查询)
+        $countQuery=clone $this->query;
+        $countQuery->from(($this->modelClass)::tableName());
+        $countQuery->type(StatementType::COUNT);
+        $this->applySoftDeleteFilter($countQuery);
+        $countRows=$this->run($countQuery)->getResults()->toArray();
+        $total=(int)($countRows[0]['__count']??0);
+        // 当前页数据
+        $items=$this->limit($perPage)->offset(($page-1)*$perPage)->get();
+        return new Paginator($items,$total,$perPage,$page);
+    }
+
+    /**
      * 创建并保存一条记录
      *
      * @access public
@@ -512,27 +544,30 @@ class ModelQueryBuilder {
      * - 默认排除已软删除记录; withTrashed 包含全部; onlyTrashed 仅查询已删除
      *
      * @access private
+     * @param Query|null $query 目标查询对象(默认当前查询)
      * @return void
      */
-    private function applySoftDeleteFilter(): void {
+    private function applySoftDeleteFilter(?Query $query=null): void {
+        $query=$query??$this->query;
         if(!($this->modelClass)::usesSoftDelete())
             return;
         if($this->withTrashed)
             return;
         if($this->onlyTrashed)
-            $this->query->whereNull(($this->modelClass)::deletedAtField(),true);
+            $query->whereNull(($this->modelClass)::deletedAtField(),true);
         else
-            $this->query->whereNull(($this->modelClass)::deletedAtField());
+            $query->whereNull(($this->modelClass)::deletedAtField());
     }
 
     /**
      * 执行查询
      *
      * @access private
+     * @param Query|null $query 目标查询对象(默认当前查询)
      * @return ResultInterface
      */
-    private function run(): ResultInterface {
-        $result=$this->db->query($this->query);
+    private function run(?Query $query=null): ResultInterface {
+        $result=$this->db->query($query??$this->query);
         $this->lastResult=$result;
         return $result;
     }

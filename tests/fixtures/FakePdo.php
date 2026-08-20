@@ -6,6 +6,7 @@ use PDO;
 use PDOException;
 use PDOStatement;
 
+use function array_shift;
 use function count;
 
 /**
@@ -21,6 +22,12 @@ final class FakePdo extends PDO {
      * @var array
      */
     public array $selectRows=array();
+
+    /**
+     * SELECT 语句返回的数据行队列(按执行顺序依次弹出, 优先于 selectRows)
+     * @var array
+     */
+    public array $selectRowsQueue=array();
 
     /**
      * 写语句受影响的行数
@@ -101,7 +108,7 @@ final class FakePdo extends PDO {
                 $this->query=$query;
             }
 
-            public function bindValue(string|int $param,mixed $value,int $type=PDO::PARAM_STR): bool {
+            public function bindValue(object|string|int $param,mixed $value,int $type=PDO::PARAM_STR): bool {
                 $this->bound[$param]=$value;
                 $this->boundTypes[$param]=$type;
                 return true;
@@ -118,11 +125,16 @@ final class FakePdo extends PDO {
             }
 
             public function columnCount(): int {
-                // 以第一行列数近似结果集列数(空结果视为无列)
-                return count($this->fake->selectRows[0]??array());
+                // 以第一行列数近似结果集列数(空结果视为无列), 队列优先
+                $rows=!empty($this->fake->selectRowsQueue)
+                    ? $this->fake->selectRowsQueue[0]
+                    : $this->fake->selectRows;
+                return count($rows[0]??array());
             }
 
             public function fetchAll(int $mode=PDO::FETCH_DEFAULT,mixed ...$args): array {
+                if(!empty($this->fake->selectRowsQueue))
+                    return array_shift($this->fake->selectRowsQueue);
                 return $this->fake->selectRows;
             }
 

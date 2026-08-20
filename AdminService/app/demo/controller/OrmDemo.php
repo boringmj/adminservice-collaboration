@@ -118,6 +118,20 @@ class OrmDemo extends Controller {
                 );
             },$users->all());
         });
+        // 中间表关联写入: attach 关联 → 验证 → detach 还原
+        $run('m2m_attach',function() {
+            $user=User::find(1);
+            $before=$user->roles()->get()->pluck('id');
+            $user->roles()->attach(array(3));       // 关联 viewer
+            $after=$user->roles()->get()->pluck('id');
+            $user->roles()->detach(array(3));        // 还原初始
+            $restored=$user->roles()->get()->pluck('id');
+            return array(
+                'before'=>$before,
+                'after'=>$after,
+                'restored'=>$restored,
+            );
+        });
         return $this->json($data);
     }
 

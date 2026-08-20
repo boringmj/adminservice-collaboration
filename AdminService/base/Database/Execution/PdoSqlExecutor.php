@@ -11,6 +11,7 @@ use base\Database\Sql\Compiler\CompiledStatementInterface;
 
 use function count;
 use function ltrim;
+use function str_starts_with;
 use function strncasecmp;
 
 /**
@@ -50,31 +51,59 @@ final class PdoSqlExecutor implements SqlExecutorInterface {
         $params=$statement->getParams();
         try {
             $stmt=$this->connection->prepare($sql);
-            foreach($params as $i=>$value)
-                $stmt->bindValue($i+1,$value);
+            foreach($params as $i=>$value) {
+                // null 值必须用 PARAM_NULL 绑定, 否则原生预处理下会变成空字符串
+                if($value===null)
+                    $stmt->bindValue($i+1,null,PDO::PARAM_NULL);
+                else
+                    $stmt->bindValue($i+1,$value);
+            }
             $stmt->execute();
-            if($this->isSelect($sql)) {
+            if($this->isQuery($sql)) {
                 $rows=$stmt->fetchAll(PDO::FETCH_ASSOC);
                 $stmt->closeCursor();
                 return new Result(true,$sql,$params,new AbstractCollection($rows),'',count($rows));
             }
             $affected=(int)$stmt->rowCount();
             $stmt->closeCursor();
-            return new Result(true,$sql,$params,new AbstractCollection(),'',$affected);
+            // INSERT 语句捕获自增主键
+            $lastInsertId=$this->isInsert($sql)
+                ? $this->connection->lastInsertId()
+                : null;
+            return new Result(true,$sql,$params,new AbstractCollection(),'',$affected,$lastInsertId);
         } catch(PDOException $e) {
             return new Result(false,$sql,$params,new AbstractCollection(),$e->getMessage(),0);
         }
     }
 
     /**
-     * 判断语句是否为查询
+     * 判断语句是否返回结果集(查询类)
+     *
+     * - 覆盖 SELECT 及 SHOW/DESCRIBE/EXPLAIN/PRAGMA/WITH 等原生查询前缀
      *
      * @access private
      * @param string $sql SQL
      * @return bool
      */
-    private function isSelect(string $sql): bool {
-        return strncasecmp(ltrim($sql),'SELECT',6)===0;
+    private function isQuery(string $sql): bool {
+        $prefix=strtoupper(ltrim($sql));
+        return str_starts_with($prefix,'SELECT')
+            || str_starts_with($prefix,'SHOW')
+            || str_starts_with($prefix,'DESCRIBE')
+            || str_starts_with($prefix,'EXPLAIN')
+            || str_starts_with($prefix,'PRAGMA')
+            || str_starts_with($prefix,'WITH');
+    }
+
+    /**
+     * 判断语句是否为插入
+     *
+     * @access private
+     * @param string $sql SQL
+     * @return bool
+     */
+    private function isInsert(string $sql): bool {
+        return strncasecmp(ltrim($sql),'INSERT',6)===0;
     }
 
 }

@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use PDO;
 use PHPUnit\Framework\TestCase;
 
 use base\Database\Execution\PdoSqlExecutor;
@@ -80,6 +81,34 @@ class DbalExecutorTest extends TestCase {
         $this->assertFalse($result->isSuccess());
         $this->assertSame('syntax error',$result->getError());
         $this->assertSame(0,$result->getAffectedRows());
+    }
+
+    /**
+     * 测试 INSERT 返回自增主键
+     * @return void
+     */
+    public function testExecuteInsertReturnsLastInsertId(): void {
+        $pdo=new FakePdo();
+        $pdo->affectedRows=1;
+        $executor=new PdoSqlExecutor($pdo);
+        $result=$executor->execute($this->compile(Query::insert(['name'=>'a'])->from('users')));
+        $this->assertTrue($result->isSuccess());
+        $this->assertSame('1',$result->getLastInsertId());
+    }
+
+    /**
+     * 测试 null 值以 PARAM_NULL 类型绑定
+     * @return void
+     */
+    public function testNullParamBoundAsNullType(): void {
+        $pdo=new FakePdo();
+        $pdo->affectedRows=1;
+        $executor=new PdoSqlExecutor($pdo);
+        $executor->execute($this->compile(
+            Query::update(['deleted_at'=>null])->from('users')->where('id',1)
+        ));
+        $this->assertSame(PDO::PARAM_NULL,$pdo->boundTypes[1]);
+        $this->assertSame(PDO::PARAM_STR,$pdo->boundTypes[2]);
     }
 
 }

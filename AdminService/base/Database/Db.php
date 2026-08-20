@@ -13,10 +13,12 @@ use base\Database\Coordinator\Handler\QueryMiddlewareHandler;
 use base\Database\Coordinator\QueryCoordinator;
 use base\Database\Coordinator\QueryExecutionDispatcher;
 use base\Database\Exception\ConfigException;
+use base\Database\Query\Query;
 use base\Database\Query\QueryContext;
 use base\Database\Query\QueryInterface;
 use base\Database\Result\ResultInterface;
 use base\Database\Sql\Builder\QueryStatementBuilder;
+use base\Database\Sql\Compiler\CompiledStatement;
 use base\Database\Sql\Compiler\MysqlCompiler;
 use base\Database\Sql\Compiler\SqlCompilerInterface;
 use base\Database\Transaction\TransactionContextInterface;
@@ -144,6 +146,37 @@ final class Db {
     }
 
     /**
+     * 执行原生 SQL
+     *
+     * - 适用于构建器无法表达的语句(DDL、SHOW、SET 等)
+     * - 同样经过中间件链, 事务中复用当前会话
+     *
+     * @access public
+     * @param string $sql SQL
+     * @param array $params 绑定参数
+     * @return ResultInterface
+     */
+    public function raw(string $sql,array $params=array()): ResultInterface {
+        $statement=new CompiledStatement($sql,$params);
+        $context=new QueryContext(Query::select());
+        if($this->session!==null) {
+            $dispatcher=new QueryExecutionDispatcher();
+            $handler=(new QueryMiddlewareHandler($dispatcher,$this->middlewares))
+                ->configure($this->session->getSqlExecutor(),$statement);
+            return $handler->execute($context);
+        }
+        $connection=$this->manager->getConnection();
+        try {
+            $dispatcher=new QueryExecutionDispatcher();
+            $handler=(new QueryMiddlewareHandler($dispatcher,$this->middlewares))
+                ->configure($connection->getSqlExecutor(),$statement);
+            return $handler->execute($context);
+        } finally {
+            $connection->release();
+        }
+    }
+
+    /**
      * 事务作用域
      *
      * - 回调内所有查询在同一个独占会话上执行
@@ -159,15 +192,20 @@ final class Db {
         if($this->session!==null) {
             // 嵌套: 复用当前会话, 通过保存点实现
             $tx=$this->session->getTransactionExecutor();
+            $context=$this->session->getTransactionContext();
             $tx->begin();
             try {
                 $result=$callback($this);
-                $tx->commit();
+                // 回调内可能已手动提交/回滚, 仅在仍活跃时收尾
+                if($context->isActive())
+                    $tx->commit();
                 return $result;
             } catch(Throwable $e) {
-                try {
-                    $tx->rollback();
-                } catch(Throwable $ignored) {
+                if($context->isActive()) {
+                    try {
+                        $tx->rollback();
+                    } catch(Throwable $ignored) {
+                    }
                 }
                 throw $e;
             }

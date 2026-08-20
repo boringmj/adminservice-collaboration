@@ -45,6 +45,12 @@ final class FakePdo extends PDO {
     public array $bound=array();
 
     /**
+     * 已绑定的参数类型
+     * @var array
+     */
+    public array $boundTypes=array();
+
+    /**
      * 事务调用记录(begin/commit/rollback)
      * @var array
      */
@@ -86,6 +92,8 @@ final class FakePdo extends PDO {
 
             public array $bound=array();
 
+            public array $boundTypes=array();
+
             public function __construct(FakePdo $fake,string $query) {
                 $this->fake=$fake;
                 $this->query=$query;
@@ -93,6 +101,7 @@ final class FakePdo extends PDO {
 
             public function bindValue(string|int $param,mixed $value,int $type=PDO::PARAM_STR): bool {
                 $this->bound[$param]=$value;
+                $this->boundTypes[$param]=$type;
                 return true;
             }
 
@@ -102,6 +111,7 @@ final class FakePdo extends PDO {
                 $this->fake->executed[]=$this->query;
                 // 使用 += 保留数字键, array_merge 会重排数字键
                 $this->fake->bound+=$this->bound;
+                $this->fake->boundTypes+=$this->boundTypes;
                 return true;
             }
 

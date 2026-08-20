@@ -278,6 +278,17 @@ class MysqlCompilerTest extends TestCase {
     }
 
     /**
+     * 测试 null 值自动转为 IS NULL / IS NOT NULL
+     * @return void
+     */
+    public function testWhereNullValue(): void {
+        $statement=$this->compile(Query::select()->from('users')->where('deleted_at',null));
+        $this->assertSame('SELECT * FROM `users` WHERE `deleted_at` IS NULL',$statement->getSql());
+        $statement=$this->compile(Query::select()->from('users')->where('deleted_at',null,'!='));
+        $this->assertSame('SELECT * FROM `users` WHERE `deleted_at` IS NOT NULL',$statement->getSql());
+    }
+
+    /**
      * 测试单条查询自动附加 LIMIT 1
      * @return void
      */

@@ -302,6 +302,14 @@ class Query implements QueryInterface {
      * @return static
      */
     public function where(string|Field $field,mixed $value=null,string $operator='='): static {
+        // null 值与比较操作符: 自动转为 IS NULL / IS NOT NULL, 避免生成永不匹配的 "= ?"
+        if($value===null) {
+            $operator_upper=strtoupper($operator);
+            if($operator_upper==='='||$operator_upper==='==')
+                return $this->whereNull($field);
+            if($operator_upper==='!='||$operator_upper==='<>')
+                return $this->whereNull($field,true);
+        }
         return $this->addWhere(Where::leaf($this->resolveField($field),$operator,$value));
     }
 

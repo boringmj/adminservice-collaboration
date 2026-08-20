@@ -47,6 +47,12 @@ final class Result implements ResultInterface {
     private int $affectedRows;
 
     /**
+     * 最后插入的 ID(INSERT 语句)
+     * @var string|null
+     */
+    private ?string $lastInsertId;
+
+    /**
      * 构造方法
      *
      * @access public
@@ -56,6 +62,7 @@ final class Result implements ResultInterface {
      * @param AbstractCollection|null $results 查询结果集
      * @param string $error 错误信息
      * @param int $affectedRows 受影响的行数
+     * @param string|null $lastInsertId 最后插入的 ID
      */
     public function __construct(
         bool $success,
@@ -63,7 +70,8 @@ final class Result implements ResultInterface {
         array $params=array(),
         ?AbstractCollection $results=null,
         string $error='',
-        int $affectedRows=0
+        int $affectedRows=0,
+        ?string $lastInsertId=null
     ) {
         $this->success=$success;
         $this->sql=$sql;
@@ -71,6 +79,7 @@ final class Result implements ResultInterface {
         $this->results=$results??new AbstractCollection();
         $this->error=$error;
         $this->affectedRows=$affectedRows;
+        $this->lastInsertId=$lastInsertId;
     }
 
     /**
@@ -131,6 +140,16 @@ final class Result implements ResultInterface {
      */
     public function getAffectedRows(): int {
         return $this->affectedRows;
+    }
+
+    /**
+     * 获取最后插入的 ID(仅 INSERT 语句)
+     *
+     * @access public
+     * @return string|null
+     */
+    public function getLastInsertId(): ?string {
+        return $this->lastInsertId;
     }
 
 }

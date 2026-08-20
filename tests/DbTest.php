@@ -64,6 +64,20 @@ class DbTest extends TestCase {
     }
 
     /**
+     * 测试原生 SQL 执行
+     * @return void
+     */
+    public function testRawSql(): void {
+        $pdo=new FakePdo();
+        $pdo->selectRows=[['name'=>'tables_count','Value'=>5]];
+        $db=$this->createDb($pdo);
+        $result=$db->raw('SHOW TABLES');
+        $this->assertTrue($result->isSuccess());
+        $this->assertSame('SHOW TABLES',$pdo->executed[0]);
+        $this->assertSame([['name'=>'tables_count','Value'=>5]],$result->getResults()->toArray());
+    }
+
+    /**
      * 测试事务作用域
      * @return void
      */

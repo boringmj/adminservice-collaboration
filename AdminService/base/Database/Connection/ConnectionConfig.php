@@ -3,6 +3,8 @@
 namespace base\Database\Connection;
 
 use PDO;
+use PDOException;
+use base\Database\Exception\ConnectionException;
 use base\Database\Sql\Dialect\MysqlDialect;
 
 /**
@@ -140,11 +142,24 @@ final class ConnectionConfig {
     /**
      * 创建 PDO 连接
      *
+     * - 强制异常模式(ERRMODE_EXCEPTION), 使执行错误以 PDOException 抛出, 保证执行器"失败返回 Result"的错误契约生效
+     * - 连接失败包装为 ConnectionException
+     *
      * @access public
      * @return PDO
+     * @throws ConnectionException
      */
     public function createPdo(): PDO {
-        return new PDO($this->buildDsn(),$this->user,$this->password,$this->options);
+        $options=$this->options;
+        $options[PDO::ATTR_ERRMODE]=PDO::ERRMODE_EXCEPTION;
+        try {
+            return new PDO($this->buildDsn(),$this->user,$this->password,$options);
+        } catch(PDOException $e) {
+            throw new ConnectionException('Database connection failed.',100802,array(
+                'dsn'=>$this->buildDsn(),
+                'error'=>$e->getMessage()
+            ));
+        }
     }
 
     /**

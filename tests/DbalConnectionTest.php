@@ -93,4 +93,60 @@ class DbalConnectionTest extends TestCase {
         $this->assertSame($shared,$reacquired);
     }
 
+    /**
+     * 测试脏会话被丢弃(不复用, 下次新建)
+     * @return void
+     */
+    public function testPoolDiscardsDirtySession(): void {
+        $pdo=new FakePdo();
+        $factoryCalls=0;
+        $factory=function() use ($pdo,&$factoryCalls) {
+            $factoryCalls++;
+            return new PdoConnectionSession($pdo,new MysqlDialect());
+        };
+        $pool=new PdoConnectionPool($factory);
+        $first=$pool->acquire();
+        $first->markDirty();
+        $first->release();
+        // 脏会话被丢弃, 再次获取新建连接
+        $second=$pool->acquire();
+        $this->assertNotSame($first,$second);
+        $this->assertSame(2,$factoryCalls);
+    }
+
+    /**
+     * 测试独占会话释放时重置(回滚残留事务)
+     * @return void
+     */
+    public function testExclusiveReleaseResetsTransaction(): void {
+        $pdo=new FakePdo();
+        $session=new PdoConnectionSession($pdo,new MysqlDialect());
+        $session->getTransactionExecutor()->begin();
+        $this->assertTrue($session->getTransactionContext()->isActive());
+        $session->release();
+        // 非池化会话 release 同样 reset → 回滚
+        $this->assertTrue($session->isReleased());
+        $this->assertFalse($session->getTransactionContext()->isActive());
+        $this->assertSame(array('begin','rollback'),$pdo->transactionCalls);
+    }
+
+    /**
+     * 测试连接池闲置上限(超过丢弃)
+     * @return void
+     */
+    public function testPoolBoundedMaxIdle(): void {
+        $pool=new PdoConnectionPool($this->sessionFactory(),2);
+        $a=$pool->acquire();
+        $b=$pool->acquire();
+        $c=$pool->acquire();
+        $a->release();
+        $b->release();
+        $c->release();
+        // 闲置上限 2: 只保留 a、b, c 被丢弃
+        $x=$pool->acquire();
+        $this->assertSame($b,$x); // LIFO 弹出最后闲置的
+        $y=$pool->acquire();
+        $this->assertSame($a,$y);
+    }
+
 }

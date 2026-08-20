@@ -24,12 +24,14 @@ use base\Database\Sql\Compiler\CompiledStatement;
 use base\Database\Sql\Compiler\MysqlCompiler;
 use base\Database\Sql\Compiler\SqlCompilerInterface;
 use base\Database\Transaction\TransactionContextInterface;
+use base\Database\Type\QueryType;
 
 use function array_merge;
 use function get_class;
 use function implode;
 use function is_array;
 use function is_object;
+use function preg_match;
 use function serialize;
 use function spl_object_hash;
 
@@ -241,7 +243,10 @@ final class Db {
      */
     public function raw(string $sql,array $params=array()): ResultInterface {
         $statement=new CompiledStatement($sql,$params);
-        $context=new QueryContext(Query::select());
+        // 原生 SQL 无语句类型, 按首关键字判定读写; 会话状态修改型需标记脏
+        $queryType=self::isWriteSql($sql)?QueryType::WRITE:QueryType::READ;
+        $modifiesSession=self::modifiesSessionState($sql);
+        $context=new QueryContext(Query::select(),$queryType);
         if($this->session!==null) {
             $dispatcher=new QueryExecutionDispatcher();
             $handler=(new QueryMiddlewareHandler($dispatcher,$this->middlewares))
@@ -253,10 +258,41 @@ final class Db {
             $dispatcher=new QueryExecutionDispatcher();
             $handler=(new QueryMiddlewareHandler($dispatcher,$this->middlewares))
                 ->configure($connection->getSqlExecutor(),$statement);
-            return $handler->execute($context);
+            $result=$handler->execute($context);
+            // 失败或修改会话状态(SET/USE/LOCK/临时表等) → 标记脏, 归还时由池丢弃
+            if(!$result->isSuccess()||$modifiesSession)
+                $connection->markDirty();
+            return $result;
         } finally {
             $connection->release();
         }
+    }
+
+    /**
+     * 判断原生 SQL 是否为写语句(按首关键字)
+     *
+     * @access private
+     * @param string $sql SQL
+     * @return bool
+     */
+    private static function isWriteSql(string $sql): bool {
+        return preg_match(
+            '/^\s*(INSERT|UPDATE|DELETE|REPLACE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|SET|USE|LOCK|UNLOCK)\b/i',
+            $sql
+        )===1;
+    }
+
+    /**
+     * 判断原生 SQL 是否修改会话状态(归还连接池时须丢弃, 避免污染)
+     *
+     * - SET/USE/LOCK 变更会话变量与当前库; CREATE TEMPORARY 建立会话级临时表
+     *
+     * @access private
+     * @param string $sql SQL
+     * @return bool
+     */
+    private static function modifiesSessionState(string $sql): bool {
+        return preg_match('/^\s*(SET|USE|LOCK|UNLOCK|CREATE\s+TEMPORARY)\b/i',$sql)===1;
     }
 
     /**

@@ -3,12 +3,15 @@
 namespace base\Database\Connection;
 
 use function array_pop;
+use function count;
 
 /**
  * PDO 连接池
  *
  * - 通过会话工厂创建连接, 空闲会话在归还时清理后复用
  * - 会话持有对连接池的引用, 释放时自动回到连接池
+ * - 有界: 闲置会话超过上限直接丢弃
+ * - 脏会话(查询失败或修改过会话状态)归还时丢弃, 不复用, 避免污染其他使用者
  */
 final class PdoConnectionPool implements ConnectionPoolInterface {
 
@@ -25,13 +28,21 @@ final class PdoConnectionPool implements ConnectionPoolInterface {
     private array $idle=array();
 
     /**
+     * 闲置会话上限(超过则丢弃, 控制物理连接数)
+     * @var int
+     */
+    private int $maxIdle;
+
+    /**
      * 构造方法
      *
      * @access public
      * @param callable $sessionFactory 会话工厂(callable(): PdoConnectionSession)
+     * @param int $maxIdle 闲置会话上限
      */
-    public function __construct(callable $sessionFactory) {
+    public function __construct(callable $sessionFactory,int $maxIdle=20) {
         $this->sessionFactory=$sessionFactory;
+        $this->maxIdle=$maxIdle;
     }
 
     /**
@@ -78,8 +89,11 @@ final class PdoConnectionPool implements ConnectionPoolInterface {
      * @return void
      */
     public function returnToPool(PdoConnectionSession $session): void {
-        // 清理连接以保证连接干净
+        // 回滚残留事务, 保证会话干净
         $session->reset();
+        // 脏会话或超过闲置上限: 丢弃不复用(对象失引用后由 GC 释放连接)
+        if($session->isDirty()||count($this->idle)>=$this->maxIdle)
+            return;
         $this->idle[]=$session;
     }
 

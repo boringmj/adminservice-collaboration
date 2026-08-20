@@ -10,13 +10,12 @@ use base\Database\Query\QueryContextInterface;
 use base\Database\Result\ResultInterface;
 use base\Database\Sql\Builder\StatementBuilderInterface;
 use base\Database\Sql\Compiler\SqlCompilerInterface;
-use base\Database\Type\QueryType;
 
 /**
  * 查询协调器
  *
- * - 串联读/写连接分配、语句构建、编译、中间件链与执行
- * - 写查询使用独占连接, 读查询使用共享连接
+ * - 串联连接分配、语句构建、编译、中间件链与执行
+ * - 读写统一走连接池(共享连接), 查询失败时标记会话污染, 归还时由池丢弃
  */
 final class QueryCoordinator implements QueryCoordinatorInterface {
 
@@ -82,10 +81,7 @@ final class QueryCoordinator implements QueryCoordinatorInterface {
      * @return ResultInterface
      */
     public function query(StatementBuilderInterface $builder): ResultInterface {
-        $write=($this->context->getQueryType()&QueryType::WRITE)!==0;
-        $connection=$write
-            ? $this->connectionManager->getExclusiveConnection()
-            : $this->connectionManager->getConnection();
+        $connection=$this->connectionManager->getConnection();
         try {
             $statement=$this->buildHandler->execute(
                 $this->context,
@@ -97,7 +93,11 @@ final class QueryCoordinator implements QueryCoordinatorInterface {
             $dispatcher=new QueryExecutionDispatcher();
             $handler=(new QueryMiddlewareHandler($dispatcher,$this->middlewares))
                 ->configure($executor,$statement);
-            return $handler->execute($this->context);
+            $result=$handler->execute($this->context);
+            // 查询失败 → 连接状态未知, 标记脏, 归还时丢弃不复用
+            if(!$result->isSuccess())
+                $connection->markDirty();
+            return $result;
         } finally {
             $connection->release();
         }

@@ -248,7 +248,7 @@ abstract class Container {
      * @access public
      * @param string $name 类名
      * @param bool $recursive 是否递归查找(默认为true)
-     * @param bool $max_depth 最大递归深度
+     * @param int $max_depth 最大递归深度
      * @return string
      */
     public static function getRealClass(

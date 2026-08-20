@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS `admin_service_users` (
     `status`     TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '状态: 1正常 2禁用 3待审核',
     `deleted_at` DATETIME NULL DEFAULT NULL COMMENT '软删除时间',
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `idx_status` (`status`),
     KEY `idx_age` (`age`)

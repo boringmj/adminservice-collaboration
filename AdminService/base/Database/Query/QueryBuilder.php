@@ -62,6 +62,8 @@ class QueryBuilder {
     // ========== 构建方法(委托给语义查询, 返回自身支持链式) ==========
 
     /**
+     * 设置查询字段
+     *
      * @access public
      * @param string|Field|array $columns 字段
      * @param string|null $alias 字段别名
@@ -73,6 +75,8 @@ class QueryBuilder {
     }
 
     /**
+     * 去重
+     *
      * @access public
      * @return static
      */
@@ -82,10 +86,12 @@ class QueryBuilder {
     }
 
     /**
+     * 追加普通条件(null 值自动转 IS NULL)
+     *
      * @access public
      * @param string|Field $field 字段
      * @param mixed $value 值
-     * @param string $operator 操作符
+     * @param string $operator 操作符(=, >, <, >=, <=, !=, <>, LIKE, NOT LIKE)
      * @return static
      */
     public function where(string|Field $field,mixed $value=null,string $operator='='): static {
@@ -94,10 +100,12 @@ class QueryBuilder {
     }
 
     /**
+     * 追加 IN 条件(值列表不可为空)
+     *
      * @access public
      * @param string|Field $field 字段
      * @param array<mixed> $values 值列表
-     * @param bool $not 是否取反
+     * @param bool $not 是否取反(NOT IN)
      * @return static
      */
     public function whereIn(string|Field $field,array $values,bool $not=false): static {
@@ -106,6 +114,8 @@ class QueryBuilder {
     }
 
     /**
+     * 追加 NOT IN 条件
+     *
      * @access public
      * @param string|Field $field 字段
      * @param array<mixed> $values 值列表
@@ -117,11 +127,13 @@ class QueryBuilder {
     }
 
     /**
+     * 追加 BETWEEN 条件
+     *
      * @access public
      * @param string|Field $field 字段
      * @param mixed $min 最小值
      * @param mixed $max 最大值
-     * @param bool $not 是否取反
+     * @param bool $not 是否取反(NOT BETWEEN)
      * @return static
      */
     public function whereBetween(string|Field $field,mixed $min,mixed $max,bool $not=false): static {
@@ -130,9 +142,11 @@ class QueryBuilder {
     }
 
     /**
+     * 追加 IS NULL 条件
+     *
      * @access public
      * @param string|Field $field 字段
-     * @param bool $not 是否取反
+     * @param bool $not 是否取反(IS NOT NULL)
      * @return static
      */
     public function whereNull(string|Field $field,bool $not=false): static {
@@ -141,9 +155,11 @@ class QueryBuilder {
     }
 
     /**
+     * 追加分组条件(嵌套 AND/OR)
+     *
      * @access public
      * @param string $connector 连接符号(and/or)
-     * @param callable $callback 子条件回调
+     * @param callable $callback 子条件回调(接收子查询对象)
      * @return static
      */
     public function whereGroup(string $connector,callable $callback): static {
@@ -152,10 +168,12 @@ class QueryBuilder {
     }
 
     /**
+     * 追加关联查询
+     *
      * @access public
      * @param string $type 关联类型(inner/left/right/full)
      * @param string|Table $table 关联表("orders" 或 "orders o")
-     * @param array $on 关联条件列表
+     * @param array $on 关联条件列表([左字段, 操作符, 右字段])
      * @return static
      */
     public function join(string $type,string|Table $table,array $on): static {
@@ -164,6 +182,8 @@ class QueryBuilder {
     }
 
     /**
+     * 追加排序
+     *
      * @access public
      * @param string|Field $field 字段
      * @param string $direction 排序方向(asc/desc)
@@ -175,6 +195,8 @@ class QueryBuilder {
     }
 
     /**
+     * 追加排序(order 别名)
+     *
      * @access public
      * @param string|Field $field 字段
      * @param string $direction 排序方向
@@ -185,6 +207,8 @@ class QueryBuilder {
     }
 
     /**
+     * 追加分组
+     *
      * @access public
      * @param string|Field $field 字段
      * @return static
@@ -195,6 +219,8 @@ class QueryBuilder {
     }
 
     /**
+     * 追加分组(group 别名)
+     *
      * @access public
      * @param string|Field $field 字段
      * @return static
@@ -204,6 +230,8 @@ class QueryBuilder {
     }
 
     /**
+     * 设置数量限制
+     *
      * @access public
      * @param int $limit 数量限制
      * @param int|null $offset 偏移量
@@ -215,6 +243,8 @@ class QueryBuilder {
     }
 
     /**
+     * 设置偏移量
+     *
      * @access public
      * @param int $offset 偏移量
      * @return static
@@ -225,6 +255,8 @@ class QueryBuilder {
     }
 
     /**
+     * 设置行锁(需在事务内生效)
+     *
      * @access public
      * @param string $type 锁类型(shared/update)
      * @return static

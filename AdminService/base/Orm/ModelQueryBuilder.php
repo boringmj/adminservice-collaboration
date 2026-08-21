@@ -8,6 +8,8 @@ use base\Database\Query\Query;
 use base\Database\Result\ResultInterface;
 use base\Database\Sql\Definition\Field;
 use base\Database\Sql\Definition\Table;
+use base\Database\Type\Operator;
+use base\Database\Type\OrderDirection;
 use base\Database\Type\StatementType;
 
 use function array_filter;
@@ -146,7 +148,7 @@ class ModelQueryBuilder {
      * @param string $operator 操作符
      * @return static
      */
-    public function where(string|Field $field,mixed $value=null,string $operator='='): static {
+    public function where(string|Field $field,mixed $value=null,string $operator=Operator::EQ): static {
         $this->query->where($field,$value,$operator);
         return $this;
     }
@@ -241,7 +243,7 @@ class ModelQueryBuilder {
      * @param string $direction 方向
      * @return static
      */
-    public function order(string|Field $field,string $direction='ASC'): static {
+    public function order(string|Field $field,string $direction=OrderDirection::ASC): static {
         $this->query->order($field,$direction);
         return $this;
     }
@@ -254,7 +256,7 @@ class ModelQueryBuilder {
      * @param string $direction 方向
      * @return static
      */
-    public function orderBy(string|Field $field,string $direction='ASC'): static {
+    public function orderBy(string|Field $field,string $direction=OrderDirection::ASC): static {
         return $this->order($field,$direction);
     }
 

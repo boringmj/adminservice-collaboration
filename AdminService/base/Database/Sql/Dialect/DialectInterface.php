@@ -55,7 +55,7 @@ interface DialectInterface {
      * 构建 PDO DSN
      *
      * - DSN 参数格式因数据库而异, 应随方言定义
-     * @param array $params 连接参数(type/host/port/dbname/charset 等)
+     * @param array<string,mixed> $params 连接参数(type/host/port/dbname/charset 等)
      * @return string DSN
      */
     public function buildDsn(array $params): string;

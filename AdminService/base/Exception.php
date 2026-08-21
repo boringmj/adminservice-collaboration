@@ -22,7 +22,7 @@ abstract class Exception extends \Exception {
      * @access public
      * @param string $message
      * @param int $error_code
-     * @param array $data
+     * @param array<string,mixed> $data
      */
     public function __construct(string $message,int $error_code=0,array $data=array()) {
         $this->error_code=$error_code;

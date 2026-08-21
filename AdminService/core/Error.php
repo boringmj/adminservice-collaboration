@@ -335,7 +335,7 @@ final class Error extends BaseError {
      * 格式化堆栈跟踪信息
      * 
      * @access private
-     * @param array $stack_trace 堆栈跟踪数组
+     * @param array<mixed> $stack_trace 堆栈跟踪数组
      * @return string 格式化后的HTML
      */
     private static function formatStackTrace(array $stack_trace): string {
@@ -368,7 +368,7 @@ final class Error extends BaseError {
      * 格式化堆栈跟踪用于日志记录
      * 
      * @access private
-     * @param array $trace
+     * @param array<mixed> $trace
      * @return string
      */
     private static function formatStackTraceForLog(array $trace): string {
@@ -398,7 +398,7 @@ final class Error extends BaseError {
      * 将参数转为字符串
      * 
      * @access private
-     * @param array $args
+     * @param array<mixed> $args
      * @return string
      */
     private static function stringifyArgs(array $args): string {

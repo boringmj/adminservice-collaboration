@@ -24,7 +24,7 @@ abstract class AbstractResponseProcessor {
      * 
      * @access public
      * @param Response $response Response对象
-     * @param array $config 配置项
+     * @param array<string,mixed> $config 配置项
      * @return string
      */
     public function __construct(Response $response,array $config) {

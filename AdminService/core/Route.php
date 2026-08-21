@@ -28,7 +28,7 @@ final class Route extends BaseRoute {
      * 通过路由路径组返回控制器
      *
      * @access public
-     * @param array $route_info 路由信息
+     * @param array<string,mixed> $route_info 路由信息
      * @return self
      * @throws Exception
      */
@@ -134,7 +134,7 @@ final class Route extends BaseRoute {
      * 将路由参数转换为GET参数
      * 
      * @access private
-     * @param array $params 路由参数
+     * @param array<string,mixed> $params 路由参数
      * @return void
      */
     private function toGet(array $params): void {
@@ -169,7 +169,7 @@ final class Route extends BaseRoute {
     /**
      * 执行中间件
      *
-     * @param array $middlewares 中间件
+     * @param array<mixed> $middlewares 中间件
      * @param callable $core 核心逻辑
      * @return void
      */

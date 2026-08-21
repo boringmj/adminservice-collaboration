@@ -45,7 +45,7 @@ abstract class DbFacade {
      *
      * @access public
      * @param string $sql SQL
-     * @param array $params 绑定参数
+     * @param array<mixed> $params 绑定参数
      * @return ResultInterface
      */
     public function raw(string $sql,array $params=array()): ResultInterface {

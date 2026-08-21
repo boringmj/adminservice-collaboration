@@ -95,17 +95,17 @@ final class StatementDefinition implements StatementDefinitionInterface {
      * @access public
      * @param int $type 语句类型
      * @param Table|null $table 主表
-     * @param array $columns 查询字段列表
+     * @param array<array{0:Field,1:?string}> $columns 查询字段列表
      * @param bool $distinct 是否去重
-     * @param array $joins 关联查询列表
+     * @param array<Join> $joins 关联查询列表
      * @param Where|null $where 查询条件
-     * @param array $group 分组字段列表
-     * @param array $order 排序字段列表
+     * @param array<Field> $group 分组字段列表
+     * @param array<array{0:Field,1:string}> $order 排序字段列表
      * @param int|null $limit 查询数量限制
      * @param int|null $offset 查询偏移量
      * @param string|null $lock 行锁类型
-     * @param array $rows 插入的数据行列表
-     * @param array $sets 更新的数据列
+     * @param array<string,mixed>|array<array<string,mixed>> $rows 插入的数据行列表(单行或列表)
+     * @param array<string,mixed> $sets 更新的数据列
      */
     public function __construct(
         int $type,

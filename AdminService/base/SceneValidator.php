@@ -21,9 +21,9 @@ abstract class SceneValidator extends Validator {
     /**
      * 构造方法
      * 
-     * @param array $data 待验证的数据
-     * @param array $rules 验证规则
-     * @param array $messages 自定义错误信息
+     * @param array<string,mixed> $data 待验证的数据
+     * @param array<string,mixed> $rules 验证规则
+     * @param array<string,mixed> $messages 自定义错误信息
      * @return void
      */
     public function __construct(array $data=[],array $rules=[],array $messages=[]) {
@@ -45,7 +45,7 @@ abstract class SceneValidator extends Validator {
     /**
      * 获取当前场景的规则
      *
-     * @param array $rules 合并后的规则集
+     * @param array<string,mixed> $rules 合并后的规则集
      * @return array
      */
     protected function getSceneRules(array $rules): array {
@@ -64,8 +64,8 @@ abstract class SceneValidator extends Validator {
     /**
      * 验证数据
      * 
-     * @param array $data 待验证的数据
-     * @param array $rules 外部传入的规则(与默认规则合并,冲突则使用外部规则)
+     * @param array<string,mixed> $data 待验证的数据
+     * @param array<string,mixed> $rules 外部传入的规则(与默认规则合并,冲突则使用外部规则)
      * @return bool
      */
     public function validate(array $data=[],array $rules=[]): bool {

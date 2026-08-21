@@ -49,7 +49,7 @@ final class QueryMiddlewareHandler implements QueryMiddlewareHandlerInterface {
      *
      * @access public
      * @param QueryExecutionDispatcherInterface $dispatcher 查询执行调度器
-     * @param array $middlewares 中间件数组
+     * @param array<QueryMiddlewareInterface> $middlewares 中间件数组
      */
     public function __construct(QueryExecutionDispatcherInterface $dispatcher,array $middlewares=array()) {
         $this->dispatcher=$dispatcher;
@@ -63,7 +63,7 @@ final class QueryMiddlewareHandler implements QueryMiddlewareHandlerInterface {
      *
      * @access public
      * @param QueryExecutionDispatcherInterface $dispatcher 查询执行分发器对象
-     * @param array $middlewares 中间件数组
+     * @param array<QueryMiddlewareInterface> $middlewares 中间件数组
      * @return static
      */
     public function wrap(QueryExecutionDispatcherInterface $dispatcher,array $middlewares): static {

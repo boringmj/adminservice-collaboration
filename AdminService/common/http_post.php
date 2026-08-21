@@ -8,7 +8,7 @@ use function file_get_contents;
  * 发送HTTP POST请求
  * 
  * @param string $url 请求地址
- * @param array $params 请求参数
+ * @param array<string,mixed> $params 请求参数
  * @param string $type 请求类型(form/json)
  * @return string
  */

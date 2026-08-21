@@ -56,7 +56,7 @@ final class QueryCoordinator implements QueryCoordinatorInterface {
      * @param QueryContextInterface $context 查询上下文
      * @param ConnectionManagerInterface $connectionManager 连接管理器
      * @param SqlCompilerInterface $compiler SQL 编译器
-     * @param array $middlewares 中间件数组
+     * @param array<QueryMiddlewareInterface> $middlewares 中间件数组
      * @param QueryBuildHandlerInterface|null $buildHandler 查询构建处理器
      */
     public function __construct(

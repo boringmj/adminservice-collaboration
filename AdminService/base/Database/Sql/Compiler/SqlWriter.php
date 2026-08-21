@@ -131,7 +131,7 @@ final class SqlWriter {
      * 设置逻辑表名映射
      *
      * @access public
-     * @param array $tableMap 逻辑表名 → 实际 SQL 表名
+     * @param array<string,string> $tableMap 逻辑表名 → 实际 SQL 表名
      * @return void
      */
     public function setTableMap(array $tableMap): void {

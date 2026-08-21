@@ -79,7 +79,7 @@ final class Db {
      * @access public
      * @param ConnectionManagerInterface $manager 连接管理器
      * @param SqlCompilerInterface|null $compiler SQL 编译器
-     * @param array $middlewares 中间件数组
+     * @param array<QueryMiddlewareInterface> $middlewares 中间件数组
      */
     public function __construct(
         ConnectionManagerInterface $manager,
@@ -100,7 +100,7 @@ final class Db {
      *
      * @access public
      * @param string $name 连接名称(默认 default)
-     * @param array $config 连接配置覆盖项
+     * @param array<string,mixed> $config 连接配置覆盖项
      * @return static
      * @throws ConfigException 指定连接未配置且未提供覆盖
      */
@@ -191,7 +191,7 @@ final class Db {
      * 从配置数组构建连接配置
      *
      * @access private
-     * @param array $config 连接配置
+     * @param array<string,mixed> $config 连接配置
      * @return ConnectionConfig
      */
     private static function buildConfig(array $config): ConnectionConfig {
@@ -239,7 +239,7 @@ final class Db {
      *
      * @access public
      * @param string $sql SQL
-     * @param array $params 绑定参数
+     * @param array<mixed> $params 绑定参数
      * @return ResultInterface
      */
     public function raw(string $sql,array $params=array()): ResultInterface {

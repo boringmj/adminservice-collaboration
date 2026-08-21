@@ -88,7 +88,7 @@ final class ConnectionConfig {
      * @param string $password 密码
      * @param string $dbname 数据库名
      * @param string $charset 字符集
-     * @param array $options PDO 连接选项
+     * @param array<int,mixed> $options PDO 连接选项
      * @param string $tablePrefix 表前缀
      * @param class-string|null $dialectClass 方言类名(为空时按类型默认, 当前默认 MySQL)
      */

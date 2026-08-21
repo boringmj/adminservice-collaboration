@@ -35,9 +35,9 @@ abstract class Validator {
     /**
      * 构造方法
      * 
-     * @param array $data 待验证的数据
-     * @param array $rules 验证规则
-     * @param array $messages 自定义错误信息
+     * @param array<string,mixed> $data 待验证的数据
+     * @param array<string,mixed> $rules 验证规则
+     * @param array<string,mixed> $messages 自定义错误信息
      * @return void
      */
     public function __construct(array $data=[],array $rules=[],array $messages=[]) {
@@ -68,8 +68,8 @@ abstract class Validator {
     /**
      * 验证数据
      * 
-     * @param array $data 待验证的数据
-     * @param array $rules 外部传入的规则(与默认规则合并,冲突则使用外部规则)
+     * @param array<string,mixed> $data 待验证的数据
+     * @param array<string,mixed> $rules 外部传入的规则(与默认规则合并,冲突则使用外部规则)
      * @return bool
      */
     public function validate(array $data=[],array $rules=[]): bool {
@@ -82,8 +82,8 @@ abstract class Validator {
     /**
      * 执行验证
      *
-     * @param array $data 待验证的数据
-     * @param array $rules 验证规则
+     * @param array<string,mixed> $data 待验证的数据
+     * @param array<string,mixed> $rules 验证规则
      * @return bool
      */
     protected function doValidate(array $data,array $rules): bool {
@@ -105,7 +105,7 @@ abstract class Validator {
      * 添加错误
      * 
      * @param string $field 字段名称
-     * @param array $error 错误信息
+     * @param array<string,mixed> $error 错误信息
      * @return self
      */
     protected function error(string $field,array $error): self {
@@ -172,7 +172,7 @@ abstract class Validator {
     /**
      * 脱敏数据
      * 
-     * @param array $data 待脱敏的数据
+     * @param array<string,mixed> $data 待脱敏的数据
      * @return array
      */
     abstract public function sanitize(array $data): array;

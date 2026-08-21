@@ -94,7 +94,7 @@ final class MysqlDialect implements DialectInterface, InlineQuotingInterface {
      * 构建 PDO DSN
      *
      * @access public
-     * @param array $params 连接参数
+     * @param array<string,mixed> $params 连接参数
      * @return string
      */
     public function buildDsn(array $params): string {

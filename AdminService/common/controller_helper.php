@@ -11,7 +11,7 @@ use ReflectionException;
  * 显示视图
  *
  * @param string|array|null $template 视图名称或数据(如果传入数组则为数据)
- * @param array $data 数据
+ * @param array<string,mixed> $data 数据
  * @return string
  * @throws ReflectionException|Exception
  */

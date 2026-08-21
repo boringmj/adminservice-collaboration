@@ -73,7 +73,7 @@ final class App extends Container {
      * @access public
      * @param object|string $object 对象或者类名
      * @param string $method 方法名
-     * @param array $args 方法参数(如果为关系型数组,则会将key作为参数名,value作为参数值,如果索引数组,则会逐一赋值,没有赋值的参数会使用默认值)
+     * @param array<mixed> $args 方法参数(如果为关系型数组,则会将key作为参数名,value作为参数值,如果索引数组,则会逐一赋值,没有赋值的参数会使用默认值)
      * @return mixed
      * @throws Exception|ReflectionException
      */
@@ -96,7 +96,7 @@ final class App extends Container {
      *
      * @access public
      * @param string|array|callable $function 函数名(支持数组形式的类方法调用和闭包)
-     * @param array $args 函数参数(如果为关系型数组,则会将key作为参数名,value作为参数值,如果索引数组,则会逐一赋值,没有赋值的参数会使用默认值)
+     * @param array<mixed> $args 函数参数(如果为关系型数组,则会将key作为参数名,value作为参数值,如果索引数组,则会逐一赋值,没有赋值的参数会使用默认值)
      * @return mixed
      * @throws Exception|ReflectionException
      */

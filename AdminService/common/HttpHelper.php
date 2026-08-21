@@ -87,7 +87,7 @@ class HttpHelper {
      * 设置请求头
      * 
      * @access public
-     * @param array $headers 请求头
+     * @param array<string,mixed> $headers 请求头
      * @return self
      */
     public function setHeaders(array $headers): self {
@@ -195,7 +195,7 @@ class HttpHelper {
      * 无法解析名称的请求头(不含冒号)原样保留
      *
      * @access private
-     * @param array $headers 请求头数组
+     * @param array<string,mixed> $headers 请求头数组
      * @return array
      */
     private function dedupeHeaders(array $headers): array {
@@ -270,7 +270,7 @@ class HttpHelper {
      * 
      * @access public
      * @param string $url 请求地址
-     * @param array $headers 请求头
+     * @param array<string,mixed> $headers 请求头
      * @param int $timeout 超时时间
      * @param callable|null $error_callback 错误回调(支持的参数:code,body,headers,error)
      * @param bool $disable_ssl_verify 是否禁用ssl验证
@@ -303,7 +303,7 @@ class HttpHelper {
      * @access public
      * @param string $url 请求地址
      * @param string|array $data 请求体(传入数组则会自动转为json字符串)
-     * @param array $headers 请求头
+     * @param array<string,mixed> $headers 请求头
      * @param int $timeout 超时时间
      * @param callable|null $error_callback 错误回调(支持的参数:code,body,headers,error)
      * @param bool $disable_ssl_verify 是否禁用ssl验证

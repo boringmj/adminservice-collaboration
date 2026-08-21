@@ -51,7 +51,7 @@ class DynamicProxy {
      *
      * @access public
      * @param string $name 方法名
-     * @param array $arguments 参数
+     * @param array<mixed> $arguments 参数
      * @return mixed
      * @throws Exception|ReflectionException
      */

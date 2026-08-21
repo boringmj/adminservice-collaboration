@@ -176,6 +176,25 @@ class ModelTest extends TestCase {
     }
 
     /**
+     * 测试实例 update() 批量赋值并保存(Eloquent 风格)
+     * @return void
+     */
+    public function testInstanceUpdate(): void {
+        $this->pdo->selectRows=[['id'=>1,'name'=>'张三','age'=>20,'status'=>1]];
+        $user=User::find(1);
+        $this->pdo->affectedRows=1;
+        $this->assertTrue($user->update(array('age'=>30,'name'=>'李四')));
+        // fill + save: 变更字段 + 刷新的 updated_at 进入 UPDATE
+        $this->assertSame(
+            'UPDATE `users` SET `name` = ?, `age` = ?, `updated_at` = ? WHERE `id` = ?',
+            $this->pdo->executed[1]
+        );
+        // 属性已原地更新
+        $this->assertSame(30,$user->age);
+        $this->assertSame('李四',$user->name);
+    }
+
+    /**
      * 测试实例保存无变更时不发查询(不刷新 updated_at)
      * @return void
      */
@@ -215,6 +234,47 @@ class ModelTest extends TestCase {
         $this->assertTrue($user->delete());
         $this->assertFalse($user->exists());
         $this->assertSame('DELETE FROM `users` WHERE `id` = ?',$this->pdo->executed[1]);
+    }
+
+    /**
+     * 测试批量更新无 where 被禁止(全表保护)
+     * @return void
+     */
+    public function testBulkUpdateWithoutWhereThrows(): void {
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage('must have where condition');
+        User::query()->update(array('name'=>'x'));
+    }
+
+    /**
+     * 测试批量删除无 where 被禁止(全表保护)
+     * @return void
+     */
+    public function testBulkDeleteWithoutWhereThrows(): void {
+        $this->expectException(QueryException::class);
+        User::query()->delete();
+    }
+
+    /**
+     * 测试软删除模型的批量删除仍需显式 where
+     *
+     * - 软删过滤是自动附加的内部条件, 不能替代用户显式 where
+     * - 否则 Post::query()->delete() 会被 "deleted_at IS NULL" 掩护成全表软删
+     *
+     * @return void
+     */
+    public function testSoftDeleteModelBulkDeleteWithoutWhereThrows(): void {
+        $this->expectException(QueryException::class);
+        Post::query()->delete();
+    }
+
+    /**
+     * 测试 onlyTrashed 物理清空仍需显式 where
+     * @return void
+     */
+    public function testOnlyTrashedForceDeleteWithoutWhereThrows(): void {
+        $this->expectException(QueryException::class);
+        Post::onlyTrashed()->forceDelete();
     }
 
     /**

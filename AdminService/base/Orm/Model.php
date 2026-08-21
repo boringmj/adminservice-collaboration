@@ -52,9 +52,6 @@ use function strtolower;
  * @method static mixed value(string $field)
  * @method static array<mixed> pluck(string $field)
  * @method static Paginator paginate(int $perPage=15, int $page=1)
- * @method static int update(array $data)
- * @method static int delete()
- * @method static int forceDelete()
  * @method static string getLastSql()
  */
 abstract class Model {
@@ -670,6 +667,20 @@ abstract class Model {
         if($this->exists)
             return $this->updateExisting();
         return $this->insertNew();
+    }
+
+    /**
+     * 批量赋值并保存
+     *
+     * - 等价于 fill($data)->save(), 受 fillable 白名单约束
+     * - 已存在记录走脏检查更新, 否则插入
+     *
+     * @access public
+     * @param array<string,mixed> $data 数据
+     * @return bool
+     */
+    public function update(array $data): bool {
+        return $this->fill($data)->save();
     }
 
     /**

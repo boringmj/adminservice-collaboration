@@ -3,17 +3,14 @@
 namespace app\demo\controller;
 
 use Throwable;
+use AdminService\Db;
 use base\Controller;
-use base\Database\Db;
-use base\Database\Query\Query;
-use base\Database\Result\ResultInterface;
 
 /**
- * 数据库使用示例控制器
+ * 数据库使用示例控制器(全门面 AdminService\Db)
  *
- * - 新 DBAL(Query + Db)完整用法示例, 真实执行并返回 SQL 与结果
- * - 访问: /demo/DatabaseDemo 或 /demo/DatabaseDemo/index(完整示例); /demo/DatabaseDemo/demo(简洁示例)
- * - 需先配置数据库连接并创建示例数据表(见 AdminService/data/database.sql)
+ * - 用户入口仅 AdminService\Db, 不接触底层 DBAL(base\Database)
+ * - 访问: /demo/DatabaseDemo(完整示例) /demo/DatabaseDemo/demo(简洁) /demo/DatabaseDemo/facade(门面专讲)
  */
 class DatabaseDemo extends Controller {
 
@@ -46,226 +43,101 @@ class DatabaseDemo extends Controller {
     }
 
     /**
-     * 完整示例逻辑(可注入 Db 便于测试)
+     * 门面专讲(AdminService\Db::table 流式裸查询)
      *
      * @access public
-     * @param Db|null $db 数据库入口
-     * @return array 带标签的结果集
+     * @return mixed
      */
-    public static function runDemo(?Db $db=null): array {
-        $db=$db??Db::fromConfig();
+    public function facade(): mixed {
         $data=array();
         try {
-            // =====================================================
-            // 一、查询
-            // =====================================================
+            $data['get']=Db::table('users')->where('age',18,'>=')->orderBy('id')->limit(3)->get();
+            $data['first']=Db::table('users')->where('id',1)->first();
+            $data['count']=Db::table('users')->where('status',1)->count();
+            $data['value']=Db::table('users')->where('id',1)->value('name');
+            $data['pluck']=Db::table('users')->limit(5)->pluck('name');
+        } catch(Throwable $e) {
+            $data['fatal_error']=$e->getMessage();
+        }
+        return $this->json($data);
+    }
 
-            $data['select_all']=self::dump(
-                $db->query(Query::select()->from('users'))
-            );
-            $data['select_fields']=self::dump(
-                $db->query(Query::select()->from('users')->field('id,name'))
-            );
-            $data['select_fields_array']=self::dump(
-                $db->query(Query::select()->from('users')->field(array('id','name')))
-            );
-            $data['select_alias']=self::dump(
-                $db->query(Query::select()->from('users','u')
-                    ->field('u.id')
-                    ->field(array('u.name'=>'nickname')))
-            );
-            $data['distinct']=self::dump(
-                $db->query(Query::select()->from('users')->distinct()->field('status'))
-            );
-            $data['order']=self::dump(
-                $db->query(Query::select()->from('users')->order('id','DESC'))
-            );
-            $data['order_multi']=self::dump(
-                $db->query(Query::select()->from('users')
-                    ->order('status','ASC')
-                    ->order('id','DESC'))
-            );
-            $data['limit']=self::dump(
-                $db->query(Query::select()->from('users')->limit(10))
-            );
-            $data['limit_offset']=self::dump(
-                $db->query(Query::select()->from('users')->limit(10,20))
-            );
-            $data['offset']=self::dump(
-                $db->query(Query::select()->from('users')->offset(20))
-            );
-            $data['group']=self::dump(
-                $db->query(Query::select()->from('users')->group('status'))
-            );
+    /**
+     * 完整示例逻辑(全门面)
+     *
+     * @access public
+     * @return array 带标签的结果集
+     */
+    public static function runDemo(): array {
+        $data=array();
+        try {
+            // ============ 一、查询 ============
+            $b=Db::table('users');
+            $data['select_all']=$b->get();
+            $data['select_all_sql']=$b->getSql();
+            $data['select_fields']=Db::table('users')->field('id,name')->get();
+            $b=Db::table('users');
+            $data['order']=$b->order('id','DESC')->limit(5)->get();
+            $data['order_sql']=$b->getSql();
+            $data['where']=Db::table('users')->where('status',1)->where('age',18,'>=')->get();
+            $data['where_like']=Db::table('users')->where('name','张%','LIKE')->get();
+            $data['where_in']=Db::table('users')->whereIn('status',array(1,2))->get();
+            $data['where_group']=Db::table('users')
+                ->where('status',1)
+                ->whereGroup('OR',function($q) {
+                    $q->where('age',30,'<');
+                    $q->where('name','张%','LIKE');
+                })->get();
+            $data['group']=Db::table('users')->field('status')->group('status')->get();
+            $data['join']=Db::table('users','u')
+                ->join('left','orders o',array(array('u.id','=','o.user_id')))
+                ->field('u.id')
+                ->field('o.id','order_id')
+                ->get();
+            $data['lock']=Db::table('users')->where('id',1)->lock()->get();
 
-            // =====================================================
-            // 二、条件
-            // =====================================================
-
-            $data['where_eq']=self::dump(
-                $db->query(Query::select()->from('users')->where('id',1))
-            );
-            $data['where_gt']=self::dump(
-                $db->query(Query::select()->from('users')->where('age',18,'>='))
-            );
-            $data['where_like']=self::dump(
-                $db->query(Query::select()->from('users')->where('name','张%','LIKE'))
-            );
-            $data['where_in']=self::dump(
-                $db->query(Query::select()->from('users')->whereIn('status',array(1,2,3)))
-            );
-            $data['where_not_in']=self::dump(
-                $db->query(Query::select()->from('users')->whereNotIn('status',array(4,5)))
-            );
-            $data['where_between']=self::dump(
-                $db->query(Query::select()->from('users')->whereBetween('age',18,60))
-            );
-            $data['where_not_between']=self::dump(
-                $db->query(Query::select()->from('users')->whereBetween('age',18,60,true))
-            );
-            $data['where_null']=self::dump(
-                $db->query(Query::select()->from('users')->whereNull('deleted_at'))
-            );
-            $data['where_not_null']=self::dump(
-                $db->query(Query::select()->from('users')->whereNull('deleted_at',true))
-            );
-            $data['where_and']=self::dump(
-                $db->query(Query::select()->from('users')
-                    ->where('status',1)
-                    ->where('age',18,'>='))
-            );
-            $data['where_group']=self::dump(
-                $db->query(Query::select()->from('users')
-                    ->where('status',1)
-                    ->whereGroup('OR',function($q) {
-                        $q->where('age',30,'<')
-                          ->where('name','张%','LIKE');
-                    }))
-            );
-            $data['where_qualified']=self::dump(
-                $db->query(Query::select()->from('users','u')
-                    ->where('u.id',1))
+            // ============ 二、单条/聚合 ============
+            $data['first']=Db::table('users')->where('id',1)->first();
+            $data['count']=Db::table('users')->where('status',1)->count();
+            $data['value']=Db::table('users')->where('id',1)->value('name');
+            $data['pluck']=Db::table('users')->limit(5)->pluck('name');
+            $page=Db::table('users')->paginate(3,2);
+            $data['paginate']=array(
+                'total'=>$page['total'],
+                'per_page'=>$page['per_page'],
+                'items'=>$page['items'],
             );
 
-            // =====================================================
-            // 三、单条查询
-            // =====================================================
+            // ============ 三、写入(展示后清理) ============
+            $id=Db::table('users')->insert(array('name'=>'门面创建','age'=>20,'status'=>1));
+            $affected=Db::table('users')->where('id',$id)->update(array('age'=>21));
+            Db::table('users')->where('id',$id)->delete();
+            $data['write']=array('insert_id'=>$id,'update_affected'=>$affected);
 
-            $data['find']=self::dump(
-                $db->query(Query::find()->from('users')->where('id',1))
-            );
+            // ============ 四、原生 SQL ============
+            $data['raw']=Db::raw('SELECT COUNT(*) AS c FROM admin_service_users')->getResults()->toArray();
 
-            // =====================================================
-            // 四、写入
-            // =====================================================
-
-            $data['insert']=self::dump(
-                $db->query(Query::insert(array(
-                    'name'=>'张三',
-                    'age'=>20,
-                    'status'=>1,
-                ))->from('users'))
-            );
-            $data['insert_multi']=self::dump(
-                $db->query(Query::insert(array(
-                    array('name'=>'李四','age'=>21,'status'=>1),
-                    array('name'=>'王五','age'=>22,'status'=>1),
-                ))->from('users'))
-            );
-            $data['update']=self::dump(
-                $db->query(Query::update(array('name'=>'张三三','age'=>21))
-                    ->from('users')
-                    ->where('id',1))
-            );
-            $data['delete_where']=self::dump(
-                $db->query(Query::delete()->from('users')->where('status',0))
-            );
-            $data['delete_by_id']=self::dump(
-                $db->query(Query::delete()->from('users')->whereIn('id',array(10,11)))
-            );
-
-            // =====================================================
-            // 五、聚合统计
-            // =====================================================
-
-            $data['count']=self::dump(
-                $db->query(Query::count()->from('users'))
-            );
-            $data['count_distinct']=self::dump(
-                $db->query(Query::count()->from('users')->distinct()->field('status'))
-            );
-            $data['count_group']=self::dump(
-                $db->query(Query::count()->from('users')->group('status'))
-            );
-
-            // =====================================================
-            // 六、关联查询
-            // =====================================================
-
-            $data['join']=self::dump(
-                $db->query(Query::select()->from('users','u')
-                    ->join('left','orders o',array(
-                        array('u.id','=','o.user_id'),
-                    ))
-                    ->field('u.id')
-                    ->field('o.id','order_id'))
-            );
-            $data['join_scalar']=self::dump(
-                $db->query(Query::select()->from('users','u')
-                    ->join('inner','orders o',array(
-                        array('u.status','=',1),
-                    )))
-            );
-
-            // =====================================================
-            // 七、行锁(需在事务内生效)
-            // =====================================================
-
-            $data['lock']=self::dump(
-                $db->query(Query::select()->from('users')->where('id',1)->lock())
-            );
-            $data['lock_shared']=self::dump(
-                $db->query(Query::select()->from('users')->where('id',1)->lock('shared'))
-            );
-
-            // =====================================================
-            // 八、事务
-            // =====================================================
-
-            $data['transaction']=self::transactionScope($db,function($tx) {
-                $tx->query(Query::insert(array('name'=>'事务A','age'=>30,'status'=>1))->from('users'));
-                $tx->query(Query::update(array('status'=>2))->from('users')->where('id',1));
+            // ============ 五、事务(成功更新 + 异常回滚) ============
+            $data['transaction']=Db::transaction(function() {
+                Db::table('users')->where('id',1)->update(array('status'=>2));
             });
-            $data['transaction_nested']=self::transactionScope($db,function($tx) {
-                $tx->query(Query::insert(array('name'=>'外层','age'=>31,'status'=>1))->from('users'));
-                $tx->transaction(function($tx) {
-                    $tx->query(Query::insert(array('name'=>'内层','age'=>32,'status'=>1))->from('users'));
+            try {
+                Db::transaction(function() {
+                    Db::table('users')->insert(array('name'=>'回滚','age'=>40,'status'=>1));
+                    throw new \RuntimeException('trigger rollback');
                 });
-            });
-            $data['transaction_manual']=self::manualTransaction($db);
-
-            // =====================================================
-            // 九、结果集遍历
-            // =====================================================
-
-            $result=$db->query(Query::select()->from('users'));
-            $data['result_count']=$result->getResults()->count();
-            $iterated=array();
-            foreach($result->getResults() as $row) {
-                $iterated[]=$row['id']??null;
+                $data['transaction_rollback']='no rollback';
+            } catch(\RuntimeException $e) {
+                $data['transaction_rollback']='rolled back';
             }
-            $data['result_iterate']=$iterated;
 
-            // =====================================================
-            // 十、错误处理
-            // =====================================================
-
-            $failed=$db->query(Query::select()->from('not_exist_table'));
-            $data['error_handling']=array(
-                'success'=>$failed->isSuccess(),
-                'sql'=>$failed->getSql(),
-                'error'=>$failed->getError(),
-            );
+            // ============ 六、错误处理(门面失败抛异常) ============
+            try {
+                Db::table('not_exist_table')->get();
+                $data['error_handling']='no error';
+            } catch(Throwable $e) {
+                $data['error_handling']=$e->getMessage();
+            }
         } catch(Throwable $e) {
             $data['fatal_error']=$e->getMessage();
         }
@@ -273,77 +145,17 @@ class DatabaseDemo extends Controller {
     }
 
     /**
-     * 简洁示例逻辑
+     * 简洁示例逻辑(全门面)
      *
      * @access public
-     * @param Db|null $db 数据库入口
      * @return array
      */
-    public static function runDemoSimple(?Db $db=null): array {
-        $db=$db??Db::fromConfig();
-        $result=$db->query(Query::select()->from('users')->where('id',1));
-        $rows=$result->getResults()->toArray();
+    public static function runDemoSimple(): array {
+        $b=Db::table('users')->where('id',1);
         return array(
-            'sql'=>$result->getSql(),
-            'row'=>$rows[0]??null,
-            'is_empty'=>$result->getResults()->isEmpty(),
-        );
-    }
-
-    /**
-     * 在事务作用域内执行回调并返回结果
-     *
-     * @access private
-     * @param Db $db 数据库入口
-     * @param callable $callback 回调
-     * @return string 结果描述
-     */
-    private static function transactionScope(Db $db,callable $callback): string {
-        try {
-            $db->transaction($callback);
-            return 'success';
-        } catch(Throwable $e) {
-            return 'rollback: '.$e->getMessage();
-        }
-    }
-
-    /**
-     * 手动事务示例
-     *
-     * @access private
-     * @param Db $db 数据库入口
-     * @return string 结果描述
-     */
-    private static function manualTransaction(Db $db): string {
-        try {
-            $db->beginTransaction();
-            $db->query(Query::insert(array('name'=>'手动','age'=>33,'status'=>1))->from('users'));
-            $db->commit();
-            return 'committed';
-        } catch(Throwable $e) {
-            try {
-                $db->rollBack();
-            } catch(Throwable $ignored) {
-            }
-            return 'rollback: '.$e->getMessage();
-        }
-    }
-
-    /**
-     * 汇总结果信息
-     *
-     * @access private
-     * @param ResultInterface $result 查询结果
-     * @return array
-     */
-    private static function dump(ResultInterface $result): array {
-        return array(
-            'sql'=>$result->getSql(),
-            'params'=>$result->getParams(),
-            'success'=>$result->isSuccess(),
-            'rows'=>$result->getResults()->toArray(),
-            'affected'=>$result->getAffectedRows(),
-            'error'=>$result->getError(),
+            'sql'=>$b->getSql(),
+            'row'=>$b->first(),
+            'count'=>Db::table('users')->count(),
         );
     }
 

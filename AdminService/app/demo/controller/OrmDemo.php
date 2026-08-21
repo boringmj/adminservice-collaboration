@@ -3,10 +3,10 @@
 namespace app\demo\controller;
 
 use Throwable;
+use AdminService\Db;
 use app\demo\model\Order;
 use app\demo\model\User;
 use base\Controller;
-use base\Database\Db;
 
 /**
  * ORM 使用示例控制器
@@ -24,8 +24,7 @@ class OrmDemo extends Controller {
      */
     public function schema(): mixed {
         try {
-            $db=Db::fromConfig();
-            $result=$db->raw('SHOW COLUMNS FROM admin_service_users');
+            $result=Db::raw('SHOW COLUMNS FROM admin_service_users');
             return $this->json(array(
                 'success'=>$result->isSuccess(),
                 'columns'=>$result->getResults()->toArray(),
@@ -153,35 +152,16 @@ class OrmDemo extends Controller {
                 $data[$name]=array('error'=>$e->getMessage());
             }
         };
-        // 全表名 from, 前缀不再重复
+        // 全表名 from, 前缀不再重复(门面 Db::table)
         $run('full_name',function() {
-            $db=Db::fromConfig();
-            $result=$db->query(
-                \base\Database\Query\Query::select()->from('admin_service_users')->limit(1)
-            );
-            return array(
-                'success'=>$result->isSuccess(),
-                'rows'=>$result->getResults()->count(),
-                'sql'=>$result->getSql(),
-                'error'=>$result->getError(),
-            );
+            $b=Db::table('admin_service_users')->limit(1);
+            $rows=$b->get();
+            return array('rows'=>count($rows),'sql'=>$b->getSql());
         });
         // 限定字段 users.id, 编译期映射到 admin_service_users.id
         $run('qualified',function() {
-            $db=Db::fromConfig();
-            $result=$db->query(
-                \base\Database\Query\Query::select()
-                    ->from('users')
-                    ->field('users.id')
-                    ->where('users.id',1)
-                    ->limit(1)
-            );
-            return array(
-                'success'=>$result->isSuccess(),
-                'rows'=>$result->getResults()->toArray(),
-                'sql'=>$result->getSql(),
-                'error'=>$result->getError(),
-            );
+            $b=Db::table('users')->field('users.id')->where('users.id',1)->limit(1);
+            return array('rows'=>$b->get(),'sql'=>$b->getSql());
         });
         return $this->json($data);
     }
@@ -206,7 +186,7 @@ class OrmDemo extends Controller {
         };
         // 成功事务: 两个模型写在同一事务里提交
         $run('tx_success',function() {
-            $result=Db::fromConfig()->transaction(function() {
+            $result=Db::transaction(function() {
                 $user=User::create(array('name'=>'TX成功'.mt_rand(1000,9999),'age'=>30,'status'=>1));
                 $order=$user->orders()->create(array(
                     'order_no'=>'TX'.date('YmdHis'),
@@ -224,10 +204,9 @@ class OrmDemo extends Controller {
         });
         // 回滚事务: 用户创建后抛异常 → 用户也应回滚(前后计数一致)
         $run('tx_rollback',function() {
-            $db=Db::fromConfig();
             $before=User::query()->count();
             try {
-                $db->transaction(function() {
+                Db::transaction(function() {
                     User::create(array('name'=>'TX回滚'.mt_rand(1000,9999),'age'=>30,'status'=>1));
                     throw new \RuntimeException('trigger rollback');
                 });
@@ -248,8 +227,7 @@ class OrmDemo extends Controller {
      */
     public function addUpdatedAt(): mixed {
         try {
-            $db=Db::fromConfig();
-            $result=$db->raw(
+            $result=Db::raw(
                 'ALTER TABLE admin_service_users '
                 .'ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP '
                 .'ON UPDATE CURRENT_TIMESTAMP AFTER `created_at`'

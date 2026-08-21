@@ -17,6 +17,7 @@ use function array_keys;
 use function count;
 use function implode;
 use function is_array;
+use function str_starts_with;
 use function strtoupper;
 
 /**
@@ -47,6 +48,8 @@ final class MysqlCompiler implements SqlCompilerInterface {
             ));
         $inline=$context->hasFeature(CompileFeature::INLINE_PARAM);
         $writer=new SqlWriter($context->getDialect(),$inline);
+        // 构建逻辑表名→实际表名映射, 供限定字段编译重写
+        $writer->setTableMap($this->buildTableMap($context,$definition));
         switch($definition->getType()) {
             case StatementType::SELECT:
                 $this->compileSelect($definition,$context,$writer,false);
@@ -133,7 +136,7 @@ final class MysqlCompiler implements SqlCompilerInterface {
                 throw new QueryException('COUNT(DISTINCT) requires at least one column.',100504);
             $distinct_fields=array();
             foreach($columns as $column)
-                $distinct_fields[]=$this->fieldSql($context,$column[0]);
+                $distinct_fields[]=$this->fieldSql($writer,$context,$column[0]);
             $writer->append('SELECT COUNT(DISTINCT '.implode(', ',$distinct_fields).') AS '
                 .$this->identifierSql($context,'__count','alias'));
         } else {
@@ -142,7 +145,7 @@ final class MysqlCompiler implements SqlCompilerInterface {
         }
         // 分组时附带分组字段
         foreach($definition->getGroup() as $field)
-            $writer->append(', '.$this->fieldSql($context,$field));
+            $writer->append(', '.$this->fieldSql($writer,$context,$field));
         $writer->append(' FROM '.$this->tableSql($context,$definition->getTable()));
         $this->writeJoins($writer,$context,$definition->getJoins());
         $this->writeWhere($writer,$context,$definition->getWhere());
@@ -275,7 +278,7 @@ final class MysqlCompiler implements SqlCompilerInterface {
         }
         $parts=array();
         foreach($columns as $column) {
-            $sql=$this->fieldSql($context,$column[0]);
+            $sql=$this->fieldSql($writer,$context,$column[0]);
             if($column[1]!==null)
                 $sql.=' AS '.$this->identifierSql($context,$column[1],'alias');
             $parts[]=$sql;
@@ -303,11 +306,11 @@ final class MysqlCompiler implements SqlCompilerInterface {
             $conditions=$join->getConditions();
             $count=count($conditions);
             foreach($conditions as $i=>$condition) {
-                $writer->append($this->fieldSql($context,$condition[0]));
+                $writer->append($this->fieldSql($writer,$context,$condition[0]));
                 $writer->append(' '.strtoupper($condition[1]).' ');
                 // 右值为字段引用则写标识符, Literal/标量则作为参数绑定
                 if($condition[2] instanceof Field)
-                    $writer->append($this->fieldSql($context,$condition[2]));
+                    $writer->append($this->fieldSql($writer,$context,$condition[2]));
                 else if($condition[2] instanceof Literal)
                     $writer->append($writer->param($condition[2]->getValue()));
                 else
@@ -415,7 +418,7 @@ final class MysqlCompiler implements SqlCompilerInterface {
         CompilerContextInterface $context,
         Where $where
     ): void {
-        $writer->append($this->fieldSql($context,$where->getField()));
+        $writer->append($this->fieldSql($writer,$context,$where->getField()));
         $operator=$where->getOperator();
         switch($operator) {
             case 'IS NULL':
@@ -466,7 +469,7 @@ final class MysqlCompiler implements SqlCompilerInterface {
             return;
         $parts=array();
         foreach($group as $field)
-            $parts[]=$this->fieldSql($context,$field);
+            $parts[]=$this->fieldSql($writer,$context,$field);
         $writer->append(' GROUP BY '.implode(', ',$parts));
     }
 
@@ -488,7 +491,7 @@ final class MysqlCompiler implements SqlCompilerInterface {
             return;
         $parts=array();
         foreach($order as $item)
-            $parts[]=$this->fieldSql($context,$item[0]).' '.$item[1];
+            $parts[]=$this->fieldSql($writer,$context,$item[0]).' '.$item[1];
         $writer->append(' ORDER BY '.implode(', ',$parts));
     }
 
@@ -510,23 +513,29 @@ final class MysqlCompiler implements SqlCompilerInterface {
     /**
      * 编译字段引用为 SQL
      *
-     * - 表前缀只作用于主表与关联表; 带表限定的字段按原样编译
-     * - 使用表名限定字段时若配置了表前缀, 限定名与编译后的表名不一致, 请改用别名限定
+     * - 限定字段(table.col)的表段按语句中的实际表重写: 有别名用别名, 无别名用前缀后的表名;
+     *   查不到映射(子查询/外部引用)则原样保留
      *
      * @access private
+     * @param SqlWriter $writer SQL 写入器
      * @param CompilerContextInterface $context 编译器上下文
      * @param Field $field 字段引用
      * @return string
      */
-    private function fieldSql(CompilerContextInterface $context,Field $field): string {
-        if($field->isQualified())
-            return $this->identifierSql($context,$field->getTable(),'table')
+    private function fieldSql(SqlWriter $writer,CompilerContextInterface $context,Field $field): string {
+        if($field->isQualified()) {
+            $table=$field->getTable();
+            $map=$writer->getTableMap();
+            if(isset($map[$table]))
+                $table=$map[$table];
+            return $this->identifierSql($context,$table,'table')
                 .'.'.$this->identifierSql($context,$field->getColumn(),'column');
+        }
         return $this->identifierSql($context,$field->getColumn(),'column');
     }
 
     /**
-     * 编译表引用为 SQL(自动附加表前缀)
+     * 编译表引用为 SQL(自动附加表前缀, 已含前缀则不再重复)
      *
      * @access private
      * @param CompilerContextInterface $context 编译器上下文
@@ -534,10 +543,46 @@ final class MysqlCompiler implements SqlCompilerInterface {
      * @return string
      */
     private function tableSql(CompilerContextInterface $context,Table $table): string {
-        $sql=$this->identifierSql($context,$context->getTablePrefix().$table->getName(),'table');
+        $sql=$this->identifierSql($context,$this->prefixTable($table->getName(),$context->getTablePrefix()),'table');
         if($table->hasAlias())
             $sql.=' '.$this->identifierSql($context,$table->getAlias(),'alias');
         return $sql;
+    }
+
+    /**
+     * 附加表前缀(表名已以前缀开头则跳过, 支持定义全表名)
+     *
+     * @access private
+     * @param string $name 表名
+     * @param string $prefix 表前缀
+     * @return string
+     */
+    private function prefixTable(string $name,string $prefix): string {
+        return ($prefix!==''&&!str_starts_with($name,$prefix))?$prefix.$name:$name;
+    }
+
+    /**
+     * 构建逻辑表名 → 实际 SQL 表名映射
+     *
+     * - 有别名 → 别名; 无别名 → 前缀后的表名(含"已含前缀则跳过"规则)
+     *
+     * @access private
+     * @param CompilerContextInterface $context 编译器上下文
+     * @param StatementDefinition $definition 语句定义
+     * @return array
+     */
+    private function buildTableMap(CompilerContextInterface $context,StatementDefinition $definition): array {
+        $map=array();
+        $add=function(Table $table) use (&$map,$context) {
+            $map[$table->getName()]=$table->hasAlias()
+                ? $table->getAlias()
+                : $this->prefixTable($table->getName(),$context->getTablePrefix());
+        };
+        if($definition->getTable()!==null)
+            $add($definition->getTable());
+        foreach($definition->getJoins() as $join)
+            $add($join->getTable());
+        return $map;
     }
 
     /**

@@ -38,6 +38,8 @@ class AutowireMethodTest extends TestCase {
         // 参数按类型注入
         $this->assertInstanceOf(UserName::class,$profile->name);
         $this->assertInstanceOf(AbstractStatus::class,$profile->status);
+        // 显式 name 注入(单参数无类型, 按 name 指定)
+        $this->assertInstanceOf(UserName::class,$profile->explicit);
     }
 
 }

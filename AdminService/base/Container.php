@@ -415,7 +415,7 @@ abstract class Container {
         // 自动注入Setter方法
         self::autowireSetter($methods,$instance,$ref,$flags);
         // 自动注入生命周期方法(#[AutowireMethod])
-        self::autowireMethod($methods,$instance,$ref);
+        self::autowireMethod($methods,$instance,$ref,$flags);
     }
 
     /**
@@ -626,13 +626,15 @@ abstract class Container {
      * @param ReflectionMethod[] $methods 需要注入方法的反射实例数组
      * @param object $instance 需要注入方法的对象实例
      * @param ReflectionClass $ref 需要注入方法的反射类实例
+     * @param array $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
      * @throws AutowireException
      * @return void
      */
     protected static function autowireMethod(
         array $methods,
         object $instance,
-        ReflectionClass $ref
+        ReflectionClass $ref,
+        array &$flags=[]
     ): void {
         $method=null;
         try {
@@ -641,9 +643,22 @@ abstract class Container {
                 $attributes=$method->getAttributes(AutowireMethod::class);
                 if(empty($attributes))
                     continue;
-                // 注入所有参数(按类型解析, 与构造函数注入一致)
+                $autowire_attr=$attributes[0]->newInstance();
                 $params=$method->getParameters();
-                $args=self::mergeParams($params,array());
+                // 显式指定 name: 仅支持单参数方法(与 Setter 注入一致, 支持 proxy)
+                if($autowire_attr->getName()!==null) {
+                    if(count($params)!==1)
+                        throw new AutowireException(
+                            'Method "'.$method->getName().'" of class "'.$ref->getName().
+                            '" with explicit name must have exactly one parameter.',
+                        );
+                    $args=array(self::getReflectionPropertyValue(
+                        $params[0],$ref,$autowire_attr->getName(),$autowire_attr->getProxy(),$flags
+                    ));
+                } else {
+                    // 未指定 name: 全部参数按类型注入(与构造函数注入一致)
+                    $args=self::mergeParams($params,array());
+                }
                 // 调用方法
                 $method->setAccessible(true);
                 $method->invokeArgs($instance,$args);

@@ -274,9 +274,20 @@ class OrmDemo extends Controller {
             // 按主键查找
             $data['find']=$this->dump(User::find(1));
 
-            // 条件 + 排序 + 分页
+            // 条件 + 排序 + 限制数量(前 5 条)
             $data['query_get']=$this->dumpCollection(
                 User::query()->where('age',18,'>=')->orderBy('id','DESC')->limit(5)->get()
+            );
+
+            // 分页: 每页 3 条, 第 2 页(自动统计总数 + 软删过滤)
+            $page=User::query()->where('age',18,'>=')->paginate(3,2);
+            $data['paginate']=array(
+                'total'=>$page->total(),
+                'per_page'=>$page->perPage(),
+                'current_page'=>$page->currentPage(),
+                'last_page'=>$page->lastPage(),
+                'has_more'=>$page->hasMorePages(),
+                'items'=>$page->items()->toArray(),
             );
 
             // 统计(软删除模型默认排除已删)

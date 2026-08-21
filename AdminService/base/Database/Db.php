@@ -57,7 +57,7 @@ final class Db {
 
     /**
      * 中间件数组
-     * @var array
+     * @var array<QueryMiddlewareInterface>
      */
     private array $middlewares;
 
@@ -69,7 +69,7 @@ final class Db {
 
     /**
      * 按「连接名 + 配置指纹」缓存的数据库入口(纯配置调用共享单例)
-     * @var array
+     * @var array<string,static>
      */
     private static array $instances=array();
 
@@ -96,6 +96,7 @@ final class Db {
      *
      * - 按名称选择配置文件中 database.connections.{name} 对应的连接
      * - $config 可覆盖所选连接的任意配置项(也可全量手动配置)
+     * - $config['dialect'] / $config['compiler'] 为方言/编译器类名(class-string), 未指定默认 MySQL
      *
      * @access public
      * @param string $name 连接名称(默认 default)
@@ -168,7 +169,7 @@ final class Db {
      * - 解析结果必须是 QueryMiddlewareInterface 实例
      *
      * @access private
-     * @param array $middlewares 中间件配置(类名或实例列表)
+     * @param array<class-string<QueryMiddlewareInterface>|QueryMiddlewareInterface> $middlewares 中间件配置(类名或实例列表)
      * @return QueryMiddlewareInterface[]
      * @throws ConfigException 中间件未实现 QueryMiddlewareInterface
      */

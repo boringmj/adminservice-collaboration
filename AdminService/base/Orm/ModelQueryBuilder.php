@@ -73,7 +73,7 @@ class ModelQueryBuilder {
 
     /**
      * 需预加载的关系名
-     * @var array
+     * @var array<string>
      */
     protected array $eagerRelations=array();
 
@@ -82,7 +82,7 @@ class ModelQueryBuilder {
      *
      * @access public
      * @param Db $db 数据库入口
-     * @param string $modelClass 模型类名
+     * @param class-string<Model> $modelClass 模型类名
      */
     public function __construct(Db $db,string $modelClass) {
         $this->db=$db;
@@ -156,7 +156,7 @@ class ModelQueryBuilder {
      *
      * @access public
      * @param string|Field $field 字段
-     * @param array $values 值列表
+     * @param array<mixed> $values 值列表
      * @param bool $not 是否取反
      * @return static
      */
@@ -170,7 +170,7 @@ class ModelQueryBuilder {
      *
      * @access public
      * @param string|Field $field 字段
-     * @param array $values 值列表
+     * @param array<mixed> $values 值列表
      * @return static
      */
     public function whereNotIn(string|Field $field,array $values): static {
@@ -492,7 +492,7 @@ class ModelQueryBuilder {
      * 创建并保存一条记录
      *
      * @access public
-     * @param array $data 数据
+     * @param array<string,mixed> $data 数据
      * @return Model
      */
     public function create(array $data): Model {
@@ -507,7 +507,7 @@ class ModelQueryBuilder {
      * 按当前条件更新
      *
      * @access public
-     * @param array $data 数据
+     * @param array<string,mixed> $data 数据
      * @return int 受影响行数
      */
     public function update(array $data): int {
@@ -625,7 +625,7 @@ class ModelQueryBuilder {
      *
      * @access private
      * @param ModelCollection $parents 父模型集合
-     * @param array $relations 关系名列表(可能含点号)
+     * @param array<string> $relations 关系名列表(可能含点号)
      * @return void
      */
     private function eagerLoadLevel(ModelCollection $parents,array $relations): void {

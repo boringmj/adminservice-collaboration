@@ -73,7 +73,7 @@ final class ConnectionConfig {
 
     /**
      * 方言类名(为空时使用 MySQL)
-     * @var string|null
+     * @var class-string|null
      */
     private ?string $dialectClass;
 
@@ -90,7 +90,7 @@ final class ConnectionConfig {
      * @param string $charset 字符集
      * @param array $options PDO 连接选项
      * @param string $tablePrefix 表前缀
-     * @param string|null $dialectClass 方言类名(为空时按类型默认, 当前默认 MySQL)
+     * @param class-string|null $dialectClass 方言类名(为空时按类型默认, 当前默认 MySQL)
      */
     public function __construct(
         string $type='mysql',

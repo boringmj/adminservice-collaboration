@@ -28,7 +28,7 @@ class BelongsTo extends Relation {
      * - belongsTo 关系不支持 create(): 外键在子模型一侧, 语义应由子模型直接创建
      *
      * @access public
-     * @param array $data 数据
+     * @param array<string,mixed> $data 数据
      * @return Model
      * @throws OrmException 始终抛出
      */

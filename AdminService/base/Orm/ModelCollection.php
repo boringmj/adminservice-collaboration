@@ -19,7 +19,7 @@ class ModelCollection implements Countable, IteratorAggregate {
 
     /**
      * 模型类名
-     * @var string
+     * @var class-string<Model>
      */
     protected string $modelClass;
 
@@ -34,7 +34,7 @@ class ModelCollection implements Countable, IteratorAggregate {
      *
      * @access public
      * @param string $modelClass 模型类名
-     * @param array $models 模型实例列表
+     * @param array<Model> $models 模型实例列表
      */
     public function __construct(string $modelClass,array $models=array()) {
         $this->modelClass=$modelClass;

@@ -38,7 +38,7 @@ abstract class Relation extends ModelQueryBuilder {
      *
      * @access public
      * @param Db $db 数据库入口
-     * @param string $relatedClass 关联模型类名
+     * @param class-string<Model> $relatedClass 关联模型类名
      * @param Model $parent 父模型
      * @param string $foreignKey 外键字段
      * @param string $ownerKey 主键字段

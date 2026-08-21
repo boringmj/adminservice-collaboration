@@ -330,7 +330,7 @@ class Query implements QueryInterface {
             throw new QueryException('IN requires a non-empty array.',100509,array(
                 'field'=>(string)$field
             ));
-        return $this->addWhere(Where::leaf($this->resolveField($field),$not?'NOT IN':'IN',$values));
+        return $this->addWhere(Where::leaf($this->resolveField($field),$not?Operator::NOT_IN:Operator::IN,$values));
     }
 
     /**
@@ -358,7 +358,7 @@ class Query implements QueryInterface {
     public function whereBetween(string|Field $field,mixed $min,mixed $max,bool $not=false): static {
         return $this->addWhere(Where::leaf(
             $this->resolveField($field),
-            $not?'NOT BETWEEN':'BETWEEN',
+            $not?Operator::NOT_BETWEEN:Operator::BETWEEN,
             array($min,$max)
         ));
     }
@@ -374,7 +374,7 @@ class Query implements QueryInterface {
     public function whereNull(string|Field $field,bool $not=false): static {
         return $this->addWhere(Where::leaf(
             $this->resolveField($field),
-            $not?'IS NOT NULL':'IS NULL',
+            $not?Operator::IS_NOT_NULL:Operator::IS_NULL,
             null
         ));
     }

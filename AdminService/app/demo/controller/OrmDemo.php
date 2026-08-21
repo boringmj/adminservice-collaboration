@@ -24,7 +24,7 @@ class OrmDemo extends Controller {
      */
     public function schema(): mixed {
         try {
-            $result=Db::raw('SHOW COLUMNS FROM admin_service_users');
+            $result=Db::connection()->raw('SHOW COLUMNS FROM admin_service_users');
             return $this->json(array(
                 'success'=>$result->isSuccess(),
                 'columns'=>$result->getResults()->toArray(),
@@ -154,13 +154,13 @@ class OrmDemo extends Controller {
         };
         // 全表名 from, 前缀不再重复(门面 Db::table)
         $run('full_name',function() {
-            $b=Db::table('admin_service_users')->limit(1);
+            $b=Db::connection()->table('admin_service_users')->limit(1);
             $rows=$b->get();
             return array('rows'=>count($rows),'sql'=>$b->getSql());
         });
         // 限定字段 users.id, 编译期映射到 admin_service_users.id
         $run('qualified',function() {
-            $b=Db::table('users')->field('users.id')->where('users.id',1)->limit(1);
+            $b=Db::connection()->table('users')->field('users.id')->where('users.id',1)->limit(1);
             return array('rows'=>$b->get(),'sql'=>$b->getSql());
         });
         return $this->json($data);
@@ -186,7 +186,7 @@ class OrmDemo extends Controller {
         };
         // 成功事务: 两个模型写在同一事务里提交
         $run('tx_success',function() {
-            $result=Db::transaction(function() {
+            $result=Db::connection()->transaction(function() {
                 $user=User::create(array('name'=>'TX成功'.mt_rand(1000,9999),'age'=>30,'status'=>1));
                 $order=$user->orders()->create(array(
                     'order_no'=>'TX'.date('YmdHis'),
@@ -206,7 +206,7 @@ class OrmDemo extends Controller {
         $run('tx_rollback',function() {
             $before=User::query()->count();
             try {
-                Db::transaction(function() {
+                Db::connection()->transaction(function() {
                     User::create(array('name'=>'TX回滚'.mt_rand(1000,9999),'age'=>30,'status'=>1));
                     throw new \RuntimeException('trigger rollback');
                 });
@@ -227,7 +227,7 @@ class OrmDemo extends Controller {
      */
     public function addUpdatedAt(): mixed {
         try {
-            $result=Db::raw(
+            $result=Db::connection()->raw(
                 'ALTER TABLE admin_service_users '
                 .'ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP '
                 .'ON UPDATE CURRENT_TIMESTAMP AFTER `created_at`'

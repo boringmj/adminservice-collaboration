@@ -17,7 +17,7 @@ use function max;
  *
  * - 持有 Db(执行)与语义 Query(构建), 每个入口调用新建, 链式状态隔离
  * - 构建方法委托给语义 Query 并返回自身; 终端读方法返回行数据(非模型), 写方法返回受影响行/自增主键
- * - 由数据库门面(如 AdminService\Db::table())产出
+ * - 由数据库门面(如 AdminService\Db::connection()->table())产出
  */
 class QueryBuilder {
 

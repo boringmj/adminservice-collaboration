@@ -125,6 +125,20 @@ class QueryBuilderTest extends TestCase {
     }
 
     /**
+     * 测试门面 connection() 入口(选择连接)
+     * @return void
+     */
+    public function testFacadeConnectionEntry(): void {
+        // connection('default') 返回绑定默认连接的 Db 实例(继承 DbFacade)
+        $facade=\AdminService\Db::connection('default');
+        $this->assertInstanceOf(\AdminService\Db::class,$facade);
+        $builder=$facade->table('users');
+        $this->assertInstanceOf(QueryBuilder::class,$builder);
+        // 默认连接入口(继承实例方法)
+        $this->assertInstanceOf(QueryBuilder::class,\AdminService\Db::connection()->table('users'));
+    }
+
+    /**
      * 测试分页
      * @return void
      */

@@ -2,53 +2,27 @@
 
 namespace AdminService;
 
-use base\Database\Query\QueryBuilder;
-use base\Database\Result\ResultInterface;
-use base\Database\Sql\Definition\Table;
-use base\Database\Db as BaseDb;
+use AdminService\Database\DbFacade;
 
 /**
- * 数据库门面(框架层)
+ * 数据库门面
  *
- * - 裸查询的用户入口: use AdminService\Db;  Db::table('users')->where('id',1)->get()
- * - 委托给 base\Database 的 DBAL(默认连接), 框架层不做底层实现
- * - 需要指定命名连接时请直接用 base\Database\Db::fromConfig('连接名')
+ * - 裸查询的用户入口: use AdminService\Db;
+ *   Db::connection()->table('users')->where('id',1)->get()   默认连接
+ *   Db::connection('log')->table('users')->get()              指定命名连接
+ * - 继承 DbFacade 提供 table()/raw()/transaction(); connection() 返回绑定连接的本类实例
  */
-final class Db {
+final class Db extends DbFacade {
 
     /**
-     * 流式查询入口(默认连接)
+     * 选择连接, 返回绑定该连接的门面实例
      *
      * @access public
-     * @param string|Table $table 表名
-     * @param string|null $alias 表别名
-     * @return QueryBuilder
+     * @param string $name 连接名(默认 default)
+     * @return static
      */
-    public static function table(string|Table $table,?string $alias=null): QueryBuilder {
-        return new QueryBuilder(BaseDb::fromConfig(),$table,$alias);
-    }
-
-    /**
-     * 执行原生 SQL(默认连接)
-     *
-     * @access public
-     * @param string $sql SQL
-     * @param array $params 绑定参数
-     * @return ResultInterface
-     */
-    public static function raw(string $sql,array $params=array()): ResultInterface {
-        return BaseDb::fromConfig()->raw($sql,$params);
-    }
-
-    /**
-     * 事务作用域(默认连接)
-     *
-     * @access public
-     * @param callable(BaseDb $db): mixed $callback 回调(接收当前连接的底层 Db)
-     * @return mixed
-     */
-    public static function transaction(callable $callback): mixed {
-        return BaseDb::fromConfig()->transaction($callback);
+    public static function connection(string $name='default'): static {
+        return new static($name);
     }
 
 }

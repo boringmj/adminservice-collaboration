@@ -294,6 +294,42 @@ abstract class Model {
     }
 
     /**
+     * 从数据库重新加载当前记录(原地刷新)
+     *
+     * - 覆盖本实例属性为库中最新的值, 并同步脏检查快照
+     * - 记录已删除(或被软删)时返回 null, 本实例保持原状
+     *
+     * @access public
+     * @return static|null
+     */
+    public function refresh(): ?static {
+        $query=Query::select()
+            ->from(static::tableName())
+            ->where(static::$primaryKey,$this->getKey())
+            ->limit(1);
+        if(static::usesSoftDelete())
+            $query->whereNull(static::deletedAtField());
+        $rows=static::db()->query($query)->getResults()->toArray();
+        if(empty($rows))
+            return null;
+        $this->attributes=$rows[0];
+        $this->syncOriginal();
+        return $this;
+    }
+
+    /**
+     * 获取数据库中当前状态的实例(不修改本实例)
+     *
+     * - 与 find() 一致, 软删记录返回 null
+     *
+     * @access public
+     * @return static|null
+     */
+    public function fresh(): ?static {
+        return static::find($this->getKey());
+    }
+
+    /**
      * 静态调用转发到查询构建器
      *
      * - 支持 Model::where(...)->get() 等链式写法

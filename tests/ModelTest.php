@@ -417,4 +417,52 @@ class ModelTest extends TestCase {
         User::query()->paginate(0);
     }
 
+    /**
+     * 测试 refresh 原地从数据库重载(同一实例, 覆盖属性)
+     * @return void
+     */
+    public function testRefresh(): void {
+        $this->pdo->selectRowsQueue=[
+            [['id'=>1,'name'=>'张三','age'=>20,'status'=>1]],
+            [['id'=>1,'name'=>'李四','age'=>25,'status'=>1]],
+        ];
+        $user=User::find(1);
+        $this->assertSame('张三',$user->name);
+        $result=$user->refresh();
+        $this->assertSame($user,$result);       // 原地刷新, 同一实例
+        $this->assertSame('李四',$user->name);  // 属性已更新为库中最新的
+        $this->assertSame('SELECT * FROM `users` WHERE `id` = ? LIMIT 1',$this->pdo->executed[1]);
+    }
+
+    /**
+     * 测试 refresh 记录被删返回 null 且实例保持原状
+     * @return void
+     */
+    public function testRefreshReturnsNullWhenDeleted(): void {
+        $this->pdo->selectRowsQueue=[
+            [['id'=>1,'name'=>'张三','age'=>20,'status'=>1]],
+            array(), // refresh 查不到
+        ];
+        $user=User::find(1);
+        $result=$user->refresh();
+        $this->assertNull($result);
+        $this->assertSame('张三',$user->name); // 实例保持原状
+    }
+
+    /**
+     * 测试 fresh 返回新的当前库状态实例(不修改本实例)
+     * @return void
+     */
+    public function testFresh(): void {
+        $this->pdo->selectRowsQueue=[
+            [['id'=>1,'name'=>'张三','age'=>20,'status'=>1]],
+            [['id'=>1,'name'=>'李四','age'=>25,'status'=>1]],
+        ];
+        $user=User::find(1);
+        $fresh=$user->fresh();
+        $this->assertNotSame($user,$fresh);     // 新实例
+        $this->assertSame('李四',$fresh->name); // 新实例是最新的
+        $this->assertSame('张三',$user->name);  // 原实例不变
+    }
+
 }

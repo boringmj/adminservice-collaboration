@@ -3,6 +3,7 @@
 namespace base\Database\Sql\Definition;
 
 use base\Database\Exception\QueryException;
+use base\Database\Type\Operator;
 
 use function array_values;
 use function count;
@@ -24,21 +25,21 @@ final class Where {
      * @var array
      */
     public const OPERATORS=array(
-        '=',
-        '!=',
-        '<>',
-        '>',
-        '<',
-        '>=',
-        '<=',
-        'LIKE',
-        'NOT LIKE',
-        'IN',
-        'NOT IN',
-        'BETWEEN',
-        'NOT BETWEEN',
-        'IS NULL',
-        'IS NOT NULL',
+        Operator::EQ,
+        Operator::NEQ,
+        Operator::NEQ_ANSI,
+        Operator::GT,
+        Operator::LT,
+        Operator::GTE,
+        Operator::LTE,
+        Operator::LIKE,
+        Operator::NOT_LIKE,
+        Operator::IN,
+        Operator::NOT_IN,
+        Operator::BETWEEN,
+        Operator::NOT_BETWEEN,
+        Operator::IS_NULL,
+        Operator::IS_NOT_NULL,
     );
 
     /**
@@ -101,18 +102,18 @@ final class Where {
                 'operator'=>$operator
             ));
         // 按操作符校验操作数类型
-        if(in_array($operator,array('IN','NOT IN'),true)&&!is_array($value))
+        if(in_array($operator,array(Operator::IN,Operator::NOT_IN),true)&&!is_array($value))
             throw new QueryException('IN operator requires an array value.',100509,array(
                 'operator'=>$operator
             ));
-        if(in_array($operator,array('BETWEEN','NOT BETWEEN'),true)
+        if(in_array($operator,array(Operator::BETWEEN,Operator::NOT_BETWEEN),true)
             &&(!is_array($value)||count($value)!==2))
             throw new QueryException('BETWEEN operator requires two values.',100510,array(
                 'operator'=>$operator
             ));
-        if(in_array($operator,array('IS NULL','IS NOT NULL'),true))
+        if(in_array($operator,array(Operator::IS_NULL,Operator::IS_NOT_NULL),true))
             $value=null; // 操作数无效, 置空
-        elseif(!in_array($operator,array('IN','NOT IN','BETWEEN','NOT BETWEEN'),true)&&is_array($value))
+        elseif(!in_array($operator,array(Operator::IN,Operator::NOT_IN,Operator::BETWEEN,Operator::NOT_BETWEEN),true)&&is_array($value))
             throw new QueryException('Operator does not support array value.',100509,array(
                 'operator'=>$operator
             ));

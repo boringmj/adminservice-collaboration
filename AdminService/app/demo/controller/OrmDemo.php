@@ -136,6 +136,57 @@ class OrmDemo extends Controller {
     }
 
     /**
+     * 表前缀与限定字段编译验证
+     *
+     * - full_name: 直接 from 全表名(不再二次加前缀)
+     * - qualified: 限定字段 users.id 映射到实际表名(前缀后)
+     *
+     * @access public
+     * @return mixed
+     */
+    public function prefixCheck(): mixed {
+        $data=array();
+        $run=function($name,$callback) use (&$data) {
+            try {
+                $data[$name]=$callback();
+            } catch(Throwable $e) {
+                $data[$name]=array('error'=>$e->getMessage());
+            }
+        };
+        // 全表名 from, 前缀不再重复
+        $run('full_name',function() {
+            $db=Db::fromConfig();
+            $result=$db->query(
+                \base\Database\Query\Query::select()->from('admin_service_users')->limit(1)
+            );
+            return array(
+                'success'=>$result->isSuccess(),
+                'rows'=>$result->getResults()->count(),
+                'sql'=>$result->getSql(),
+                'error'=>$result->getError(),
+            );
+        });
+        // 限定字段 users.id, 编译期映射到 admin_service_users.id
+        $run('qualified',function() {
+            $db=Db::fromConfig();
+            $result=$db->query(
+                \base\Database\Query\Query::select()
+                    ->from('users')
+                    ->field('users.id')
+                    ->where('users.id',1)
+                    ->limit(1)
+            );
+            return array(
+                'success'=>$result->isSuccess(),
+                'rows'=>$result->getResults()->toArray(),
+                'sql'=>$result->getSql(),
+                'error'=>$result->getError(),
+            );
+        });
+        return $this->json($data);
+    }
+
+    /**
      * 跨模型事务示例(同一连接, 模型写入共享事务)
      *
      * - tx_success: 创建用户 + 关系创建订单, 同一事务提交

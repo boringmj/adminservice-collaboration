@@ -289,6 +289,151 @@ class ModelTest extends TestCase {
     }
 
     /**
+     * 测试集合遍历/映射/过滤
+     * @return void
+     */
+    public function testCollectionEachMapFilter(): void {
+        $this->pdo->selectRows=[
+            ['id'=>1,'name'=>'张三','age'=>20,'status'=>1],
+            ['id'=>2,'name'=>'李四','age'=>21,'status'=>1],
+            ['id'=>3,'name'=>'王五','age'=>22,'status'=>1],
+        ];
+        $users=User::query()->get();
+        // each 遍历并返回自身
+        $names=[];
+        $ret=$users->each(function($m) use (&$names) {
+            $names[]=$m->name;
+        });
+        $this->assertSame($users,$ret);
+        $this->assertSame(['张三','李四','王五'],$names);
+        // map 变换生成新集合
+        $mapped=$users->map(function($m) {
+            return $m->name;
+        });
+        $this->assertSame(['张三','李四','王五'],$mapped->all());
+        // filter 过滤生成新集合
+        $adults=$users->filter(function($m) {
+            return $m->age>=21;
+        });
+        $this->assertCount(2,$adults);
+        $this->assertSame('李四',$adults->first()->name);
+    }
+
+    /**
+     * 测试集合批量更新(单条 SQL, 自动刷 updated_at)
+     * @return void
+     */
+    public function testCollectionUpdate(): void {
+        $this->pdo->selectRows=[
+            ['id'=>1,'name'=>'张三','age'=>20,'status'=>1],
+            ['id'=>2,'name'=>'李四','age'=>21,'status'=>1],
+        ];
+        $users=User::query()->get();
+        $this->pdo->affectedRows=2;
+        $this->assertSame(2,$users->update(array('status'=>2)));
+        $this->assertSame(
+            'UPDATE `users` SET `status` = ?, `updated_at` = ? WHERE `id` IN (?, ?)',
+            $this->pdo->executed[1]
+        );
+    }
+
+    /**
+     * 测试集合批量删除(单条 SQL)
+     * @return void
+     */
+    public function testCollectionDelete(): void {
+        $this->pdo->selectRows=[
+            ['id'=>1,'name'=>'张三','age'=>20,'status'=>1],
+            ['id'=>2,'name'=>'李四','age'=>21,'status'=>1],
+        ];
+        $users=User::query()->get();
+        $this->pdo->affectedRows=2;
+        $this->assertSame(2,$users->delete());
+        $this->assertSame('DELETE FROM `users` WHERE `id` IN (?, ?)',$this->pdo->executed[1]);
+    }
+
+    /**
+     * 测试集合物理删除(含已软删行, 绕过软删过滤)
+     * @return void
+     */
+    public function testCollectionForceDelete(): void {
+        $this->pdo->selectRows=[
+            ['id'=>1,'title'=>'a','deleted_at'=>null],
+            ['id'=>2,'title'=>'b','deleted_at'=>'2025-01-01 00:00:00'],
+        ];
+        $posts=Post::withTrashed()->get();
+        $this->pdo->affectedRows=2;
+        $this->assertSame(2,$posts->forceDelete());
+        // withTrashed 绕过软删过滤, 无 deleted_at IS NULL
+        $this->assertSame('DELETE FROM `posts` WHERE `id` IN (?, ?)',$this->pdo->executed[1]);
+    }
+
+    /**
+     * 测试 onlyTrashed 集合物理清除已软删行
+     *
+     * - 若不过滤, 会附加 deleted_at IS NULL, 已软删行一行也删不掉
+     *
+     * @return void
+     */
+    public function testCollectionForceDeleteTrashedOnly(): void {
+        $this->pdo->selectRows=[
+            ['id'=>2,'title'=>'b','deleted_at'=>'2025-01-01 00:00:00'],
+        ];
+        $posts=Post::onlyTrashed()->get();
+        $this->pdo->affectedRows=1;
+        $this->assertSame(1,$posts->forceDelete());
+        $this->assertSame('DELETE FROM `posts` WHERE `id` IN (?)',$this->pdo->executed[1]);
+    }
+
+    /**
+     * 测试集合 update 对集合中已软删行静默跳过(方案 B 语义)
+     * @return void
+     */
+    public function testCollectionUpdateSkipsTrashed(): void {
+        $this->pdo->selectRows=[
+            ['id'=>1,'title'=>'a','deleted_at'=>null],
+            ['id'=>2,'title'=>'b','deleted_at'=>'2025-01-01 00:00:00'],
+        ];
+        $posts=Post::withTrashed()->get();
+        $this->pdo->affectedRows=1;
+        $posts->update(array('status'=>1));
+        // 重建的默认查询附加软删过滤, 已软删行被排除
+        $this->assertStringContainsString(
+            'AND `deleted_at` IS NULL',
+            $this->pdo->executed[1]
+        );
+    }
+
+    /**
+     * 测试空集合 update/delete 为 no-op(不发起查询)
+     * @return void
+     */
+    public function testCollectionEmptyNoOp(): void {
+        $this->pdo->selectRows=[];
+        $users=User::query()->get();
+        $this->assertSame(0,$users->update(array('status'=>2)));
+        $this->assertSame(0,$users->delete());
+        $this->assertCount(1,$this->pdo->executed); // 仅有 get() 的 SELECT
+    }
+
+    /**
+     * 测试集合批量更新跳过缺失主键的实例
+     * @return void
+     */
+    public function testCollectionUpdateSkipsNullKey(): void {
+        $col=new ModelCollection(User::class,array(
+            new User(array('id'=>1,'name'=>'a')),
+            new User(array('name'=>'b')), // 无主键
+        ));
+        $this->pdo->affectedRows=1;
+        $this->assertSame(1,$col->update(array('status'=>2)));
+        $this->assertSame(
+            'UPDATE `users` SET `status` = ?, `updated_at` = ? WHERE `id` IN (?)',
+            $this->pdo->executed[0]
+        );
+    }
+
+    /**
      * 测试表名由类名自动推导
      * @return void
      */

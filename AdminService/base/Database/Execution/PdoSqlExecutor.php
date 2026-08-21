@@ -10,8 +10,8 @@ use base\Database\Result\ResultInterface;
 use base\Database\Sql\Compiler\CompiledStatementInterface;
 
 use function count;
-use function ltrim;
-use function strncasecmp;
+use function preg_match;
+use function strcasecmp;
 
 /**
  * PDO SQL 执行器
@@ -77,14 +77,16 @@ final class PdoSqlExecutor implements SqlExecutorInterface {
     }
 
     /**
-     * 判断语句是否为插入
+     * 判断语句是否为插入(跳过前导空白/注释再判断首关键字)
      *
      * @access private
      * @param string $sql SQL
      * @return bool
      */
     private function isInsert(string $sql): bool {
-        return strncasecmp(ltrim($sql),'INSERT',6)===0;
+        if(preg_match('/^\s*(?:\/\*[\s\S]*?\*\/|--[^\n]*\n|\s+)*([A-Za-z]+)/',$sql,$m)===1)
+            return strcasecmp($m[1],'INSERT')===0;
+        return false;
     }
 
 }

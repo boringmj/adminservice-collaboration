@@ -594,4 +594,33 @@ class RelationTest extends TestCase {
         $this->assertSame(array('begin','rollback'),$this->pdo->transactionCalls);
     }
 
+    /**
+     * 测试 isset 对关系属性触发惰性加载并与 __get 一致
+     * @return void
+     */
+    public function testIssetOnRelationTriggersLazyLoad(): void {
+        $this->pdo->selectRowsQueue=array(
+            array(array('id'=>1,'title'=>'p1','user_id'=>1,'deleted_at'=>null)),
+        );
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $this->assertTrue(isset($user->posts));
+        $this->assertCount(1,$this->pdo->executed);
+    }
+
+    /**
+     * 测试 sync 输入 int 主键、DB 返回字符串 id 时不重复插入
+     * @return void
+     */
+    public function testBelongsToManySyncStringIdsNoDuplicateInsert(): void {
+        $this->pdo->selectRowsQueue=array(
+            array(array('role_id'=>'1'),array('role_id'=>'2')), // DB 返回字符串
+        );
+        $this->pdo->affectedRows=1;
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $result=$user->roles()->sync(array(1,2)); // int 输入
+        $this->assertSame(array(1,2),$result);
+        // 目标 {1,2} 全在当前(字符串归一后), 无插入无删除 → 仅一次 SELECT
+        $this->assertCount(1,$this->pdo->executed);
+    }
+
 }

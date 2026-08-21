@@ -111,4 +111,19 @@ class DbalExecutorTest extends TestCase {
         $this->assertSame(PDO::PARAM_STR,$pdo->boundTypes[2]);
     }
 
+    /**
+     * 测试带前导注释的 INSERT 仍能捕获自增主键
+     * @return void
+     */
+    public function testInsertWithCommentCapturesLastInsertId(): void {
+        $pdo=new FakePdo();
+        $pdo->affectedRows=1;
+        $executor=new PdoSqlExecutor($pdo);
+        $result=$executor->execute(new CompiledStatement(
+            "/* demo comment */ INSERT INTO users (name) VALUES ('x')"
+        ));
+        $this->assertTrue($result->isSuccess());
+        $this->assertSame('1',$result->getLastInsertId());
+    }
+
 }

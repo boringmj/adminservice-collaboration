@@ -4,11 +4,15 @@ namespace base\Orm;
 
 use base\Database\Db;
 use base\Database\Query\Query;
+use ReflectionMethod;
+use ReflectionNamedType;
+use Throwable;
 
 use function array_key_exists;
 use function basename;
 use function implode;
 use function in_array;
+use function is_a;
 use function method_exists;
 use function preg_replace;
 use function sort;
@@ -94,6 +98,12 @@ abstract class Model {
      * @var array
      */
     protected array $attributes=array();
+
+    /**
+     * 原始属性快照(加载/插入时的值, 用于脏检查)
+     * @var array
+     */
+    protected array $original=array();
 
     /**
      * 已加载的关系
@@ -317,11 +327,15 @@ abstract class Model {
      * @return static
      */
     public static function newFromRow(array $row): static {
-        return new static($row,true);
+        $model=new static($row,true);
+        $model->syncOriginal();
+        return $model;
     }
 
     /**
      * 获取属性(已加载的关系直接返回, 同名关系方法则惰性加载)
+     *
+     * - 仅当方法返回类型为 Relation 或其子类时才调用(避免误调用非关系方法)
      *
      * @access public
      * @param string $name 属性名
@@ -330,7 +344,7 @@ abstract class Model {
     public function __get(string $name): mixed {
         if(array_key_exists($name,$this->relations))
             return $this->relations[$name];
-        if(method_exists($this,$name)) {
+        if(method_exists($this,$name)&&$this->isRelationMethod($name)) {
             $relation=$this->{$name}();
             if($relation instanceof Relation) {
                 $this->setRelation($name,$relation->getResults());
@@ -338,6 +352,23 @@ abstract class Model {
             }
         }
         return $this->attributes[$name]??null;
+    }
+
+    /**
+     * 判断方法是否为关系声明(返回类型是 Relation 或其子类)
+     *
+     * @access private
+     * @param string $name 方法名
+     * @return bool
+     */
+    private function isRelationMethod(string $name): bool {
+        try {
+            $type=(new ReflectionMethod($this,$name))->getReturnType();
+            return $type instanceof ReflectionNamedType
+                && is_a($type->getName(),Relation::class,true);
+        } catch(Throwable $e) {
+            return false;
+        }
     }
 
     /**
@@ -353,14 +384,14 @@ abstract class Model {
     }
 
     /**
-     * 判断属性是否存在
+     * 判断属性是否存在(与 __get 语义一致: 关系/属性均参与判断)
      *
      * @access public
      * @param string $name 属性名
      * @return bool
      */
     public function __isset(string $name): bool {
-        return isset($this->attributes[$name]);
+        return $this->__get($name)!==null;
     }
 
     /**
@@ -680,18 +711,48 @@ abstract class Model {
      * @return bool
      */
     private function updateExisting(): bool {
-        if(static::usesTimestamps())
+        // 仅更新实际变更的字段(脏检查); 无变更则不发查询, 也不刷新 updated_at
+        $dirty=$this->getDirty();
+        unset($dirty[static::$primaryKey]);
+        if(empty($dirty))
+            return true;
+        if(static::usesTimestamps()) {
             $this->attributes[static::updatedAtField()]=static::freshTimestamp();
-        $sets=$this->attributes;
-        unset($sets[static::$primaryKey]);
-        if(empty($sets))
-            return true; // 无字段需要更新
+            $dirty[static::updatedAtField()]=$this->attributes[static::updatedAtField()];
+        }
         $result=static::db()->query(
-            Query::update($sets)
+            Query::update($dirty)
                 ->from(static::tableName())
                 ->where(static::$primaryKey,$this->getKey())
         );
+        if($result->isSuccess())
+            $this->syncOriginal();
         return $result->isSuccess();
+    }
+
+    /**
+     * 计算变更字段(当前属性与原始快照的差异)
+     *
+     * @access private
+     * @return array
+     */
+    private function getDirty(): array {
+        $dirty=array();
+        foreach($this->attributes as $key=>$value) {
+            if(!array_key_exists($key,$this->original)||$this->original[$key]!==$value)
+                $dirty[$key]=$value;
+        }
+        return $dirty;
+    }
+
+    /**
+     * 以当前属性覆盖原始快照(加载/插入/更新成功后调用)
+     *
+     * @access private
+     * @return void
+     */
+    private function syncOriginal(): void {
+        $this->original=$this->attributes;
     }
 
     /**
@@ -715,6 +776,7 @@ abstract class Model {
             return false;
         $this->attributes[static::$primaryKey]=$result->getLastInsertId();
         $this->exists=true;
+        $this->syncOriginal();
         return true;
     }
 

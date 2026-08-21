@@ -159,7 +159,7 @@ class ModelTest extends TestCase {
     }
 
     /**
-     * 测试实例保存(更新已存在记录)
+     * 测试实例保存(更新已存在记录, 仅更新变更字段)
      * @return void
      */
     public function testSaveUpdate(): void {
@@ -168,10 +168,40 @@ class ModelTest extends TestCase {
         $this->pdo->affectedRows=1;
         $user->name='李四';
         $this->assertTrue($user->save());
+        // 脏检查: 仅变更的 name + 刷新的 updated_at 进入 UPDATE
         $this->assertSame(
-            'UPDATE `users` SET `name` = ?, `age` = ?, `status` = ?, `updated_at` = ? WHERE `id` = ?',
+            'UPDATE `users` SET `name` = ?, `updated_at` = ? WHERE `id` = ?',
             $this->pdo->executed[1]
         );
+    }
+
+    /**
+     * 测试实例保存无变更时不发查询(不刷新 updated_at)
+     * @return void
+     */
+    public function testSaveNoChangesNoUpdate(): void {
+        $this->pdo->selectRows=[['id'=>1,'name'=>'张三','age'=>20,'status'=>1,'updated_at'=>'2025-01-01 00:00:00']];
+        $user=User::find(1);
+        $this->assertTrue($user->save());
+        // 只有一次 find 查询, 无 UPDATE
+        $this->assertCount(1,$this->pdo->executed);
+    }
+
+    /**
+     * 测试属性访问不会误调用非关系方法
+     * @return void
+     */
+    public function testGetDoesNotInvokeNonRelationMethod(): void {
+        $model=new class extends \base\Orm\Model {
+            public static bool $called=false;
+            public function fullName() {
+                self::$called=true;
+                return 'x';
+            }
+        };
+        // 非关系方法不作为属性触发, 回落 attributes
+        $this->assertNull($model->fullName);
+        $this->assertFalse($model::$called);
     }
 
     /**

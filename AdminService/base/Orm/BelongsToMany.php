@@ -11,7 +11,6 @@ use function array_merge;
 use function array_unique;
 use function array_values;
 use function count;
-use function in_array;
 use function is_array;
 use function range;
 
@@ -290,14 +289,21 @@ class BelongsToMany extends Relation {
         if($parentKey===null)
             throw new OrmException('Cannot sync related records: parent is not persisted.',100732);
         $rows=$this->buildPivotRows($parentKey,$ids);
-        $targetIds=array();
-        foreach($rows as $row)
-            $targetIds[$row[$this->relatedPivotKey]]=true;
-        $currentIds=$this->queryPivotKeys($parentKey);
+        // 主键统一转字符串比较, 避免跨驱动 int/string 类型差异误判
+        $targetSet=array();
+        $targetOrder=array();
+        foreach($rows as $row) {
+            $key=(string)$row[$this->relatedPivotKey];
+            $targetSet[$key]=true;
+            $targetOrder[$key]=$row[$this->relatedPivotKey];
+        }
+        $currentSet=array();
+        foreach($this->queryPivotKeys($parentKey) as $id)
+            $currentSet[(string)$id]=true;
         // 待删除: 当前有但目标无
         $toDetach=array();
-        foreach($currentIds as $id) {
-            if(!isset($targetIds[$id]))
+        foreach($currentSet as $id=>$_) {
+            if(!isset($targetSet[$id]))
                 $toDetach[]=$id;
         }
         if($detaching&&!empty($toDetach)) {
@@ -310,12 +316,13 @@ class BelongsToMany extends Relation {
         // 待插入: 目标有但当前无
         $toAttach=array();
         foreach($rows as $row) {
-            if(!in_array($row[$this->relatedPivotKey],$currentIds,true))
+            if(!isset($currentSet[(string)$row[$this->relatedPivotKey]]))
                 $toAttach[]=$row;
         }
         if(!empty($toAttach))
             $this->db->query(Query::insert($this->padPivotRows($toAttach))->from($this->pivotTable));
-        return array_keys($targetIds);
+        // 按输入顺序返回同步后的主键(保持原始类型)
+        return array_values($targetOrder);
     }
 
     /**

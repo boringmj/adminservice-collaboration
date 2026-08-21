@@ -104,6 +104,18 @@ final class Config {
     }
 
     /**
+     * 获取全部配置
+     *
+     * - 与 set() 配套, 便于部分修改后整体回写
+     *
+     * @access public
+     * @return array
+     */
+    final public static function all(): array {
+        return self::$configs;
+    }
+
+    /**
      * 获取配置
      * 
      * @access public

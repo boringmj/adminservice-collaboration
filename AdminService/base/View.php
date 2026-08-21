@@ -21,7 +21,7 @@ abstract class View {
      * 
      * @access public
      * @param string $template_path 模板文件路径
-     * @param array $data 需要传递给模板的数据
+     * @param array<string,mixed> $data 需要传递给模板的数据
      * @return void
      */
     abstract public function init(string $template_path,array $data=array()): void;
@@ -31,7 +31,7 @@ abstract class View {
      * 
      * @access public
      * @param string $template_content 模板内容
-     * @param array $data 需要传递给模板的数据
+     * @param array<string,mixed> $data 需要传递给模板的数据
      * @return void
      */
     abstract public function initWithContent(string $template_content,array $data=array()): void;
@@ -61,7 +61,7 @@ abstract class View {
      *
      * @access public
      * @param string|null $template_path 模板文件路径
-     * @param array $data 需要传递给模板的数据
+     * @param array<string,mixed> $data 需要传递给模板的数据
      */
     final public function __construct(?string $template_path=null,array $data=array()) {
         if($template_path!==null)

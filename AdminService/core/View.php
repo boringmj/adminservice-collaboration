@@ -28,7 +28,7 @@ final class View extends BaseView {
 
     /**
      * 模板数据
-     * @var array
+     * @var bool
      */
     protected bool $initialized=false;
 
@@ -37,7 +37,7 @@ final class View extends BaseView {
      *
      * @access public
      * @param string $template_path 模板文件路径
-     * @param array $data 需要传递给模板的数据
+     * @param array<string,mixed> $data 需要传递给模板的数据
      * @return void
      * @throws \AdminService\Exception
      */
@@ -57,7 +57,7 @@ final class View extends BaseView {
      * 
      * @access public
      * @param string $template_content 模板内容
-     * @param array $data 需要传递给模板的数据
+     * @param array<string,mixed> $data 需要传递给模板的数据
      * @return void
      */
     public function initWithContent(string $template_content,array $data=array()): void {
@@ -365,7 +365,7 @@ final class View extends BaseView {
      * 
      * @access public
      * @param string $content 模板内容
-     * @param array $data 需要传递给模板的数据
+     * @param array<string,mixed> $data 需要传递给模板的数据
      * @return void
      */
     public function initByContent(string $content,array $data): void {

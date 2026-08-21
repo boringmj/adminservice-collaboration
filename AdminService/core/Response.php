@@ -191,7 +191,7 @@ final class Response extends BaseResponse {
      * 寻找匹配的类型
      * 
      * @access private
-     * @param array $accept_headers Accept头信息
+     * @param array<string,mixed> $accept_headers Accept头信息
      * @return string
      */
     private static function findAcceptType(array $accept_headers): string {

@@ -227,7 +227,7 @@ class ModelQueryBuilder {
      * @access public
      * @param string $type 关联类型
      * @param string|Table $table 关联表
-     * @param array $on 关联条件
+     * @param array<array{0:string,1:string,2:mixed}> $on 关联条件([左字段, 操作符, 右字段])
      * @return static
      */
     public function join(string $type,string|Table $table,array $on): static {

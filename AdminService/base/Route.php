@@ -35,7 +35,7 @@ abstract class Route {
      * 通过路由路径组加载控制器
      * 
      * @access public
-     * @param array $route_info 路由路径组
+     * @param array<string,mixed> $route_info 路由路径组
      * @return self
      */
     abstract public function load(array $route_info=array()): self;

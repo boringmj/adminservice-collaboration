@@ -27,7 +27,7 @@ final class CompiledStatement implements CompiledStatementInterface {
      *
      * @access public
      * @param string $sql 编译后的SQL
-     * @param array $params 查询参数
+     * @param array<mixed> $params 查询参数
      */
     public function __construct(string $sql,array $params=array()) {
         $this->sql=$sql;

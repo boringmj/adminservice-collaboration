@@ -8,7 +8,7 @@ abstract class Cookie {
      * 通过数组的方式设置cookie
      * 
      * @access public
-     * @param array $data 数据
+     * @param array<string,mixed> $data 数据
      * @return void
      */
     abstract public static function setByArray(array $data): void;

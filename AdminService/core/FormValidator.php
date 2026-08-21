@@ -103,7 +103,7 @@ class FormValidator extends SceneValidator {
      * 替换消息模板中的占位符
      * 
      * @param string $template 消息模板
-     * @param array $context 替换上下文
+     * @param array<string,mixed> $context 替换上下文
      * @return string
      */
     protected function replacePlaceholders(string $template,array $context): string {
@@ -182,7 +182,7 @@ class FormValidator extends SceneValidator {
     /**
      * 脱敏数据
      * 
-     * @param array $data 待脱敏的数据
+     * @param array<string,mixed> $data 待脱敏的数据
      * @return array
      */
     public function sanitize(array $data): array {

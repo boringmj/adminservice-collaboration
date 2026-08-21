@@ -169,7 +169,7 @@ abstract class Controller {
      *
      * @access protected
      * @param string|array|null $template 视图名称或数据(如果传入数组则为数据)
-     * @param array $data 数据
+     * @param array<string,mixed> $data 数据
      * @return string
      * @throws Exception|ReflectionException
      */

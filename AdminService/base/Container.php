@@ -79,7 +79,7 @@ abstract class Container {
      * 初始化
      * 
      * @access public
-     * @param array $classes 需要初始化的类
+     * @param array<string,string> $classes 需要初始化的类
      * @return void
      */
     abstract public static function init(array $classes=array()): void;
@@ -337,7 +337,7 @@ abstract class Container {
      * 批量设置或添加对象
      * 
      * @access public
-     * @param array $objects 对象数组
+     * @param array<string,object> $objects 对象数组
      * @return void
      */
     public static function setByArray(array $objects): void {
@@ -349,7 +349,7 @@ abstract class Container {
      * 批量设置或添加未被实例化的类
      *
      * @access public
-     * @param array $classes 类数组
+     * @param array<string,string> $classes 类数组
      * @return void
      * @throws Exception
      */
@@ -386,7 +386,7 @@ abstract class Container {
      * 批量设置或添加全局数据
      * 
      * @access public
-     * @param array $data 数据数组
+     * @param array<string,mixed> $data 数据数组
      * @return void
      */
     public static function setDataByArray(array $data): void {
@@ -399,7 +399,7 @@ abstract class Container {
      * 
      * @access protected
      * @param object $instance 需要注入属性的对象实例
-     * @param array $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
+     * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
      * @throws Exception
      * @return void
      */
@@ -460,7 +460,7 @@ abstract class Container {
      * @param ReflectionClass $ref 需要注入属性的反射类实例
      * @param ?string $explicit_class 显式标注的类名
      * @param bool $proxy 是否注入动态代理类
-     * @param array $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
+     * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
      * @throws AutowireException
      * @return object
      */
@@ -525,7 +525,7 @@ abstract class Container {
      * @param ReflectionProperty[] $properties 需要注入属性的反射实例数组
      * @param object $instance 需要注入属性的对象实例
      * @param ReflectionClass $ref 需要注入属性的反射类实例
-     * @param array $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
+     * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
      * @throws AutowireException
      * @return void
      */
@@ -564,7 +564,7 @@ abstract class Container {
      * @param ReflectionMethod[] $methods 需要注入属性的反射实例数组
      * @param object $instance 需要注入属性的对象实例
      * @param ReflectionClass $ref 需要注入属性的反射类实例
-     * @param array $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
+     * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
      * @throws AutowireException
      * @return void
      */
@@ -626,7 +626,7 @@ abstract class Container {
      * @param ReflectionMethod[] $methods 需要注入方法的反射实例数组
      * @param object $instance 需要注入方法的对象实例
      * @param ReflectionClass $ref 需要注入方法的反射类实例
-     * @param array $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
+     * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
      * @throws AutowireException
      * @return void
      */
@@ -681,7 +681,7 @@ abstract class Container {
      * @access public
      * @template T of object
      * @param class-string<T> $name 类名
-     * @param array $args 构造函数参数
+     * @param array<mixed> $args 构造函数参数
      * @return DynamicProxy<T>
      * @throws Exception
      */
@@ -699,7 +699,7 @@ abstract class Container {
      * @template T of object
      * @param class-string<T> $name 对象名
      * @param bool $is_force 是否强制实例化(仅对当前对象有效,不会影响依赖)
-     * @param array $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
+     * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
      * @return T|object
      * @throws Exception|ReflectionException
      */
@@ -812,7 +812,7 @@ abstract class Container {
      *
      * @access protected
      * @param ReflectionParameter[] $params 参数
-     * @param array $args 参数
+     * @param array<mixed> $args 参数
      * @return array
      * @throws Exception
      * @throws ReflectionException
@@ -900,7 +900,7 @@ abstract class Container {
      * 
      * @access protected
      * @param mixed $arg 参数
-     * @param array $types 预期类型
+     * @param array<string> $types 预期类型
      * @return bool
      */
     protected static function isValidType(mixed $arg,array $types): bool {
@@ -960,7 +960,7 @@ abstract class Container {
      *
      * @access protected
      * @param mixed $value 实参值
-     * @param array $types 目标类型列表
+     * @param array<string> $types 目标类型列表
      * @return mixed
      */
     protected static function castParam(mixed $value,array $types): mixed {
@@ -1040,7 +1040,7 @@ abstract class Container {
      * 
      * @access public
      * @param string $class 类名
-     * @param array $flags 标识(请不要传入该参数,该参数主要用于防止解析死循环)
+     * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止解析死循环)
      * @return ?string
      */
     public static function findDirectSubClassRecursive(string $class,array &$flags=array()): ?string {
@@ -1119,7 +1119,7 @@ abstract class Container {
      * 将一组PHP类型转为gettype()返回的类型
      * 
      * @access public
-     * @param array $types 类型数组
+     * @param array<string> $types 类型数组
      * @return array
      */
     public static function getStandardTypes(array $types): array {
@@ -1133,7 +1133,7 @@ abstract class Container {
      * 获取给出类型中的第一个可实例化的类(支持别名和绑定)
      * 
      * @access public
-     * @param array $types 类型数组
+     * @param array<string> $types 类型数组
      * @return ?string
      */
     public static function getFirstInstantiableClass(array $types): ?string {

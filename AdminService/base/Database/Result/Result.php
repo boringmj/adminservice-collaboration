@@ -58,7 +58,7 @@ final class Result implements ResultInterface {
      * @access public
      * @param bool $success 是否执行成功
      * @param string $sql 执行的 SQL
-     * @param array $params 查询参数
+     * @param array<mixed> $params 查询参数
      * @param AbstractCollection|null $results 查询结果集
      * @param string $error 错误信息
      * @param int $affectedRows 受影响的行数

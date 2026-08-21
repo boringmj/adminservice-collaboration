@@ -69,7 +69,7 @@ final class Join {
      * @access public
      * @param string $type 关联类型(inner/left/right/full, 不区分大小写)
      * @param Table $table 关联表
-     * @param array $conditions 关联条件列表
+     * @param array<array{0:Field,1:string,2:mixed}> $conditions 关联条件列表
      * @throws QueryException
      */
     public function __construct(string $type,Table $table,array $conditions) {

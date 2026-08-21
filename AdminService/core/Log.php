@@ -50,7 +50,7 @@ class Log {
      *
      * @access public
      * @param string $content 日志格式(支持变量绑定,变量格式为{变量名},变量需要按数组形式传入)
-     * @param array $vars 变量 例如:array('变量名'=>'变量值')这种形式传入,请注意传入顺序,{name}的值为'{value}',则会被再一次进行变量绑定,所以请注意变量的顺序
+     * @param array<string,mixed> $vars 变量 例如:array('变量名'=>'变量值')这种形式传入,请注意传入顺序,{name}的值为'{value}',则会被再一次进行变量绑定,所以请注意变量的顺序
      * @return void
      * @throws Exception
      */
@@ -122,7 +122,7 @@ class Log {
      * 
      * @access protected
      * @param string $string 字符串
-     * @param array $vars 变量
+     * @param array<string,mixed> $vars 变量
      * @return string
      */
     protected function bind(string $string,array $vars):string {

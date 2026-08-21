@@ -337,7 +337,7 @@ abstract class Model {
      *
      * @access public
      * @param string $name 方法名
-     * @param array $arguments 参数
+     * @param array<mixed> $arguments 参数
      * @return mixed
      */
     public static function __callStatic(string $name,array $arguments): mixed {

@@ -428,7 +428,7 @@ class Query implements QueryInterface {
      * @access public
      * @param string $type 关联类型(inner/left/right/full)
      * @param string|Table $table 关联表("orders" 或 "orders o")
-     * @param array $on 关联条件列表
+     * @param array<array{0:string,1:string,2:mixed}> $on 关联条件列表
      * @return static
      */
     public function join(string $type,string|Table $table,array $on): static {

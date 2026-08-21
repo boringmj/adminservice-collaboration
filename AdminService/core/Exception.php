@@ -16,7 +16,7 @@ class Exception extends BaseException {
      * @access public
      * @param string $message
      * @param int $error_code
-     * @param array $data
+     * @param array<mixed> $data
      * @throws Exception
      * @throws ReflectionException
      */

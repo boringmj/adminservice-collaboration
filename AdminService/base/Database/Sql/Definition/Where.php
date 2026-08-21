@@ -132,7 +132,7 @@ final class Where {
      *
      * @access public
      * @param string $connector 连接符号(and/or, 不区分大小写)
-     * @param array $conditions 子条件数组
+     * @param array<Where> $conditions 子条件数组
      * @return static
      */
     public static function group(string $connector,array $conditions): static {

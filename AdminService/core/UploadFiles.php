@@ -45,7 +45,7 @@ final class UploadFiles extends AbstractUploadFiles {
      * 
      * @access public
      * @param string $dir 上传目录
-     * @param array $files 上传文件列表
+     * @param array<string,mixed> $files 上传文件列表
      */
     public function __construct(string $dir,array $files) {
         // 检查目录是否存在,如果不存在则创建
@@ -78,7 +78,7 @@ final class UploadFiles extends AbstractUploadFiles {
      * 解析文件列表
      * 
      * @access protected
-     * @param array $files 文件列表
+     * @param array<string,mixed> $files 文件列表
      * @return void
      */
     protected function parse(array $files): void {

@@ -34,7 +34,7 @@ class Data implements IteratorAggregate,Countable {
      * 构造函数
      * 
      * @access public
-     * @param array $data 数据
+     * @param array<string,mixed> $data 数据
      * @return void
      */
     public function __construct(array $data=[]) {
@@ -84,7 +84,7 @@ class Data implements IteratorAggregate,Countable {
      * 初始化
      * 
      * @access public
-     * @param array $data 数据
+     * @param array<string,mixed> $data 数据
      * @return void
      */
     public function init(array $data): void {
@@ -96,7 +96,7 @@ class Data implements IteratorAggregate,Countable {
      * 存储数据
      * 
      * @access public
-     * @param array $data 数据
+     * @param array<string,mixed> $data 数据
      * @return void
      */
     public function save(array $data): void {
@@ -193,7 +193,7 @@ class Data implements IteratorAggregate,Countable {
      * 批量设置数据
      * 
      * @access public
-     * @param array $data 数据
+     * @param array<string,mixed> $data 数据
      * @return void
      */
     public function batchSet(array $data): void {

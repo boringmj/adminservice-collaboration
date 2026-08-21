@@ -293,7 +293,7 @@ final class MysqlCompiler implements SqlCompilerInterface {
      * @access private
      * @param SqlWriter $writer SQL 写入器
      * @param CompilerContextInterface $context 编译器上下文
-     * @param array $joins 关联查询列表
+     * @param array<Join> $joins 关联查询列表
      * @return void
      */
     private function writeJoins(
@@ -458,7 +458,7 @@ final class MysqlCompiler implements SqlCompilerInterface {
      * @access private
      * @param SqlWriter $writer SQL 写入器
      * @param CompilerContextInterface $context 编译器上下文
-     * @param array $group 分组字段列表
+     * @param array<Field> $group 分组字段列表
      * @return void
      */
     private function writeGroup(
@@ -480,7 +480,7 @@ final class MysqlCompiler implements SqlCompilerInterface {
      * @access private
      * @param SqlWriter $writer SQL 写入器
      * @param CompilerContextInterface $context 编译器上下文
-     * @param array $order 排序字段列表
+     * @param array<array{0:Field,1:string}> $order 排序字段列表
      * @return void
      */
     private function writeOrder(

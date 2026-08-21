@@ -27,7 +27,7 @@ final class Config {
      * 构造方法
      * 
      * @access public
-     * @param array $configs
+     * @param array<string,mixed> $configs
      */
     final public function __construct(array $configs=array()) {
         if(!empty($configs))
@@ -96,7 +96,7 @@ final class Config {
      * 设置配置
      * 
      * @access public
-     * @param array $configs
+     * @param array<string,mixed> $configs
      * @return void
      */
     final public static function set(array $configs): void {

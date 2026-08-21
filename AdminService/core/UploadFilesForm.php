@@ -11,7 +11,7 @@ class UploadFilesForm extends AbstractUploadFilesForm {
      * 解析上传文件列表
      * 
      * @access protected
-     * @param array $files 上传文件列表
+     * @param array<string,mixed> $files 上传文件列表
      * @param string $dir 上传目录
      * @return void
      */

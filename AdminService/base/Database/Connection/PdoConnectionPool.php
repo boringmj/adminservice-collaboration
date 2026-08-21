@@ -89,7 +89,7 @@ final class PdoConnectionPool implements ConnectionPoolInterface {
      * @return void
      */
     public function returnToPool(PdoConnectionSession $session): void {
-        // 回滚残留事务, 保证会话干净
+        // 回滚残留事务(会话变量/临时表等 PDO 无法重置, 由上层约定规避)
         $session->reset();
         // 脏会话或超过闲置上限: 丢弃不复用(对象失引用后由 GC 释放连接)
         if($session->isDirty()||count($this->idle)>=$this->maxIdle)

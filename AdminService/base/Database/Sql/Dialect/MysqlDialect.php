@@ -27,16 +27,6 @@ final class MysqlDialect implements DialectInterface, InlineQuotingInterface {
     }
 
     /**
-     * 获取方言能力
-     *
-     * @access public
-     * @return DialectCapabilitiesInterface
-     */
-    public function getCapabilities(): DialectCapabilitiesInterface {
-        return new MysqlCapabilities();
-    }
-
-    /**
      * 包装标识符(使用反引号)
      *
      * @access public

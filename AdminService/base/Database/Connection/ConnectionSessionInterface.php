@@ -62,7 +62,8 @@ interface ConnectionSessionInterface {
 
     /**
      * 重置连接会话
-     * - 完全清理连接会话状态(包括事务状态,临时表等)
+     * - 回滚未完成的事务, 清理事务状态
+     * - 注: 会话变量/临时表等 PDO 无法重置, 需使用者自行规避(见 Demo-Sql 连接管理约定)
      * @return void
      */
     public function reset(): void;

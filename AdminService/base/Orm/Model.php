@@ -166,6 +166,7 @@ abstract class Model {
      *
      * - setDb 注入优先(测试/自定义连接); 未注入则 Db::fromConfig(static::$connection)
      * - 共享单例意味着模型写入与 Db::transaction() 落在同一连接, 可跨模型进事务
+     *   (此处 Db 为底层 base\Database\Db, 用户侧事务请用 AdminService\Db::connection()->transaction())
      *
      * @access protected
      * @return Db

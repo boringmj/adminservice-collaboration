@@ -16,6 +16,8 @@ use base\Database\Sql\Compiler\CompilerContext;
 use base\Database\Sql\Compiler\MysqlCompiler;
 use base\Database\Sql\Dialect\MysqlDialect;
 use base\Database\Sql\Type\CompileMode;
+use base\Database\Type\Operator;
+use base\Database\Type\OrderDirection;
 use Tests\Fixtures\FakeDialect;
 
 /**
@@ -206,6 +208,24 @@ class MysqlCompilerTest extends TestCase {
             $statement->getSql()
         );
         $this->assertSame([],$statement->getParams());
+    }
+
+    /**
+     * 测试操作符/排序方向常量与小写字面量规范化
+     * @return void
+     */
+    public function testOperatorConstantsAndNormalization(): void {
+        // 操作符常量
+        $statement=$this->compile(Query::select()->from('users')->where('age',18,Operator::GTE));
+        $this->assertSame('SELECT * FROM `users` WHERE `age` >= ?',$statement->getSql());
+        // 小写字面量自动转大写
+        $statement=$this->compile(Query::select()->from('users')->where('name','张%','like'));
+        $this->assertSame('SELECT * FROM `users` WHERE `name` LIKE ?',$statement->getSql());
+        // 排序方向: 小写字面量 / 常量
+        $statement=$this->compile(Query::select()->from('users')->order('id','desc'));
+        $this->assertSame('SELECT * FROM `users` ORDER BY `id` DESC',$statement->getSql());
+        $statement=$this->compile(Query::select()->from('users')->order('id',OrderDirection::DESC));
+        $this->assertSame('SELECT * FROM `users` ORDER BY `id` DESC',$statement->getSql());
     }
 
     /**

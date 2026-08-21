@@ -11,6 +11,7 @@ use base\Database\Sql\Definition\StatementDefinitionInterface;
 use base\Database\Sql\Definition\Table;
 use base\Database\Sql\Definition\Where;
 use base\Database\Sql\Type\CompileFeature;
+use base\Database\Type\Operator;
 use base\Database\Type\StatementType;
 
 use function array_keys;
@@ -421,12 +422,12 @@ final class MysqlCompiler implements SqlCompilerInterface {
         $writer->append($this->fieldSql($writer,$context,$where->getField()));
         $operator=$where->getOperator();
         switch($operator) {
-            case 'IS NULL':
-            case 'IS NOT NULL':
+            case Operator::IS_NULL:
+            case Operator::IS_NOT_NULL:
                 $writer->append(' '.$operator);
                 return;
-            case 'IN':
-            case 'NOT IN':
+            case Operator::IN:
+            case Operator::NOT_IN:
                 $values=$where->getValue();
                 if(!is_array($values)||empty($values))
                     throw new QueryException('IN requires a non-empty array value.',100509);
@@ -436,8 +437,8 @@ final class MysqlCompiler implements SqlCompilerInterface {
                     $placeholders[]=$writer->param($value);
                 $writer->append(implode(', ',$placeholders).')');
                 return;
-            case 'BETWEEN':
-            case 'NOT BETWEEN':
+            case Operator::BETWEEN:
+            case Operator::NOT_BETWEEN:
                 $values=$where->getValue();
                 if(!is_array($values)||count($values)!==2)
                     throw new QueryException('BETWEEN requires two values.',100510);

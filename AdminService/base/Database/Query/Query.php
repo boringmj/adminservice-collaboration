@@ -8,6 +8,8 @@ use base\Database\Sql\Definition\Join;
 use base\Database\Sql\Definition\Literal;
 use base\Database\Sql\Definition\Table;
 use base\Database\Sql\Definition\Where;
+use base\Database\Type\Operator;
+use base\Database\Type\OrderDirection;
 use base\Database\Type\StatementType;
 
 use function array_map;
@@ -36,15 +38,15 @@ class Query implements QueryInterface {
      * @var array
      */
     private const JOIN_OPERATORS=array(
-        '=',
-        '!=',
-        '<>',
-        '>',
-        '<',
-        '>=',
-        '<=',
-        'LIKE',
-        'NOT LIKE',
+        Operator::EQ,
+        Operator::NEQ,
+        Operator::NEQ_ANSI,
+        Operator::GT,
+        Operator::LT,
+        Operator::GTE,
+        Operator::LTE,
+        Operator::LIKE,
+        Operator::NOT_LIKE,
     );
 
     /**
@@ -301,13 +303,14 @@ class Query implements QueryInterface {
      * @param string $operator 操作符(不区分大小写)
      * @return static
      */
-    public function where(string|Field $field,mixed $value=null,string $operator='='): static {
+    public function where(string|Field $field,mixed $value=null,string $operator=Operator::EQ): static {
+        // 操作符统一转大写(支持字面量 'like' 与常量 Operator::LIKE 混用)
+        $operator=strtoupper($operator);
         // null 值与比较操作符: 自动转为 IS NULL / IS NOT NULL, 避免生成永不匹配的 "= ?"
         if($value===null) {
-            $operator_upper=strtoupper($operator);
-            if($operator_upper==='='||$operator_upper==='==')
+            if($operator===Operator::EQ||$operator===Operator::EQ_ALT)
                 return $this->whereNull($field);
-            if($operator_upper==='!='||$operator_upper==='<>')
+            if($operator===Operator::NEQ||$operator===Operator::NEQ_ANSI)
                 return $this->whereNull($field,true);
         }
         return $this->addWhere(Where::leaf($this->resolveField($field),$operator,$value));
@@ -481,9 +484,9 @@ class Query implements QueryInterface {
      * @param string $direction 排序方向(asc/desc)
      * @return static
      */
-    public function order(string|Field $field,string $direction='ASC'): static {
+    public function order(string|Field $field,string $direction=OrderDirection::ASC): static {
         $direction=strtoupper($direction);
-        if(!in_array($direction,array('ASC','DESC'),true))
+        if(!in_array($direction,array(OrderDirection::ASC,OrderDirection::DESC),true))
             throw new QueryException('Invalid order direction.',100513,array(
                 'direction'=>$direction
             ));
@@ -499,7 +502,7 @@ class Query implements QueryInterface {
      * @param string $direction 排序方向
      * @return static
      */
-    public function orderBy(string|Field $field,string $direction='ASC'): static {
+    public function orderBy(string|Field $field,string $direction=OrderDirection::ASC): static {
         return $this->order($field,$direction);
     }
 

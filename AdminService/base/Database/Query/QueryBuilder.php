@@ -7,6 +7,8 @@ use base\Database\Exception\QueryException;
 use base\Database\Result\ResultInterface;
 use base\Database\Sql\Definition\Field;
 use base\Database\Sql\Definition\Table;
+use base\Database\Type\Operator;
+use base\Database\Type\OrderDirection;
 use base\Database\Type\StatementType;
 
 use function ceil;
@@ -94,7 +96,7 @@ class QueryBuilder {
      * @param string $operator 操作符(=, >, <, >=, <=, !=, <>, LIKE, NOT LIKE)
      * @return static
      */
-    public function where(string|Field $field,mixed $value=null,string $operator='='): static {
+    public function where(string|Field $field,mixed $value=null,string $operator=Operator::EQ): static {
         $this->query->where($field,$value,$operator);
         return $this;
     }
@@ -189,7 +191,7 @@ class QueryBuilder {
      * @param string $direction 排序方向(asc/desc)
      * @return static
      */
-    public function order(string|Field $field,string $direction='ASC'): static {
+    public function order(string|Field $field,string $direction=OrderDirection::ASC): static {
         $this->query->order($field,$direction);
         return $this;
     }
@@ -202,7 +204,7 @@ class QueryBuilder {
      * @param string $direction 排序方向
      * @return static
      */
-    public function orderBy(string|Field $field,string $direction='ASC'): static {
+    public function orderBy(string|Field $field,string $direction=OrderDirection::ASC): static {
         return $this->order($field,$direction);
     }
 

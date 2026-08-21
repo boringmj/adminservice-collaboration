@@ -16,10 +16,6 @@ use base\Controller;
  */
 class OrmDemo extends Controller {
 
-    public function test(): mixed {
-        return $this->json(User::where('id',9999)->first());
-    }
-
     /**
      * 探查 users 表结构
      *

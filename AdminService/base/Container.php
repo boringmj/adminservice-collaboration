@@ -30,6 +30,7 @@ use AdminService\Exception;
 use AdminService\DynamicProxy;
 use AdminService\Autowire\AutowireSetter;
 use AdminService\Autowire\AutowireProperty;
+use AdminService\Autowire\AutowireMethod;
 use AdminService\exception\AutowireException;
 
 abstract class Container {
@@ -413,6 +414,8 @@ abstract class Container {
         $methods=$ref->getMethods();
         // 自动注入Setter方法
         self::autowireSetter($methods,$instance,$ref,$flags);
+        // 自动注入生命周期方法(#[AutowireMethod])
+        self::autowireMethod($methods,$instance,$ref);
     }
 
     /**
@@ -613,38 +616,49 @@ abstract class Container {
         }
     }
 
-    // /**
-    //  * 自动注入方法(还未完成)
-    //  * 
-    //  * @access protected
-    //  * @param ReflectionMethod[] $methods 需要注入属性的反射实例数组
-    //  * @param object $instance 需要注入属性的对象实例
-    //  * @param ReflectionClass $ref 需要注入属性的反射类实例
-    //  * @param array $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
-    //  * @throws AutowireException
-    //  * @return void
-    //  */
-    // protected static function autowireMethod(
-    //     array $methods,
-    //     object $instance,
-    //     ReflectionClass $ref,
-    //     array &$flags=[]
-    // ): void {
-    //     try{
-    //         foreach($methods as $method) {
-    //             // 获取方法是否有 
-    //         }
-    //     } catch(Exception $e) {
-    //         throw new AutowireException(
-    //             $e->getMessage(),
-    //             0,
-    //             [
-    //                 'property'=>$method->getName(),
-    //                 'class'=>$ref->getName()
-    //             ]
-    //         );
-    //     }
-    // }
+    /**
+     * 自动方法注入(生命周期钩子)
+     *
+     * - 对标记了 #[AutowireMethod] 的方法, 在构建并注入属性/Setter 后自动调用
+     * - 参数按类型自动注入, 与构造函数注入一致(复用 mergeParams: 类型解析 → 默认值 → null → 报错)
+     *
+     * @access protected
+     * @param ReflectionMethod[] $methods 需要注入方法的反射实例数组
+     * @param object $instance 需要注入方法的对象实例
+     * @param ReflectionClass $ref 需要注入方法的反射类实例
+     * @throws AutowireException
+     * @return void
+     */
+    protected static function autowireMethod(
+        array $methods,
+        object $instance,
+        ReflectionClass $ref
+    ): void {
+        $method=null;
+        try {
+            foreach($methods as $method) {
+                // 获取方法是否有 AutowireMethod 标签
+                $attributes=$method->getAttributes(AutowireMethod::class);
+                if(empty($attributes))
+                    continue;
+                // 注入所有参数(按类型解析, 与构造函数注入一致)
+                $params=$method->getParameters();
+                $args=self::mergeParams($params,array());
+                // 调用方法
+                $method->setAccessible(true);
+                $method->invokeArgs($instance,$args);
+            }
+        } catch(Exception $e) {
+            throw new AutowireException(
+                $e->getMessage(),
+                0,
+                [
+                    'method'=>$method?->getName(),
+                    'class'=>$ref->getName()
+                ]
+            );
+        }
+    }
 
     /**
      * 生成一个类的代理实例

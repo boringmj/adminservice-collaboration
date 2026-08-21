@@ -28,6 +28,12 @@ class UserProfile {
     public $booted=false;
 
     /**
+     * 用户名称(由 boot 显式注入, 参数无类型)
+     * @var UserName|null
+     */
+    public $explicit;
+
+    /**
      * 生命周期方法: 构建后自动注入参数并调用
      *
      * @access public
@@ -40,6 +46,18 @@ class UserProfile {
         $this->name=$name;
         $this->status=$status;
         $this->booted=true;
+    }
+
+    /**
+     * 显式注入的生命周期方法(单参数无类型, 指定 name)
+     *
+     * @access public
+     * @param mixed $name 用户名称(由 name 指定注入)
+     * @return void
+     */
+    #[AutowireMethod(UserName::class)]
+    public function boot($name): void {
+        $this->explicit=$name;
     }
 
 }

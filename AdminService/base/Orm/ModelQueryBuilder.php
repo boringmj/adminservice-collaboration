@@ -514,6 +514,7 @@ class ModelQueryBuilder {
      */
     public function update(array $data): int {
         $this->prepareTable();
+        $this->assertWriteScope();
         $this->query->type(StatementType::UPDATE)->sets($data);
         $this->applySoftDeleteFilter();
         return $this->run()->getAffectedRows();
@@ -529,6 +530,7 @@ class ModelQueryBuilder {
      */
     public function delete(): int {
         $this->prepareTable();
+        $this->assertWriteScope();
         $this->applySoftDeleteFilter();
         if(($this->modelClass)::usesSoftDelete()) {
             $this->query->type(StatementType::UPDATE)->sets(array(
@@ -548,6 +550,7 @@ class ModelQueryBuilder {
      */
     public function forceDelete(): int {
         $this->prepareTable();
+        $this->assertWriteScope();
         $this->applySoftDeleteFilter();
         $this->query->type(StatementType::DELETE);
         return $this->run()->getAffectedRows();
@@ -571,6 +574,22 @@ class ModelQueryBuilder {
      */
     private function prepareTable(): void {
         $this->query->from(($this->modelClass)::tableName(),$this->alias);
+    }
+
+    /**
+     * 校验批量写操作必须携带显式条件(防止全表更新/删除)
+     *
+     * - 必须放在 applySoftDeleteFilter 之前调用, 软删过滤是自动附加的内部条件,
+     *   不能替代用户显式 where, 否则 Post::query()->delete() 会被过滤条件"掩护"成全表操作
+     * - 需要全表操作时请显式补条件(如 where('id','>',0))或使用底层 raw SQL
+     *
+     * @access private
+     * @return void
+     * @throws QueryException 缺少条件时抛出
+     */
+    private function assertWriteScope(): void {
+        if(!$this->query->hasWhere())
+            throw new QueryException('Update/Delete must have where condition.',100703);
     }
 
     /**

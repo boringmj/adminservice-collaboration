@@ -48,7 +48,7 @@ class ParamCastTest extends TestCase {
      * @return void
      */
     public static function setUpBeforeClass(): void {
-        Config::load();
+        load_test_config();
         App::init();
     }
 

@@ -10,6 +10,9 @@ class Exception extends BaseException {
     /**
      * 构造方法
      *
+     * - 仅调试模式(app.debug=true)在构造时写入日志, 便于排查
+     * - 生产环境依赖全局兜底(Error::renderAndExit)记录未捕获异常, 避免已捕获/流程控制异常刷日志
+     *
      * @access public
      * @param string $message
      * @param int $error_code
@@ -19,6 +22,8 @@ class Exception extends BaseException {
      */
     final public function __construct(string $message,int $error_code=0,array $data=array()) {
         parent::__construct($message,$error_code,$data);
+        if(!Config::get('app.debug',false))
+            return;
         try{
             //写入日志
             App::get(Log::class)->write(

@@ -45,6 +45,12 @@ final class SqlWriter {
     private int $index=1;
 
     /**
+     * 逻辑表名 → 实际 SQL 表名映射(限定字段编译用, 由编译器按语句构建)
+     * @var array
+     */
+    private array $tableMap=array();
+
+    /**
      * 构造方法
      *
      * @access public
@@ -119,6 +125,27 @@ final class SqlWriter {
      */
     public function getIndex(): int {
         return $this->index;
+    }
+
+    /**
+     * 设置逻辑表名映射
+     *
+     * @access public
+     * @param array $tableMap 逻辑表名 → 实际 SQL 表名
+     * @return void
+     */
+    public function setTableMap(array $tableMap): void {
+        $this->tableMap=$tableMap;
+    }
+
+    /**
+     * 获取逻辑表名映射
+     *
+     * @access public
+     * @return array
+     */
+    public function getTableMap(): array {
+        return $this->tableMap;
     }
 
 }

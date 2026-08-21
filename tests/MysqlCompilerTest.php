@@ -200,11 +200,62 @@ class MysqlCompilerTest extends TestCase {
                 ['o.status','=','u.status'],
             ]);
         $statement=$this->compile($query);
+        // 关联表被别名 o, 限定名 orders.user_id 正确映射为别名 o
         $this->assertSame(
-            'SELECT * FROM `users` `u` LEFT JOIN `orders` `o` ON `u`.`id` = `orders`.`user_id` AND `o`.`status` = `u`.`status`',
+            'SELECT * FROM `users` `u` LEFT JOIN `orders` `o` ON `u`.`id` = `o`.`user_id` AND `o`.`status` = `u`.`status`',
             $statement->getSql()
         );
         $this->assertSame([],$statement->getParams());
+    }
+
+    /**
+     * 测试表名已含前缀时不再重复附加
+     * @return void
+     */
+    public function testPrefixSkippedWhenTableHasPrefix(): void {
+        $statement=$this->compile(Query::select()->from('admin_service_users'),0,'admin_service_');
+        $this->assertSame('SELECT * FROM `admin_service_users`',$statement->getSql());
+    }
+
+    /**
+     * 测试限定字段的表段映射到前缀后的实际表名
+     * @return void
+     */
+    public function testQualifiedFieldMappedToPrefixedTable(): void {
+        $statement=$this->compile(
+            Query::select()->from('users')->field('users.id')->where('users.id',1),
+            0,
+            'admin_service_'
+        );
+        $this->assertSame(
+            'SELECT `admin_service_users`.`id` FROM `admin_service_users` WHERE `admin_service_users`.`id` = ?',
+            $statement->getSql()
+        );
+    }
+
+    /**
+     * 测试限定字段的表段映射到语句中的别名
+     * @return void
+     */
+    public function testQualifiedFieldMappedToAlias(): void {
+        $statement=$this->compile(
+            Query::select()->from('users','u')->field('users.id'),
+            0,
+            'admin_service_'
+        );
+        $this->assertSame(
+            'SELECT `u`.`id` FROM `admin_service_users` `u`',
+            $statement->getSql()
+        );
+    }
+
+    /**
+     * 测试未出现在语句中的表名限定字段原样保留
+     * @return void
+     */
+    public function testQualifiedFieldUnmappedKeptAsIs(): void {
+        $statement=$this->compile(Query::select()->from('users')->field('x.col'),0,'admin_service_');
+        $this->assertSame('SELECT `x`.`col` FROM `admin_service_users`',$statement->getSql());
     }
 
     /**

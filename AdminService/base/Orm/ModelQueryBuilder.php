@@ -13,6 +13,7 @@ use base\Database\Type\OrderDirection;
 use base\Database\Type\StatementType;
 
 use function array_filter;
+use function array_key_exists;
 use function array_keys;
 use function array_map;
 use function array_merge;
@@ -508,13 +509,19 @@ class ModelQueryBuilder {
     /**
      * 按当前条件更新
      *
+     * - 自动刷新 updated_at(时间戳模型), 已显式传入则不覆盖
+     * - 无任何条件时抛 QueryException(防止全表更新), 需全表操作请显式补条件
+     *
      * @access public
      * @param array<string,mixed> $data 数据
      * @return int 受影响行数
+     * @throws QueryException 缺少查询条件时抛出
      */
     public function update(array $data): int {
         $this->prepareTable();
         $this->assertWriteScope();
+        if(($this->modelClass)::usesTimestamps()&&!array_key_exists(($this->modelClass)::updatedAtField(),$data))
+            $data[($this->modelClass)::updatedAtField()]=($this->modelClass)::freshTimestamp();
         $this->query->type(StatementType::UPDATE)->sets($data);
         $this->applySoftDeleteFilter();
         return $this->run()->getAffectedRows();
@@ -524,9 +531,11 @@ class ModelQueryBuilder {
      * 按当前条件删除
      *
      * - 启用软删除时标记 deleted_at, 否则物理删除
+     * - 无任何条件时抛 QueryException(防止全表删除), 需全表操作请显式补条件
      *
      * @access public
      * @return int 受影响行数
+     * @throws QueryException 缺少查询条件时抛出
      */
     public function delete(): int {
         $this->prepareTable();
@@ -545,8 +554,11 @@ class ModelQueryBuilder {
     /**
      * 按当前条件物理删除(无视软删除)
      *
+     * - 无任何条件时抛 QueryException(防止全表删除), 需全表操作请显式补条件
+     *
      * @access public
      * @return int 受影响行数
+     * @throws QueryException 缺少查询条件时抛出
      */
     public function forceDelete(): int {
         $this->prepareTable();

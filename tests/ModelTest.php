@@ -434,6 +434,32 @@ class ModelTest extends TestCase {
     }
 
     /**
+     * 测试构建器批量更新自动刷新 updated_at(与实例/集合语义一致)
+     * @return void
+     */
+    public function testBuilderUpdateTouchesUpdatedAt(): void {
+        $this->pdo->affectedRows=2;
+        User::query()->where('status',0)->update(array('name'=>'x'));
+        $this->assertSame(
+            'UPDATE `users` SET `name` = ?, `updated_at` = ? WHERE `status` = ?',
+            $this->pdo->executed[0]
+        );
+    }
+
+    /**
+     * 测试构建器批量更新显式传入 updated_at 时不覆盖
+     * @return void
+     */
+    public function testBuilderUpdateKeepsExplicitUpdatedAt(): void {
+        $this->pdo->affectedRows=1;
+        User::query()->where('id',1)->update(array('name'=>'x','updated_at'=>'2020-01-01 00:00:00'));
+        $this->assertSame(
+            'UPDATE `users` SET `name` = ?, `updated_at` = ? WHERE `id` = ?',
+            $this->pdo->executed[0]
+        );
+    }
+
+    /**
      * 测试表名由类名自动推导
      * @return void
      */

@@ -8,7 +8,6 @@ use IteratorAggregate;
 use Traversable;
 
 use function array_filter;
-use function array_key_exists;
 use function array_map;
 use function array_values;
 use function count;
@@ -66,6 +65,8 @@ class ModelCollection implements Countable, IteratorAggregate {
 
     /**
      * 获取第一个模型
+     *
+     * - 按值取首, 与键无关(过滤后的集合键可能不连续)
      *
      * @access public
      * @return Model|null
@@ -213,9 +214,9 @@ class ModelCollection implements Countable, IteratorAggregate {
     /**
      * 批量更新集合成员(单条 SQL, 按主键 whereIn)
      *
-     * - 自动刷新 updated_at(时间戳模型), 已显式传入则不覆盖
+     * - 自动刷新 updated_at 由构建器统一处理(时间戳模型, 已显式传入则不覆盖)
      * - 跳过缺失主键的实例; 空集合为 no-op 不发起查询
-     * - 与 Model::where(...)->update() 一致, 不逐行做 fillable 校验
+     * - 与 Model::query()->where(...)->update() 语义一致, 不逐行做 fillable 校验
      * - 注意: 软删模型会自动附加 "deleted_at IS NULL" 过滤, 集合中被软删的行会被跳过
      *   (不报错, 只是不生效); 需要操作已软删行请用 forceDelete() 或先 restore()
      *
@@ -228,8 +229,6 @@ class ModelCollection implements Countable, IteratorAggregate {
         if(empty($keys))
             return 0;
         $modelClass=$this->modelClass;
-        if($modelClass::usesTimestamps()&&!array_key_exists($modelClass::updatedAtField(),$data))
-            $data[$modelClass::updatedAtField()]=$modelClass::freshTimestamp();
         return $modelClass::query()
             ->whereIn($modelClass::primaryKey(),$keys)
             ->update($data);

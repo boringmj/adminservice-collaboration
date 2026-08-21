@@ -46,6 +46,8 @@ use function strtolower;
  * @method static ModelQueryBuilder lock(string $type='update')
  * @method static ModelQueryBuilder alias(string $alias)
  * @method static ModelQueryBuilder with(array|string $relations)
+ * @method static ModelQueryBuilder withTrashed()
+ * @method static ModelQueryBuilder onlyTrashed()
  * @method static ModelCollection get()
  * @method static ?Model first()
  * @method static int count()

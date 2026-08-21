@@ -19,7 +19,7 @@ class AbstractCollection implements Countable, IteratorAggregate {
 
     /**
      * 数据行
-     * @var array
+     * @var array<array<string,mixed>>
      */
     protected array $rows;
 
@@ -27,7 +27,7 @@ class AbstractCollection implements Countable, IteratorAggregate {
      * 构造方法
      *
      * @access public
-     * @param array $rows 数据行列表
+     * @param array<array<string,mixed>> $rows 数据行列表
      */
     public function __construct(array $rows=array()) {
         $this->rows=$rows;

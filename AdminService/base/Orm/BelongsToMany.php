@@ -64,7 +64,7 @@ class BelongsToMany extends Relation {
      *
      * @access public
      * @param Db $db 数据库入口
-     * @param string $relatedClass 关联模型类名
+     * @param class-string<Model> $relatedClass 关联模型类名
      * @param Model $parent 父模型
      * @param string $pivotTable 中间表名
      * @param string $foreignPivotKey 中间表外键(父侧)
@@ -152,7 +152,7 @@ class BelongsToMany extends Relation {
      * - 例: $user->roles()->create(['name'=>'admin']) → 新角色 + role_user(user_id, role_id)
      *
      * @access public
-     * @param array $data 数据
+     * @param array<string,mixed> $data 数据
      * @return Model 已保存的关联模型
      * @throws OrmException 父模型未持久化
      */
@@ -180,7 +180,7 @@ class BelongsToMany extends Relation {
      *   关联的增删应通过中间表(attach/detach)处理
      *
      * @access public
-     * @param array $data 数据
+     * @param array<string,mixed> $data 数据
      * @return int
      * @throws OrmException 始终抛出
      */
@@ -361,7 +361,7 @@ class BelongsToMany extends Relation {
      * 统一中间表行列(补齐缺失键为 null, 支持一次多行插入)
      *
      * @access private
-     * @param array $rows 中间表行列表
+     * @param array<array<string,mixed>> $rows 中间表行列表
      * @return array
      */
     private function padPivotRows(array $rows): array {
@@ -473,7 +473,7 @@ class BelongsToMany extends Relation {
      * 批量查询中间表行
      *
      * @access private
-     * @param array $parentKeys 父模型主键值列表
+     * @param array<mixed> $parentKeys 父模型主键值列表
      * @return array
      */
     private function queryPivotRows(array $parentKeys): array {

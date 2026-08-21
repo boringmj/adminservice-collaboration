@@ -62,7 +62,7 @@ class Query implements QueryInterface {
 
     /**
      * 查询字段列表
-     * @var array
+     * @var array<array{0:Field,1:?string}>
      */
     private array $columns=array();
 
@@ -92,7 +92,7 @@ class Query implements QueryInterface {
 
     /**
      * 排序字段列表
-     * @var array
+     * @var array<array{0:Field,1:string}>
      */
     private array $order=array();
 
@@ -116,13 +116,13 @@ class Query implements QueryInterface {
 
     /**
      * 插入的数据行列表
-     * @var array
+     * @var array<string,mixed>|array<array<string,mixed>>
      */
     private array $rows=array();
 
     /**
      * 更新的数据列
-     * @var array
+     * @var array<string,mixed>
      */
     private array $sets=array();
 
@@ -160,7 +160,7 @@ class Query implements QueryInterface {
      * 创建插入语句
      *
      * @access public
-     * @param array $rows 插入的数据行列表(单行可传关联数组)
+     * @param array<string,mixed>|array<array<string,mixed>> $rows 插入的数据行列表(单行可传关联数组)
      * @return static
      */
     public static function insert(array $rows=array()): static {
@@ -178,7 +178,7 @@ class Query implements QueryInterface {
      * 创建更新语句
      *
      * @access public
-     * @param array $sets 更新的数据列
+     * @param array<string,mixed> $sets 更新的数据列
      * @return static
      */
     public static function update(array $sets=array()): static {
@@ -318,7 +318,7 @@ class Query implements QueryInterface {
      *
      * @access public
      * @param string|Field $field 字段
-     * @param array $values 值列表(不可为空)
+     * @param array<mixed> $values 值列表(不可为空)
      * @param bool $not 是否取反(NOT IN)
      * @return static
      */
@@ -335,7 +335,7 @@ class Query implements QueryInterface {
      *
      * @access public
      * @param string|Field $field 字段
-     * @param array $values 值列表
+     * @param array<mixed> $values 值列表
      * @return static
      */
     public function whereNotIn(string|Field $field,array $values): static {
@@ -583,7 +583,7 @@ class Query implements QueryInterface {
      * 设置插入的数据行
      *
      * @access public
-     * @param array $rows 数据行列表
+     * @param array<string,mixed>|array<array<string,mixed>> $rows 数据行列表
      * @return static
      */
     public function rows(array $rows): static {
@@ -595,7 +595,7 @@ class Query implements QueryInterface {
      * 设置更新的数据列
      *
      * @access public
-     * @param array $sets 数据列
+     * @param array<string,mixed> $sets 数据列
      * @return static
      */
     public function sets(array $sets): static {

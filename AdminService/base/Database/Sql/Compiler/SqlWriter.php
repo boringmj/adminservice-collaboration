@@ -34,7 +34,7 @@ final class SqlWriter {
 
     /**
      * 查询参数
-     * @var array
+     * @var array<mixed>
      */
     private array $params=array();
 
@@ -46,7 +46,7 @@ final class SqlWriter {
 
     /**
      * 逻辑表名 → 实际 SQL 表名映射(限定字段编译用, 由编译器按语句构建)
-     * @var array
+     * @var array<string,string>
      */
     private array $tableMap=array();
 

@@ -24,7 +24,7 @@ final class Result implements ResultInterface {
 
     /**
      * 查询参数
-     * @var array
+     * @var array<mixed>
      */
     private array $params;
 

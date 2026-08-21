@@ -18,7 +18,7 @@ final class CompiledStatement implements CompiledStatementInterface {
 
     /**
      * 查询参数
-     * @var array
+     * @var array<mixed>
      */
     private array $params;
 

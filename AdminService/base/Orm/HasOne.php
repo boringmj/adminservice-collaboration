@@ -29,7 +29,7 @@ class HasOne extends Relation {
      * - 例: $user->profile()->create(['bio'=>'...'])
      *
      * @access public
-     * @param array $data 数据
+     * @param array<string,mixed> $data 数据
      * @return Model 已保存的关联模型
      * @throws OrmException 父模型未持久化
      */

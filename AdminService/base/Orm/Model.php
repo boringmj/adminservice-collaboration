@@ -50,7 +50,7 @@ use function strtolower;
  * @method static ?Model first()
  * @method static int count()
  * @method static mixed value(string $field)
- * @method static array pluck(string $field)
+ * @method static array<mixed> pluck(string $field)
  * @method static Paginator paginate(int $perPage=15, int $page=1)
  * @method static int update(array $data)
  * @method static int delete()
@@ -65,7 +65,7 @@ abstract class Model {
      * - 使用 self::(而非 static::)确保所有模型共享这一块存储, 按类名区分
      * - 模型自身的连接经 Db::fromConfig(static::$connection) 解析(每类独立)
      *
-     * @var array
+     * @var array<string,Db>
      */
     private static array $dbCache=array();
 
@@ -89,25 +89,25 @@ abstract class Model {
 
     /**
      * 批量赋值白名单(为空时全部字段可批量赋值)
-     * @var array
+     * @var array<string>
      */
     protected array $fillable=array();
 
     /**
      * 属性(数据库行数据)
-     * @var array
+     * @var array<string,mixed>
      */
     protected array $attributes=array();
 
     /**
      * 原始属性快照(加载/插入时的值, 用于脏检查)
-     * @var array
+     * @var array<string,mixed>
      */
     protected array $original=array();
 
     /**
      * 已加载的关系
-     * @var array
+     * @var array<string,mixed>
      */
     protected array $relations=array();
 
@@ -286,7 +286,7 @@ abstract class Model {
      * 创建并保存一条记录
      *
      * @access public
-     * @param array $data 数据
+     * @param array<string,mixed> $data 数据
      * @return static
      */
     public static function create(array $data): static {
@@ -311,7 +311,7 @@ abstract class Model {
      * 构造方法
      *
      * @access public
-     * @param array $attributes 属性
+     * @param array<string,mixed> $attributes 属性
      * @param bool $exists 是否已存在于数据库
      */
     public function __construct(array $attributes=array(),bool $exists=false) {
@@ -323,7 +323,7 @@ abstract class Model {
      * 从数据库行创建模型实例
      *
      * @access public
-     * @param array $row 数据库行
+     * @param array<string,mixed> $row 数据库行
      * @return static
      */
     public static function newFromRow(array $row): static {
@@ -422,7 +422,7 @@ abstract class Model {
      * 批量赋值(受 fillable 白名单约束)
      *
      * @access public
-     * @param array $data 数据
+     * @param array<string,mixed> $data 数据
      * @return static
      */
     public function fill(array $data): static {
@@ -501,7 +501,7 @@ abstract class Model {
      * - 例: $this->hasMany(Post::class)  →  posts.user_id = users.id
      *
      * @access protected
-     * @param string $related 关联模型类名
+     * @param class-string<Model> $related 关联模型类名
      * @param string|null $foreignKey 外键字段
      * @param string|null $ownerKey 主键字段
      * @return HasMany
@@ -519,7 +519,7 @@ abstract class Model {
      * - 默认外键 = 当前模型类名 snake + _id, 默认主键 = 当前模型主键
      *
      * @access protected
-     * @param string $related 关联模型类名
+     * @param class-string<Model> $related 关联模型类名
      * @param string|null $foreignKey 外键字段
      * @param string|null $ownerKey 主键字段
      * @return HasOne
@@ -538,7 +538,7 @@ abstract class Model {
      * - 例: $this->belongsTo(User::class)  →  posts.user_id = users.id
      *
      * @access protected
-     * @param string $related 关联模型类名
+     * @param class-string<Model> $related 关联模型类名
      * @param string|null $foreignKey 外键字段
      * @param string|null $ownerKey 主键字段
      * @return BelongsTo
@@ -558,7 +558,7 @@ abstract class Model {
      * - 例: $this->belongsToMany(Role::class) → role_user(user_id, role_id)
      *
      * @access protected
-     * @param string $related 关联模型类名
+     * @param class-string<Model> $related 关联模型类名
      * @param string|null $pivotTable 中间表名
      * @param string|null $foreignPivotKey 中间表外键(父侧)
      * @param string|null $relatedPivotKey 中间表关联键(相关侧)
@@ -590,7 +590,7 @@ abstract class Model {
      * 计算默认中间表名(双方表名按字母序用下划线拼接)
      *
      * @access protected
-     * @param string $related 关联模型类名
+     * @param class-string<Model> $related 关联模型类名
      * @return string
      */
     protected function pivotTableName(string $related): string {
@@ -784,7 +784,7 @@ abstract class Model {
      * 类名转为下划线小写表名
      *
      * @access protected
-     * @param string $class 类名
+     * @param class-string $class 类名
      * @return string
      */
     protected static function classToTable(string $class): string {

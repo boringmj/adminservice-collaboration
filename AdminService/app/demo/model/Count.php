@@ -7,6 +7,8 @@ use AdminService\File;
 use AdminService\Exception;
 use ReflectionException;
 
+use function is_null;
+
 class Count {
 
     /**

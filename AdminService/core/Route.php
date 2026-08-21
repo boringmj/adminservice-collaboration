@@ -13,6 +13,7 @@ use function count;
 use function explode;
 use function file_exists;
 use function in_array;
+use function is_null;
 use function preg_match;
 
 final class Route extends BaseRoute {

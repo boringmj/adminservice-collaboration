@@ -10,6 +10,7 @@ use function count;
 use function explode;
 use function in_array;
 use function is_array;
+use function is_null;
 use function is_object;
 use function is_string;
 use function preg_match;

@@ -274,6 +274,14 @@ class OrmDemo extends Controller {
             // 按主键查找
             $data['find']=$this->dump(User::find(1));
 
+            // refresh: 原地从库重载; fresh: 返回最新状态的新实例
+            $user=User::find(1);
+            $user->name='临时改名';
+            $data['refresh_before']=$user->name;      // 本地改过的值
+            $user->refresh();                          // 原地回库重载
+            $data['refresh_after']=$user->name;        // 库中真实值
+            $data['fresh_name']=$user->fresh()?->getAttribute('name'); // 新实例的库值
+
             // 条件 + 排序 + 限制数量(前 5 条)
             $data['query_get']=$this->dumpCollection(
                 User::query()->where('age',18,'>=')->orderBy('id','DESC')->limit(5)->get()

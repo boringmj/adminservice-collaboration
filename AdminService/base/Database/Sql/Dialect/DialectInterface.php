@@ -14,12 +14,6 @@ interface DialectInterface {
     public function getName(): string;
 
     /**
-     * 获取方言能力
-     * @return DialectCapabilitiesInterface
-     */
-    public function getCapabilities(): DialectCapabilitiesInterface;
-
-    /**
      * 包装标识符
      * @param string $identifier 标识符名称
      * @return string 包装后的标识符

@@ -108,20 +108,9 @@ final class CompilerContext implements CompilerContextInterface {
      * @return bool
      */
     public function hasFeature(int $flag): bool {
-        // 将特性标志映射到编译模式标志
-        $map=array(
-            CompileFeature::DEBUG_SQL=>CompileMode::DEBUG,
-            CompileFeature::INLINE_PARAM=>CompileMode::INLINE_PARAM,
-            CompileFeature::STRICT_MODE=>CompileMode::STRICT,
-            CompileFeature::FORCE_ALIAS=>CompileMode::FORCE_ALIAS,
-            CompileFeature::AUTO_LIMIT_ONE=>CompileMode::AUTO_LIMIT_ONE,
-        );
-        if(isset($map[$flag]))
-            return $this->mode->isEnabled($map[$flag]);
-        // 其余特性依赖方言能力
-        if($flag===CompileFeature::RETURNING_PK)
-            return $this->dialect->getCapabilities()->supportsReturning();
-        return false;
+        // 当前仅实现内联参数特性
+        return $flag===CompileFeature::INLINE_PARAM
+            && $this->mode->isEnabled(CompileMode::INLINE_PARAM);
     }
 
 }

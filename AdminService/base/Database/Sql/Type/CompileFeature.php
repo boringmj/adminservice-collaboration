@@ -4,51 +4,15 @@ namespace base\Database\Sql\Type;
 
 /**
  * 编译特性
+ *
+ * - 仅保留已实现的特性; 新增能力时在此声明并在编译器消费
  */
 class CompileFeature {
 
     /**
-     * 自动限制一条记录
-     * @var int
-     */
-    public const AUTO_LIMIT_ONE=0x01;
-
-    /**
-     * 强制别名
-     * @var int
-     */
-    public const FORCE_ALIAS=0x02;
-    /**
-     * 内联参数
+     * 内联参数(参数值渲染为 SQL 字面量而非占位符)
      * @var int
      */
     public const INLINE_PARAM=0x04;
-
-    /**
-     * 调试SQL
-     * @var int
-     */
-    public const DEBUG_SQL=0x08;
-
-    /**
-     * 严格模式
-     * @var int
-     */
-    public const STRICT_MODE=0x10;
-
-    /**
-     * UPSERT
-     */
-    public const UPSERT=0x20;
-
-    /**
-     * 返回生成的主键
-     */
-    public const RETURNING_PK=0x40;
-
-    /**
-     * 跳过锁定
-     */
-    public const SKIP_LOCKED=0x80;
 
 }

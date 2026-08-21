@@ -6,7 +6,7 @@ namespace base\Database\Connection;
  * 数据库连接池接口
  * 
  * - 负责连接资源的获取与归还
- * - 在连接归还时需清理连接以保证连接干净
+ * - 归还时回滚未完成事务并丢弃脏会话(查询失败或修改会话状态的连接不复用)
  */
 interface ConnectionPoolInterface {
 
@@ -18,7 +18,7 @@ interface ConnectionPoolInterface {
 
     /**
      * 将连接归还到连接池
-     *  - 需在归还时清理连接以保证连接干净
+     *  - 回滚未完成事务, 脏会话不再复用
      * @param ConnectionSessionInterface $connection 数据库连接会话实例
      * @return void
      */

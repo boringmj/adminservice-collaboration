@@ -2,9 +2,7 @@
 
 namespace Tests\Fixtures;
 
-use base\Database\Sql\Dialect\DialectCapabilitiesInterface;
 use base\Database\Sql\Dialect\DialectInterface;
-use base\Database\Sql\Dialect\MysqlCapabilities;
 
 use function preg_match;
 
@@ -24,16 +22,6 @@ final class FakeDialect implements DialectInterface {
      */
     public function getName(): string {
         return 'fake';
-    }
-
-    /**
-     * 获取方言能力
-     *
-     * @access public
-     * @return DialectCapabilitiesInterface
-     */
-    public function getCapabilities(): DialectCapabilitiesInterface {
-        return new MysqlCapabilities();
     }
 
     /**

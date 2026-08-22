@@ -55,6 +55,31 @@ interface ConnectionSessionInterface {
     public function release(): void;
 
     /**
+     * 设置所属连接池(池借出时调用, 标记会话归属)
+     * @param ConnectionPoolInterface|null $pool 连接池
+     * @return void
+     */
+    public function setPool(?ConnectionPoolInterface $pool): void;
+
+    /**
+     * 获取所属连接池(未归属则为 null)
+     * @return ConnectionPoolInterface|null
+     */
+    public function getPool(): ?ConnectionPoolInterface;
+
+    /**
+     * 标记会话已取出使用(池借出时调用, 重置释放/污染标记)
+     * @return void
+     */
+    public function checkout(): void;
+
+    /**
+     * 标记会话已释放(池归还时调用, 与 release() 守卫配合防重复归还)
+     * @return void
+     */
+    public function markReleased(): void;
+
+    /**
      * 获取是否已释放
      * @return bool
      */

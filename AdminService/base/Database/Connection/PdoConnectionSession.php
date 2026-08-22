@@ -72,9 +72,9 @@ final class PdoConnectionSession implements ConnectionSessionInterface {
 
     /**
      * 所属连接池
-     * @var PdoConnectionPool|null
+     * @var ConnectionPoolInterface|null
      */
-    private ?PdoConnectionPool $pool=null;
+    private ?ConnectionPoolInterface $pool=null;
 
     /**
      * 是否已释放
@@ -179,7 +179,7 @@ final class PdoConnectionSession implements ConnectionSessionInterface {
      * @param PdoConnectionPool|null $pool 连接池
      * @return void
      */
-    public function setPool(?PdoConnectionPool $pool): void {
+    public function setPool(?ConnectionPoolInterface $pool): void {
         $this->pool=$pool;
     }
 
@@ -232,7 +232,7 @@ final class PdoConnectionSession implements ConnectionSessionInterface {
      * @access public
      * @return PdoConnectionPool|null
      */
-    public function getPool(): ?PdoConnectionPool {
+    public function getPool(): ?ConnectionPoolInterface {
         return $this->pool;
     }
 

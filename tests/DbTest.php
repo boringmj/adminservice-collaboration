@@ -131,6 +131,21 @@ class DbTest extends TestCase {
     }
 
     /**
+     * 测试 raw 在事务内复用绑定会话(不借还池)
+     * @return void
+     */
+    public function testRawInsideTransaction(): void {
+        $pdo=new FakePdo();
+        $db=$this->createDb($pdo);
+        $db->transaction(function($db) {
+            $db->raw('UPDATE users SET a = 1');
+            $db->raw('SHOW TABLES');
+        });
+        $this->assertSame(['begin','commit'],$pdo->transactionCalls);
+        $this->assertCount(2,$pdo->executed);
+    }
+
+    /**
      * 测试手动事务
      * @return void
      */

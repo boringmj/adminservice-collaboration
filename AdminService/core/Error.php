@@ -13,9 +13,13 @@ use function is_array;
 use function is_null;
 use function is_object;
 use function is_string;
+use function is_resource;
+use function is_callable;
+use function is_bool;
 use function preg_match;
 use function substr;
 use function trim;
+use function call_user_func;
 
 /**
  * 错误处理类

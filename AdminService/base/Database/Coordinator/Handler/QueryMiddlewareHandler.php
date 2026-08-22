@@ -57,20 +57,6 @@ final class QueryMiddlewareHandler implements QueryMiddlewareHandlerInterface {
     }
 
     /**
-     * 封装查询执行器到中间件链中
-     *
-     * - 遵循不可变模式, 返回新实例
-     *
-     * @access public
-     * @param QueryExecutionDispatcherInterface $dispatcher 查询执行分发器对象
-     * @param array<QueryMiddlewareInterface> $middlewares 中间件数组
-     * @return static
-     */
-    public function wrap(QueryExecutionDispatcherInterface $dispatcher,array $middlewares): static {
-        return new static($dispatcher,$middlewares);
-    }
-
-    /**
      * 注入执行器与已编译语句(执行前由协调器调用)
      *
      * @access public

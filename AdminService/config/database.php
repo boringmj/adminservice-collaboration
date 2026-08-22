@@ -24,6 +24,10 @@ return array(
             // 编译器类(可选, 未指定默认 MySQL; 自定义编译器需实现 base\Database\Sql\Compiler\SqlCompilerInterface)
             // 例: 接入 PostgreSQL 时改为 'compiler'=>PgsqlCompiler::class
             'compiler'=>MysqlCompiler::class,
+            // 连接池配置(可选)
+            'pool'=>array(
+                'max_idle'=>20, // 闲置连接上限(归还时超过则丢弃, 控制物理连接数) default: 20
+            ),
             'options'=>array( // 数据库连接选项
                 PDO::ATTR_STRINGIFY_FETCHES=>false, // 是否将数值字段强制转换为字符串 (false 保持原生类型)
                 PDO::ATTR_EMULATE_PREPARES=>true, // 是否使用PDO模拟预处理 (true性能可能会更好,但失去原生类型检查/安全保障)
@@ -31,8 +35,12 @@ return array(
             )
         ),
         // 示例: 第二个命名连接, 通过 Db::fromConfig('log') 使用
+        // 每个连接可独立配置闲置上限: 低访问量库调小, 高访问量库调大
         // 'log'=>array(
         //     'dbname'=>'admin_service_log',
+        //     'pool'=>array(
+        //         'max_idle'=>3, // 低访问量库: 只保留少量闲置连接
+        //     ),
         // ),
     ),
     // 中间件(可选, 按声明顺序执行)

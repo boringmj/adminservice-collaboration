@@ -9,7 +9,6 @@ use base\Database\Connection\ConnectionConfig;
 use base\Database\Connection\ConnectionManagerInterface;
 use base\Database\Connection\ConnectionSessionInterface;
 use base\Database\Connection\PdoConnectionManager;
-use base\Database\Connection\PdoConnectionPool;
 use base\Database\Coordinator\QueryCoordinator;
 use base\Database\Exception\ConfigException;
 use base\Database\Middleware\QueryMiddlewareInterface;
@@ -124,7 +123,8 @@ final class Db {
         }
         $db_config=self::buildConfig($merged);
         $factory=$db_config->sessionFactory();
-        $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
+        // 池经工厂创建, 携带配置的闲置上限
+        $manager=new PdoConnectionManager($db_config->createPoolFactory()->create(),$factory);
         // 编译器可通过配置手动绑定, 未指定则使用 MySQL
         $compilerClass=$merged['compiler']??MysqlCompiler::class;
         $compiler=new $compilerClass();
@@ -203,7 +203,8 @@ final class Db {
             $config['charset']??'utf8mb4',
             $config['options']??array(),
             $config['prefix']??'',
-            $config['dialect']??null
+            $config['dialect']??null,
+            (int)($config['pool']['max_idle']??20)
         );
     }
 

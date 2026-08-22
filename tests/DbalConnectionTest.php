@@ -4,8 +4,12 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
+use base\Database\Connection\ConnectionConfig;
+use base\Database\Connection\ConnectionPoolFactoryInterface;
+use base\Database\Connection\ConnectionPoolInterface;
 use base\Database\Connection\PdoConnectionManager;
 use base\Database\Connection\PdoConnectionPool;
+use base\Database\Connection\PdoConnectionPoolFactory;
 use base\Database\Connection\PdoConnectionSession;
 use base\Database\Execution\SqlExecutorInterface;
 use base\Database\Execution\TransactionExecutorInterface;
@@ -188,6 +192,46 @@ class DbalConnectionTest extends TestCase {
         $this->assertSame($b,$x); // LIFO 弹出最后闲置的
         $y=$pool->acquire();
         $this->assertSame($a,$y);
+    }
+
+    /**
+     * 测试连接池工厂携带闲置上限
+     * @return void
+     */
+    public function testPoolFactoryCarriesMaxIdle(): void {
+        $factoryCalls=0;
+        $pdo=new FakePdo();
+        $factory=function() use ($pdo,&$factoryCalls) {
+            $factoryCalls++;
+            return new PdoConnectionSession($pdo,new MysqlDialect());
+        };
+        $pool=(new PdoConnectionPoolFactory($factory,2))->create();
+        $a=$pool->acquire();
+        $b=$pool->acquire();
+        $c=$pool->acquire();
+        $a->release();
+        $b->release();
+        $c->release();
+        // 闲置上限 2: 只保留 a、b, c 被丢弃 → 下次获取需新建
+        $x=$pool->acquire();
+        $y=$pool->acquire();
+        $z=$pool->acquire();
+        $this->assertSame($b,$x);           // LIFO
+        $this->assertSame($a,$y);
+        $this->assertNotSame($c,$z);        // c 被丢弃, z 为新建
+        $this->assertSame(4,$factoryCalls); // 首次 3 条 + 丢弃后的 1 条
+    }
+
+    /**
+     * 测试连接配置的池闲置上限与工厂装配
+     * @return void
+     */
+    public function testConnectionConfigPoolMaxIdle(): void {
+        $config=new ConnectionConfig(poolMaxIdle:5);
+        $this->assertSame(5,$config->getPoolMaxIdle());
+        $factory=$config->createPoolFactory();
+        $this->assertInstanceOf(ConnectionPoolFactoryInterface::class,$factory);
+        $this->assertInstanceOf(ConnectionPoolInterface::class,$factory->create());
     }
 
 }

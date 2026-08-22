@@ -10,9 +10,7 @@ use base\Database\Connection\ConnectionManagerInterface;
 use base\Database\Connection\ConnectionSessionInterface;
 use base\Database\Connection\PdoConnectionManager;
 use base\Database\Connection\PdoConnectionPool;
-use base\Database\Coordinator\Handler\QueryMiddlewareHandler;
 use base\Database\Coordinator\QueryCoordinator;
-use base\Database\Coordinator\QueryExecutionDispatcher;
 use base\Database\Exception\ConfigException;
 use base\Database\Middleware\QueryMiddlewareInterface;
 use base\Database\Query\Query;
@@ -218,17 +216,9 @@ final class Db {
      */
     public function query(QueryInterface $query): ResultInterface {
         $context=new QueryContext($query);
-        if($this->session!==null) {
-            // 事务会话上直接执行
-            $definition=(new QueryStatementBuilder())->build($context->getQuery());
-            $statement=$this->compiler->compile($definition,$this->session->getCompilerContext());
-            $dispatcher=new QueryExecutionDispatcher();
-            $handler=(new QueryMiddlewareHandler($dispatcher,$this->middlewares))
-                ->configure($this->session->getSqlExecutor(),$statement);
-            return $handler->execute($context);
-        }
         $coordinator=new QueryCoordinator($context,$this->manager,$this->compiler,$this->middlewares);
-        return $coordinator->query(new QueryStatementBuilder());
+        // 事务中传入绑定会话(复用不借还池), 否则走连接池, 单一流水线
+        return $coordinator->query(new QueryStatementBuilder(),$this->session);
     }
 
     /**
@@ -248,25 +238,9 @@ final class Db {
         $queryType=self::isWriteSql($sql)?QueryType::WRITE:QueryType::READ;
         $modifiesSession=self::modifiesSessionState($sql);
         $context=new QueryContext(Query::select(),$queryType);
-        if($this->session!==null) {
-            $dispatcher=new QueryExecutionDispatcher();
-            $handler=(new QueryMiddlewareHandler($dispatcher,$this->middlewares))
-                ->configure($this->session->getSqlExecutor(),$statement);
-            return $handler->execute($context);
-        }
-        $connection=$this->manager->getConnection();
-        try {
-            $dispatcher=new QueryExecutionDispatcher();
-            $handler=(new QueryMiddlewareHandler($dispatcher,$this->middlewares))
-                ->configure($connection->getSqlExecutor(),$statement);
-            $result=$handler->execute($context);
-            // 失败或修改会话状态(SET/USE/LOCK/临时表等) → 标记脏, 归还时由池丢弃
-            if(!$result->isSuccess()||$modifiesSession)
-                $connection->markDirty();
-            return $result;
-        } finally {
-            $connection->release();
-        }
+        $coordinator=new QueryCoordinator($context,$this->manager,$this->compiler,$this->middlewares);
+        // 事务中传入绑定会话(复用不借还池), 否则走连接池, 单一流水线
+        return $coordinator->raw($statement,$this->session,$modifiesSession);
     }
 
     /**

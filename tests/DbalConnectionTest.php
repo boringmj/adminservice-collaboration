@@ -64,6 +64,47 @@ class DbalConnectionTest extends TestCase {
     }
 
     /**
+     * 测试直接走池契约归还(绕过会话)是幂等的, 不会重复入池
+     * @return void
+     */
+    public function testPoolReleaseDirectIdempotent(): void {
+        $factoryCalls=0;
+        $pdo=new FakePdo();
+        $factory=function() use ($pdo,&$factoryCalls) {
+            $factoryCalls++;
+            return new PdoConnectionSession($pdo,new MysqlDialect());
+        };
+        $pool=new PdoConnectionPool($factory);
+        $session=$pool->acquire();
+        // 直接调池契约归还(绕过会话 release)
+        $pool->release($session);
+        // 会话自身再释放: 幂等守卫应拦截, 不重复入池
+        $session->release();
+        $a=$pool->acquire();
+        $b=$pool->acquire();
+        $this->assertSame($session,$a);           // 第一次复用同一会话
+        $this->assertNotSame($session,$b);        // 若重复入池, 第二次也会是 $session
+        $this->assertSame(2,$factoryCalls);       // 仅新建一条
+    }
+
+    /**
+     * 测试跨池归还被归属校验拒绝
+     * @return void
+     */
+    public function testPoolRejectsCrossPoolRelease(): void {
+        $poolA=new PdoConnectionPool($this->sessionFactory());
+        $poolB=new PdoConnectionPool($this->sessionFactory());
+        $session=$poolB->acquire();
+        // 误还到 A: 归属校验应拒绝, 不进入 A 的闲置
+        $poolA->release($session);
+        $fromA=$poolA->acquire();
+        $this->assertNotSame($session,$fromA);     // A 未复用 $session → 被拒
+        // $session 仍归 B 所有(未归还), 归还到正确的池后 B 才复用
+        $session->release();
+        $this->assertSame($session,$poolB->acquire());
+    }
+
+    /**
      * 测试会话重置回滚未完成事务
      * @return void
      */

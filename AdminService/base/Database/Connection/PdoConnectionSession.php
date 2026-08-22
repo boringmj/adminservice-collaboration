@@ -29,12 +29,6 @@ use base\Database\Transaction\TransactionState;
 final class PdoConnectionSession implements ConnectionSessionInterface {
 
     /**
-     * 裸连接对象
-     * @var PDO
-     */
-    private PDO $connection;
-
-    /**
      * 方言
      * @var DialectInterface
      */
@@ -113,7 +107,6 @@ final class PdoConnectionSession implements ConnectionSessionInterface {
         string $tablePrefix='',
         ?NamingStrategyInterface $namingStrategy=null
     ) {
-        $this->connection=$connection;
         $this->dialect=$dialect??new MysqlDialect();
         $this->tablePrefix=$tablePrefix;
         $this->namingStrategy=$namingStrategy??new DefaultNamingStrategy();
@@ -213,11 +206,34 @@ final class PdoConnectionSession implements ConnectionSessionInterface {
     public function release(): void {
         if($this->released)
             return;
-        $this->released=true;
         if($this->pool!==null)
-            $this->pool->returnToPool($this);
-        else
+            // 归还走池契约(归属校验 + 幂等 + 标记释放均在池侧完成)
+            $this->pool->release($this);
+        else {
+            // 独占会话: 标记释放后直接清理
+            $this->released=true;
             $this->reset();
+        }
+    }
+
+    /**
+     * 标记会话已释放(由池归还时调用, 与 release() 守卫配合防重复归还)
+     *
+     * @access public
+     * @return void
+     */
+    public function markReleased(): void {
+        $this->released=true;
+    }
+
+    /**
+     * 获取所属连接池(未归属则为 null)
+     *
+     * @access public
+     * @return PdoConnectionPool|null
+     */
+    public function getPool(): ?PdoConnectionPool {
+        return $this->pool;
     }
 
     /**

@@ -74,7 +74,7 @@ final class PdoConnectionPool implements ConnectionPoolInterface {
      */
     public function release(ConnectionSessionInterface $connection): void {
         // 归属校验: 只归还本池借出的会话
-        if(!$connection instanceof PdoConnectionSession||$connection->getPool()!==$this)
+        if($connection->getPool()!==$this)
             return;
         // 幂等: 已归还的会话忽略, 标记释放供会话 release() 守卫配合
         if($connection->isReleased())

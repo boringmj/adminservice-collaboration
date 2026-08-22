@@ -78,6 +78,12 @@ final class ConnectionConfig {
     private ?string $dialectClass;
 
     /**
+     * 连接池闲置会话上限
+     * @var int
+     */
+    private int $poolMaxIdle;
+
+    /**
      * 构造方法
      *
      * @access public
@@ -91,6 +97,7 @@ final class ConnectionConfig {
      * @param array<int,mixed> $options PDO 连接选项
      * @param string $tablePrefix 表前缀
      * @param class-string|null $dialectClass 方言类名(为空时按类型默认, 当前默认 MySQL)
+     * @param int $poolMaxIdle 连接池闲置会话上限(超出丢弃, 控制物理连接数)
      */
     public function __construct(
         string $type='mysql',
@@ -102,7 +109,8 @@ final class ConnectionConfig {
         string $charset='utf8mb4',
         array $options=array(),
         string $tablePrefix='',
-        ?string $dialectClass=null
+        ?string $dialectClass=null,
+        int $poolMaxIdle=20
     ) {
         $this->type=$type;
         $this->host=$host;
@@ -114,6 +122,7 @@ final class ConnectionConfig {
         $this->options=$options;
         $this->tablePrefix=$tablePrefix;
         $this->dialectClass=$dialectClass;
+        $this->poolMaxIdle=$poolMaxIdle;
     }
 
     /**
@@ -222,6 +231,26 @@ final class ConnectionConfig {
         return function() use ($config) {
             return $config->createSession();
         };
+    }
+
+    /**
+     * 获取连接池闲置会话上限
+     *
+     * @access public
+     * @return int
+     */
+    public function getPoolMaxIdle(): int {
+        return $this->poolMaxIdle;
+    }
+
+    /**
+     * 创建连接池工厂(携带闲置上限)
+     *
+     * @access public
+     * @return ConnectionPoolFactoryInterface
+     */
+    public function createPoolFactory(): ConnectionPoolFactoryInterface {
+        return new PdoConnectionPoolFactory($this->sessionFactory(),$this->poolMaxIdle);
     }
 
 }

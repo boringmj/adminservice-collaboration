@@ -61,14 +61,30 @@ final class PdoConnectionPool implements ConnectionPoolInterface {
     }
 
     /**
-     * 将连接归还到连接池
+     * 将连接归还到连接池(契约入口, 会话释放时回调本方法)
+     *
+     * - 归属校验: 仅接受本池借出的会话, 防止跨池归还污染
+     * - 幂等: 已归还的会话忽略, 防止重复入池(同一 PDO 被借出两次)
+     * - 回滚残留事务(会话变量/临时表等 PDO 无法重置, 由上层约定规避)
+     * - 脏会话或超过闲置上限: 丢弃不复用(对象失引用后由 GC 释放连接)
      *
      * @access public
      * @param ConnectionSessionInterface $connection 数据库连接会话实例
      * @return void
      */
     public function release(ConnectionSessionInterface $connection): void {
-        $connection->release();
+        // 归属校验: 只归还本池借出的会话
+        if(!$connection instanceof PdoConnectionSession||$connection->getPool()!==$this)
+            return;
+        // 幂等: 已归还的会话忽略, 标记释放供会话 release() 守卫配合
+        if($connection->isReleased())
+            return;
+        $connection->markReleased();
+        $connection->reset();
+        // 脏会话或超过闲置上限: 丢弃不复用(对象失引用后由 GC 释放连接)
+        if($connection->isDirty()||count($this->idle)>=$this->maxIdle)
+            return;
+        $this->idle[]=$connection;
     }
 
     /**
@@ -79,22 +95,6 @@ final class PdoConnectionPool implements ConnectionPoolInterface {
      */
     public function close(): void {
         $this->idle=array();
-    }
-
-    /**
-     * 归还会话到连接池(由会话释放时回调)
-     *
-     * @access public
-     * @param PdoConnectionSession $session 连接会话
-     * @return void
-     */
-    public function returnToPool(PdoConnectionSession $session): void {
-        // 回滚残留事务(会话变量/临时表等 PDO 无法重置, 由上层约定规避)
-        $session->reset();
-        // 脏会话或超过闲置上限: 丢弃不复用(对象失引用后由 GC 释放连接)
-        if($session->isDirty()||count($this->idle)>=$this->maxIdle)
-            return;
-        $this->idle[]=$session;
     }
 
 }

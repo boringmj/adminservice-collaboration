@@ -93,7 +93,7 @@ class RouteCoordinatorTest extends TestCase {
             $this->routesFiles[]=$file;
         }
         $configs=Config::all();
-        $configs['route']['explicit']['files']=$this->routesFiles;
+        $configs['route']['files']=$this->routesFiles;
         Config::set($configs);
     }
 
@@ -110,7 +110,7 @@ class RouteCoordinatorTest extends TestCase {
         foreach($bodies as $name=>$body)
             file_put_contents($this->routesDir.'/'.$name.'.php',self::routeFileSource($body));
         $configs=Config::all();
-        $configs['route']['explicit']['files']=array($this->routesDir);
+        $configs['route']['files']=array($this->routesDir);
         Config::set($configs);
     }
 
@@ -123,19 +123,6 @@ class RouteCoordinatorTest extends TestCase {
      */
     private static function routeFileSource(string $body): string {
         return "<?php\nreturn function(\\AdminService\\Router\\Router \$router): void {\n".$body."\n};\n";
-    }
-
-    /**
-     * 设置约定式回落开关
-     *
-     * @access private
-     * @param bool $enabled 是否开启回落
-     * @return void
-     */
-    private function setFallback(bool $enabled): void {
-        $configs=Config::all();
-        $configs['route']['convention_fallback']=$enabled;
-        Config::set($configs);
     }
 
     /**
@@ -175,7 +162,6 @@ class RouteCoordinatorTest extends TestCase {
      */
     public function testExplicitRouteMethodDistinction(): void {
         $this->useRoutes("\$router->post('/t/hello',array(\\app\\demo\\controller\\Index::class,'index'));");
-        $this->setFallback(false);
         // 方法不匹配视为未命中
         $this->dispatch('/t/hello');
         $this->assertSame(404,Response::getStatusCode());
@@ -207,7 +193,6 @@ class RouteCoordinatorTest extends TestCase {
      */
     public function testExplicitRouteConstraintNotMatched(): void {
         $this->useRoutes("\$router->get('/t/num/{id:\\d+}',array(\\app\\demo\\controller\\Index::class,'index'));");
-        $this->setFallback(false);
         $this->assertSame('Hello World!',$this->dispatch('/t/num/42'));
         // 约束不满足视为未命中
         $this->dispatch('/t/num/abc');
@@ -312,20 +297,7 @@ PHP
     }
 
     /**
-     * 测试约定式回落
-     *
-     * - 显式路由表未覆盖该路径时, 按 /app/controller/method 回落
-     *
-     * @return void
-     */
-    public function testConventionFallback(): void {
-        $this->useRoutes('// 未注册任何路由');
-        $this->setFallback(true);
-        $this->assertSame('Hello World!',$this->dispatch('/demo/index/index'));
-    }
-
-    /**
-     * 测试未命中且未开启回落时返回 404
+     * 测试未命中时返回 404
      *
      * - 不回显请求路径, 不泄漏目录结构
      *
@@ -333,21 +305,10 @@ PHP
      */
     public function testNotFoundReturns404(): void {
         $this->useRoutes('// 未注册任何路由');
-        $this->setFallback(false);
         $this->dispatch('/demo/index/index');
         $this->assertSame(404,Response::getStatusCode());
         $this->assertSame('404 Not Found',Response::getControllerReturn());
     }
 
-    /**
-     * 测试约定式路径参数转换仍然生效
-     * @return void
-     */
-    public function testConventionPathParameters(): void {
-        $this->useRoutes('// 未注册任何路由');
-        $this->setFallback(true);
-        $data=$this->dispatch('/demo/index/request/name/hello');
-        $this->assertSame('hello',$data['get']['name']);
-    }
 
 }

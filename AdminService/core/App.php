@@ -119,16 +119,13 @@ final class App extends Container {
     /**
      * 获取当前应用名称
      *
+     * - 路由上下文由 `Route` 在分发前写入, 未分发时返回 null
+     *
      * @access public
      * @return string|null
-     * @throws Exception
-     * @throws ReflectionException
      */
     public static function getAppName(): ?string {
-        self::initRouteInfo();
-        if(self::getData('route_info')!==null)
-            return self::getData('route_info')['app']??null;
-        return null;
+        return self::getData('route_info')['app']??null;
     }
 
     /**
@@ -136,14 +133,9 @@ final class App extends Container {
      *
      * @access public
      * @return string|null
-     * @throws Exception
-     * @throws ReflectionException
      */
     public static function getControllerName(): ?string {
-        self::initRouteInfo();
-        if(self::getData('route_info')!==null)
-            return self::getData('route_info')['controller']??null;
-        return null;
+        return self::getData('route_info')['controller']??null;
     }
 
     /**
@@ -151,32 +143,9 @@ final class App extends Container {
      *
      * @access public
      * @return string|null
-     * @throws Exception
-     * @throws ReflectionException
      */
     public static function getMethodName(): ?string {
-        self::initRouteInfo();
-        if(self::getData('route_info')!==null)
-            return self::getData('route_info')['method']??null;
-        return null;
-    }
-
-    /**
-     * 初始化路由信息
-     *
-     * @access private
-     * @return void
-     * @throws Exception
-     * @throws ReflectionException
-     */
-    private static function initRouteInfo(): void {
-        // 检查是否存在缓存
-        if(self::getData('route_info')===null) {
-            // 获取路由信息
-            $route_info=parent::get(Route::class)->getRouteInfo();
-            // 缓存路由信息
-            parent::setData('route_info',$route_info);
-        }
+        return self::getData('route_info')['method']??null;
     }
 
 }

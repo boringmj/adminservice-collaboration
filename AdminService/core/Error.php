@@ -3,6 +3,7 @@
 namespace AdminService;
 
 use base\Error as BaseError;
+use base\Request;
 use base\Response;
 use base\View;
 
@@ -313,7 +314,7 @@ final class Error extends BaseError {
         // 在调试模式下添加输出内容
         if($debug_mode&&self::$initialized) {
             $response=App::get(Response::class);
-            $response->render();
+            $response->render(App::get(Request::class));
             $output_content=$response->getReturnContent();
             if($output_content!==null&&$output_content!=='') {
                 $template_data['output_content']=$output_content;

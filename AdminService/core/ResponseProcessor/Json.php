@@ -14,11 +14,11 @@ class Json extends AbstractResponseProcessor {
    
     /**
      * 处理响应数据
-     * 
-     * @access protected
+     *
+     * @access public
      * @return void
      */
-    protected function handle(): void {
+    public function handle(): void {
         $temp=$this->getResponse()->getControllerReturn();
         // 获取flag
         $flag=$this->config['flag']??0;

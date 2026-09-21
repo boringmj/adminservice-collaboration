@@ -6,8 +6,8 @@ use Exception;
 use base\Controller;
 use AdminService\Log;
 use AdminService\Autowire\AutowireProperty;
-use AdminService\Router\Route;
-use AdminService\Router\RouteGroup;
+use AdminService\Attribute\Route;
+use AdminService\Attribute\RouteGroup;
 
 #[RouteGroup('/index')]
 class Index extends Controller {

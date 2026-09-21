@@ -4,10 +4,13 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
+use base\Request;
+use base\Response;
 use AdminService\App;
 use AdminService\Config;
 use AdminService\HttpRequest;
-use AdminService\Response;
+use AdminService\Main;
+use AdminService\Response as HttpResponse;
 use AdminService\Route;
 use AdminService\Router\Router;
 use Tests\Fixtures\LabelMiddleware;
@@ -16,7 +19,7 @@ use Tests\Fixtures\MiddlewareLog;
 /**
  * 路由协调器测试
  *
- * - 覆盖显式路由命中、路径参数注入、约定式回落与回落开关
+ * - 覆盖显式路由命中、路径参数注入、未命中语义与中间件层级
  */
 class RouteCoordinatorTest extends TestCase {
 
@@ -41,12 +44,12 @@ class RouteCoordinatorTest extends TestCase {
     }
 
     /**
-     * 每个测试前重置请求与响应
+     * 每个测试前登记全新的请求与响应实例
      * @return void
      */
     protected function setUp(): void {
-        HttpRequest::init();
-        Response::init();
+        App::set(Request::class,new HttpRequest());
+        App::set(Response::class,new HttpResponse());
     }
 
     /**
@@ -66,6 +69,16 @@ class RouteCoordinatorTest extends TestCase {
             $this->routesDir=null;
         }
         Config::load();
+    }
+
+    /**
+     * 获取当前响应实例
+     *
+     * @access private
+     * @return Response
+     */
+    private function response(): Response {
+        return App::get(Response::class);
     }
 
     /**
@@ -128,7 +141,9 @@ class RouteCoordinatorTest extends TestCase {
     /**
      * 分发一次请求
      *
-     * - 每次分发前重置请求与返回值: 同一测试内多次分发时状态互不影响
+     * - 每次分发都新建请求与响应实例: 同一测试内多次分发时状态互不影响
+     * - 请求输入源显式注入, 不触碰超全局
+     * - 走与生产一致的入口 `Main::run()`, 请求中间件因此同样生效
      *
      * @access private
      * @param string $uri 请求路径
@@ -137,14 +152,16 @@ class RouteCoordinatorTest extends TestCase {
      * @return mixed 控制器返回值
      */
     private function dispatch(string $uri,string $method='GET',array $query=array()): mixed {
-        HttpRequest::init();
-        foreach($query as $key=>$value)
-            HttpRequest::setGet($key,$value);
-        Response::setControllerReturn(null);
-        HttpRequest::setServer('REQUEST_URI',$uri);
-        HttpRequest::setServer('REQUEST_METHOD',$method);
-        (new Route())->run();
-        return Response::getControllerReturn();
+        App::set(Request::class,new HttpRequest(array(
+            'server'=>array(
+                'REQUEST_URI'=>$uri,
+                'REQUEST_METHOD'=>$method
+            ),
+            'query'=>$query
+        )));
+        App::set(Response::class,new HttpResponse());
+        (new Main())->run();
+        return $this->response()->getControllerReturn();
     }
 
     /**
@@ -164,8 +181,8 @@ class RouteCoordinatorTest extends TestCase {
         $this->useRoutes("\$router->post('/t/hello',array(\\app\\demo\\controller\\Index::class,'index'));");
         // 路径存在但方法不符 → 405, 并告知允许的方法
         $this->dispatch('/t/hello');
-        $this->assertSame(405,Response::getStatusCode());
-        $this->assertSame('POST',Response::getHeader('Allow'));
+        $this->assertSame(405,$this->response()->getStatusCode());
+        $this->assertSame('POST',$this->response()->getHeader('Allow'));
     }
 
     /**
@@ -176,7 +193,7 @@ class RouteCoordinatorTest extends TestCase {
         $this->useRoutes("\$router->get('/t/g',array(\\app\\demo\\controller\\Index::class,'index'));");
         $data=$this->dispatch('/t/g','HEAD');
         $this->assertSame('Hello World!',$data);
-        $this->assertSame(200,Response::getStatusCode());
+        $this->assertSame(200,$this->response()->getStatusCode());
     }
 
     /**
@@ -186,8 +203,8 @@ class RouteCoordinatorTest extends TestCase {
     public function testOptionsAutoRespond(): void {
         $this->useRoutes("\$router->get('/t/o',array(\\app\\demo\\controller\\Index::class,'index'));");
         $this->dispatch('/t/o','OPTIONS');
-        $this->assertSame(204,Response::getStatusCode());
-        $this->assertSame('GET, HEAD',Response::getHeader('Allow'));
+        $this->assertSame(204,$this->response()->getStatusCode());
+        $this->assertSame('GET, HEAD',$this->response()->getHeader('Allow'));
     }
 
     /**
@@ -197,7 +214,7 @@ class RouteCoordinatorTest extends TestCase {
     public function testUnknownPathReturns404(): void {
         $this->useRoutes("\$router->get('/t/only',array(\\app\\demo\\controller\\Index::class,'index'));");
         $this->dispatch('/t/other');
-        $this->assertSame(404,Response::getStatusCode());
+        $this->assertSame(404,$this->response()->getStatusCode());
     }
 
     /**
@@ -242,7 +259,7 @@ class RouteCoordinatorTest extends TestCase {
         $this->assertSame('Hello World!',$this->dispatch('/t/num/42'));
         // 约束不满足视为未命中
         $this->dispatch('/t/num/abc');
-        $this->assertSame(404,Response::getStatusCode());
+        $this->assertSame(404,$this->response()->getStatusCode());
     }
 
     /**
@@ -285,20 +302,20 @@ class RouteCoordinatorTest extends TestCase {
         $this->dispatch('/block');
         $this->assertSame(array('blocked'),MiddlewareLog::$calls);
         // 控制器未执行, 无返回值(可据此自定义响应)
-        $this->assertNull(Response::getControllerReturn());
+        $this->assertNull($this->response()->getControllerReturn());
     }
 
     /**
      * 测试中间件四级执行顺序
      *
-     * - 全局 → 分组 → 路由 → 控制器, 由外向内包裹
+     * - 请求 → 分组 → 路由 → 控制器, 由外向内包裹
      *
      * @return void
      */
     public function testMiddlewareLevelsOrder(): void {
         MiddlewareLog::clear();
         $configs=Config::all();
-        $configs['middlewares']['global']=array(new LabelMiddleware('global'));
+        $configs['middlewares']['request']=array(new LabelMiddleware('request'));
         $configs['middlewares']['controller']=array(new LabelMiddleware('controller'));
         Config::set($configs);
         $this->useRoutes(<<<'PHP'
@@ -310,8 +327,80 @@ PHP
         );
         $this->assertSame('Hello World!',$this->dispatch('/t/mw'));
         $this->assertSame(array(
-            'global','group','route','controller',
-            'controller:after','route:after','group:after','global:after'
+            'request','group','route','controller',
+            'controller:after','route:after','group:after','request:after'
+        ),MiddlewareLog::$calls);
+    }
+
+    /**
+     * 测试请求中间件在匹配前执行
+     *
+     * - 未命中的请求(404)同样经过请求中间件, 便于统一跨域头与错误体
+     *
+     * @return void
+     */
+    public function testRequestMiddlewareRunsBeforeMatching(): void {
+        MiddlewareLog::clear();
+        $configs=Config::all();
+        $configs['middlewares']['request']=array(new LabelMiddleware('request'));
+        Config::set($configs);
+        $this->useRoutes('// 未注册任何路由');
+        $this->dispatch('/nope');
+        $this->assertSame(404,$this->response()->getStatusCode());
+        $this->assertSame(array('request','request:after'),MiddlewareLog::$calls);
+    }
+
+    /**
+     * 测试请求中间件不调用$next时中断路由匹配
+     * @return void
+     */
+    public function testRequestMiddlewareShortCircuit(): void {
+        MiddlewareLog::clear();
+        $configs=Config::all();
+        $configs['middlewares']['request']=array(new LabelMiddleware('request'));
+        Config::set($configs);
+        $this->useRoutes("\$router->get('/t/r',array(\\app\\demo\\controller\\Index::class,'index'))->middleware(new \\Tests\\Fixtures\\BlockingMiddleware());");
+        $this->dispatch('/t/r');
+        // 请求中间件进入路由, 路由中间件中断: 控制器未执行
+        $this->assertSame(array('request','blocked','request:after'),MiddlewareLog::$calls);
+        $this->assertNull($this->response()->getControllerReturn());
+        $this->assertSame(200,$this->response()->getStatusCode());
+    }
+
+    /**
+     * 测试控制器级中间件属性
+     *
+     * - 类上与方法上的声明同级: 按 priority 排序(数值大者靠外), 同优先级时类上在前
+     * - 配置项 `middlewares.controller` 为同层最低优先级
+     * - 仅由路由文件指向的处理器同样按类与方法解析属性
+     *
+     * @return void
+     */
+    public function testControllerMiddlewareAttribute(): void {
+        MiddlewareLog::clear();
+        $configs=Config::all();
+        $configs['middlewares']['controller']=array(new LabelMiddleware('config'));
+        Config::set($configs);
+        $this->useRoutes("\$router->get('/mw/attr',array(\\Tests\\Fixtures\\MiddlewaredController::class,'handle'));");
+        $this->assertSame('mw-handled',$this->dispatch('/mw/attr'));
+        $this->assertSame(array(
+            'config','class_high','class_low','method_low',
+            'method_low:after','class_low:after','class_high:after','config:after'
+        ),MiddlewareLog::$calls);
+    }
+
+    /**
+     * 测试方法上的中间件只对该方法生效
+     * @return void
+     */
+    public function testControllerMiddlewareAttributeScope(): void {
+        MiddlewareLog::clear();
+        $this->useRoutes("\$router->get('/mw/plain',array(\\Tests\\Fixtures\\MiddlewaredController::class,'plain'));");
+        $this->assertSame('mw-plain',$this->dispatch('/mw/plain'));
+        // 类上的声明对全部方法生效, 方法上的只对该方法生效
+        $this->assertSame(array(
+            'class_high','class_low',
+            'class_low:after','class_high:after'
         ),MiddlewareLog::$calls);
     }
 
@@ -380,9 +469,8 @@ PHP
     public function testNotFoundReturns404(): void {
         $this->useRoutes('// 未注册任何路由');
         $this->dispatch('/demo/index/index');
-        $this->assertSame(404,Response::getStatusCode());
-        $this->assertSame('404 Not Found',Response::getControllerReturn());
+        $this->assertSame(404,$this->response()->getStatusCode());
+        $this->assertSame('404 Not Found',$this->response()->getControllerReturn());
     }
-
 
 }

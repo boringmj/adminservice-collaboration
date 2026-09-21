@@ -4,13 +4,15 @@ namespace AdminService;
 
 use base\Response;
 use base\Route as BaseRoute;
+use AdminService\Attribute\Middleware;
 use AdminService\Router\AttributeScanner;
-use AdminService\Router\Pipeline;
 use AdminService\Router\RouteItem;
 use AdminService\Router\Router;
+use ReflectionClass;
 use ReflectionException;
 
 use function array_merge;
+use function class_exists;
 use function count;
 use function glob;
 use function is_array;
@@ -22,6 +24,7 @@ use function preg_match;
 use function rtrim;
 use function sort;
 use function urldecode;
+use function usort;
 
 /**
  * 路由协调器
@@ -111,7 +114,7 @@ final class Route extends BaseRoute {
     private function router(): Router {
         if($this->router!==null)
             return $this->router;
-        $this->router=new Router(Config::get('middlewares.global',array()));
+        $this->router=new Router();
         foreach((array)Config::get('route.files',array()) as $path)
             $this->loadRoutes($path);
         // 属性路由: 自动扫描 + 手工登记
@@ -151,8 +154,8 @@ final class Route extends BaseRoute {
     /**
      * 执行命中的路由
      *
-     * - 路径参数并入 GET 参数, 便于控制器按名取用
-     * - 中间件按 global → group → route → controller 顺序包裹
+     * - 路径参数写入请求的 attributes 区(路由上下文), 不并入 GET
+     * - 中间件按 group → route → controller 顺序包裹(请求级已在匹配前执行)
      *
      * @access private
      * @param RouteItem $route 命中的路由
@@ -166,15 +169,61 @@ final class Route extends BaseRoute {
         $this->request->setGet(array_merge($this->request->getGets(),self::decodeParams($params)));
         // 写入路由上下文, 供 App::getAppName 等继续可用
         App::setData('route_info',self::handlerRouteInfo($handler));
-        $middlewares=array_merge($route->getMiddlewares(),Config::get('middlewares.controller',array()));
+        $middlewares=array_merge($route->getMiddlewares(),$this->controllerMiddlewares($handler));
         $response=App::get(Response::class);
-        (new Pipeline($middlewares))->then(function() use ($handler,$response): void {
+        (new Pipeline($middlewares,$this->request))->then(function() use ($handler,$response): void {
             $response->setControllerReturn($this->callHandler($handler));
         });
     }
 
     /**
+     * 组装控制器级中间件
+     *
+     * - 顺序: 配置(`middlewares.controller`) → 类上 `#[Middleware]` → 方法上 `#[Middleware]`
+     * - 类与方法上的声明同级: 按 `priority` 排序(数值大者靠外), 同优先级时类上的在前
+     *
+     * @access private
+     * @param mixed $handler 处理器
+     * @return array<string|object>
+     */
+    private function controllerMiddlewares(mixed $handler): array {
+        $middlewares=(array)Config::get('middlewares.controller',array());
+        if(!is_array($handler)||count($handler)!==2||!is_string($handler[0])||!class_exists($handler[0]))
+            return $middlewares;
+        $reflection=new ReflectionClass($handler[0]);
+        $declared=self::collectMiddlewareAttributes($reflection->getAttributes(Middleware::class));
+        if($reflection->hasMethod($handler[1]))
+            $declared=array_merge($declared,self::collectMiddlewareAttributes(
+                $reflection->getMethod($handler[1])->getAttributes(Middleware::class)
+            ));
+        // 数值大者靠外; usort 为稳定排序, 同优先级保持"类先方法后"的收集顺序
+        usort($declared,static function(Middleware $a,Middleware $b): int {
+            return $b->getPriority()<=>$a->getPriority();
+        });
+        foreach($declared as $attribute)
+            foreach($attribute->getMiddlewares() as $middleware)
+                $middlewares[]=$middleware;
+        return $middlewares;
+    }
+
+    /**
+     * 实例化中间件属性
+     *
+     * @access private
+     * @param array<\ReflectionAttribute> $attributes 属性集合
+     * @return array<Middleware>
+     */
+    private static function collectMiddlewareAttributes(array $attributes): array {
+        $instances=array();
+        foreach($attributes as $attribute)
+            $instances[]=$attribute->newInstance();
+        return $instances;
+    }
+
+    /**
      * 调用处理器
+     *
+     * - 控制器是请求级对象: 每次分发都强制新建, 避免复用容器中上一次请求的实例(其请求/响应对象已过期)
      *
      * @access private
      * @param mixed $handler 处理器
@@ -186,7 +235,7 @@ final class Route extends BaseRoute {
             // 与既有约定一致: 控制器类名与实例均登记到容器
             if(is_string($handler[0])) {
                 App::setClass('Controller',$handler[0]);
-                $handler[0]=App::get($handler[0]);
+                $handler[0]=App::make($handler[0],true);
             }
             App::set('Controller',$handler[0]);
             return App::exec_class_function($handler[0],$handler[1],$this->controllerArgs());

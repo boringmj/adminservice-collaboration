@@ -34,7 +34,7 @@ final class UploadFile extends AbstractUploadFile {
 
     /**
      * 计算文件哈希值
-     * 
+     *
      * @access public
      * @param string|null $algo 哈希算法
      * @throws UploadException
@@ -54,20 +54,23 @@ final class UploadFile extends AbstractUploadFile {
 
     /**
      * 保存文件
-     * 
+     *
+     * - 哈希只能由临时文件计算, 而保存会移走临时文件, 故在移交存储前先行算好
+     *
      * @access public
      * @param UploadStorageInterface $upload_storage 文件存储对象
-     * @throws UploadStorageException
+     * @throws UploadException|UploadStorageException
      * @return void
      */
     public function save(UploadStorageInterface $upload_storage): void {
+        $this->getHash();
         $upload_storage->save($this);
         $this->save_path=$upload_storage->getLastSavePath();
     }
 
     /**
      * 获取最终保存路径
-     * 
+     *
      * @access public
      * @throws UploadException
      * @return string
@@ -79,7 +82,9 @@ final class UploadFile extends AbstractUploadFile {
 
     /**
      * 返回文件信息数组
-     * 
+     *
+     * - `hash` 为已计算的哈希值: 保存时自动计算; 未保存的文件如需提前取用请调用 {@see getHash()}
+     *
      * @access public
      * @return array
      */

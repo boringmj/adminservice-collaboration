@@ -2,6 +2,8 @@
 
 namespace AdminService\Router;
 
+use AdminService\Attribute\Route;
+use AdminService\Attribute\RouteGroup;
 use AdminService\Exception;
 use ReflectionClass;
 use ReflectionMethod;
@@ -51,12 +53,6 @@ final class Router {
     private ?RouteItem $current=null;
 
     /**
-     * 全局中间件
-     * @var array<string|object>
-     */
-    private array $middlewares;
-
-    /**
      * 分组前缀栈
      * @var array<string>
      */
@@ -67,16 +63,6 @@ final class Router {
      * @var array<array<string|object>>
      */
     private array $middlewareStack=array();
-
-    /**
-     * 构造方法
-     *
-     * @access public
-     * @param array<string|object> $middlewares 全局中间件
-     */
-    public function __construct(array $middlewares=array()) {
-        $this->middlewares=$middlewares;
-    }
 
     /**
      * 注册 GET 路由
@@ -194,7 +180,7 @@ final class Router {
      * @throws Exception 与已注册路由冲突
      */
     public function add(array $methods,string $path,mixed $handler): RouteItem {
-        $route=new RouteItem($methods,$this->prefix().$path,$handler,$this->middlewares());
+        $route=new RouteItem($methods,$this->prefix().$path,$handler,$this->groupMiddlewares());
         $this->assertNoConflict($route);
         $this->routes[]=$route;
         $this->named=null;
@@ -534,13 +520,15 @@ final class Router {
     }
 
     /**
-     * 获取当前生效的中间件(全局 + 分组 + 路由由 RouteItem 持有)
+     * 获取当前分组栈生效的中间件(路由级由 RouteItem 继续持有)
+     *
+     * - 请求级与控制器级中间件不在此组装: 前者在匹配前执行, 后者由分发时按处理器解析
      *
      * @access private
      * @return array<string|object>
      */
-    private function middlewares(): array {
-        $middlewares=$this->middlewares;
+    private function groupMiddlewares(): array {
+        $middlewares=array();
         foreach($this->middlewareStack as $stack)
             $middlewares=array_merge($middlewares,$stack);
         return $middlewares;

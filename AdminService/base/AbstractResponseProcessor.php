@@ -4,6 +4,8 @@ namespace base;
 
 /**
  * 响应处理类
+ *
+ * - 处理须显式调用 `handle()`, 不在构造函数中产生副作用
  */
 abstract class AbstractResponseProcessor {
 
@@ -21,21 +23,19 @@ abstract class AbstractResponseProcessor {
 
     /**
      * 构造方法
-     * 
+     *
      * @access public
      * @param Response $response Response对象
      * @param array<string,mixed> $config 配置项
-     * @return string
      */
     public function __construct(Response $response,array $config) {
         $this->response=$response;
         $this->config=$config;
-        $this->handle();
     }
 
     /**
      * 获取Response对象
-     * 
+     *
      * @access public
      * @return Response
      */
@@ -45,10 +45,10 @@ abstract class AbstractResponseProcessor {
 
     /**
      * 处理响应数据
-     * 
-     * @access protected
+     *
+     * @access public
      * @return void
      */
-    abstract protected function handle(): void;
+    abstract public function handle(): void;
 
 }

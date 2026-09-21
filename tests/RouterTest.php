@@ -6,7 +6,7 @@ use PHPUnit\Framework\TestCase;
 
 use AdminService\App;
 use AdminService\Exception;
-use AdminService\Router\Pipeline;
+use AdminService\Pipeline;
 use AdminService\Router\RouteItem;
 use AdminService\Router\Router;
 use Tests\Fixtures\FirstMiddleware;
@@ -194,16 +194,16 @@ class RouterTest extends TestCase {
     }
 
     /**
-     * 测试全局中间件与分组中间件合并
+     * 测试分组中间件合并
      * @return void
      */
-    public function testGlobalAndGroupMiddlewareMerge(): void {
-        $router=new Router(array(FirstMiddleware::class));
+    public function testGroupMiddlewareMerge(): void {
+        $router=new Router();
         $router->group(array('middleware'=>SecondMiddleware::class),function(Router $r): void {
             $r->get('/mixed',array('C','mixed'));
         });
         $this->assertSame(
-            array(FirstMiddleware::class,SecondMiddleware::class),
+            array(SecondMiddleware::class),
             $router->find('GET','/mixed')[0]->getMiddlewares()
         );
     }

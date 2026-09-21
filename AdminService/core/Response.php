@@ -21,6 +21,8 @@ use function trim;
 
 /**
  * Response核心类
+ *
+ * - 每个请求一个实例: 状态码 / Header / Cookie / 返回内容均随实例走
  */
 final class Response extends BaseResponse {
 
@@ -28,25 +30,35 @@ final class Response extends BaseResponse {
      * 请求头信息
      * @var Data
      */
-    public static Data $headers;
+    protected Data $headers;
 
     /**
      * Cookie信息
      * @var Data
      */
-    public static Data $cookies;
+    protected Data $cookies;
+
+    /**
+     * 构造方法
+     *
+     * @access public
+     */
+    public function __construct() {
+        $this->headers=new Data();
+        $this->cookies=new Data();
+    }
 
     /**
      * 获取一个标准的返回类型
-     * 
+     *
      * @access public
      * @param string|null $type 类型
      * @return string
      */
-    public static function getStandardContentType(
+    public function getStandardContentType(
         ?string $type=null
     ): string {
-        $type=$type??self::$contentType;
+        $type=$type??$this->contentType;
         $type_list=array_keys(Config::get('response.default.type',[]));
         // 判断当前类型是否存在
         if(in_array($type,$type_list))
@@ -55,62 +67,51 @@ final class Response extends BaseResponse {
     }
 
     /**
-     * 初始化
-     * 
-     * @access public
-     * @return void
-     */
-    public static function init(): void {
-        self::$headers=new Data();
-        self::$cookies=new Data();
-        self::setContentType('*/*');
-        // 复位状态码与返回内容, 避免上一次请求的残留影响本次(常驻模式下尤为重要)
-        self::setStatusCode(200);
-        self::setControllerReturn(null);
-        self::setReturnContent(null);
-    }
-
-    /**
      * 获取Header
-     * 
+     *
      * @access public
      * @param string $name Header名
      * @return string
      */
-    public static function getHeader(string $name): string {
-        return self::$headers->get($name);
+    public function getHeader(string $name): string {
+        return (string)$this->headers->get($name,'');
     }
 
     /**
      * 设置Header(array类型仅支持name=>value)
-     * 
+     *
      * @access public
      * @param string|array $params 参数(string时为header名,array时为header数组)
      * @param string $value $params 参数为数组时此参数无效)
      * @return void
      */
-    public static function setHeader(
+    public function setHeader(
         string|array $params,
-        string $value
+        string $value=''
     ): void {
         if(is_string($params)) {
-            self::$headers->set($params,$value);
+            $this->headers->set($params,$value);
             return;
         }
         foreach($params as $key=>$val) {
-            self::$headers->set($key,$val);
+            $this->headers->set($key,$val);
         }
     }
 
     /**
-     * 获取Cookie
-     * 
+     * 获取Cookie值
+     *
+     * - 取的是待下发Cookie的值(带属性的写法存为数组, 此处取其中的value)
+     *
      * @access public
      * @param string $name Cookie名
      * @return string
      */
-    public static function getCookie(string $name): string {
-        return self::$cookies->get($name);
+    public function getCookie(string $name): string {
+        $cookie=$this->cookies->get($name,'');
+        if(is_array($cookie))
+            return (string)($cookie['value']??'');
+        return (string)$cookie;
     }
 
     /**
@@ -126,7 +127,7 @@ final class Response extends BaseResponse {
      * @param bool $httponly 是否仅http传输($params 参数为数组时此参数无效)
      * @return void
      */
-    public static function setCookie(
+    public function setCookie(
         string|array $params,
         ?string $value=null,
         ?int $expire=null,
@@ -152,7 +153,7 @@ final class Response extends BaseResponse {
             if(is_array($val)) {
                 // 判断数组中是否存在name字段
                 if(!isset($val['name'])) $val['name']=$key;
-                self::$cookies->set($val['name'],[
+                $this->cookies->set($val['name'],[
                     'value'=>$val['value'],
                     'expire'=>$val['expire']??null,
                     'path'=>$val['path']??null,
@@ -161,44 +162,45 @@ final class Response extends BaseResponse {
                     'httponly'=>$val['httponly']??null
                 ]);
             } else {
-                self::$cookies->set($key,$val);
+                $this->cookies->set($key,$val);
             }
         }
     }
 
     /**
      * 渲染结果
-     * 
+     *
      * @access public
+     * @param Request $request 请求对象
      * @return string
      */
-    public static function render(): string {
-        if(self::$return_content!==null) return self::$return_content;
-        $type=self::getStandardContentType();
+    public function render(Request $request): string {
+        if($this->return_content!==null) return $this->return_content;
+        $type=$this->getStandardContentType();
         if($type=='*/*') {
             // 获取 Accept 头信息
-            $accept_headers=App::get(Request::class)->getHeader('accept');
-            $accept_headers=explode(',',$accept_headers);
+            $accept_headers=explode(',',(string)$request->getHeader('accept'));
             // 通过递归寻找匹配的类型
-            $type=self::findAcceptType($accept_headers);
+            $type=$this->findAcceptType($accept_headers);
         }
         $config=Config::get('response.default.type.'.$type,[]);
         $class=$config['class']??Http::class;
-        App::new($class,config:$config);
+        // 处理器需要写入本实例: 显式传入, 不依赖容器中的同名单例
+        App::new($class,response:$this,config:$config)->handle();
         // 合并header
         $headers=$config['headers']??[];
-        self::$headers->batchSet($headers);
-        return self::$return_content??'';
+        $this->headers->batchSet($headers);
+        return $this->return_content??'';
     }
 
     /**
      * 寻找匹配的类型
-     * 
+     *
      * @access private
      * @param array<string,mixed> $accept_headers Accept头信息
      * @return string
      */
-    private static function findAcceptType(array $accept_headers): string {
+    private function findAcceptType(array $accept_headers): string {
         $allow_types=array_keys(Config::get('response.default.type',[]));
         $matches=[];
         foreach($accept_headers as $header) {
@@ -224,33 +226,34 @@ final class Response extends BaseResponse {
 
     /**
      * 发送请求头和状态码
-     * 
+     *
      * @access public
      * @return void
      */
-    public static function sendHeaders(): void {
+    public function sendHeaders(): void {
         // 判断是否还可以返回请求头
         if(!headers_sent()) {
-            http_response_code(self::getStatusCode());
-            foreach(self::$headers as $key=>$val)
+            http_response_code($this->getStatusCode());
+            foreach($this->headers as $key=>$val)
                 header($key.': '.$val);
             $cookie=App::get(Cookie::class);
-            $cookie->setByArray(self::$cookies->all());
+            $cookie->setByArray($this->cookies->all());
         }
     }
 
     /**
      * 结束响应并发送数据
-     * 
+     *
      * @access public
+     * @param Request $request 请求对象
      * @return void
      */
-    public static function send(): void {
-        $temp=self::render();
+    public function send(Request $request): void {
+        $temp=$this->render($request);
         // 发送请求头
-        self::sendHeaders();
+        $this->sendHeaders();
         // HEAD 只发送头部, 不输出响应体(HTTP 规范要求)
-        if(App::get(Request::class)->getServer('REQUEST_METHOD')==='HEAD')
+        if($request->getServer('REQUEST_METHOD')==='HEAD')
             return;
         // 渲染结果
         echo $temp;

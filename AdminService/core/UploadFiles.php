@@ -3,7 +3,6 @@
 namespace AdminService;
 
 use AdminService\App;
-use AdminService\Config;
 use AdminService\Exception;
 use AdminService\UploadFile;
 use base\AbstractUploadFiles;
@@ -42,29 +41,25 @@ final class UploadFiles extends AbstractUploadFiles {
 
     /**
      * 构造方法
-     * 
+     *
+     * - 只解析文件列表, 不触碰上传目录(目录由存储方在保存时准备)
+     *
      * @access public
      * @param string $dir 上传目录
      * @param array<string,mixed> $files 上传文件列表
+     * @param array<string,mixed> $rules 上传规则(对应配置`request.default.upload`)
      */
-    public function __construct(string $dir,array $files) {
-        // 检查目录是否存在,如果不存在则创建
-        if(!is_dir($dir)) {
-            $dir_mode=Config::get('request.default.upload.save.mode',0755);
-            if(!mkdir($dir,$dir_mode,true)) {
-                throw new Exception('创建上传目录失败');
-            }
-        }
-        $this->max_size=Config::get('request.default.upload.max_size',104857600);
-        $this->name_rule=Config::get('request.default.upload.name_rule','/[^a-zA-Z\.0-9_\-]/');
-        $this->ext_rule=Config::get('request.default.upload.ext_rule','/[^0-9a-z-]/');
-        $this->hash_algo=Config::get('request.default.upload.hash.algo','sha1');
+    public function __construct(string $dir,array $files,array $rules=array()) {
+        $this->max_size=$rules['max_size']??104857600;
+        $this->name_rule=$rules['name_rule']??'/[^a-zA-Z\.0-9_\-]/';
+        $this->ext_rule=$rules['ext_rule']??'/[^0-9a-z-]/';
+        $this->hash_algo=$rules['hash']['algo']??'sha1';
         parent::__construct($dir,$files);
     }
 
     /**
      * 获取数组形式的上传文件列表
-     * 
+     *
      * @access public
      * @return array
      */
@@ -76,7 +71,7 @@ final class UploadFiles extends AbstractUploadFiles {
 
     /**
      * 解析文件列表
-     * 
+     *
      * @access protected
      * @param array<string,mixed> $files 文件列表
      * @return void

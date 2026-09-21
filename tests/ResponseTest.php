@@ -1,0 +1,219 @@
+<?php
+
+namespace Tests;
+
+use PHPUnit\Framework\TestCase;
+
+use AdminService\App;
+use AdminService\Config;
+use AdminService\HttpRequest;
+use AdminService\Response;
+use AdminService\ResponseProcessor\Json;
+
+/**
+ * 响应实例测试
+ *
+ * - 覆盖状态码/Header/Cookie、内容协商、发送与处理器显式执行
+ */
+class ResponseTest extends TestCase {
+
+    /**
+     * 类初始化前执行
+     * @return void
+     */
+    public static function setUpBeforeClass(): void {
+        App::init();
+    }
+
+    /**
+     * 每个测试前恢复配置
+     * @return void
+     */
+    protected function setUp(): void {
+        Config::load();
+    }
+
+    /**
+     * 构造一个请求
+     *
+     * @access private
+     * @param string $method 请求方法
+     * @param string $accept Accept头
+     * @return HttpRequest
+     */
+    private function request(string $method='GET',string $accept=''): HttpRequest {
+        $headers=$accept===''?array():array('Accept'=>$accept);
+        return new HttpRequest(array(
+            'headers'=>$headers,
+            'server'=>array('REQUEST_METHOD'=>$method)
+        ));
+    }
+
+    /**
+     * 测试状态码、Header与内容类型的读写
+     * @return void
+     */
+    public function testStatusHeaderAndContentType(): void {
+        $response=new Response();
+        $this->assertSame(200,$response->getStatusCode());
+        $response->setStatusCode(404);
+        $this->assertSame(404,$response->getStatusCode());
+        $response->setHeader('X-Token','tk');
+        $this->assertSame('tk',$response->getHeader('X-Token'));
+        // 数组形式
+        $response->setHeader(array('A'=>'1','B'=>'2'));
+        $this->assertSame('1',$response->getHeader('A'));
+        $this->assertSame('2',$response->getHeader('B'));
+        $response->setContentType('text/plain');
+        $this->assertSame('text/plain',$response->getContentType());
+        $this->assertSame('text/plain',$response->getStandardContentType());
+        // 未登记的类型回落到默认类型
+        $this->assertSame('*/*',$response->getStandardContentType('application/unknown'));
+    }
+
+    /**
+     * 测试Cookie写入与读取
+     * @return void
+     */
+    public function testCookieWrite(): void {
+        $response=new Response();
+        $response->setCookie('simple','v1');
+        $this->assertSame('v1',$response->getCookie('simple'));
+        // 带属性的写法(属性作为后续参数)
+        $response->setCookie('with_attr','v2',60,'/');
+        $this->assertSame('v2',$response->getCookie('with_attr'));
+        // 数组形式(键名为Cookie名)
+        $response->setCookie(array('named'=>array('value'=>'v3')));
+        $this->assertSame('v3',$response->getCookie('named'));
+        // 未设置的Cookie返回空串
+        $this->assertSame('',$response->getCookie('missing'));
+    }
+
+    /**
+     * 测试json/html/text快捷方法设置内容类型并回传数据
+     * @return void
+     */
+    public function testContentTypeShortcuts(): void {
+        $response=new Response();
+        $this->assertSame(array('a'=>1),$response->json(array('a'=>1)));
+        $this->assertSame('application/json',$response->getContentType());
+        $this->assertSame('<b>x</b>',$response->html('<b>x</b>'));
+        $this->assertSame('text/html',$response->getContentType());
+        $this->assertSame('plain',$response->text('plain'));
+        $this->assertSame('text/plain',$response->getContentType());
+    }
+
+    /**
+     * 测试按Accept协商渲染
+     * @return void
+     */
+    public function testRenderByAccept(): void {
+        // application/json → Json处理器(标量被数组包裹)
+        $response=new Response();
+        $response->setControllerReturn('body');
+        $this->assertSame('["body"]',$response->render($this->request('GET','application/json')));
+        // text/plain → Http处理器(原样输出字符串)
+        $response=new Response();
+        $response->setControllerReturn('body');
+        $this->assertSame('body',$response->render($this->request('GET','text/plain')));
+        // text/html → 数组被编码为JSON字符串
+        $response=new Response();
+        $response->setControllerReturn(array('a'=>1));
+        $this->assertSame('{"a":1}',$response->render($this->request('GET','text/html')));
+    }
+
+    /**
+     * 测试显式指定的内容类型优先于Accept
+     * @return void
+     */
+    public function testExplicitContentTypeWins(): void {
+        $response=new Response();
+        $response->setControllerReturn('body');
+        $response->json();
+        // 客户端要text/plain, 但控制器已显式指定json
+        $this->assertSame('["body"]',$response->render($this->request('GET','text/plain')));
+    }
+
+    /**
+     * 测试协商后合并该类型的默认Header
+     * @return void
+     */
+    public function testNegotiatedHeadersMerged(): void {
+        $response=new Response();
+        $response->setControllerReturn('body');
+        $response->render($this->request('GET','application/json'));
+        $this->assertSame('application/json; charset=utf-8',$response->getHeader('Content-Type'));
+    }
+
+    /**
+     * 测试渲染结果可复用
+     * @return void
+     */
+    public function testRenderContentReused(): void {
+        $response=new Response();
+        $response->setControllerReturn('body');
+        $this->assertSame('body',$response->render($this->request('GET','text/plain')));
+        // 已渲染内容直接复用, 不再协商
+        $this->assertSame('body',$response->render($this->request('GET','application/json')));
+        $response->setReturnContent('forced');
+        $this->assertSame('forced',$response->render($this->request('GET','application/json')));
+    }
+
+    /**
+     * 测试发送输出响应体
+     * @return void
+     */
+    public function testSendOutputsBody(): void {
+        $response=new Response();
+        $response->setControllerReturn('sent-body');
+        ob_start();
+        $response->send($this->request('GET','text/plain'));
+        $body=ob_get_clean();
+        $this->assertSame('sent-body',$body);
+    }
+
+    /**
+     * 测试HEAD请求不输出响应体
+     * @return void
+     */
+    public function testHeadSendsNoBody(): void {
+        $response=new Response();
+        $response->setControllerReturn('sent-body');
+        ob_start();
+        $response->send($this->request('HEAD','text/plain'));
+        $body=ob_get_clean();
+        $this->assertSame('',$body);
+        // 头部仍然发送, 内容已渲染
+        $this->assertSame('sent-body',$response->getReturnContent());
+    }
+
+    /**
+     * 测试响应处理器为显式执行(构造不再产生副作用)
+     * @return void
+     */
+    public function testProcessorHandleIsExplicit(): void {
+        $response=new Response();
+        $response->setControllerReturn(array('a'=>1));
+        $processor=App::new(Json::class,response:$response,config:array('flag'=>JSON_UNESCAPED_UNICODE));
+        // 构造时未执行
+        $this->assertNull($response->getReturnContent());
+        $processor->handle();
+        $this->assertSame('{"a":1}',$response->getReturnContent());
+    }
+
+    /**
+     * 测试实例之间互不干扰
+     * @return void
+     */
+    public function testInstancesAreIsolated(): void {
+        $first=new Response();
+        $second=new Response();
+        $first->setStatusCode(500);
+        $first->setHeader('X-Only','1');
+        $first->setCookie('only','1');
+        $this->assertSame(200,$second->getStatusCode());
+        $this->assertSame('',$second->getHeader('X-Only'));
+        $this->assertSame('',$second->getCookie('only'));
+    }
+
+}

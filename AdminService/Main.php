@@ -13,6 +13,12 @@ use function is_array;
 final class Main {
 
     /**
+     * 应用(引导 + 生命周期宿主)
+     * @var Application|null
+     */
+    private ?Application $application=null;
+
+    /**
      * 初始化
      *
      * @access public
@@ -37,8 +43,8 @@ final class Main {
         Config::load();
         // 加载函数库
         $this->loadFunction();
-        // App初始化
-        App::init();
+        // App初始化(建应用级容器并按配置装配, 同时安装到门面)
+        $this->application=(new Application())->init();
         // 初始化请求与响应: 每请求新建实例(而非复位单例), 常驻模式下同样安全
         App::set(Request::class,App::new(Request::class));
         App::set(Response::class,App::new(Response::class));
@@ -99,9 +105,12 @@ final class Main {
      * @throws Exception|ReflectionException
      */
     public function run(): void {
-        $middlewares=Pipeline::order(Pipeline::normalize(Config::get('middlewares.request',array())));
-        (new Pipeline($middlewares,App::get(Request::class)))->then(function(): void {
-            App::make(Route::class,true)->run();
+        // 由应用承载请求处理(请求级 scope 的 fork/reset 与门面指针切换将在 Application::handle() 内接入)
+        ($this->application??new Application())->handle(function(): void {
+            $middlewares=Pipeline::order(Pipeline::normalize(Config::get('middlewares.request',array())));
+            (new Pipeline($middlewares,App::get(Request::class)))->then(function(): void {
+                App::make(Route::class,true)->run();
+            });
         });
     }
 

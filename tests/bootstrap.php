@@ -2,7 +2,9 @@
 
 require __DIR__.'/../vendor/autoload.php';
 
+use AdminService\App;
 use AdminService\Config;
+use AdminService\Container;
 
 /**
  * 测试环境配置加载
@@ -41,3 +43,19 @@ function load_test_functions(): void {
 // 初始化测试配置与函数库
 load_test_config();
 load_test_functions();
+
+/**
+ * 测试进程的容器安装
+ *
+ * - 容器改为实例状态后, 门面需要一个"当前容器"才能工作; 这里装一个空的应用级容器,
+ *   与旧版"全局静态容器初值(空)"等价 —— 不调用 App::init(), 以免把配置别名提前注入而改变既有用例的解析路径
+ * - 需要配置绑定的用例请自行调用 App::init()
+ *
+ * @return void
+ */
+function boot_test_container(): void {
+    if(!App::hasInstance())
+        App::setInstance(new Container());
+}
+
+boot_test_container();

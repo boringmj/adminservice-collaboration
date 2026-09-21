@@ -2,20 +2,73 @@
 
 namespace AdminService;
 
-use base\Container;
-use ReflectionException;
+use base\Container as ContainerContract;
+use ReflectionClass;
 
-use function array_merge;
-use function class_exists;
 use function count;
-use function interface_exists;
-use function is_array;
-use function is_string;
 
-final class App extends Container {
+/**
+ * 容器门面
+ *
+ * - **使用者的统一入口**: 所有方法都转发到"当前容器实例", 调用写法与旧版一致
+ * - **无状态**: 唯一全局静态是指向当前容器的指针(`setInstance()` / `getInstance()`), 对标 Laravel 的 `Container::getInstance()`
+ * - 框架内部不再通过门面取依赖(改构造注入 / 显式传递); 门面服务于使用者代码与既有调用点
+ * - 转发面 = 实证在用的入口; 无调用点的方法不再出现在门面上(见纲领 4.5 / 4.6 的删除项)
+ *
+ * @access public
+ * @package AdminService
+ * @version 2.0.0
+ */
+final class App {
 
     /**
-     * 初始化
+     * 当前容器(唯一全局静态)
+     * @var ContainerContract|null
+     */
+    private static ?ContainerContract $instance=null;
+
+    /**
+     * 设置当前容器
+     *
+     * @access public
+     * @param ContainerContract $container 容器实例
+     * @return void
+     */
+    public static function setInstance(ContainerContract $container): void {
+        self::$instance=$container;
+    }
+
+    /**
+     * 获取当前容器
+     *
+     * - 未初始化时**抛出明确异常**(不再静默新建, 避免"门面看似可用、实际是个临时容器")
+     * - 引导阶段请用 `App::init()` 或 `Main::init()`
+     *
+     * @access public
+     * @return ContainerContract
+     * @throws Exception
+     */
+    public static function getInstance(): ContainerContract {
+        if(self::$instance===null)
+            throw new Exception('容器尚未初始化, 请先调用 App::init() 或 Main::init()');
+        return self::$instance;
+    }
+
+    /**
+     * 是否已安装容器实例
+     *
+     * @access public
+     * @return bool
+     */
+    public static function hasInstance(): bool {
+        return self::$instance!==null;
+    }
+
+    /**
+     * 初始化(引导)
+     *
+     * - 无实例则新建**应用级**容器; 有实例则沿用(幂等)
+     * - 装配内容见 `Application::init()`: 配置绑定/别名 + 参数转换开关
      *
      * @access public
      * @param array<int|string,string> $classes 需要初始化的类
@@ -23,48 +76,166 @@ final class App extends Container {
      * @throws Exception
      */
     public static function init(array $classes=array()): void {
-        // 获取配置文件中需要直接绑定到容器中的类
-        $binds=array();
-        $classes=array_merge($classes,Config::get('app.classes',array()));
-        foreach($classes as $alias=>$class) {
-            if(is_int($alias))
-                $binds[$class]=$class;
-            else
-                $binds[$alias]=$class;
-        }
-        // 获取配置文件中的别名
-        $aliases=Config::get('app.alias',array());
-        // 合并所有类
-        $classes=array_merge($binds,$aliases);
-        // 遍历类是否存在
-        foreach($classes as $class)
-            if(!class_exists($class)&&!interface_exists($class))
-                throw new Exception('Class "'.$class.'" not found.');
-        // 设置是否允许标量参数静默转换(可在 config/app.php 中配置 app.param_cast)
-        parent::setParamCast(Config::get('app.param_cast',true));
-        parent::$class_container=$classes;
+        (new Application(self::$instance??new Container()))->init($classes);
     }
 
     /**
      * 获取对象(传入构造参数则不会添加到实例容器中)
      *
      * 注意: 依赖简单支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
-     * 这种情况请先使用App::set(Class::class,new Class())添加到容器中
+     * 这种情况请先使用 App::set(Class::class,new Class())添加到容器中
      *
      * @access public
      * @template T of object
      * @param class-string<T> $__name 对象名（类名）
      * @param mixed ...$args 构造函数参数($args中不允许传入“__name”参数)
      * @return T|object 返回指定类的实例
-     * @throws Exception|ReflectionException
+     * @throws Exception|\ReflectionException
      */
     public static function get(string $__name,...$args): object {
-        if(count($args)>0) {
+        if(count($args)>0)
             return self::new($__name,...$args);
-        } else {
-            // 如果不存在则通过自动依赖注入实例化一个对象
-            return parent::make($__name);
-        }
+        // 如果不存在则通过自动依赖注入实例化一个对象
+        return self::getInstance()->make($__name);
+    }
+
+    /**
+     * 获取对象(容器中已有且未强制新建则复用)
+     *
+     * @access public
+     * @param string $name 对象名(类名或别名)
+     * @param bool $is_force 是否强制新建
+     * @return object
+     * @throws Exception|\ReflectionException
+     */
+    public static function make(string $name,bool $is_force=false): object {
+        return self::getInstance()->make($name,$is_force);
+    }
+
+    /**
+     * 新建对象(每次都是新实例, 并自动装配, 不写入实例容器)
+     *
+     * @access public
+     * @param string $__name 类名或别名
+     * @param mixed ...$args 构造函数参数
+     * @return object
+     * @throws Exception|\ReflectionException
+     */
+    public static function new(string $__name,...$args): object {
+        return self::getInstance()->new($__name,...$args);
+    }
+
+    /**
+     * 登记一个已实例化对象
+     *
+     * @access public
+     * @param string $name 对象名
+     * @param object $object 对象实例
+     * @return void
+     * @throws Exception
+     */
+    public static function set(string $name,object $object): void {
+        self::getInstance()->set($name,$object);
+    }
+
+    /**
+     * 为抽象类或接口绑定实现类
+     *
+     * @access public
+     * @param string $abstract 抽象类或接口名(或别名)
+     * @param string $concrete 实现类
+     * @return void
+     * @throws Exception
+     */
+    public static function bind(string $abstract,string $concrete): void {
+        self::getInstance()->bind($abstract,$concrete);
+    }
+
+    /**
+     * 为抽象类或接口绑定实现类(同 `bind`, 旧名)
+     *
+     * @access public
+     * @param string $name 别名或抽象类或接口名
+     * @param string $class 目标类名
+     * @return void
+     * @throws Exception
+     */
+    public static function setClass(string $name,string $class): void {
+        self::getInstance()->setClass($name,$class);
+    }
+
+    /**
+     * 获取真实类名
+     *
+     * @access public
+     * @param string $name 别名或类名
+     * @param bool $recursive 是否递归解析嵌套绑定
+     * @param int $max_depth 最大递归深度
+     * @return string
+     * @throws Exception
+     */
+    public static function getRealClass(string $name,bool $recursive=true,int $max_depth=255): string {
+        return self::getInstance()->getRealClass($name,$recursive,$max_depth);
+    }
+
+    /**
+     * 通过已有对象获取反射类对象(会缓存结果)
+     *
+     * @access public
+     * @param object $object 对象
+     * @return ReflectionClass
+     */
+    public static function getReflectionByObject(object $object): ReflectionClass {
+        return self::getInstance()->getReflectionByObject($object);
+    }
+
+    /**
+     * 设置是否允许标量参数静默转换
+     *
+     * @access public
+     * @param bool $enable 是否允许
+     * @return void
+     * @throws Exception
+     */
+    public static function setParamCast(bool $enable): void {
+        self::getInstance()->setParamCast($enable);
+    }
+
+    /**
+     * 获取是否允许标量参数静默转换
+     *
+     * @access public
+     * @return bool
+     * @throws Exception
+     */
+    public static function getParamCast(): bool {
+        return self::getInstance()->getParamCast();
+    }
+
+    /**
+     * 获取全局数据
+     *
+     * @access public
+     * @param string $name 数据名
+     * @param mixed $default 默认值
+     * @return mixed
+     * @throws Exception
+     */
+    public static function getData(string $name,mixed $default=null): mixed {
+        return self::getInstance()->getData($name,$default);
+    }
+
+    /**
+     * 设置或添加全局数据
+     *
+     * @access public
+     * @param string $name 数据名
+     * @param mixed $data 数据
+     * @return void
+     * @throws Exception
+     */
+    public static function setData(string $name,mixed $data): void {
+        self::getInstance()->setData($name,$data);
     }
 
     /**
@@ -75,20 +246,10 @@ final class App extends Container {
      * @param string $method 方法名
      * @param array<mixed> $args 方法参数(如果为关系型数组,则会将key作为参数名,value作为参数值,如果索引数组,则会逐一赋值,没有赋值的参数会使用默认值)
      * @return mixed
-     * @throws Exception|ReflectionException
+     * @throws Exception|\ReflectionException
      */
     public static function exec_class_function(object|string $object,string $method,array $args=array()): mixed {
-        // 判断是否为类名
-        if(is_string($object)) {
-            // 如果是类名则通过自动依赖注入实例化一个对象
-            $object=self::make($object);
-        }
-        // 获取方法参数
-        $ref=self::getReflectionMethodByObject($object,$method);
-        $params=$ref->getParameters();
-        $args_temp=self::mergeParams($params,$args);
-        // 调用方法
-        return $ref->invokeArgs($object,$args_temp);
+        return self::getInstance()->exec_class_function($object,$method,$args);
     }
 
     /**
@@ -98,22 +259,10 @@ final class App extends Container {
      * @param string|array|callable $function 函数名(支持数组形式的类方法调用和闭包)
      * @param array<mixed> $args 函数参数(如果为关系型数组,则会将key作为参数名,value作为参数值,如果索引数组,则会逐一赋值,没有赋值的参数会使用默认值)
      * @return mixed
-     * @throws Exception|ReflectionException
+     * @throws Exception|\ReflectionException
      */
-    public static function exec_function(
-        string|array|callable $function,array $args=array()
-    ): mixed {
-        if(is_array($function)) {
-            // 类方法调用
-            [$classOrObj,$method]=$function;
-            return self::exec_class_function($classOrObj,$method,$args);
-        }
-        // 获取函数参数
-        $ref=self::getReflectionFunction($function);
-        $params=$ref->getParameters();
-        $args_temp=self::mergeParams($params,$args);
-        // 调用函数
-        return $ref->invokeArgs($args_temp);
+    public static function exec_function(string|array|callable $function,array $args=array()): mixed {
+        return self::getInstance()->exec_function($function,$args);
     }
 
     /**
@@ -123,6 +272,7 @@ final class App extends Container {
      *
      * @access public
      * @return string|null
+     * @throws Exception
      */
     public static function getAppName(): ?string {
         return self::getData('route_info')['app']??null;
@@ -133,6 +283,7 @@ final class App extends Container {
      *
      * @access public
      * @return string|null
+     * @throws Exception
      */
     public static function getControllerName(): ?string {
         return self::getData('route_info')['controller']??null;
@@ -143,6 +294,7 @@ final class App extends Container {
      *
      * @access public
      * @return string|null
+     * @throws Exception
      */
     public static function getMethodName(): ?string {
         return self::getData('route_info')['method']??null;

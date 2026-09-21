@@ -6,7 +6,6 @@ use PHPUnit\Framework\TestCase;
 
 use AdminService\App;
 use AdminService\Config;
-use AdminService\Exception;
 use AdminService\HttpRequest;
 use AdminService\Response;
 use AdminService\Route;
@@ -70,6 +69,19 @@ class RouteCoordinatorTest extends TestCase {
     }
 
     /**
+     * 设置约定式回落开关
+     *
+     * @access private
+     * @param bool $enabled 是否开启回落
+     * @return void
+     */
+    private function setFallback(bool $enabled): void {
+        $configs=Config::all();
+        $configs['route']['convention_fallback']=$enabled;
+        Config::set($configs);
+    }
+
+    /**
      * 分发一次请求
      *
      * @access private
@@ -99,9 +111,10 @@ class RouteCoordinatorTest extends TestCase {
      */
     public function testExplicitRouteMethodDistinction(): void {
         $this->useRoutes("\$router->post('/t/hello',array(\\app\\demo\\controller\\Index::class,'index'));");
-        // 方法不匹配则回落约定式, 该路径不构成约定式路由
-        $this->expectException(Exception::class);
+        $this->setFallback(false);
+        // 方法不匹配视为未命中
         $this->dispatch('/t/hello');
+        $this->assertSame(404,Response::getStatusCode());
     }
 
     /**
@@ -131,10 +144,11 @@ class RouteCoordinatorTest extends TestCase {
      */
     public function testExplicitRouteConstraintNotMatched(): void {
         $this->useRoutes("\$router->get('/t/num/{id:\\d+}',array(\\app\\demo\\controller\\Index::class,'index'));");
+        $this->setFallback(false);
         $this->assertSame('Hello World!',$this->dispatch('/t/num/42'));
-        // 约束不满足则回落约定式, 该路径不构成约定式路由
-        $this->expectException(Exception::class);
+        // 约束不满足视为未命中
         $this->dispatch('/t/num/abc');
+        $this->assertSame(404,Response::getStatusCode());
     }
 
     /**
@@ -188,20 +202,23 @@ PHP
      */
     public function testConventionFallback(): void {
         $this->useRoutes('// 未注册任何路由');
+        $this->setFallback(true);
         $this->assertSame('Hello World!',$this->dispatch('/demo/Index/index'));
     }
 
     /**
-     * 测试约定式回落关闭时未命中抛异常
+     * 测试未命中且未开启回落时返回 404
+     *
+     * - 不回显请求路径, 不泄漏目录结构
+     *
      * @return void
      */
-    public function testConventionFallbackDisabled(): void {
+    public function testNotFoundReturns404(): void {
         $this->useRoutes('// 未注册任何路由');
-        $configs=Config::all();
-        $configs['route']['convention_fallback']=false;
-        Config::set($configs);
-        $this->expectException(Exception::class);
+        $this->setFallback(false);
         $this->dispatch('/demo/Index/index');
+        $this->assertSame(404,Response::getStatusCode());
+        $this->assertSame('404 Not Found',Response::getControllerReturn());
     }
 
     /**
@@ -210,6 +227,7 @@ PHP
      */
     public function testConventionPathParameters(): void {
         $this->useRoutes('// 未注册任何路由');
+        $this->setFallback(true);
         $data=$this->dispatch('/demo/Index/request/name/hello');
         $this->assertSame('hello',$data['get']['name']);
     }

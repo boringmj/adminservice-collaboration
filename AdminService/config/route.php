@@ -15,7 +15,8 @@ return array(
         'attributes'=>array() // 需要扫描 #[Route] 属性的控制器类名, 留空则不扫描
     ),
     // 未命中显式路由时, 是否回落到 /app/controller/method 约定式解析
-    'convention_fallback'=>true,
+    // 关闭时未命中直接返回 404, 不泄漏目录结构
+    'convention_fallback'=>false,
     'params'=>array(
         'to_get'=>array(
             'model'=>'list-value' // value, list, value-list, list-value (default: list-value)

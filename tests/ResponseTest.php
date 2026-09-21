@@ -55,17 +55,17 @@ class ResponseTest extends TestCase {
      */
     public function testStatusHeaderAndContentType(): void {
         $response=new Response();
-        $this->assertSame(200,$response->getStatusCode());
-        $response->setStatusCode(404);
-        $this->assertSame(404,$response->getStatusCode());
-        $response->setHeader('X-Token','tk');
-        $this->assertSame('tk',$response->getHeader('X-Token'));
-        // 数组形式
-        $response->setHeader(array('A'=>'1','B'=>'2'));
-        $this->assertSame('1',$response->getHeader('A'));
-        $this->assertSame('2',$response->getHeader('B'));
-        $response->setContentType('text/plain');
-        $this->assertSame('text/plain',$response->getContentType());
+        $this->assertSame(200,$response->status());
+        $response->status(404);
+        $this->assertSame(404,$response->status());
+        $response->header('X-Token','tk');
+        $this->assertSame('tk',$response->header('X-Token'));
+        // 批量设置
+        $response->headers(array('A'=>'1','B'=>'2'));
+        $this->assertSame('1',$response->header('A'));
+        $this->assertSame('2',$response->header('B'));
+        $response->contentType('text/plain');
+        $this->assertSame('text/plain',$response->contentType());
         $this->assertSame('text/plain',$response->getStandardContentType());
         // 未登记的类型回落到默认类型
         $this->assertSame('*/*',$response->getStandardContentType('application/unknown'));
@@ -77,16 +77,16 @@ class ResponseTest extends TestCase {
      */
     public function testCookieWrite(): void {
         $response=new Response();
-        $response->setCookie('simple','v1');
-        $this->assertSame('v1',$response->getCookie('simple'));
+        $response->cookie('simple','v1');
+        $this->assertSame('v1',$response->cookie('simple'));
         // 带属性的写法(属性作为后续参数)
-        $response->setCookie('with_attr','v2',60,'/');
-        $this->assertSame('v2',$response->getCookie('with_attr'));
-        // 数组形式(键名为Cookie名)
-        $response->setCookie(array('named'=>array('value'=>'v3')));
-        $this->assertSame('v3',$response->getCookie('named'));
+        $response->cookie('with_attr','v2',60,'/');
+        $this->assertSame('v2',$response->cookie('with_attr'));
+        // 批量形式(键名为Cookie名)
+        $response->cookies(array('named'=>array('value'=>'v3')));
+        $this->assertSame('v3',$response->cookie('named'));
         // 未设置的Cookie返回空串
-        $this->assertSame('',$response->getCookie('missing'));
+        $this->assertSame('',$response->cookie('missing'));
     }
 
     /**
@@ -96,11 +96,11 @@ class ResponseTest extends TestCase {
     public function testContentTypeShortcuts(): void {
         $response=new Response();
         $this->assertSame(array('a'=>1),$response->json(array('a'=>1)));
-        $this->assertSame('application/json',$response->getContentType());
+        $this->assertSame('application/json',$response->contentType());
         $this->assertSame('<b>x</b>',$response->html('<b>x</b>'));
-        $this->assertSame('text/html',$response->getContentType());
+        $this->assertSame('text/html',$response->contentType());
         $this->assertSame('plain',$response->text('plain'));
-        $this->assertSame('text/plain',$response->getContentType());
+        $this->assertSame('text/plain',$response->contentType());
     }
 
     /**
@@ -110,15 +110,15 @@ class ResponseTest extends TestCase {
     public function testRenderByAccept(): void {
         // application/json → Json处理器(标量被数组包裹)
         $response=new Response();
-        $response->setControllerReturn('body');
+        $response->body('body');
         $this->assertSame('["body"]',$response->render($this->request('GET','application/json')));
         // text/plain → Http处理器(原样输出字符串)
         $response=new Response();
-        $response->setControllerReturn('body');
+        $response->body('body');
         $this->assertSame('body',$response->render($this->request('GET','text/plain')));
         // text/html → 数组被编码为JSON字符串
         $response=new Response();
-        $response->setControllerReturn(array('a'=>1));
+        $response->body(array('a'=>1));
         $this->assertSame('{"a":1}',$response->render($this->request('GET','text/html')));
     }
 
@@ -128,7 +128,7 @@ class ResponseTest extends TestCase {
      */
     public function testExplicitContentTypeWins(): void {
         $response=new Response();
-        $response->setControllerReturn('body');
+        $response->body('body');
         $response->json();
         // 客户端要text/plain, 但控制器已显式指定json
         $this->assertSame('["body"]',$response->render($this->request('GET','text/plain')));
@@ -140,9 +140,9 @@ class ResponseTest extends TestCase {
      */
     public function testNegotiatedHeadersMerged(): void {
         $response=new Response();
-        $response->setControllerReturn('body');
+        $response->body('body');
         $response->render($this->request('GET','application/json'));
-        $this->assertSame('application/json; charset=utf-8',$response->getHeader('Content-Type'));
+        $this->assertSame('application/json; charset=utf-8',$response->header('Content-Type'));
     }
 
     /**
@@ -151,11 +151,11 @@ class ResponseTest extends TestCase {
      */
     public function testRenderContentReused(): void {
         $response=new Response();
-        $response->setControllerReturn('body');
+        $response->body('body');
         $this->assertSame('body',$response->render($this->request('GET','text/plain')));
         // 已渲染内容直接复用, 不再协商
         $this->assertSame('body',$response->render($this->request('GET','application/json')));
-        $response->setReturnContent('forced');
+        $response->rendered('forced');
         $this->assertSame('forced',$response->render($this->request('GET','application/json')));
     }
 
@@ -165,7 +165,7 @@ class ResponseTest extends TestCase {
      */
     public function testSendOutputsBody(): void {
         $response=new Response();
-        $response->setControllerReturn('sent-body');
+        $response->body('sent-body');
         ob_start();
         $response->send($this->request('GET','text/plain'));
         $body=ob_get_clean();
@@ -178,13 +178,13 @@ class ResponseTest extends TestCase {
      */
     public function testHeadSendsNoBody(): void {
         $response=new Response();
-        $response->setControllerReturn('sent-body');
+        $response->body('sent-body');
         ob_start();
         $response->send($this->request('HEAD','text/plain'));
         $body=ob_get_clean();
         $this->assertSame('',$body);
         // 头部仍然发送, 内容已渲染
-        $this->assertSame('sent-body',$response->getReturnContent());
+        $this->assertSame('sent-body',$response->rendered());
     }
 
     /**
@@ -193,12 +193,12 @@ class ResponseTest extends TestCase {
      */
     public function testProcessorHandleIsExplicit(): void {
         $response=new Response();
-        $response->setControllerReturn(array('a'=>1));
+        $response->body(array('a'=>1));
         $processor=App::new(Json::class,response:$response,config:array('flag'=>JSON_UNESCAPED_UNICODE));
         // 构造时未执行
-        $this->assertNull($response->getReturnContent());
+        $this->assertNull($response->rendered());
         $processor->handle();
-        $this->assertSame('{"a":1}',$response->getReturnContent());
+        $this->assertSame('{"a":1}',$response->rendered());
     }
 
     /**
@@ -208,12 +208,12 @@ class ResponseTest extends TestCase {
     public function testInstancesAreIsolated(): void {
         $first=new Response();
         $second=new Response();
-        $first->setStatusCode(500);
-        $first->setHeader('X-Only','1');
-        $first->setCookie('only','1');
-        $this->assertSame(200,$second->getStatusCode());
-        $this->assertSame('',$second->getHeader('X-Only'));
-        $this->assertSame('',$second->getCookie('only'));
+        $first->status(500);
+        $first->header('X-Only','1');
+        $first->cookie('only','1');
+        $this->assertSame(200,$second->status());
+        $this->assertSame('',$second->header('X-Only'));
+        $this->assertSame('',$second->cookie('only'));
     }
 
 }

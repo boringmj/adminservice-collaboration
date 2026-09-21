@@ -31,25 +31,20 @@ class Index extends Controller {
     }
 
     public function request(): array {
-        // 获取请求参数(更多用法请查看Request基类以及Request核心类)
-        // 如果不指定来源,则通过配置项`request.default.param.order` 来获取参数顺序
-        $name=$this->request->getParam('name');
-        // 如果控制器继承至`\base\Controller`, 则可以使用快捷方法访问
-        $name=$this->param('name');
-        // 从get参数中获取指定参数
-        $name=$this->request->getGet('name');
-        // 从post参数中获取指定参数
-        $name=$this->request->getPost('name');
-        // 从cookie中获取指定参数
-        $name=$this->request->getCookie('name');
         return json([
-            'name'=>$name,
-            'raw_input'=>$this->request->getRawInput(),
-            'get'=>$this->request->getGets(),
-            'post'=>$this->request->getPosts(),
-            'cookie'=>$this->request->getCookies(),
-            'server'=>$this->request->getServers(),
-            'headers'=>$this->request->getHeaders(),
+            // 合并取值: 路由参数(attributes)优先, 其余按配置项`request.default.param.order` 的顺序检索
+            'param'=>$this->param('name'),
+            // 也可以直接调用请求对象上的同名方法
+            'param_direct'=>$this->request->param('name'),
+            // 各输入区: 不传参数名则取该区全部
+            'get'=>$this->request->query(),
+            'post'=>$this->request->post(),
+            'cookie'=>$this->request->cookie(),
+            'server'=>$this->request->server(),
+            'headers'=>$this->request->header(),
+            // 路由参数所在的属性区(不属于输入)
+            'attributes'=>$this->request->attributes(),
+            'raw_input'=>$this->request->rawInput(),
         ],200);
     }
 
@@ -136,7 +131,7 @@ class Index extends Controller {
         // 警告: 上传文件存在一定安全风险,请谨慎使用
         // ========================================
         // 这里展示文件上传,支持多文件上传和单文件上传
-        $files=$this->request->getUploadFiles('files');
+        $files=$this->request->file('files');
         // 判断是否有文件被上传,如果没有则返回上传页面
         if(count($files)==0) {
             return $this->view('upload');

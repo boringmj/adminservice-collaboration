@@ -210,9 +210,9 @@ final class Error extends BaseError {
         // 输出错误信息
         if(self::$initialized) {
             $response=App::get(Response::class);
-            $response->setStatusCode(500);
+            $response->status(500);
             $response->html();
-            $response->setHeader('Is-Error','true');
+            $response->header('Is-Error','true');
             $response->sendHeaders();
         }
         echo self::renderErrors();
@@ -315,7 +315,7 @@ final class Error extends BaseError {
         if($debug_mode&&self::$initialized) {
             $response=App::get(Response::class);
             $response->render(App::get(Request::class));
-            $output_content=$response->getReturnContent();
+            $output_content=$response->rendered();
             if($output_content!==null&&$output_content!=='') {
                 $template_data['output_content']=$output_content;
             }

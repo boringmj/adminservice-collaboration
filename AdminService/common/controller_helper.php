@@ -31,6 +31,6 @@ function view(null|string|array $template=null,array $data=array()): string {
  */
 function json(mixed $data=null,int $code=200): mixed {
     $response=App::get(Response::class);
-    $response->setStatusCode($code);
+    $response->status($code);
     return $response->json($data);
 }

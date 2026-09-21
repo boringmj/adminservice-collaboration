@@ -9,11 +9,11 @@ use AdminService\ResponseProcessor\Http;
 
 use function array_keys;
 use function explode;
+use function func_num_args;
 use function headers_sent;
 use function http_response_code;
 use function in_array;
 use function is_array;
-use function is_string;
 use function str_starts_with;
 use function strtolower;
 use function substr;
@@ -27,13 +27,13 @@ use function trim;
 final class Response extends BaseResponse {
 
     /**
-     * 请求头信息
+     * 待发送Header
      * @var Data
      */
     protected Data $headers;
 
     /**
-     * Cookie信息
+     * 待下发Cookie
      * @var Data
      */
     protected Data $cookies;
@@ -52,7 +52,7 @@ final class Response extends BaseResponse {
      * 获取一个标准的返回类型
      *
      * @access public
-     * @param string|null $type 类型
+     * @param string|null $type 类型(null 时取当前内容类型)
      * @return string
      */
     public function getStandardContentType(
@@ -67,47 +67,64 @@ final class Response extends BaseResponse {
     }
 
     /**
-     * 获取Header
+     * 获取或设置单个Header
      *
      * @access public
      * @param string $name Header名
+     * @param string|null $value 值(null 时仅读取)
      * @return string
      */
-    public function getHeader(string $name): string {
+    public function header(string $name,?string $value=null): string {
+        if(func_num_args()>1)
+            $this->headers->set($name,(string)$value);
         return (string)$this->headers->get($name,'');
     }
 
     /**
-     * 设置Header(array类型仅支持name=>value)
+     * 批量设置Header
      *
      * @access public
-     * @param string|array $params 参数(string时为header名,array时为header数组)
-     * @param string $value $params 参数为数组时此参数无效)
+     * @param array<string,string> $headers Header数组
      * @return void
      */
-    public function setHeader(
-        string|array $params,
-        string $value=''
-    ): void {
-        if(is_string($params)) {
-            $this->headers->set($params,$value);
-            return;
-        }
-        foreach($params as $key=>$val) {
-            $this->headers->set($key,$val);
+    public function headers(array $headers): void {
+        foreach($headers as $name=>$value) {
+            $this->headers->set($name,(string)$value);
         }
     }
 
     /**
-     * 获取Cookie值
-     *
-     * - 取的是待下发Cookie的值(带属性的写法存为数组, 此处取其中的value)
+     * 获取或设置单个Cookie
      *
      * @access public
      * @param string $name Cookie名
+     * @param string|null $value Cookie值(null 时仅读取)
+     * @param int|null $expire 过期时间
+     * @param string|null $path 路径
+     * @param string|null $domain 域名
+     * @param bool $secure 是否安全传输
+     * @param bool $httponly 是否仅http传输
      * @return string
      */
-    public function getCookie(string $name): string {
+    public function cookie(
+        string $name,
+        ?string $value=null,
+        ?int $expire=null,
+        ?string $path=null,
+        ?string $domain=null,
+        ?bool $secure=null,
+        ?bool $httponly=null
+    ): string {
+        if(func_num_args()>1) {
+            $this->cookies->set($name,array(
+                'value'=>(string)$value,
+                'expire'=>$expire,
+                'path'=>$path,
+                'domain'=>$domain,
+                'secure'=>$secure,
+                'httponly'=>$httponly
+            ));
+        }
         $cookie=$this->cookies->get($name,'');
         if(is_array($cookie))
             return (string)($cookie['value']??'');
@@ -115,55 +132,26 @@ final class Response extends BaseResponse {
     }
 
     /**
-     * 设置Cookie信息(array类型的值支持name=>value或者name=>array(expire...))
+     * 批量设置Cookie
      *
      * @access public
-     * @param string|array $params 参数(string时为cookie名,array时为cookie数组)
-     * @param string|null $value Cookie值($params 参数为数组时此参数无效)
-     * @param int|null $expire 过期时间($params 参数为数组时此参数无效)
-     * @param string|null $path 路径($params 参数为数组时此参数无效)
-     * @param string|null $domain 域名($params 参数为数组时此参数无效)
-     * @param bool $secure 是否安全传输($params 参数为数组时此参数无效)
-     * @param bool $httponly 是否仅http传输($params 参数为数组时此参数无效)
+     * @param array<string,mixed> $cookies Cookie数组
      * @return void
      */
-    public function setCookie(
-        string|array $params,
-        ?string $value=null,
-        ?int $expire=null,
-        ?string $path=null,
-        ?string $domain=null,
-        ?bool $secure=null,
-        ?bool $httponly=null
-        ): void {
-        // 将string参数转换为数组
-        if(is_string($params)) {
-            $params=array(
-                $params=>array(
-                    'value'=>$value,
-                    'expire'=>$expire,
-                    'path'=>$path,
-                    'domain'=>$domain,
-                    'secure'=>$secure,
-                    'httponly'=>$httponly
-                )
-            );
-        }
-        foreach($params as $key=>$val) {
-            if(is_array($val)) {
-                // 判断数组中是否存在name字段
-                if(!isset($val['name'])) $val['name']=$key;
-                $this->cookies->set($val['name'],[
-                    'value'=>$val['value'],
-                    'expire'=>$val['expire']??null,
-                    'path'=>$val['path']??null,
-                    'domain'=>$val['domain']??null,
-                    'secure'=>$val['secure']??null,
-                    'httponly'=>$val['httponly']??null
-                ]);
-            } else {
-                $this->cookies->set($key,$val);
-            }
+    public function cookies(array $cookies): void {
+        foreach($cookies as $name=>$value) {
+            if(is_array($value))
+                $this->cookie(
+                    (string)($value['name']??$name),
+                    $value['value']??'',
+                    $value['expire']??null,
+                    $value['path']??null,
+                    $value['domain']??null,
+                    $value['secure']??null,
+                    $value['httponly']??null
+                );
+            else
+                $this->cookie((string)$name,(string)$value);
         }
     }
 
@@ -179,7 +167,7 @@ final class Response extends BaseResponse {
         $type=$this->getStandardContentType();
         if($type=='*/*') {
             // 获取 Accept 头信息
-            $accept_headers=explode(',',(string)$request->getHeader('accept'));
+            $accept_headers=explode(',',(string)$request->header('accept'));
             // 通过递归寻找匹配的类型
             $type=$this->findAcceptType($accept_headers);
         }
@@ -189,7 +177,7 @@ final class Response extends BaseResponse {
         App::new($class,response:$this,config:$config)->handle();
         // 合并header
         $headers=$config['headers']??[];
-        $this->headers->batchSet($headers);
+        $this->headers($headers);
         return $this->return_content??'';
     }
 
@@ -233,7 +221,7 @@ final class Response extends BaseResponse {
     public function sendHeaders(): void {
         // 判断是否还可以返回请求头
         if(!headers_sent()) {
-            http_response_code($this->getStatusCode());
+            http_response_code($this->status());
             foreach($this->headers as $key=>$val)
                 header($key.': '.$val);
             $cookie=App::get(Cookie::class);
@@ -253,7 +241,7 @@ final class Response extends BaseResponse {
         // 发送请求头
         $this->sendHeaders();
         // HEAD 只发送头部, 不输出响应体(HTTP 规范要求)
-        if($request->getServer('REQUEST_METHOD')==='HEAD')
+        if($request->method()==='HEAD')
             return;
         // 渲染结果
         echo $temp;

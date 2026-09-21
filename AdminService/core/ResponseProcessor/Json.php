@@ -19,7 +19,7 @@ class Json extends AbstractResponseProcessor {
      * @return void
      */
     public function handle(): void {
-        $temp=$this->getResponse()->getControllerReturn();
+        $temp=$this->getResponse()->body();
         // 获取flag
         $flag=$this->config['flag']??0;
         // 将不为数组和对象的值使用数组包裹
@@ -27,7 +27,7 @@ class Json extends AbstractResponseProcessor {
             $temp=[$temp];
         }
         $temp=json_encode($temp,$flag);
-        $this->getResponse()->setReturnContent($temp);
+        $this->getResponse()->rendered($temp);
     }
 
 }

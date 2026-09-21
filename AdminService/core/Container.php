@@ -87,6 +87,10 @@ final class Container implements \base\Container {
         $this->autowire=new Autowire($this->reflections);
         // 装配器: 类名解析 + 按类名装配实例 + 参数解析(生命周期方法注入) + 代理创建(注入容器)
         $this->autowire->setArgumentResolver($this->arguments);
+        // 参数解析器: 配置项取值(接到框架配置; 组件因此不直接依赖配置实现)
+        $this->arguments->setValueResolver(function(string $key,mixed $default=null): mixed {
+            return Config::get($key,$default);
+        });
         $this->autowire->setProxyResolver(function(string $class,array $args=array()): DynamicProxy {
             $proxy=new DynamicProxy($class,...$args);
             $proxy->setContainer($this);
@@ -519,38 +523,8 @@ final class Container implements \base\Container {
         }
         $constructor=$ref->getConstructor();
         if($constructor!==null) {
-            $params=$constructor->getParameters();
-            $args=array();
-            foreach($params as $param) {
-                $type=$param->getType();
-                $type=(string)$type;
-                // 将类型分割为数组
-                $types=explode('|',$type);
-                $types=$this->arguments->getStandardTypes($types);
-                // 容器里已登记的实例优先(与 get()/参数解析器同一条规则):
-                // 否则"按契约登记的实例"(如 base\Container、base\AbstractSession)会被当成接口去找实现类, 新建出第二个对象
-                $bound=$this->getBoundInstance($types);
-                if($bound!==null) {
-                    $args[]=$bound;
-                    continue;
-                }
-                // 获取第一个可实例化的类
-                $real_class=$this->classes->getFirstInstantiableClass($types);
-                if($real_class!==null) {
-                    // 递归实例化依赖
-                    $args[]=$this->makeInternal($real_class,false,$flags);
-                    continue;
-                }
-                else if($param->isDefaultValueAvailable())
-                    $args[]=$param->getDefaultValue();
-                else if($param->allowsNull())
-                    $args[]=null;
-                else
-                    throw new Exception('Parameter "'.$param->getName().'" of "'.$name.'" constructor is not valid.',0,array(
-                        'class'=>$name,
-                        'parameter'=>$param->getName()
-                    ));
-            }
+            // 构造函数形参统一交给参数解析器(已登记实例优先 / 按类型装配 / #[Config] 配置项注入)
+            $args=$this->arguments->merge($constructor->getParameters(),array(),true);
             // 传入构造函数参数实例化一个新的对象
             $object=$ref->newInstanceArgs($args);
         } else
@@ -601,7 +575,7 @@ final class Container implements \base\Container {
             $object=$ref->newInstance();
         else {
             $params=$constructor->getParameters();
-            $args_temp=$this->arguments->merge($params,$args);
+            $args_temp=$this->arguments->merge($params,$args,true);
             $object=$ref->newInstanceArgs($args_temp);
         }
         // 完整装配(以自身名字作为构建标识起点, 阻断自引用注入的无限递归)

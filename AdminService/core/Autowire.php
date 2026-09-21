@@ -288,6 +288,14 @@ final class Autowire implements AutowireInterface {
         array &$flags=[]
     ): void {
         foreach($properties as $property) {
+            // 配置项注入: #[Config('键')] 标在属性上
+            $config=$this->arguments?->configAttribute($property);
+            if($config!==null) {
+                $types=$this->arguments->getStandardTypes($this->reflectionTypeToArray($property->getType(),false));
+                $property->setAccessible(true);
+                $property->setValue($instance,$this->arguments->configValue($config,$types));
+                continue;
+            }
             // 获取属性是否有 AutowireProperty 标签
             $attributes=$property->getAttributes(AutowireProperty::class);
             if(empty($attributes))
@@ -329,6 +337,25 @@ final class Autowire implements AutowireInterface {
         $method=null;
         try{
             foreach($methods as $method) {
+                // 配置项注入: #[Config('键')] 标在 Setter 方法上, 方法唯一的形参收到配置值
+                $config=$this->arguments?->configAttribute($method);
+                if($config!==null) {
+                    $params=$method->getParameters();
+                    if(count($params)!==1)
+                        throw new AutowireException(
+                            'Method "'.$method->getName().'" of class "'.$ref->getName().
+                            '" with #[Config] must have exactly one parameter.',
+                        );
+                    $param=$params[0];
+                    $types=$this->arguments->getStandardTypes($this->reflectionTypeToArray($param->getType(),false));
+                    $method->setAccessible(true);
+                    $method->invoke($instance,$this->arguments->configValue(
+                        $config,
+                        $types,
+                        $param->isDefaultValueAvailable()?$param->getDefaultValue():null
+                    ));
+                    continue;
+                }
                 // 获取属性是否有 AutowireSetter 标签
                 $attributes=$method->getAttributes(AutowireSetter::class);
                 if(empty($attributes))
@@ -409,7 +436,7 @@ final class Autowire implements AutowireInterface {
                     ));
                 } else {
                     // 未指定 name: 全部参数按类型注入(与构造函数注入一致)
-                    $args=$this->arguments->merge($params,array());
+                    $args=$this->arguments->merge($params,array(),true);
                 }
                 // 调用方法
                 $method->setAccessible(true);

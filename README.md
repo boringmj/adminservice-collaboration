@@ -75,6 +75,33 @@ public function run(): void {
 }
 ```
 如果路由并不适用于您的项目,你可以自由创建一个适用的路由类,并在`AdminService/Main.php`中引入您的类,并实例化
+## 配置注入
+用 `#[Config('配置键')]` 把**配置项的值**(而不是配置对象)注入进来, 不必再到处 `Config::get(...)`\
+键为点分路径, 可给默认值;标量按容器既有规则静默转换(如配置里是 `int`、目标类型是 `string`)\
+对象由容器构建时生效(`App::make()` / `App::get()` / `App::fresh()` 等);三种写法:
+```php
+use base\Attribute\Config;
+
+class Demo {
+
+    #[Config('data.path')]                       // ① 属性
+    private string $dataPath='';
+
+    #[Config('not.exist.key',default:'fallback')] // 注解默认值(键缺失时用)
+    private string $fallback='';
+
+    public function __construct(
+        #[Config('data.name_cycle',default:0)] int $cycle=0   // ③ 构造函数形参
+    ) {}
+
+    #[Config('log.path')]                        // ② Setter:方法唯一的形参收到该值
+    public function setLogPath(string $path): void {}
+}
+```
+- 键缺失且注解未给默认值时:形参有默认值就用形参默认值, 否则为 `null`
+- **控制器方法形参不注入配置**(控制器形参只注入路由参数, 见上文路由约定)
+- 配置对象本身仍可注入:按 `base\ConfigInterface` 依赖(`config/app.php` 已登记别名)
+
 ## 未来
 我们将逐步构建出一个完善的轻量级快速响应框架,这可能需要非常久的时间\
 我们由衷的希望大家提出意见,也由衷的欢迎大家加入到我们的开发之中\

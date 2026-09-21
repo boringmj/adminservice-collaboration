@@ -3,9 +3,12 @@
 namespace AdminService;
 
 use ReflectionParameter;
+use ReflectionProperty;
+use ReflectionMethod;
 use ReflectionException;
 use Closure;
 use base\ArgumentResolverInterface;
+use base\Attribute\Config;
 
 use function array_filter;
 use function array_key_exists;
@@ -49,6 +52,12 @@ final class ArgumentResolver implements ArgumentResolverInterface {
      * @var Closure|null
      */
     private ?Closure $instance_resolver=null;
+
+    /**
+     * 配置取值回调(签名: string $key, mixed $default => mixed)
+     * @var Closure|null
+     */
+    private ?Closure $value_resolver=null;
 
     /**
      * 是否允许标量参数静默转换(对齐 PHP 弱类型)
@@ -108,7 +117,7 @@ final class ArgumentResolver implements ArgumentResolverInterface {
      * @throws Exception
      * @throws ReflectionException
      */
-    public function merge(array $params,array $args): array {
+    public function merge(array $params,array $args,bool $allow_config=false): array {
         $params_temp=array();
         $arg_count=0;
         foreach($params as $param) {
@@ -165,6 +174,14 @@ final class ArgumentResolver implements ArgumentResolverInterface {
                 // 顺位参数自增
                 $arg_count++;
                 continue;
+            }
+            // 配置项注入(仅构造 / 生命周期等"框架构建"场景; 控制器方法形参不注入配置)
+            if($allow_config) {
+                $config=$this->configAttribute($param);
+                if($config!==null) {
+                    $params_temp[]=$this->configValue($config,$types,$param->isDefaultValueAvailable()?$param->getDefaultValue():null);
+                    continue;
+                }
             }
             // 获取第一个可实例化的类
             $real_class=$this->resolveInstance($types);
@@ -360,6 +377,54 @@ final class ArgumentResolver implements ArgumentResolverInterface {
         $ref=$this->reflections->getFunction($function);
         $params=$ref->getParameters();
         return $ref->invokeArgs($this->merge($params,$args));
+    }
+
+    /**
+     * 取目标上的 `#[Config]` 注解
+     *
+     * - 支持三种 target: 属性 / Setter 方法 / 形参;无注解时返回 null
+     *
+     * @access public
+     * @param ReflectionProperty|ReflectionParameter|ReflectionMethod $target 属性、形参或方法
+     * @return Config|null
+     */
+    public function configAttribute(ReflectionProperty|ReflectionParameter|ReflectionMethod $target): ?Config {
+        $attributes=$target->getAttributes(Config::class);
+        if($attributes===array())
+            return null;
+        return $attributes[0]->newInstance();
+    }
+
+    /**
+     * 解析 `#[Config]` 的值(取配置 + 按目标类型做标量转换)
+     *
+     * - 配置缺失且注解未给默认值: 有**形参默认值**时用形参默认值(由 `$fallback` 传入), 否则为 null
+     * - `$types` 为 gettype() 风格的类型列表(与 `castParam()` 对齐)
+     *
+     * @access public
+     * @param Config $config 注解实例
+     * @param array<string> $types 目标类型列表(gettype() 风格)
+     * @param mixed $fallback 兜底值(通常是形参默认值)
+     * @return mixed
+     */
+    public function configValue(Config $config,array $types=array(),mixed $fallback=null): mixed {
+        $default=$config->hasDefault()?$config->getDefault():$fallback;
+        // 未回填取值回调时退化为默认值(组件仍可单独使用), 转换规则一致
+        $value=$this->value_resolver===null?$default:($this->value_resolver)($config->getKey(),$default);
+        return $this->castParam($value,$types);
+    }
+
+    /**
+     * 设置配置取值回调
+     *
+     * - 由容器回填(接到框架配置), 参数解析器因此不直接依赖配置实现
+     *
+     * @access public
+     * @param callable $resolver 回调(接收配置键与默认值, 返回配置值)
+     * @return void
+     */
+    public function setValueResolver(callable $resolver): void {
+        $this->value_resolver=$resolver(...);
     }
 
     /**

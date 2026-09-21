@@ -234,12 +234,9 @@ final class Route extends BaseRoute {
      */
     private function callHandler(mixed $handler): mixed {
         if(is_array($handler)&&count($handler)===2) {
-            // 与既有约定一致: 控制器类名与实例均登记到容器
-            if(is_string($handler[0])) {
-                App::bind('Controller',$handler[0]);
+            // 控制器实例属**请求级**对象: 每请求新建;`fresh()` 会按处理器类名登记, 供控制器助手按类名取用
+            if(is_string($handler[0]))
                 $handler[0]=App::fresh($handler[0]);
-            }
-            App::instance('Controller',$handler[0]);
             return App::exec_class_function($handler[0],$handler[1],$this->controllerArgs());
         }
         return App::exec_function($handler,$this->controllerArgs());
@@ -274,17 +271,19 @@ final class Route extends BaseRoute {
     private static function handlerRouteInfo(mixed $handler): array {
         $class=is_array($handler)?($handler[0]??null):null;
         $method=is_array($handler)?($handler[1]??null):null;
-        if(is_string($class)&&preg_match('/^app\\\\([^\\\\]+)\\\\controller\\\\([^\\\\]+)$/',$class,$matches))
-            return array(
-                'app'=>lcfirst($matches[1]),
-                'controller'=>$matches[2],
-                'method'=>$method
-            );
-        return array(
+        // 处理器可能是类名或已实例化对象, 统一记下**类名**: 控制器助手按它从容器取当前控制器实例
+        $class_name=is_object($class)?$class::class:(is_string($class)?$class:null);
+        $info=array(
             'app'=>null,
             'controller'=>null,
-            'method'=>$method
+            'method'=>$method,
+            'controller_class'=>$class_name
         );
+        if($class_name!==null&&preg_match('/^app\\\\([^\\\\]+)\\\\controller\\\\([^\\\\]+)$/',$class_name,$matches)) {
+            $info['app']=lcfirst($matches[1]);
+            $info['controller']=$matches[2];
+        }
+        return $info;
     }
 
     /**

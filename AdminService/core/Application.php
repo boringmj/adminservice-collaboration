@@ -2,7 +2,10 @@
 
 namespace AdminService;
 
+use base\AbstractSession;
 use base\Container as ContainerContract;
+use base\Request;
+use base\Response;
 
 use function array_merge;
 use function class_exists;
@@ -27,6 +30,12 @@ final class Application {
      * @var ContainerContract
      */
     private ContainerContract $container;
+
+    /**
+     * 当前(最近一次)请求级容器
+     * @var ContainerContract|null
+     */
+    private ?ContainerContract $request_container=null;
 
     /**
      * 构造方法
@@ -105,16 +114,69 @@ final class Application {
     /**
      * 处理一次请求(应用级入口)
      *
-     * - 进入请求作用域: 先把门面指针指向本应用的容器(未 init() 时也能工作)
-     * - 请求级 scope 的 fork/reset 将在此接入(每请求一个干净分支, 请求结束丢弃)
+     * - **每请求一个干净的请求级容器**: 从应用级容器 `fork()` 派生, 请求结束随引用释放(绑定与反射缓存仍共享)
+     * - 进入请求作用域时把门面指针指向请求级容器;**不收回指针** —— 响应出口在关停阶段仍要经门面取响应对象,
+     *   而下一个请求进来时会重新指向它自己的容器(常驻模式下同样安全)
+     * - 请求级装配: 每请求新建请求 / 响应 / 会话;若容器(含父容器)已有登记则沿用, 便于测试与自定义入口注入
      *
      * @access public
-     * @param callable $callback 请求处理过程(接收应用级容器)
+     * @param callable $callback 请求处理过程(接收请求级容器)
      * @return mixed
+     * @throws Exception
      */
     public function handle(callable $callback): mixed {
-        App::setInstance($this->container);
-        return $callback($this->container);
+        // 上一个请求的容器回收(常驻模式下及时释放请求级对象; 首个请求时为空)
+        if($this->request_container!==null)
+            $this->request_container->reset();
+        // 请求级 scope: 实例与全局数据独立, 绑定/别名/单例与反射缓存共享
+        $container=$this->container->fork();
+        $this->request_container=$container;
+        App::setInstance($container);
+        try {
+            $this->bootRequest($container);
+            return $callback($container);
+        } finally {
+            // 请求处理结束: 门面指针**收回应用级容器**, 避免"请求外的登记落进已废弃的请求容器"
+            // 响应在关停阶段才发送, 届时由 Application::requestContainer() 取请求级对象(不经门面)
+            App::setInstance($this->container);
+        }
+    }
+
+    /**
+     * 获取当前(最近一次)请求级容器
+     *
+     * - 供框架内部(如关停阶段的响应出口)取请求级对象; 尚未处理过请求时回退到应用级容器
+     *
+     * @access public
+     * @return ContainerContract
+     */
+    public function requestContainer(): ContainerContract {
+        return $this->request_container??$this->container;
+    }
+
+    /**
+     * 请求级装配(请求 / 响应 / 会话)
+     *
+     * - 已登记则沿用(测试或自定义入口可预先 `App::instance()` 注入, 用于控制请求内容)
+     * - 会话: 未开启原生会话时用内存驱动;`session.start` 为真时调用驱动的 `init()`
+     *
+     * @access private
+     * @param ContainerContract $container 请求级容器
+     * @return void
+     * @throws Exception
+     */
+    private function bootRequest(ContainerContract $container): void {
+        if(!$container->has(Request::class))
+            $container->instance(Request::class,$container->build(Request::class));
+        if(!$container->has(Response::class))
+            $container->instance(Response::class,$container->build(Response::class));
+        if(!$container->has(AbstractSession::class)) {
+            /** @var AbstractSession $session */
+            $session=$container->build(Config::get('session.class',ArraySession::class));
+            if(Config::get('session.start',false))
+                $session->init();
+            $container->instance(AbstractSession::class,$session);
+        }
     }
 
 }

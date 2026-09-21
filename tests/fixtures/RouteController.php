@@ -2,7 +2,7 @@
 
 namespace Tests\Fixtures;
 
-use AdminService\Attribute\Route;
+use base\Attribute\Route;
 
 /**
  * 测试用属性路由控制器

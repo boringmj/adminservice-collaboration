@@ -79,13 +79,43 @@ final class Container implements \base\Container {
         $this->classes->setClassResolver(function(string $class): string {
             return $this->getRealClass($class);
         });
-        // 参数解析器: 按类型解析出实例(先找可实例化的类, 再交给容器装配)
+        // 参数解析器: 按类型解析出实例(先看容器里已有的实例, 再找可实例化的类交给容器装配)
         $this->arguments->setInstanceResolver(function(array $types): ?object {
+            $bound=$this->getBoundInstance($types);
+            if($bound!==null)
+                return $bound;
             $real_class=$this->classes->getFirstInstantiableClass($types);
             if($real_class===null)
                 return null;
             return $this->make($real_class);
         });
+        // 容器自身登记: 按契约 `base\Container` 或按实现类名都能取到"当前容器"
+        // (控制器/路由基类按契约依赖它)
+        $this->container[\base\Container::class]=$this;
+        $this->container[static::class]=$this;
+    }
+
+    /**
+     * 按类型列表取"容器里已登记的实例"
+     *
+     * - 类型名与"解析别名/绑定后的真实类名"都查一遍
+     * - 与 `get()` 的规则一致: 已登记的实例优先, 找不到才走类查找与装配
+     *
+     * @access private
+     * @param array<string> $types 类型列表
+     * @return object|null
+     */
+    private function getBoundInstance(array $types): ?object {
+        foreach($types as $type) {
+            if($type===''||$type==='NULL'||$type==='mixed')
+                continue;
+            if(isset($this->container[$type]))
+                return $this->container[$type];
+            $name=$this->getRealClass($type);
+            if(isset($this->container[$name]))
+                return $this->container[$name];
+        }
+        return null;
     }
 
     /**
@@ -337,6 +367,13 @@ final class Container implements \base\Container {
                 // 将类型分割为数组
                 $types=explode('|',$type);
                 $types=$this->arguments->getStandardTypes($types);
+                // 容器里已登记的实例优先(与 get()/参数解析器同一条规则):
+                // 否则"按契约登记的实例"(如 base\Container、base\AbstractSession)会被当成接口去找实现类, 新建出第二个对象
+                $bound=$this->getBoundInstance($types);
+                if($bound!==null) {
+                    $args[]=$bound;
+                    continue;
+                }
                 // 获取第一个可实例化的类
                 $real_class=$this->classes->getFirstInstantiableClass($types);
                 if($real_class!==null) {

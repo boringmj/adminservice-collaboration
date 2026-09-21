@@ -1,9 +1,8 @@
 <?php
 
-namespace AdminService\Autowire;
+namespace base\Attribute;
 
 use Attribute;
-use base\Attribute\Autowire;
 
 /**
  * 自动注入方法(生命周期钩子)

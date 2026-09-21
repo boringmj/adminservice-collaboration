@@ -7,6 +7,7 @@ use AdminService\Error;
 use AdminService\Route;
 use AdminService\Cookie;
 use AdminService\Response;
+use AdminService\ConfigProvider;
 use AdminService\HttpRequest;
 
 // app 相关配置
@@ -25,5 +26,6 @@ return array(
         \base\Cookie::class=>Cookie::class,
         \base\Response::class=>Response::class,
         \base\Request::class=>HttpRequest::class,
+        \base\ConfigInterface::class=>ConfigProvider::class,
     )
 );

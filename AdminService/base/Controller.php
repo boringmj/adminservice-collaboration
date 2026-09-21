@@ -2,9 +2,6 @@
 
 namespace base;
 
-use AdminService\App;
-use AdminService\Config;
-use AdminService\Exception;
 use ReflectionException;
 
 use function is_array;
@@ -38,23 +35,52 @@ abstract class Controller {
     protected View $view;
 
     /**
+     * 容器契约(按契约依赖, 不引用实现层)
+     * @var Container|null
+     */
+    protected ?Container $container;
+
+    /**
+     * 配置契约(视图路径推断用)
+     * @var ConfigInterface|null
+     */
+    protected ?ConfigInterface $config;
+
+    /**
      * 构造方法
+     *
+     * - 正常路径由**容器构建**: 请求/响应/视图/容器/配置都是容器注入
+     * - 手动 `new` 时须同时传入请求/响应/视图(或传入容器), 否则抛出明确异常
      *
      * @access public
      * @param Request|null $request 请求对象
      * @param Response|null $response 响应对象
      * @param View|null $view 视图对象
+     * @param Container|null $container 容器契约
+     * @param ConfigInterface|null $config 配置契约
      * @throws Exception
      * @throws ReflectionException
      */
     final public function __construct(
         ?Request $request=null,
         ?Response $response=null,
-        ?View $view=null
+        ?View $view=null,
+        ?Container $container=null,
+        ?ConfigInterface $config=null
     ) {
-        $this->request=$request??App::get(Request::class);
-        $this->response=$response??App::get(Response::class);
-        $this->view=$view??App::get(View::class);
+        if($container===null) {
+            if($request===null||$response===null||$view===null)
+                throw new Exception('控制器须由容器构建(或同时传入请求/响应/视图): 请使用 App::make(控制器类)');
+        } else {
+            $request??=$container->get(Request::class);
+            $response??=$container->get(Response::class);
+            $view??=$container->get(View::class);
+        }
+        $this->request=$request;
+        $this->response=$response;
+        $this->view=$view;
+        $this->container=$container;
+        $this->config=$config;
     }
 
     /**
@@ -182,9 +208,14 @@ abstract class Controller {
             $data=$template;
             $template=null;
         }
+        if($this->config===null)
+            throw new Exception('无法推断视图路径: 未注入配置契约(请让容器构建控制器)');
+        // 路由上下文(应用名 / 控制器名 / 方法名)取自容器内的分发信息
+        $route_info=$this->container===null?array():$this->container->getData('route_info',array());
+        $route_info=is_array($route_info)?$route_info:array();
         if($template===null)
-            $template=App::getMethodName();
-        $template=Config::get('app.path').'/'.App::getAppName().'/view'.'/'.App::getControllerName().'/'.$template.'.html';
+            $template=$route_info['method']??null;
+        $template=$this->config->get('app.path').'/'.($route_info['app']??'').'/view'.'/'.($route_info['controller']??'').'/'.$template.'.html';
         $this->view->init($template,$data);
         return $this->html($this->view->render(),$this->response->status());
     }

@@ -3,9 +3,11 @@
 namespace AdminService;
 
 use base\AbstractSession;
+use base\Database\Db as BaseDb;
 use base\Request;
 use base\Response;
 use base\Route;
+use AdminService\Database\DatabaseConfig;
 use ReflectionException;
 
 use function is_array;
@@ -45,6 +47,8 @@ final class Main {
         $this->loadFunction();
         // App初始化(建应用级容器并按配置装配, 同时安装到门面)
         $this->application=(new Application())->init();
+        // 安装数据库配置提供者: 数据库层(契约层)不读全局配置, 由应用层把配置能力交给它
+        BaseDb::setConfig(new DatabaseConfig());
         // 初始化请求与响应: 每请求新建实例(而非复位单例), 常驻模式下同样安全
         App::set(Request::class,App::new(Request::class));
         App::set(Response::class,App::new(Response::class));

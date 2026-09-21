@@ -2,7 +2,7 @@
 
 namespace Tests\Fixtures;
 
-use AdminService\Autowire\AutowireMethod;
+use base\Attribute\AutowireMethod;
 
 /**
  * 模拟用户资料类(含生命周期方法注入)

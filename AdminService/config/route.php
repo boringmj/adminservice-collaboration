@@ -11,7 +11,8 @@ return array(
     ),
     // 显式路由
     'explicit'=>array(
-        'file'=>__DIR__.'/../routes/web.php', // 集中式路由定义文件
+        // 路由文件或目录: 目录则加载其中全部 .php(按文件名排序), 可按应用拆分到多个文件
+        'files'=>array(__DIR__.'/../routes'),
         'attributes'=>array() // 需要扫描 #[Route] 属性的控制器类名, 留空则不扫描
     ),
     // 未命中显式路由时, 是否回落到 /app/controller/method 约定式解析

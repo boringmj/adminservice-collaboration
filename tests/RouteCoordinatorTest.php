@@ -21,9 +21,15 @@ class RouteCoordinatorTest extends TestCase {
 
     /**
      * 临时路由文件路径
+     * @var array<string>
+     */
+    private array $routesFiles=array();
+
+    /**
+     * 临时路由目录
      * @var string|null
      */
-    private ?string $routesFile=null;
+    private ?string $routesDir=null;
 
     /**
      * 类初始化前执行
@@ -47,24 +53,63 @@ class RouteCoordinatorTest extends TestCase {
      * @return void
      */
     protected function tearDown(): void {
-        if($this->routesFile!==null&&is_file($this->routesFile))
-            unlink($this->routesFile);
-        $this->routesFile=null;
+        foreach($this->routesFiles as $file)
+            if(is_file($file))
+                unlink($file);
+        $this->routesFiles=array();
+        if($this->routesDir!==null) {
+            foreach((array)glob($this->routesDir.'/*.php') as $file)
+                unlink($file);
+            if(is_dir($this->routesDir))
+                rmdir($this->routesDir);
+            $this->routesDir=null;
+        }
         Config::load();
     }
 
     /**
-     * 写入临时路由文件并指向配置
+     * 写入单个临时路由文件并指向配置
      *
      * @access private
      * @param string $body 路由文件内容(不含 `<?php`)
      * @return void
      */
     private function useRoutes(string $body): void {
-        $this->routesFile=tempnam(sys_get_temp_dir(),'routes_');
-        file_put_contents($this->routesFile,"<?php\n".$body."\n");
+        $this->useRouteFiles(array($body));
+    }
+
+    /**
+     * 写入多个临时路由文件并指向配置
+     *
+     * @access private
+     * @param array<string> $bodies 各路由文件内容(不含 `<?php`)
+     * @return void
+     */
+    private function useRouteFiles(array $bodies): void {
+        foreach($bodies as $index=>$body) {
+            $file=tempnam(sys_get_temp_dir(),'routes_'.$index.'_');
+            file_put_contents($file,"<?php\n".$body."\n");
+            $this->routesFiles[]=$file;
+        }
         $configs=Config::all();
-        $configs['route']['explicit']['file']=$this->routesFile;
+        $configs['route']['explicit']['files']=$this->routesFiles;
+        Config::set($configs);
+    }
+
+    /**
+     * 写入临时路由目录并指向配置
+     *
+     * @access private
+     * @param array<string,string> $bodies 文件名(不含扩展名) => 文件内容(不含 `<?php`)
+     * @return void
+     */
+    private function useRouteDir(array $bodies): void {
+        $this->routesDir=sys_get_temp_dir().'/routes_dir_'.uniqid();
+        mkdir($this->routesDir);
+        foreach($bodies as $name=>$body)
+            file_put_contents($this->routesDir.'/'.$name.'.php',"<?php\n".$body."\n");
+        $configs=Config::all();
+        $configs['route']['explicit']['files']=array($this->routesDir);
         Config::set($configs);
     }
 
@@ -191,6 +236,32 @@ PHP
             'global','group','route','controller',
             'controller:after','route:after','group:after','global:after'
         ),MiddlewareLog::$calls);
+    }
+
+    /**
+     * 测试多文件路由(可按应用拆分)
+     * @return void
+     */
+    public function testMultipleRouteFiles(): void {
+        $this->useRouteFiles(array(
+            "\$router->any('/t/a',array(\\app\\demo\\controller\\Index::class,'index'));",
+            "\$router->any('/t/b',array(\\app\\demo\\controller\\Index::class,'index'));"
+        ));
+        $this->assertSame('Hello World!',$this->dispatch('/t/a'));
+        $this->assertSame('Hello World!',$this->dispatch('/t/b'));
+    }
+
+    /**
+     * 测试目录形式的路由加载(目录内全部 .php)
+     * @return void
+     */
+    public function testRouteDirectory(): void {
+        $this->useRouteDir(array(
+            'demo'=>"\$router->any('/t/one',array(\\app\\demo\\controller\\Index::class,'index'));",
+            'index'=>"\$router->any('/t/two',array(\\app\\demo\\controller\\Index::class,'index'));"
+        ));
+        $this->assertSame('Hello World!',$this->dispatch('/t/one'));
+        $this->assertSame('Hello World!',$this->dispatch('/t/two'));
     }
 
     /**

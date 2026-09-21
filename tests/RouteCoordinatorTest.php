@@ -253,8 +253,8 @@ PHP
      * @return void
      */
     public function testShippedRouteTable(): void {
-        $this->assertSame('Hello World!',$this->dispatch('/demo/Index/index'));
-        $this->assertSame('Hello world!',$this->dispatch('/index/Index/index/world'));
+        $this->assertSame('Hello World!',$this->dispatch('/demo/index/index'));
+        $this->assertSame('Hello world!',$this->dispatch('/index/index/index/world'));
         $this->assertSame('Hello World!',$this->dispatch('/index'));
     }
 
@@ -294,7 +294,7 @@ PHP
     public function testConventionFallback(): void {
         $this->useRoutes('// 未注册任何路由');
         $this->setFallback(true);
-        $this->assertSame('Hello World!',$this->dispatch('/demo/Index/index'));
+        $this->assertSame('Hello World!',$this->dispatch('/demo/index/index'));
     }
 
     /**
@@ -307,7 +307,7 @@ PHP
     public function testNotFoundReturns404(): void {
         $this->useRoutes('// 未注册任何路由');
         $this->setFallback(false);
-        $this->dispatch('/demo/Index/index');
+        $this->dispatch('/demo/index/index');
         $this->assertSame(404,Response::getStatusCode());
         $this->assertSame('404 Not Found',Response::getControllerReturn());
     }
@@ -319,7 +319,7 @@ PHP
     public function testConventionPathParameters(): void {
         $this->useRoutes('// 未注册任何路由');
         $this->setFallback(true);
-        $data=$this->dispatch('/demo/Index/request/name/hello');
+        $data=$this->dispatch('/demo/index/request/name/hello');
         $this->assertSame('hello',$data['get']['name']);
     }
 

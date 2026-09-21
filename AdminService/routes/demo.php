@@ -12,31 +12,31 @@
 $router->any('/demo',array(\app\demo\controller\Index::class,'index'));
 
 // Autowire
-$router->any('/demo/Autowire',array(\app\demo\controller\Autowire::class,'index'));
-$router->any('/demo/Autowire/index',array(\app\demo\controller\Autowire::class,'index'));
+$router->any('/demo/autowire',array(\app\demo\controller\Autowire::class,'index'));
+$router->any('/demo/autowire/index',array(\app\demo\controller\Autowire::class,'index'));
 
 // DatabaseDemo
-$router->any('/demo/DatabaseDemo',array(\app\demo\controller\DatabaseDemo::class,'index'));
-$router->any('/demo/DatabaseDemo/index',array(\app\demo\controller\DatabaseDemo::class,'index'));
-$router->any('/demo/DatabaseDemo/demo',array(\app\demo\controller\DatabaseDemo::class,'demo'));
-$router->any('/demo/DatabaseDemo/facade',array(\app\demo\controller\DatabaseDemo::class,'facade'));
+$router->any('/demo/databaseDemo',array(\app\demo\controller\DatabaseDemo::class,'index'));
+$router->any('/demo/databaseDemo/index',array(\app\demo\controller\DatabaseDemo::class,'index'));
+$router->any('/demo/databaseDemo/demo',array(\app\demo\controller\DatabaseDemo::class,'demo'));
+$router->any('/demo/databaseDemo/facade',array(\app\demo\controller\DatabaseDemo::class,'facade'));
 
 // Index
-$router->any('/demo/Index',array(\app\demo\controller\Index::class,'index'));
-$router->any('/demo/Index/index',array(\app\demo\controller\Index::class,'index'));
-$router->any('/demo/Index/request',array(\app\demo\controller\Index::class,'request'));
-$router->any('/demo/Index/view_demo',array(\app\demo\controller\Index::class,'view_demo'));
-$router->any('/demo/Index/validator',array(\app\demo\controller\Index::class,'validator'));
-$router->any('/demo/Index/log',array(\app\demo\controller\Index::class,'log'));
-$router->any('/demo/Index/exec',array(\app\demo\controller\Index::class,'exec'));
-$router->any('/demo/Index/upload',array(\app\demo\controller\Index::class,'upload'));
-$router->any('/demo/Index/curl',array(\app\demo\controller\Index::class,'curl'));
+$router->any('/demo/index',array(\app\demo\controller\Index::class,'index'));
+$router->any('/demo/index/index',array(\app\demo\controller\Index::class,'index'));
+$router->any('/demo/index/request',array(\app\demo\controller\Index::class,'request'));
+$router->any('/demo/index/view_demo',array(\app\demo\controller\Index::class,'view_demo'));
+$router->any('/demo/index/validator',array(\app\demo\controller\Index::class,'validator'));
+$router->any('/demo/index/log',array(\app\demo\controller\Index::class,'log'));
+$router->any('/demo/index/exec',array(\app\demo\controller\Index::class,'exec'));
+$router->any('/demo/index/upload',array(\app\demo\controller\Index::class,'upload'));
+$router->any('/demo/index/curl',array(\app\demo\controller\Index::class,'curl'));
 
 // OrmDemo
-$router->any('/demo/OrmDemo',array(\app\demo\controller\OrmDemo::class,'index'));
-$router->any('/demo/OrmDemo/index',array(\app\demo\controller\OrmDemo::class,'index'));
-$router->any('/demo/OrmDemo/schema',array(\app\demo\controller\OrmDemo::class,'schema'));
-$router->any('/demo/OrmDemo/relation',array(\app\demo\controller\OrmDemo::class,'relation'));
-$router->any('/demo/OrmDemo/prefixCheck',array(\app\demo\controller\OrmDemo::class,'prefixCheck'));
-$router->any('/demo/OrmDemo/transaction',array(\app\demo\controller\OrmDemo::class,'transaction'));
-$router->any('/demo/OrmDemo/addUpdatedAt',array(\app\demo\controller\OrmDemo::class,'addUpdatedAt'));
+$router->any('/demo/ormDemo',array(\app\demo\controller\OrmDemo::class,'index'));
+$router->any('/demo/ormDemo/index',array(\app\demo\controller\OrmDemo::class,'index'));
+$router->any('/demo/ormDemo/schema',array(\app\demo\controller\OrmDemo::class,'schema'));
+$router->any('/demo/ormDemo/relation',array(\app\demo\controller\OrmDemo::class,'relation'));
+$router->any('/demo/ormDemo/prefixCheck',array(\app\demo\controller\OrmDemo::class,'prefixCheck'));
+$router->any('/demo/ormDemo/transaction',array(\app\demo\controller\OrmDemo::class,'transaction'));
+$router->any('/demo/ormDemo/addUpdatedAt',array(\app\demo\controller\OrmDemo::class,'addUpdatedAt'));

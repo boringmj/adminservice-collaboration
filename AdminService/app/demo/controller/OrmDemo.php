@@ -12,7 +12,7 @@ use base\Controller;
  * ORM 使用示例控制器
  *
  * - 基于 base/Model + ModelQueryBuilder 的现代风格 ORM 演示
- * - 访问: /demo/OrmDemo(schema 探查) 与 /demo/OrmDemo/index(完整示例)
+ * - 访问: /demo/ormDemo(schema 探查) 与 /demo/ormDemo/index(完整示例)
  */
 class OrmDemo extends Controller {
 

@@ -10,6 +10,6 @@
 
 $router->any('/',array(\app\index\controller\Index::class,'index'));
 $router->any('/index',array(\app\index\controller\Index::class,'index'));
-$router->any('/index/Index',array(\app\index\controller\Index::class,'index'));
-$router->any('/index/Index/index',array(\app\index\controller\Index::class,'index'));
-$router->any('/index/Index/index/{name}',array(\app\index\controller\Index::class,'index'));
+$router->any('/index/index',array(\app\index\controller\Index::class,'index'));
+$router->any('/index/index/index',array(\app\index\controller\Index::class,'index'));
+$router->any('/index/index/index/{name}',array(\app\index\controller\Index::class,'index'));

@@ -42,4 +42,15 @@ class RouteController {
         return 'ignored';
     }
 
+    /**
+     * 接收通配参数(通配糖 `*` 的参数名固定为 any)
+     *
+     * @access public
+     * @param string $any 通配捕获值
+     * @return string
+     */
+    public function wildcard(string $any=''): string {
+        return 'any='.$any;
+    }
+
 }

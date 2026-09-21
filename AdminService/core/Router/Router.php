@@ -297,6 +297,7 @@ final class Router {
      * 从控制器方法的路由属性注册路由
      *
      * - 仅扫描传入的类, 类的收集由调用方决定
+     * - 类上的 `#[RouteGroup]` 提供统一前缀与中间件, 方法上的 `#[Route]` 声明子路径与命名
      *
      * @access public
      * @param array<class-string> $classes 控制器类名列表
@@ -308,10 +309,21 @@ final class Router {
             if(!is_string($class)||!class_exists($class))
                 continue;
             $reflection=new ReflectionClass($class);
+            // 类级声明: 路径前缀与分组中间件
+            $prefix='';
+            $middlewares=array();
+            foreach($reflection->getAttributes(RouteGroup::class) as $attribute) {
+                $group=$attribute->newInstance();
+                $prefix.=$group->getPrefix();
+                $middlewares=array_merge($middlewares,$group->getMiddlewares());
+            }
             foreach($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
                 foreach($method->getAttributes(Route::class) as $attribute) {
                     $route=$attribute->newInstance();
-                    $this->add(array($route->getMethod()),$route->getPath(),array($class,$method->getName()));
+                    $item=$this->add(array($route->getMethod()),$prefix.$route->getPath(),array($class,$method->getName()));
+                    $item->middleware(array_merge($middlewares,$route->getMiddlewares()));
+                    if($route->getName()!==null)
+                        $item->name($route->getName());
                 }
             }
         }

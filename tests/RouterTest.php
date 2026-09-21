@@ -452,11 +452,32 @@ class RouterTest extends TestCase {
      */
     public function testLoadRouteFile(): void {
         $file=tempnam(sys_get_temp_dir(),'route_');
-        file_put_contents($file,"<?php\n\$router->get('/from-file',array('C','file'));\n");
+        file_put_contents(
+            $file,
+            "<?php\nreturn function(\\AdminService\\Router\\Router \$router): void {\n"
+            ."    \$router->get('/from-file',array('C','file'));\n"
+            ."};\n"
+        );
         $router=new Router();
         $router->load($file);
         unlink($file);
         $this->assertNotNull($router->find('GET','/from-file'));
+    }
+
+    /**
+     * 测试路由文件未返回可调用结构时抛异常
+     * @return void
+     */
+    public function testLoadRouteFileWithoutCallableThrows(): void {
+        $file=tempnam(sys_get_temp_dir(),'route_');
+        file_put_contents($file,"<?php\n// 未返回闭包\n");
+        $router=new Router();
+        $this->expectException(Exception::class);
+        try {
+            $router->load($file);
+        } finally {
+            unlink($file);
+        }
     }
 
     /**

@@ -89,7 +89,7 @@ class RouteCoordinatorTest extends TestCase {
     private function useRouteFiles(array $bodies): void {
         foreach($bodies as $index=>$body) {
             $file=tempnam(sys_get_temp_dir(),'routes_'.$index.'_');
-            file_put_contents($file,"<?php\n".$body."\n");
+            file_put_contents($file,self::routeFileSource($body));
             $this->routesFiles[]=$file;
         }
         $configs=Config::all();
@@ -108,10 +108,21 @@ class RouteCoordinatorTest extends TestCase {
         $this->routesDir=sys_get_temp_dir().'/routes_dir_'.uniqid();
         mkdir($this->routesDir);
         foreach($bodies as $name=>$body)
-            file_put_contents($this->routesDir.'/'.$name.'.php',"<?php\n".$body."\n");
+            file_put_contents($this->routesDir.'/'.$name.'.php',self::routeFileSource($body));
         $configs=Config::all();
         $configs['route']['explicit']['files']=array($this->routesDir);
         Config::set($configs);
+    }
+
+    /**
+     * 生成路由文件源码(按约定返回接收路由表的闭包)
+     *
+     * @access private
+     * @param string $body 路由注册语句
+     * @return string
+     */
+    private static function routeFileSource(string $body): string {
+        return "<?php\nreturn function(\\AdminService\\Router\\Router \$router): void {\n".$body."\n};\n";
     }
 
     /**
@@ -270,8 +281,8 @@ PHP
     public function testUrlGenerationAtRuntime(): void {
         $this->dispatch('/index');
         $router=App::get(Router::class);
-        $this->assertSame('/index',$router->url('index.home'));
-        $this->assertSame('/index/world',$router->url('index.home',array('name'=>'world')));
+        $this->assertSame('/index',$router->url('index.index'));
+        $this->assertSame('/index/world',$router->url('index.index',array('name'=>'world')));
     }
 
     /**

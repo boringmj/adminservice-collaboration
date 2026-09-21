@@ -4,12 +4,10 @@ namespace app\index\controller;
 
 use Exception;
 use base\Controller;
-use AdminService\App;
 use AdminService\Log;
 use AdminService\Autowire\AutowireProperty;
 use AdminService\Router\Route;
 use AdminService\Router\RouteGroup;
-use AdminService\Router\Router;
 
 #[RouteGroup('/index')]
 class Index extends Controller {
@@ -32,27 +30,11 @@ class Index extends Controller {
      *  - 类上的`#[RouteGroup]`为该控制器下所有路由提供统一前缀与中间件
      * @throws Exception
      */
-    #[Route('GET','/{name?}',name:'index.home')]
+    #[Route('GET','/{name?}',name:'index.index')]
     public function index(string $name="World"): string {
         // 值得一说,如果你在路由中传入了name参数,那么这里的$name将会被覆盖
         $this->log->write($this->log::class.": Hello $name!");
         return "Hello $name!";
-    }
-
-    /**
-     * 路由名反向生成 URL 示例
-     *
-     * - 路由名在 `#[Route]` 的 name 参数(或路由文件的 `->name()`)中声明
-     * - 运行时经容器取路由表生成, 避免在代码中硬编码 URL
-     *
-     * @access public
-     * @param string $name 名称
-     * @return string
-     */
-    #[Route('GET','/urlDemo/{name?}',name:'index.urlDemo')]
-    public function urlDemo(string $name="World"): string {
-        $router=App::get(Router::class);
-        return $router->url('index.home',array('name'=>$name));
     }
 
 }

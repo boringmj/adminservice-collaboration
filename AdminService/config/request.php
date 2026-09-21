@@ -3,6 +3,7 @@
 namespace AdminService\config;
 
 use base\Request;
+use AdminService\FormInput;
 use AdminService\JsonInput;
 
 // request 相关配置
@@ -22,7 +23,8 @@ return array(
             )
         ),
         'input'=>array( // Input解析器(键名为Content-Type的值,统一小写)
-            'application/json'=>JsonInput::class // JSON格式解析器
+            'application/json'=>JsonInput::class, // JSON格式解析器
+            'application/x-www-form-urlencoded'=>FormInput::class // 表单请求体(PHP不为PUT/PATCH等填充$_POST)
         ),
         'param'=>array(
             'input'=>Request::POST_PARAM, // 将input参数合并到何处,`0`为不合并,默认为`0`

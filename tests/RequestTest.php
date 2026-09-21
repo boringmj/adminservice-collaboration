@@ -215,16 +215,85 @@ class RequestTest extends TestCase {
     }
 
     /**
-     * 测试非JSON请求体不进入Input
+     * 测试表单请求体按Content-Type解析
+     *
+     * - PHP 不会为 PUT/PATCH/DELETE 填充 `$_POST`, 故这类请求体由框架解析
+     *
      * @return void
      */
-    public function testNonJsonBodyNotParsed(): void {
+    public function testFormBodyParsed(): void {
+        $request=$this->formRequest('PUT','name=fromput&n=1');
+        $this->assertSame(array('name'=>'fromput','n'=>'1'),$request->input());
+        $this->assertSame('fromput',$request->input('name'));
+        // 按配置合并进POST(默认)
+        $this->assertSame('fromput',$request->post('name'));
+        $this->assertSame('fromput',$request->param('name'));
+        $this->assertSame('1',$request->param('n'));
+        $this->assertSame('name=fromput&n=1',$request->rawInput());
+    }
+
+    /**
+     * 测试未登记的请求体类型不解析
+     * @return void
+     */
+    public function testUnknownBodyTypeNotParsed(): void {
         $request=new HttpRequest(array(
-            'headers'=>array('Content-Type'=>'application/x-www-form-urlencoded'),
-            'rawInput'=>'name=form'
+            'headers'=>array('Content-Type'=>'application/xml'),
+            'rawInput'=>'<a>1</a>'
         ));
         $this->assertSame(array(),$request->input());
-        $this->assertSame('name=form',$request->rawInput());
+        $this->assertSame('<a>1</a>',$request->rawInput());
+    }
+
+    /**
+     * 测试Accept判定
+     *
+     * - `accepts` 按 `Accept` 头(含通配)判断; `wantsJson` 只认明确要求JSON
+     * - `expectsJson` 额外认可 Ajax 标记
+     *
+     * @return void
+     */
+    public function testAcceptJudgement(): void {
+        $json=new HttpRequest(array('headers'=>array('Accept'=>'application/json')));
+        $this->assertTrue($json->accepts('application/json'));
+        $this->assertFalse($json->accepts('text/html'));
+        $this->assertTrue($json->wantsJson());
+        $this->assertTrue($json->expectsJson());
+        // 结构化后缀
+        $hal=new HttpRequest(array('headers'=>array('Accept'=>'application/hal+json')));
+        $this->assertTrue($hal->wantsJson());
+        // 全通配: 接受任意类型, 但不视为明确要求JSON
+        $any=new HttpRequest(array('headers'=>array('Accept'=>'*/*')));
+        $this->assertTrue($any->accepts('text/html'));
+        $this->assertFalse($any->wantsJson());
+        $this->assertFalse($any->expectsJson());
+        // 无Accept头视为接受任意类型
+        $none=new HttpRequest(array('headers'=>array()));
+        $this->assertTrue($none->accepts('text/html'));
+        $this->assertFalse($none->wantsJson());
+        // Ajax标记
+        $ajax=new HttpRequest(array('headers'=>array('X-Requested-With'=>'XMLHttpRequest')));
+        $this->assertTrue($ajax->expectsJson());
+        // q=0 明确拒绝
+        $reject=new HttpRequest(array('headers'=>array('Accept'=>'*/*, application/json;q=0')));
+        $this->assertFalse($reject->accepts('application/json'));
+        $this->assertFalse($reject->wantsJson());
+    }
+
+    /**
+     * 构造一个表单请求
+     *
+     * @access private
+     * @param string $method 请求方法
+     * @param string $body 请求体
+     * @return HttpRequest
+     */
+    private function formRequest(string $method,string $body): HttpRequest {
+        return new HttpRequest(array(
+            'server'=>array('REQUEST_METHOD'=>$method),
+            'headers'=>array('Content-Type'=>'application/x-www-form-urlencoded'),
+            'rawInput'=>$body
+        ));
     }
 
     /**

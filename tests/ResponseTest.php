@@ -105,21 +105,31 @@ class ResponseTest extends TestCase {
 
     /**
      * 测试按Accept协商渲染
+     *
+     * - `prepare()` 负责协商(与请求相关), `render()` 只按已就位的内容类型渲染
+     *
      * @return void
      */
     public function testRenderByAccept(): void {
         // application/json → Json处理器(标量被数组包裹)
         $response=new Response();
         $response->body('body');
-        $this->assertSame('["body"]',$response->render($this->request('GET','application/json')));
+        $response->prepare($this->request('GET','application/json'));
+        $this->assertSame('["body"]',$response->render());
         // text/plain → Http处理器(原样输出字符串)
         $response=new Response();
         $response->body('body');
-        $this->assertSame('body',$response->render($this->request('GET','text/plain')));
+        $response->prepare($this->request('GET','text/plain'));
+        $this->assertSame('body',$response->render());
         // text/html → 数组被编码为JSON字符串
         $response=new Response();
         $response->body(array('a'=>1));
-        $this->assertSame('{"a":1}',$response->render($this->request('GET','text/html')));
+        $response->prepare($this->request('GET','text/html'));
+        $this->assertSame('{"a":1}',$response->render());
+        // 未 prepare 时按当前内容类型渲染
+        $response=new Response();
+        $response->body('body');
+        $this->assertSame('body',$response->render());
     }
 
     /**
@@ -131,7 +141,10 @@ class ResponseTest extends TestCase {
         $response->body('body');
         $response->json();
         // 客户端要text/plain, 但控制器已显式指定json
-        $this->assertSame('["body"]',$response->render($this->request('GET','text/plain')));
+        $response->prepare($this->request('GET','text/plain'));
+        $this->assertSame('["body"]',$response->render());
+        // 未协商: 不追加 Vary
+        $this->assertSame('',$response->header('Vary'));
     }
 
     /**
@@ -141,8 +154,33 @@ class ResponseTest extends TestCase {
     public function testNegotiatedHeadersMerged(): void {
         $response=new Response();
         $response->body('body');
-        $response->render($this->request('GET','application/json'));
+        $response->prepare($this->request('GET','application/json'));
+        $response->render();
         $this->assertSame('application/json; charset=utf-8',$response->header('Content-Type'));
+        // 内容类型由请求头决定: 追加 Vary 告知缓存
+        $this->assertSame('Accept',$response->header('Vary'));
+    }
+
+    /**
+     * 测试协商的通配与q值语义
+     * @return void
+     */
+    public function testNegotiationWildcards(): void {
+        // 子类通配
+        $response=new Response();
+        $response->prepare($this->request('GET','text/*'));
+        $response->render();
+        $this->assertSame('text/html; charset=utf-8',$response->header('Content-Type'));
+        // q 值高者优先
+        $response=new Response();
+        $response->prepare($this->request('GET','application/json;q=0.4, text/plain;q=0.9'));
+        $response->render();
+        $this->assertSame('text/plain; charset=utf-8',$response->header('Content-Type'));
+        // q=0 明确拒绝
+        $response=new Response();
+        $response->prepare($this->request('GET','application/json;q=0, text/*'));
+        $response->render();
+        $this->assertSame('text/html; charset=utf-8',$response->header('Content-Type'));
     }
 
     /**
@@ -152,11 +190,52 @@ class ResponseTest extends TestCase {
     public function testRenderContentReused(): void {
         $response=new Response();
         $response->body('body');
-        $this->assertSame('body',$response->render($this->request('GET','text/plain')));
-        // 已渲染内容直接复用, 不再协商
-        $this->assertSame('body',$response->render($this->request('GET','application/json')));
+        $response->prepare($this->request('GET','text/plain'));
+        $this->assertSame('body',$response->render());
+        // 已渲染内容直接复用, 不再走处理器
+        $this->assertSame('body',$response->render());
         $response->rendered('forced');
-        $this->assertSame('forced',$response->render($this->request('GET','application/json')));
+        $this->assertSame('forced',$response->render());
+    }
+
+    /**
+     * 测试改写控制器返回值或内容类型后渲染缓存失效
+     * @return void
+     */
+    public function testRenderCacheInvalidatedOnWrite(): void {
+        $response=new Response();
+        $response->body('first');
+        $this->assertSame('first',$response->render());
+        // 改写控制器返回值
+        $response->body('second');
+        $this->assertSame('second',$response->render());
+        // 改写内容类型(经 json() 快捷方法)
+        $response->body('third');
+        $response->json();
+        $this->assertSame('["third"]',$response->render());
+        // 直接写 rendered 不算失效, 按写入内容复用
+        $response->rendered('manual');
+        $this->assertSame('manual',$response->render());
+    }
+
+    /**
+     * 测试同名多值Header
+     * @return void
+     */
+    public function testMultiValueHeaders(): void {
+        $response=new Response();
+        $response->header('Vary','Accept');
+        $response->addHeader('Vary','Accept-Encoding');
+        $this->assertSame('Accept, Accept-Encoding',$response->header('Vary'));
+        // 数组写法
+        $response->headers(array('Cache-Control'=>array('no-store','no-cache')));
+        $this->assertSame('no-store, no-cache',$response->header('Cache-Control'));
+        // 覆盖
+        $response->header('Vary','Origin');
+        $this->assertSame('Origin',$response->header('Vary'));
+        // 显式传 null 移除
+        $response->header('Vary',null);
+        $this->assertSame('',$response->header('Vary'));
     }
 
     /**
@@ -166,8 +245,9 @@ class ResponseTest extends TestCase {
     public function testSendOutputsBody(): void {
         $response=new Response();
         $response->body('sent-body');
+        $response->prepare($this->request('GET','text/plain'));
         ob_start();
-        $response->send($this->request('GET','text/plain'));
+        $response->send();
         $body=ob_get_clean();
         $this->assertSame('sent-body',$body);
     }
@@ -179,8 +259,9 @@ class ResponseTest extends TestCase {
     public function testHeadSendsNoBody(): void {
         $response=new Response();
         $response->body('sent-body');
+        $response->prepare($this->request('HEAD','text/plain'));
         ob_start();
-        $response->send($this->request('HEAD','text/plain'));
+        $response->send();
         $body=ob_get_clean();
         $this->assertSame('',$body);
         // 头部仍然发送, 内容已渲染

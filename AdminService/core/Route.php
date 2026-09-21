@@ -245,15 +245,16 @@ final class Route extends BaseRoute {
     }
 
     /**
-     * 提取控制器方法参数(仅保留键名不为数字的参数)
+     * 提取控制器方法参数
      *
-     * - 路径参数(属性区)优先于查询参数
+     * - 只注入**路由参数**(属性区): 查询参数等输入不参与形参注入, 须在方法内显式获取
+     * - 键名为数字的参数跳过(如通配捕获的多段拼接值)
      *
      * @access private
      * @return array
      */
     private function controllerArgs(): array {
-        $args=array_merge($this->request->query(),$this->request->attributes());
+        $args=$this->request->attributes();
         foreach($args as $k=>$v)
             if(is_numeric($k))
                 unset($args[$k]);

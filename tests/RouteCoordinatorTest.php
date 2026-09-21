@@ -261,6 +261,23 @@ class RouteCoordinatorTest extends TestCase {
     }
 
     /**
+     * 测试形参只注入路由参数
+     *
+     * - 查询参数等输入不参与形参注入, 避免请求数据悄悄覆盖控制器形参
+     *
+     * @return void
+     */
+    public function testOnlyRouteParamsInjected(): void {
+        $this->useRoutes("\$router->get('/inj/{name?}',array(\\Tests\\Fixtures\\InjectController::class,'greet'));");
+        // 路径参数注入形参
+        $this->assertSame('name=frompath',$this->dispatch('/inj/frompath'));
+        // 查询参数不注入形参(形参保持默认值)
+        $this->assertSame('name=default',$this->dispatch('/inj',query:array('name'=>'fromquery')));
+        // 两者同时存在时形参取路径参数
+        $this->assertSame('name=frompath',$this->dispatch('/inj/frompath',query:array('name'=>'fromquery')));
+    }
+
+    /**
      * 测试路径参数约束不满足时不命中
      * @return void
      */

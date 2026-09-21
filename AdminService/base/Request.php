@@ -130,6 +130,36 @@ abstract class Request {
     abstract public function path(): string;
 
     /**
+     * 判断客户端是否接受某内容类型
+     *
+     * - 依据 `Accept` 头, 支持子类通配(`type/*`)与全通配; 无 `Accept` 头视为接受任意类型
+     *
+     * @access public
+     * @param string $type 内容类型
+     * @return bool
+     */
+    abstract public function accepts(string $type): bool;
+
+    /**
+     * 判断客户端是否明确要求JSON
+     *
+     * @access public
+     * @return bool
+     */
+    abstract public function wantsJson(): bool;
+
+    /**
+     * 判断本次请求是否期望JSON响应
+     *
+     * - `X-Requested-With: XMLHttpRequest`(Ajax)或明确要求JSON时为真
+     * - 适合统一错误响应体: `if($request->expectsJson()) { ... }`
+     *
+     * @access public
+     * @return bool
+     */
+    abstract public function expectsJson(): bool;
+
+    /**
      * 设置查询串参数
      *
      * @access public

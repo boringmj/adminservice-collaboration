@@ -15,6 +15,8 @@ use function function_exists;
 use function in_array;
 use function is_array;
 use function is_subclass_of;
+use function str_contains;
+use function str_ends_with;
 use function str_replace;
 use function str_starts_with;
 use function strtolower;
@@ -326,6 +328,57 @@ final class HttpRequest extends Request {
      */
     public function path(): string {
         return '/'.trim(explode('?',$this->uri(),2)[0],'/');
+    }
+
+    /**
+     * 判断客户端是否接受某内容类型
+     *
+     * @access public
+     * @param string $type 内容类型
+     * @return bool
+     */
+    public function accepts(string $type): bool {
+        $accept=Negotiator::parse($this->acceptHeader());
+        // 无 Accept 头视为接受任意类型
+        if($accept===array()) return true;
+        return Negotiator::accepts($accept,$type);
+    }
+
+    /**
+     * 判断客户端是否明确要求JSON
+     *
+     * @access public
+     * @return bool
+     */
+    public function wantsJson(): bool {
+        foreach(Negotiator::parse($this->acceptHeader()) as $type=>$q) {
+            if($q<=0) continue;
+            if($type==='application/json'||str_ends_with($type,'/json')||str_contains($type,'+json'))
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * 判断本次请求是否期望JSON响应
+     *
+     * @access public
+     * @return bool
+     */
+    public function expectsJson(): bool {
+        if(strtolower((string)$this->header('x-requested-with',''))==='xmlhttprequest')
+            return true;
+        return $this->wantsJson();
+    }
+
+    /**
+     * 取原始Accept头
+     *
+     * @access private
+     * @return string
+     */
+    private function acceptHeader(): string {
+        return (string)$this->header('accept','');
     }
 
     /**

@@ -8,26 +8,25 @@ use base\Response as BaseResponse;
 use AdminService\ResponseProcessor\Http;
 
 use function array_keys;
-use function explode;
+use function array_map;
 use function func_num_args;
 use function headers_sent;
 use function http_response_code;
+use function implode;
 use function in_array;
 use function is_array;
-use function str_starts_with;
-use function strtolower;
-use function substr;
-use function trim;
+use function is_string;
 
 /**
  * Response核心类
  *
  * - 每个请求一个实例: 状态码 / Header / Cookie / 返回内容均随实例走
+ * - `prepare()` 负责与请求相关的一步(内容协商、HEAD), `render()` / `send()` 不再依赖请求
  */
 final class Response extends BaseResponse {
 
     /**
-     * 待发送Header
+     * 待发送Header(值为字符串数组, 支持同名多值)
      * @var Data
      */
     protected Data $headers;
@@ -37,6 +36,12 @@ final class Response extends BaseResponse {
      * @var Data
      */
     protected Data $cookies;
+
+    /**
+     * 是否只发送响应头(HEAD请求, 由 prepare() 标记)
+     * @var bool
+     */
+    protected bool $head_only=false;
 
     /**
      * 构造方法
@@ -67,30 +72,90 @@ final class Response extends BaseResponse {
     }
 
     /**
+     * 按请求准备响应
+     *
+     * @access public
+     * @param Request $request 请求对象
+     * @return void
+     */
+    public function prepare(Request $request): void {
+        // 未显式指定内容类型时按 Accept 头协商
+        if($this->contentType==='*/*') {
+            $type=Negotiator::best(
+                Negotiator::parse($request->header('accept')),
+                array_keys(Config::get('response.default.type',array()))
+            );
+            if($type!==null)
+                $this->contentType($type);
+            // 内容类型随请求头变化: 告知缓存
+            $this->addHeader('Vary','Accept');
+        }
+        // HEAD 只发送响应头(HTTP 规范要求)
+        $this->head_only=$request->method()==='HEAD';
+    }
+
+    /**
      * 获取或设置单个Header
+     *
+     * - 读取时同名多值以 `, ` 连接为一行(等价于 HTTP 的合并写法)
      *
      * @access public
      * @param string $name Header名
-     * @param string|null $value 值(null 时仅读取)
+     * @param string|array|null $value 值(数组为多值; null 时仅读取)
      * @return string
      */
-    public function header(string $name,?string $value=null): string {
-        if(func_num_args()>1)
-            $this->headers->set($name,(string)$value);
-        return (string)$this->headers->get($name,'');
+    public function header(
+        string $name,
+        string|array|null $value=null
+    ): string {
+        if(func_num_args()>1) {
+            // 显式传 null 表示移除该Header
+            if($value===null)
+                $this->headers->delete($name);
+            else
+                $this->headers->set($name,self::normalizeHeaderValues($value));
+        }
+        return implode(', ',(array)$this->headers->get($name,array()));
+    }
+
+    /**
+     * 追加一个Header值
+     *
+     * @access public
+     * @param string $name Header名
+     * @param string $value 值
+     * @return void
+     */
+    public function addHeader(string $name,string $value): void {
+        $values=(array)$this->headers->get($name,array());
+        $values[]=$value;
+        $this->headers->set($name,$values);
     }
 
     /**
      * 批量设置Header
      *
      * @access public
-     * @param array<string,string> $headers Header数组
+     * @param array<string,string|array> $headers Header数组(值为数组即多值)
      * @return void
      */
     public function headers(array $headers): void {
         foreach($headers as $name=>$value) {
-            $this->headers->set($name,(string)$value);
+            $this->headers->set($name,self::normalizeHeaderValues($value));
         }
+    }
+
+    /**
+     * 归一化Header值
+     *
+     * @access private
+     * @param string|array $value 值
+     * @return array<string>
+     */
+    private static function normalizeHeaderValues(string|array $value): array {
+        if(is_array($value))
+            return array_map('strval',$value);
+        return array($value);
     }
 
     /**
@@ -159,57 +224,19 @@ final class Response extends BaseResponse {
      * 渲染结果
      *
      * @access public
-     * @param Request $request 请求对象
      * @return string
      */
-    public function render(Request $request): string {
+    public function render(): string {
         if($this->return_content!==null) return $this->return_content;
+        // 未登记的内容类型回落到登记表的第一个
         $type=$this->getStandardContentType();
-        if($type=='*/*') {
-            // 获取 Accept 头信息
-            $accept_headers=explode(',',(string)$request->header('accept'));
-            // 通过递归寻找匹配的类型
-            $type=$this->findAcceptType($accept_headers);
-        }
         $config=Config::get('response.default.type.'.$type,[]);
         $class=$config['class']??Http::class;
         // 处理器需要写入本实例: 显式传入, 不依赖容器中的同名单例
         App::new($class,response:$this,config:$config)->handle();
-        // 合并header
-        $headers=$config['headers']??[];
-        $this->headers($headers);
+        // 合并该内容类型登记的Header
+        $this->headers($config['headers']??[]);
         return $this->return_content??'';
-    }
-
-    /**
-     * 寻找匹配的类型
-     *
-     * @access private
-     * @param array<string,mixed> $accept_headers Accept头信息
-     * @return string
-     */
-    private function findAcceptType(array $accept_headers): string {
-        $allow_types=array_keys(Config::get('response.default.type',[]));
-        $matches=[];
-        foreach($accept_headers as $header) {
-            // 拆分类型和权重
-            $parts=explode(';',trim($header));
-            $type=strtolower(trim($parts[0]));
-            $q=1.0; // 默认权重
-            if(isset($parts[1])&&str_starts_with(trim($parts[1]),'q='))
-                $q=(float) substr(trim($parts[1]),2);
-            // 匹配允许的类型或通配符
-            if(in_array($type,$allow_types)||$type==='*/*')
-                $matches[$type]=$q;
-        }
-        // 按权重排序,权重高的优先
-        if(!empty($matches)) {
-            arsort($matches,SORT_NUMERIC);
-            foreach($matches as $type=>$q)
-                if($type!=='*/*') return $type;
-        }
-        // 如果都不匹配或只匹配通配符，返回默认类型
-        return $allow_types[0]??'*/*';
     }
 
     /**
@@ -222,8 +249,14 @@ final class Response extends BaseResponse {
         // 判断是否还可以返回请求头
         if(!headers_sent()) {
             http_response_code($this->status());
-            foreach($this->headers as $key=>$val)
-                header($key.': '.$val);
+            // 同名多值逐行发送: 首个替换同名头, 其余追加(否则会被 header() 替换掉)
+            foreach($this->headers as $key=>$values) {
+                $replace=true;
+                foreach((array)$values as $value) {
+                    header($key.': '.$value,$replace);
+                    $replace=false;
+                }
+            }
             $cookie=App::get(Cookie::class);
             $cookie->setByArray($this->cookies->all());
         }
@@ -233,18 +266,17 @@ final class Response extends BaseResponse {
      * 结束响应并发送数据
      *
      * @access public
-     * @param Request $request 请求对象
      * @return void
      */
-    public function send(Request $request): void {
-        $temp=$this->render($request);
+    public function send(): void {
+        $content=$this->render();
         // 发送请求头
         $this->sendHeaders();
-        // HEAD 只发送头部, 不输出响应体(HTTP 规范要求)
-        if($request->method()==='HEAD')
+        // HEAD 只发送头部, 不输出响应体
+        if($this->head_only)
             return;
         // 渲染结果
-        echo $temp;
+        echo $content;
     }
 
 }

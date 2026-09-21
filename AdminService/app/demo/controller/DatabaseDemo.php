@@ -10,7 +10,7 @@ use base\Controller;
  * 数据库使用示例控制器(全门面 AdminService\Db)
  *
  * - 用户入口仅 AdminService\Db, 不接触底层 DBAL(base\Database)
- * - 访问: /demo/DatabaseDemo(完整示例) /demo/DatabaseDemo/demo(简洁) /demo/DatabaseDemo/facade(门面专讲)
+ * - 访问: /demo/databaseDemo(完整示例) /demo/databaseDemo/demo(简洁) /demo/databaseDemo/facade(门面专讲)
  */
 class DatabaseDemo extends Controller {
 

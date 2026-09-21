@@ -3,8 +3,6 @@
 namespace base;
 
 use ReflectionClass;
-use ReflectionMethod;
-use ReflectionFunction;
 
 /**
  * 容器契约
@@ -12,7 +10,7 @@ use ReflectionFunction;
  * - 容器内核(绑定表 / 实例表 / 反射缓存 / 参数转换开关)**全部是实例状态**, 不再有静态状态
  * - 实现见 `AdminService\Container`(实现层), 门面见 `AdminService\App`(使用者入口, 无状态转发)
  * - 契约层不得引用实现层: 本文件只依赖 `base\` 自身与语言内置
- * - 本契约此刻保持与既有 API 一致(改名 / 删除 / 新增留待后续步骤), 以免调用面在实例化这一步被同时改动
+ * - 契约只保留**实证在用的入口**: 无调用点的批量登记 / 反射缓存方法已随实现拆分删除(见纲领 4.5);改名与新增(`singleton` / `alias` / `fresh` / `has`)留待 API 收敛那一步
  *
  * @access public
  * @package base
@@ -38,16 +36,6 @@ interface Container {
     public function getParamCast(): bool;
 
     /**
-     * 获取反射类对象(会缓存结果, 不支持别名和绑定)
-     *
-     * @access public
-     * @param string $name 类名
-     * @return ReflectionClass
-     * @throws \ReflectionException
-     */
-    public function getReflection(string $name): ReflectionClass;
-
-    /**
      * 通过已有对象获取反射类对象(会缓存结果)
      *
      * @access public
@@ -55,38 +43,6 @@ interface Container {
      * @return ReflectionClass
      */
     public function getReflectionByObject(object $object): ReflectionClass;
-
-    /**
-     * 获取反射方法对象(会缓存结果, 支持 `Class::method` 语法)
-     *
-     * @access public
-     * @param string $class 类名或 `类名::方法名`
-     * @param string|null $method 方法名
-     * @return ReflectionMethod
-     * @throws \ReflectionException
-     */
-    public function getReflectionMethod(string $class,?string $method=null): ReflectionMethod;
-
-    /**
-     * 通过已有对象获取反射方法对象(会缓存结果)
-     *
-     * @access public
-     * @param object $object 对象
-     * @param string $method 方法名
-     * @return ReflectionMethod
-     * @throws \ReflectionException
-     */
-    public function getReflectionMethodByObject(object $object,string $method): ReflectionMethod;
-
-    /**
-     * 获取反射函数对象(会缓存结果)
-     *
-     * @access public
-     * @param string $name 函数名
-     * @return ReflectionFunction
-     * @throws \ReflectionException
-     */
-    public function getReflectionFunction(string $name): ReflectionFunction;
 
     /**
      * 获取对象(不存在则自动实例化, 并复用容器中已存在的实例)
@@ -107,15 +63,6 @@ interface Container {
      * @return void
      */
     public function set(string $name,object $object): void;
-
-    /**
-     * 获取真实类名(仅解析一层绑定, 不做子类查找)
-     *
-     * @access public
-     * @param string $name 别名或类名
-     * @return string
-     */
-    public function getClass(string $name): string;
 
     /**
      * 获取真实类名(解析别名与绑定的嵌套, 支持递归)
@@ -162,15 +109,6 @@ interface Container {
     public function isCircular(string $abstract,string $concrete): bool;
 
     /**
-     * 批量登记已实例化对象
-     *
-     * @access public
-     * @param array<string,object> $objects 对象数组
-     * @return void
-     */
-    public function setByArray(array $objects): void;
-
-    /**
      * 批量设置或添加未被实例化的类
      *
      * @access public
@@ -199,15 +137,6 @@ interface Container {
      * @return void
      */
     public function setData(string $name,mixed $data): void;
-
-    /**
-     * 批量设置或添加全局数据
-     *
-     * @access public
-     * @param array<string,mixed> $data 数据数组
-     * @return void
-     */
-    public function setDataByArray(array $data): void;
 
     /**
      * 获取对象(容器中已有且未强制新建则复用, 否则实例化并自动装配)

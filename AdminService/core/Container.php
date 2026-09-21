@@ -59,28 +59,47 @@ final class Container implements \base\Container {
     private array $data_container=array();
 
     /**
-     * 缓存的反射类解析对象
-     * @var array<string,ReflectionClass>
+     * 反射缓存(实例状态)
+     * @var ReflectionCache
      */
-    private array $class_reflection_container=array();
+    private ReflectionCache $reflections;
 
     /**
-     * 缓存的反射方法对象
-     * @var array<string,ReflectionMethod>
+     * 参数解析器(参数合并 / 类型校验 / 类型转换 / 类型标准化)
+     * @var ArgumentResolver
      */
-    private array $method_reflection_container=array();
+    private ArgumentResolver $arguments;
 
     /**
-     * 缓存的反射函数对象
-     * @var array<string,ReflectionFunction>
+     * 类查找器(可实例化子类 / 实现类)
+     * @var ClassFinder
      */
-    private array $function_reflection_container=array();
+    private ClassFinder $classes;
 
     /**
-     * 是否允许标量参数静默转换(对齐 PHP 弱类型)
-     * @var bool
+     * 构造方法
+     *
+     * - 三个内核组件都是实例对象; 依赖方向为 容器 → 组件(单向)
+     * - 组件需要的"类名解析""按类型取实例"能力由容器以回调回填, 避免组件反向依赖容器
+     *
+     * @access public
      */
-    private bool $enable_param_cast=true;
+    public function __construct() {
+        $this->reflections=new ReflectionCache();
+        $this->arguments=new ArgumentResolver($this->reflections);
+        $this->classes=new ClassFinder($this->reflections);
+        // 类查找器: 别名与绑定解析
+        $this->classes->setClassResolver(function(string $class): string {
+            return $this->getRealClass($class);
+        });
+        // 参数解析器: 按类型解析出实例(先找可实例化的类, 再交给容器装配)
+        $this->arguments->setInstanceResolver(function(array $types): ?object {
+            $real_class=$this->classes->getFirstInstantiableClass($types);
+            if($real_class===null)
+                return null;
+            return $this->make($real_class);
+        });
+    }
 
     /**
      * 设置是否允许标量参数静默转换
@@ -90,7 +109,7 @@ final class Container implements \base\Container {
      * @return void
      */
     public function setParamCast(bool $enable): void {
-        $this->enable_param_cast=$enable;
+        $this->arguments->setParamCast($enable);
     }
 
     /**
@@ -100,22 +119,7 @@ final class Container implements \base\Container {
      * @return bool
      */
     public function getParamCast(): bool {
-        return $this->enable_param_cast;
-    }
-
-    /**
-     * 获取反射对象(会缓存结果,不支持别名和绑定)
-     * 
-     * @access public
-     * @param string $name 类名
-     * @throws ReflectionException
-     * @return ReflectionClass
-     */
-    public function getReflection(string $name): ReflectionClass {
-        if(!isset($this->class_reflection_container[$name])) {
-            $this->class_reflection_container[$name]=new ReflectionClass($name);
-        }
-        return $this->class_reflection_container[$name];
+        return $this->arguments->getParamCast();
     }
 
     /**
@@ -127,67 +131,7 @@ final class Container implements \base\Container {
      * @return ReflectionClass
      */
      public function getReflectionByObject(object $object): ReflectionClass {
-        $class=$object::class;
-        return $this->getReflection($class);
-    }
-
-    /**
-     * 获取反射方法(会缓存结果)
-     * 
-     * @access public
-     * @param string $class 类名(支持Class::method语法)
-     * @param string $method 方法名(可为空，当 $class 使用 Class::method 时)
-     * @throws ReflectionException
-     * @return ReflectionMethod
-     */
-    public function getReflectionMethod(
-        string $class,
-        ?string $method=null
-    ): ReflectionMethod {
-        // 如果使用 Class::method 语法
-        if($method===null&&str_contains($class,'::'))
-            [$class,$method]=explode('::',$class,2);
-        if(!$method)
-            throw new ReflectionException(
-                "Method name not provided for class '{$class}'"
-            );
-        $key=$class.'::'.$method;
-        if(!isset($this->method_reflection_container[$key])) {
-            $this->method_reflection_container[$key]=new ReflectionMethod($class,$method);
-        }
-        return $this->method_reflection_container[$key];
-    }
-
-    /**
-     * 通过已有对象获取反射方法(会缓存结果)
-     * 
-     * @access public
-     * @param object $object 对象
-     * @param string $method 方法名
-     * @throws ReflectionException
-     * @return ReflectionMethod
-     */
-    public function getReflectionMethodByObject(
-        object $object,
-        string $method
-    ): ReflectionMethod {
-        $class=$object::class;
-        return $this->getReflectionMethod($class,$method);
-    }
-
-    /**
-     * 获取反射函数对象(会缓存结果,不支持别名和绑定)
-     * 
-     * @access public
-     * @param string $name 函数名
-     * @throws ReflectionException
-     * @return ReflectionFunction
-     */
-    public function getReflectionFunction(string $name): ReflectionFunction {
-        if(!isset($this->function_reflection_container[$name])) {
-            $this->function_reflection_container[$name]=new ReflectionFunction($name);
-        }
-        return $this->function_reflection_container[$name];
+        return $this->reflections->getObject($object);
     }
 
     /**
@@ -205,7 +149,7 @@ final class Container implements \base\Container {
             if(!class_exists($name))
                 throw new Exception('Class "'.$name.'" not found.');
             // 如果存在则判断是否可以实例化
-            $ref=$this->getReflection($name);
+            $ref=$this->reflections->getClass($name);
             if(!$ref->isInstantiable())
                 throw new Exception('Class "'.$name.'" is not instantiable.');
             // 如果可以实例化则实例化一个新的对象
@@ -225,20 +169,6 @@ final class Container implements \base\Container {
     public function set(string $name,object $object): void {
         $name=$this->getRealClass($name);
         $this->container[$name]=$object;
-    }
-
-    /**
-     * 获取未被实例化的类名称
-     * 
-     * @access public
-     * @param string $name 类名
-     */
-    public function getClass(string $name): string {
-        $name=$this->getRealClass($name);
-        // 如果类容器中不存在该类则返回原类名
-        if(!isset($this->class_container[$name]))
-            return $name;
-        return $this->class_container[$name];
     }
 
     /**
@@ -332,18 +262,6 @@ final class Container implements \base\Container {
     }
 
     /**
-     * 批量设置或添加对象
-     * 
-     * @access public
-     * @param array<string,object> $objects 对象数组
-     * @return void
-     */
-    public function setByArray(array $objects): void {
-        foreach($objects as $name=>$object)
-            $this->set($name,$object);
-    }
-
-    /**
      * 批量设置或添加未被实例化的类
      *
      * @access public
@@ -378,18 +296,6 @@ final class Container implements \base\Container {
      */
     public function setData(string $name,mixed $data): void {
         $this->data_container[$name]=$data;
-    }
-
-    /**
-     * 批量设置或添加全局数据
-     * 
-     * @access public
-     * @param array<string,mixed> $data 数据数组
-     * @return void
-     */
-    public function setDataByArray(array $data): void {
-        foreach($data as $name=>$value)
-            $this->setData($name,$value);
     }
 
     /**
@@ -655,7 +561,7 @@ final class Container implements \base\Container {
                     ));
                 } else {
                     // 未指定 name: 全部参数按类型注入(与构造函数注入一致)
-                    $args=$this->mergeParams($params,array());
+                    $args=$this->arguments->merge($params,array());
                 }
                 // 调用方法
                 $method->setAccessible(true);
@@ -709,7 +615,7 @@ final class Container implements \base\Container {
         // 判断是否为接口
         if(interface_exists($name)) {
             // 寻找一个可实例化的子类
-            $real_class=$this->getFirstInstantiableClass(array($name));
+            $real_class=$this->classes->getFirstInstantiableClass(array($name));
             if($real_class===null)
                 throw new Exception('Class "'.$name.'" is not instantiable.');
             return $this->make($real_class,false,$flags);
@@ -719,11 +625,11 @@ final class Container implements \base\Container {
             throw new Exception('Class "'.$name.'" not found.');
         // 将当前对象添加到标识中
         $flags[]=$name;
-        $ref=$this->getReflection($name);
+        $ref=$this->reflections->getClass($name);
         // 判断自身是否可以被实例化
         if(!$ref->isInstantiable()) {
             // 寻找一个可实例化的子类
-            $real_class=$this->getFirstInstantiableClass(array($name));
+            $real_class=$this->classes->getFirstInstantiableClass(array($name));
             if($real_class===null)
                 throw new Exception('Class "'.$name.'" is not instantiable.');
             return $this->make($real_class,false,$flags);
@@ -737,9 +643,9 @@ final class Container implements \base\Container {
                 $type=(string)$type;
                 // 将类型分割为数组
                 $types=explode('|',$type);
-                $types=$this->getStandardTypes($types);
+                $types=$this->arguments->getStandardTypes($types);
                 // 获取第一个可实例化的类
-                $real_class=$this->getFirstInstantiableClass($types);
+                $real_class=$this->classes->getFirstInstantiableClass($types);
                 if($real_class!==null) {
                     // 递归实例化依赖
                     $args[]=$this->make($real_class,false,$flags);
@@ -785,10 +691,10 @@ final class Container implements \base\Container {
         // 判断类或接口是否存在
         if(!class_exists($__name)&&!interface_exists($__name))
             throw new Exception('Class "'.$__name.'" not found.');
-        $ref=$this->getReflection($__name);
+        $ref=$this->reflections->getClass($__name);
         // 判断是否可以被实例化,如果不能则尝试寻找一个可实例化的子类
         if(!$ref->isInstantiable()) {
-            $real_class=$this->getFirstInstantiableClass(array($__name));
+            $real_class=$this->classes->getFirstInstantiableClass(array($__name));
             if($real_class===null)
                 throw new Exception('Class "'.$__name.'" is not instantiable.');
             return $this->new($real_class,...$args);
@@ -800,7 +706,7 @@ final class Container implements \base\Container {
             return $ref->newInstance();
         }
         $params=$constructor->getParameters();
-        $args_temp=$this->mergeParams($params,$args);
+        $args_temp=$this->arguments->merge($params,$args);
         // 直接返回对象,不添加到父容器中
         return $ref->newInstanceArgs($args_temp);
     }
@@ -821,12 +727,8 @@ final class Container implements \base\Container {
             // 如果是类名则通过自动依赖注入实例化一个对象
             $object=$this->make($object);
         }
-        // 获取方法参数
-        $ref=$this->getReflectionMethodByObject($object,$method);
-        $params=$ref->getParameters();
-        $args_temp=$this->mergeParams($params,$args);
-        // 调用方法
-        return $ref->invokeArgs($object,$args_temp);
+        // 参数合并与调用交给参数解析器
+        return $this->arguments->call($object,$method,$args);
     }
 
     /**
@@ -844,370 +746,8 @@ final class Container implements \base\Container {
             [$classOrObj,$method]=$function;
             return $this->exec_class_function($classOrObj,$method,$args);
         }
-        // 获取函数参数
-        $ref=$this->getReflectionFunction($function);
-        $params=$ref->getParameters();
-        $args_temp=$this->mergeParams($params,$args);
-        // 调用函数
-        return $ref->invokeArgs($args_temp);
-    }
-
-    /**
-     * 整理和合并参数
-     *
-     * @access protected
-     * @param ReflectionParameter[] $params 参数
-     * @param array<mixed> $args 参数
-     * @return array
-     * @throws Exception
-     * @throws ReflectionException
-     */
-    protected function mergeParams(array $params,array $args): array {
-        $params_temp=array();
-        $arg_count=0;
-        foreach($params as $param) {
-            $type=$param->getType();
-            $type=(string)$type;
-            // 将类型分割为数组
-            $types=explode('|',$type);
-            $types=$this->getStandardTypes($types);
-            // 获取参数名
-            $name=$param->getName();
-            if($param->allowsNull())
-                $types[]='NULL';
-            $types=array_unique($types);
-            // 判断参数类型是否为可变参数
-            if($param->isVariadic()) {
-                $numeric_args=array_values(array_filter($args,'is_numeric',ARRAY_FILTER_USE_KEY));
-                $assoc_args=array_filter($args,'is_string',ARRAY_FILTER_USE_KEY);
-                $temp_args=array_merge($numeric_args,$assoc_args);
-                // 判断是否有类型限制
-                if(count($types)===1&&$types[0]==='') {
-                    $params_temp=array_merge($params_temp,$temp_args);
-                    break;
-                }
-                // 判断每个参数是否符合类型限制
-                foreach($temp_args as $key=>$value) {
-                    if($this->isValidType($value,$types)) {
-                        // 对齐普通参数,通过校验后执行静默转换
-                        $value=$this->castParam($value,$types);
-                        if(is_numeric($key))
-                            $params_temp[]=$value;
-                        else
-                            $params_temp[$key]=$value;
-                        unset($args[$key]);
-                    } else {
-                        throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" is not valid.',0,array(
-                            'class'=>$param,
-                            'parameter'=>$param->getName(),
-                            'error'=>'The parameter type is not valid.'
-                        ));
-                    }
-                }
-                break;
-            }
-            // 先尝试在参数数组通过参数名查找
-            if(array_key_exists($name,$args)&&$this->isValidType($args[$name],$types)) {
-                $params_temp[]=$this->castParam($args[$name],$types);
-                unset($args[$name]);
-                continue;
-            }
-            // 判断是否存在顺位参数
-            if(array_key_exists($arg_count,$args)&&$this->isValidType($args[$arg_count],$types)) {
-                $params_temp[]=$this->castParam($args[$arg_count],$types);
-                unset($args[$arg_count]);
-                // 顺位参数自增
-                $arg_count++;
-                continue;
-            }
-            // 获取第一个可实例化的类
-            $real_class=$this->getFirstInstantiableClass($types);
-            if($real_class!==null) {
-                $params_temp[]=$this->make($real_class);
-                continue;
-            }
-            elseif($param->isDefaultValueAvailable())
-                $params_temp[]=$param->getDefaultValue();
-            else if($param->allowsNull())
-                $params_temp[]=null;
-            else
-                throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" is not valid.',0,array(
-                    'class'=>$param,
-                    'parameter'=>$param->getName(),
-                    'error'=>'The parameter type is not valid or the parameter value is not set.'
-                ));
-        }
-        return $params_temp;
-    }
-
-    /**
-     * 判断参数是否符合预期类型
-     * 
-     * @access protected
-     * @param mixed $arg 参数
-     * @param array<string> $types 预期类型
-     * @return bool
-     */
-    protected function isValidType(mixed $arg,array $types): bool {
-        $arg_type=gettype($arg);
-        // 直接匹配 PHP 内置类型
-        if(in_array($arg_type,$types,true)) return true;
-        // 类型为空字符串(无类型约束)
-        if($types===['']||in_array('',$types,true)) return true;
-        // mixed 表示任何类型都合法
-        if(in_array('mixed',$types,true)) return true;
-        // 处理可执行类型
-        if(in_array('callable',$types,true)) {
-            if(is_callable($arg)) return true;
-        }
-        // 标量弱类型兼容(对齐 PHP 非严格模式,反射调用默认是严格类型)
-        // 注意: $types 为 getStandardTypes() 标准化后的 gettype() 风格(integer/double/boolean)
-        if($this->enable_param_cast) {
-            // 数字字符串 → int/float
-            if((in_array('integer',$types,true)||in_array('double',$types,true))&&is_numeric($arg))
-                return true;
-            // int/float/bool → string
-            if(in_array('string',$types,true)&&(is_int($arg)||is_float($arg)||is_bool($arg)))
-                return true;
-            // float/bool → int
-            if(in_array('integer',$types,true)&&(is_float($arg)||is_bool($arg)))
-                return true;
-            // int/bool → float
-            if(in_array('double',$types,true)&&(is_int($arg)||is_bool($arg)))
-                return true;
-            // int/float/string → bool
-            if(in_array('boolean',$types,true)&&(is_int($arg)||is_float($arg)||is_string($arg)))
-                return true;
-        }
-        // 如果参数是对象，检查是否符合给定类名
-        if($arg_type==='object') {
-            foreach($types as $t) {
-                if(class_exists($t) && $arg instanceof $t) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 将参数转换为目标类型(对齐 PHP 非严格模式的标量转换规则)
-     *
-     * 反射调用为严格类型,当实参类型与目标标量类型不一致时需要在这里显式转换,
-     * 否则 invokeArgs 会抛出 TypeError。转换规则与 PHP 直接调用的弱类型行为一致:
-     * - 数字字符串 → int/float
-     * - int/float/bool → string
-     * - float/bool → int, int/bool → float
-     * - int/float/string → bool
-     *
-     * 注意: 转换规则必须与 isValidType() 的标量宽松规则保持一一对应,
-     * 否则会出现"验证通过但未转换"导致 TypeError 的遗漏
-     *
-     * @access protected
-     * @param mixed $value 实参值
-     * @param array<string> $types 目标类型列表
-     * @return mixed
-     */
-    protected function castParam(mixed $value,array $types): mixed {
-        // 关闭静默转换时原样返回
-        if(!$this->enable_param_cast)
-            return $value;
-        // $types 为 getStandardTypes() 标准化后的 gettype() 风格(integer/double/boolean)
-        if(is_string($value)) {
-            if(in_array('integer',$types,true)&&is_numeric($value))
-                return (int)$value;
-            if(in_array('double',$types,true)&&is_numeric($value))
-                return (float)$value;
-            if(in_array('boolean',$types,true))
-                return (bool)$value;
-        }
-        elseif(is_int($value)) {
-            if(in_array('string',$types,true))
-                return (string)$value;
-            if(in_array('double',$types,true))
-                return (float)$value;
-            if(in_array('boolean',$types,true))
-                return (bool)$value;
-        }
-        elseif(is_float($value)) {
-            if(in_array('string',$types,true))
-                return (string)$value;
-            if(in_array('integer',$types,true))
-                return (int)$value;
-            if(in_array('boolean',$types,true))
-                return (bool)$value;
-        }
-        elseif(is_bool($value)) {
-            if(in_array('string',$types,true))
-                return $value?'1':'';
-            if(in_array('integer',$types,true))
-                return (int)$value;
-            if(in_array('double',$types,true))
-                return (float)$value;
-        }
-        return $value;
-    }
-
-    /**
-     * 寻找一个类的可实例化的子类(仅结果支持别名和绑定)
-     * 
-     * @access public
-     * @param string $class 类名
-     * @return ?string
-     */
-    public function findSubClass(string $class): ?string {
-        // 判断类是否存在
-        if(!class_exists($class)&&!interface_exists($class))
-            return null;
-        // 获取所有子类
-        $sub_classes=get_declared_classes();
-        $sub_classes=array_filter($sub_classes,function($sub_class) use ($class) {
-            return is_subclass_of($sub_class,$class);
-        });
-        // 判断是否存在可实例化的子类
-        foreach($sub_classes as $sub_class) {
-            $sub_class=$this->getRealClass($sub_class);
-            $ref=$this->getReflection($sub_class);
-            if($ref->isInstantiable())
-                return $sub_class;
-        }
-        // 如果均不可实例化则递归查找,直到找到可实例化的子类
-        foreach($sub_classes as $sub_class) {
-            $sub_class=$this->findSubClass($sub_class);
-            if($sub_class!==null)
-                return $sub_class;
-        }
-        return null;
-    }
-
-    /**
-     * 逐级寻找一个类的直接子类并查找可实例化的子类(支持别名和绑定)
-     * 
-     * @access public
-     * @param string $class 类名
-     * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止解析死循环)
-     * @return ?string
-     */
-    public function findDirectSubClassRecursive(string $class,array &$flags=array()): ?string {
-        // 获取真实类名
-        $class=$this->getRealClass($class);
-        // 如果标识重复则直接返回
-        if(in_array($class,$flags))
-            return null;
-        // 判断类是否存在
-        if(!class_exists($class)&&!interface_exists($class))
-            return null;
-        // 判断自身是否可实例化
-        $ref=$this->getReflection($class);
-        if($ref->isInstantiable())
-            return $class;
-        // 获取所有已声明类
-        $all_classes=get_declared_classes();
-        // 区分是类还是接口
-        $is_class=class_exists($class);
-        $is_interface=interface_exists($class);
-        // 筛选直接子类或直接实现接口的类
-        $direct_sub_classes=array_filter($all_classes,function($sub_class) use ($class,$is_class,$is_interface) {
-            // 直接继承
-            if($is_class&&get_parent_class($sub_class)===$class)
-                return true;
-            // 直接实现接口
-            if($is_interface) {
-                $all_interfaces=class_implements($sub_class,true);
-                $parent=get_parent_class($sub_class);
-                $parent_interfaces=$parent?class_implements($parent,true):[];
-                $direct_interfaces=array_diff($all_interfaces,$parent_interfaces);
-                if(in_array($class,$direct_interfaces,true))
-                    return true;
-            }
-            return false;
-        });
-        // 遍历直接子类，找到可实例化的
-        foreach($direct_sub_classes as $sub_class) {
-            $sub_ref=$this->getReflection($sub_class);
-            if($sub_ref->isInstantiable())
-                return $sub_class;
-            // 递归查找子类的子类
-            $flags[]=$class;
-            $found=$this->findDirectSubClassRecursive($sub_class,$flags);
-            // 移出标识中的目标类
-            array_pop($flags);
-            if($found!==null)
-                return $found;
-        }
-        // 没有找到可实例化子类
-        return null;
-    }
-
-    /**
-     * 将一个PHP类型转为gettype()返回的类型
-     * 
-     * @access public
-     * @param string $type 类型
-     * @return string
-     */
-    public function getStandardType(string $type): string {
-        // 清除类型前缀
-        $type=str_replace('?','',$type);
-        $list=array(
-            'int'=>'integer',
-            'bool'=>'boolean',
-            'float'=>'double',
-            'null'=>'NULL'
-        );
-        if(isset($list[$type]))
-            return $list[$type];
-        return $type;
-    }
-
-    /**
-     * 将一组PHP类型转为gettype()返回的类型
-     * 
-     * @access public
-     * @param array<string> $types 类型数组
-     * @return array
-     */
-    public function getStandardTypes(array $types): array {
-        $result=array();
-        foreach($types as $type)
-            $result[]=$this->getStandardType($type);
-        return $result;
-    }
-
-    /**
-     * 获取给出类型中的第一个可实例化的类(支持别名和绑定)
-     * 
-     * @access public
-     * @param array<string> $types 类型数组
-     * @return ?string
-     */
-    public function getFirstInstantiableClass(array $types): ?string {
-        foreach($types as $type) {
-            // 判断是否可以实例化该类
-            $class_name=$this->getRealClass($type);
-            if(class_exists($class_name)) {
-                // 通过反射判断是否可以实例化该类
-                $ref_type=$this->getReflection($class_name);
-                if(!$ref_type->isInstantiable()) {
-                    // 如果不可以实例化则尝试寻找一个可实例化的子类
-                    $class_name=$this->findDirectSubClassRecursive($class_name);
-                    if($class_name!==null)
-                        return $class_name;
-                    else
-                        continue;
-                }
-                return $class_name;
-            }
-            // 处理接口
-            if(interface_exists($class_name)) {
-                // 尝试寻找可实例化的实现类
-                $class_name=$this->findDirectSubClassRecursive($class_name);
-                if($class_name!==null)
-                    return $class_name;
-                continue;
-            }
-        }
-        return null;
+        // 参数合并与调用交给参数解析器
+        return $this->arguments->callFunction($function,$args);
     }
 
 }

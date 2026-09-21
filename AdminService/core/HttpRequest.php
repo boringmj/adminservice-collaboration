@@ -4,6 +4,7 @@ namespace AdminService;
 
 use base\Request;
 use base\AbstractInputProcessor;
+use base\Container as ContainerContract;
 
 use function array_key_exists;
 use function array_merge;
@@ -32,6 +33,12 @@ use function ucwords;
  * - 上传表单惰性构建: 未访问上传接口时既不读配置也不触碰上传目录
  */
 final class HttpRequest extends Request {
+
+    /**
+     * 容器契约(由容器构建本对象时注入; 直接 new 时为 null)
+     * @var ContainerContract|null
+     */
+    protected ?ContainerContract $container=null;
 
     /**
      * 请求头数据
@@ -108,7 +115,9 @@ final class HttpRequest extends Request {
      * @access public
      * @param array<string,mixed> $sources 输入源
      */
-    public function __construct(array $sources=array()) {
+    public function __construct(array $sources=array(),?ContainerContract $container=null) {
+        // 容器由容器构建时注入(输入处理器因此可依赖注入);直接 new 时为 null
+        $this->container=$container;
         $this->headers=(new Data(self::parseHeaders($sources)))
             ->setCaseSensitive(false)->resetKey();
         $this->query=new Data($sources['query']??$_GET??array());
@@ -178,7 +187,9 @@ final class HttpRequest extends Request {
         if(!is_subclass_of($input_list[$content_type],AbstractInputProcessor::class))
             return;
         /** @var AbstractInputProcessor $parser */
-        $parser=App::new($input_list[$content_type])->parse($this->raw_input);
+        // 处理器经容器构建(可依赖注入);直接 new 出来的请求对象退化为直接实例化
+        $parser_class=$input_list[$content_type];
+        $parser=($this->container===null?new $parser_class():$this->container->build($parser_class))->parse($this->raw_input);
         $this->input->init($parser->toArray());
         // 判断是否需要将input参数与其他参数合并
         $input=Config::get('request.default.param.input',0);

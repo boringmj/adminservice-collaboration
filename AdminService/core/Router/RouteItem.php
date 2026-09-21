@@ -11,6 +11,7 @@ use function ltrim;
 use function preg_match;
 use function preg_match_all;
 use function preg_quote;
+use function preg_replace;
 use function preg_replace_callback;
 use function rtrim;
 use function str_contains;
@@ -131,6 +132,19 @@ final class RouteItem {
      */
     public function isStatic(): bool {
         return $this->params===array();
+    }
+
+    /**
+     * 获取匹配形状
+     *
+     * - 编译正则去掉具名捕获组名, 用于识别「匹配行为等价」的路由
+     * - 如 `/user/{id}` 与 `/user/{uid}` 形状相同, 二者会互相遮蔽
+     *
+     * @access public
+     * @return string
+     */
+    public function getShape(): string {
+        return preg_replace('/\?P<[a-zA-Z_][a-zA-Z0-9_]*>/','',$this->pattern);
     }
 
     /**

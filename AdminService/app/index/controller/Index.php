@@ -27,7 +27,7 @@ class Index extends Controller {
      *  - 也可用`#[Route]`属性就近声明路由,框架会自动扫描控制器上的路由属性
      * @throws Exception
      */
-    #[Route('GET','/index/index/index')]
+    #[Route('GET','/')]
     public function index(string $name="World"): string {
         // 值得一说,如果你在路由中传入了name参数,那么这里的$name将会被覆盖
         $this->log->write($this->log::class.": Hello $name!");

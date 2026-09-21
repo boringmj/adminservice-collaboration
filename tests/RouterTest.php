@@ -540,6 +540,120 @@ class RouterTest extends TestCase {
     }
 
     /**
+     * 测试末尾 `*` 通配糖等价于 `{any?:.*}`
+     * @return void
+     */
+    public function testWildcardSugar(): void {
+        $sugar=new Router();
+        $sugar->get('/files/*',array('C','f'));
+        $explicit=new Router();
+        $explicit->get('/files/{any?:.*}',array('C','f'));
+        foreach(array('/files','/files/a','/files/a/b') as $uri) {
+            $found=$sugar->find('GET',$uri);
+            $this->assertNotNull($found,$uri);
+            $this->assertSame($found[0]->getShape(),$explicit->find('GET',$uri)[0]->getShape(),$uri);
+        }
+    }
+
+    /**
+     * 测试通配符不在末尾时抛异常
+     * @return void
+     */
+    public function testWildcardMustBeAtEnd(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $router->get('/a/*/b',array('C','x'));
+    }
+
+    /**
+     * 测试 HEAD 由 GET 路由承接
+     * @return void
+     */
+    public function testHeadServedByGet(): void {
+        $router=new Router();
+        $router->get('/h',array('C','x'));
+        $this->assertNotNull($router->find('HEAD','/h'));
+        // 汇总允许方法时一并列出 HEAD
+        $this->assertSame(array('GET','HEAD'),$router->allowedMethods('/h'));
+    }
+
+    /**
+     * 测试汇总路径允许的方法
+     * @return void
+     */
+    public function testAllowedMethods(): void {
+        $router=new Router();
+        $router->post('/m',array('C','post'));
+        $router->delete('/m',array('C','del'));
+        $this->assertSame(array('DELETE','POST'),$router->allowedMethods('/m'));
+        // 路径不存在
+        $this->assertSame(array(),$router->allowedMethods('/nope'));
+        // 不限方法的路由无须汇总
+        $any=new Router();
+        $any->any('/m',array('C','any'));
+        $this->assertSame(array(),$any->allowedMethods('/m'));
+    }
+
+    /**
+     * 测试 current() 返回最近命中的路由
+     * @return void
+     */
+    public function testCurrentRoute(): void {
+        $router=new Router();
+        $router->get('/c',array('C','x'))->name('c');
+        $this->assertNull($router->current());
+        $router->find('GET','/c');
+        $this->assertSame('c',$router->current()->getName());
+    }
+
+    /**
+     * 测试路由名重复时抛异常
+     * @return void
+     */
+    public function testDuplicateRouteNameThrows(): void {
+        $router=new Router();
+        $router->get('/n1',array('C','a'))->name('dup');
+        $router->get('/n2',array('C','b'))->name('dup');
+        $this->expectException(Exception::class);
+        $router->assertNamesUnique();
+    }
+
+    /**
+     * 测试反向生成校验参数约束
+     * @return void
+     */
+    public function testBuildUriValidatesConstraint(): void {
+        $router=new Router();
+        $router->get('/u/{id:\d+}',array('C','s'))->name('u');
+        $this->assertSame('/u/42',$router->url('u',array('id'=>42)));
+        $this->expectException(Exception::class);
+        $router->url('u',array('id'=>'abc'));
+    }
+
+    /**
+     * 测试 apiResource(不含 create/edit 表单页)
+     * @return void
+     */
+    public function testApiResource(): void {
+        $router=new Router();
+        $router->apiResource('/article','AppController');
+        $this->assertCount(5,$router->getRoutes());
+        $this->assertSame('index',$router->find('GET','/article')[0]->getHandler()[1]);
+        $this->assertSame('store',$router->find('POST','/article')[0]->getHandler()[1]);
+        $this->assertSame('show',$router->find('GET','/article/5')[0]->getHandler()[1]);
+        $this->assertSame('update',$router->find('PUT','/article/5')[0]->getHandler()[1]);
+        $this->assertSame('destroy',$router->find('DELETE','/article/5')[0]->getHandler()[1]);
+        $this->assertSame('/article/5',$router->url('article.show',array('id'=>5)));
+        // 不含表单页路由名
+        $names=array();
+        foreach($router->getRoutes() as $item)
+            if($item->getName()!==null)
+                $names[]=$item->getName();
+        $this->assertNotContains('article.create',$names);
+        $this->assertNotContains('article.edit',$names);
+    }
+
+    /**
      * 测试集中式路由文件加载
      * @return void
      */

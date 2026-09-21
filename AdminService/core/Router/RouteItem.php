@@ -8,6 +8,8 @@ use function array_key_exists;
 use function array_reverse;
 use function array_slice;
 use function count;
+use function explode;
+use function implode;
 use function in_array;
 use function is_array;
 use function ltrim;
@@ -27,6 +29,7 @@ use function substr;
  * - 承载方法、路径、处理器与中间件
  * - 路径中的 `{name}`、`{name:约束}`、`{name?}` 在构造时编译为具名捕获组
  * - 可选参数(带 `?`)可多个, 但须构成 `/` 分隔的末尾序列, 如 `/a/{b?}/{c?}`
+ * - 末尾的 `*` 为通配糖: `/files/*` 等价于 `/files/{any?:.*}`
  */
 final class RouteItem {
 
@@ -85,6 +88,12 @@ final class RouteItem {
     private array $optional=array();
 
     /**
+     * 参数名到约束的映射(反向生成时校验取值用)
+     * @var array<string,string>
+     */
+    private array $constraints=array();
+
+    /**
      * 字面量字符数(路径去掉占位符后的长度, 用于具体度排序)
      * @var int
      */
@@ -104,7 +113,7 @@ final class RouteItem {
         $this->methods=array();
         foreach($methods as $method)
             $this->methods[]=strtoupper((string)$method);
-        $this->path=self::normalizePath($path);
+        $this->path=self::expandWildcard(self::normalizePath($path));
         $this->handler=$handler;
         $this->middlewares=$middlewares;
         $this->pattern=$this->compile();
@@ -113,6 +122,8 @@ final class RouteItem {
     /**
      * 判断是否允许指定请求方法
      *
+     * - HEAD 由 GET 路由承接(HTTP 规范要求服务器支持 HEAD)
+     *
      * @access public
      * @param string $method 请求方法
      * @return bool
@@ -120,7 +131,28 @@ final class RouteItem {
     public function matchesMethod(string $method): bool {
         if($this->methods===array()||in_array('*',$this->methods,true))
             return true;
-        return in_array(strtoupper($method),$this->methods,true);
+        $method=strtoupper($method);
+        if(in_array($method,$this->methods,true))
+            return true;
+        return $method==='HEAD'&&in_array('GET',$this->methods,true);
+    }
+
+    /**
+     * 获取本路由允许的请求方法(用于 405 的 Allow 响应头)
+     *
+     * - 声明了 GET 时一并列出 HEAD, 与承接规则保持一致
+     * - 不限方法的路由返回空数组, 由调用方按需处理
+     *
+     * @access public
+     * @return array<string>
+     */
+    public function allowedMethods(): array {
+        if($this->methods===array()||in_array('*',$this->methods,true))
+            return array();
+        $methods=$this->methods;
+        if(in_array('GET',$methods,true)&&!in_array('HEAD',$methods,true))
+            $methods[]='HEAD';
+        return $methods;
     }
 
     /**
@@ -203,10 +235,34 @@ final class RouteItem {
                 $offset=strlen($this->path);
                 break;
             }
-            $uri.=$literal.(string)$params[$name];
+            $uri.=$literal.$this->checkValue($name,$params[$name]);
             $offset=$match[0][1]+strlen($match[0][0]);
         }
         return $uri.substr($this->path,$offset);
+    }
+
+    /**
+     * 校验取值是否满足参数约束
+     *
+     * - 避免生成必然 404 的 URL(如 `{id:\d+}` 传入 `abc`)
+     *
+     * @access private
+     * @param string $name 参数名
+     * @param mixed $value 取值
+     * @return string
+     * @throws Exception 取值不满足约束
+     */
+    private function checkValue(string $name,mixed $value): string {
+        $value=(string)$value;
+        $constraint=$this->constraints[$name]??'[^/]+';
+        if(preg_match('#^(?:'.$constraint.')$#u',$value)!==1)
+            throw new Exception('Route parameter does not match constraint.',-420,array(
+                'path'=>$this->path,
+                'name'=>$name,
+                'value'=>$value,
+                'constraint'=>$constraint
+            ));
+        return $value;
     }
 
     /**
@@ -420,6 +476,7 @@ final class RouteItem {
                 'name'=>$name
             ));
         $this->params[]=$name;
+        $this->constraints[$name]=$token['constraint'];
         if($token['optional'])
             $this->optional[]=$name;
         return '(?P<'.$name.'>'.$token['constraint'].')';
@@ -488,6 +545,32 @@ final class RouteItem {
                 'path'=>$this->path
             ));
         return preg_quote($literal,'#');
+    }
+
+    /**
+     * 展开末尾通配糖
+     *
+     * - `/files/*` 等价于 `/files/{any?:.*}`, 即可同时匹配 `/files` 与任意深度子路径
+     *
+     * @access private
+     * @param string $path 原始路径
+     * @return string
+     * @throws Exception 通配符不在末尾
+     */
+    private static function expandWildcard(string $path): string {
+        $segments=explode('/',$path);
+        $last=count($segments)-1;
+        // 仅「自成一段的 `*`」才是通配糖, 约束内的 `*`(如 `.*`)不受影响
+        foreach($segments as $index=>$segment) {
+            if($segment==='*'&&$index!==$last)
+                throw new Exception('Wildcard must be the last path segment.',-421,array(
+                    'path'=>$path
+                ));
+        }
+        if($segments[$last]!=='*')
+            return $path;
+        $segments[$last]='{any?:.*}';
+        return implode('/',$segments);
     }
 
     /**

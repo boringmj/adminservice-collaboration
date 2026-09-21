@@ -64,6 +64,10 @@ final class Response extends BaseResponse {
         self::$headers=new Data();
         self::$cookies=new Data();
         self::setContentType('*/*');
+        // 复位状态码与返回内容, 避免上一次请求的残留影响本次(常驻模式下尤为重要)
+        self::setStatusCode(200);
+        self::setControllerReturn(null);
+        self::setReturnContent(null);
     }
 
     /**
@@ -245,6 +249,9 @@ final class Response extends BaseResponse {
         $temp=self::render();
         // 发送请求头
         self::sendHeaders();
+        // HEAD 只发送头部, 不输出响应体(HTTP 规范要求)
+        if(App::get(Request::class)->getServer('REQUEST_METHOD')==='HEAD')
+            return;
         // 渲染结果
         echo $temp;
     }

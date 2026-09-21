@@ -139,12 +139,12 @@ abstract class Response {
 
     /**
      * 设置最终返回内容
-     * 
+     *
      * @access public
-     * @param string $content 内容
+     * @param string|null $content 内容(null 表示未设置)
      * @return void
      */
-    public static function setReturnContent(string $content): void {
+    public static function setReturnContent(?string $content): void {
         self::$return_content=$content;
     }
 

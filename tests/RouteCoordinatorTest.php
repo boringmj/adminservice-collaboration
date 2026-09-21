@@ -162,8 +162,41 @@ class RouteCoordinatorTest extends TestCase {
      */
     public function testExplicitRouteMethodDistinction(): void {
         $this->useRoutes("\$router->post('/t/hello',array(\\app\\demo\\controller\\Index::class,'index'));");
-        // 方法不匹配视为未命中
+        // 路径存在但方法不符 → 405, 并告知允许的方法
         $this->dispatch('/t/hello');
+        $this->assertSame(405,Response::getStatusCode());
+        $this->assertSame('POST',Response::getHeader('Allow'));
+    }
+
+    /**
+     * 测试 HEAD 由 GET 路由承接
+     * @return void
+     */
+    public function testHeadServedByGet(): void {
+        $this->useRoutes("\$router->get('/t/g',array(\\app\\demo\\controller\\Index::class,'index'));");
+        $data=$this->dispatch('/t/g','HEAD');
+        $this->assertSame('Hello World!',$data);
+        $this->assertSame(200,Response::getStatusCode());
+    }
+
+    /**
+     * 测试 OPTIONS 自动应答(204 + Allow)
+     * @return void
+     */
+    public function testOptionsAutoRespond(): void {
+        $this->useRoutes("\$router->get('/t/o',array(\\app\\demo\\controller\\Index::class,'index'));");
+        $this->dispatch('/t/o','OPTIONS');
+        $this->assertSame(204,Response::getStatusCode());
+        $this->assertSame('GET, HEAD',Response::getHeader('Allow'));
+    }
+
+    /**
+     * 测试路径不存在时仍为 404
+     * @return void
+     */
+    public function testUnknownPathReturns404(): void {
+        $this->useRoutes("\$router->get('/t/only',array(\\app\\demo\\controller\\Index::class,'index'));");
+        $this->dispatch('/t/other');
         $this->assertSame(404,Response::getStatusCode());
     }
 

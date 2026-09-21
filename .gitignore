@@ -8,7 +8,3 @@ AdminService/uploads/
 .vscode/
 .phpunit.result.cache
 wiki/
-
-# 重构期间的工作文档(重构完成后连同本行一并删除)
-charter.md
-route-refactor-plan.md

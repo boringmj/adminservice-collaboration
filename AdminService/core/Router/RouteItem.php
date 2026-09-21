@@ -5,6 +5,9 @@ namespace AdminService\Router;
 use AdminService\Exception;
 
 use function array_key_exists;
+use function array_reverse;
+use function array_slice;
+use function count;
 use function in_array;
 use function is_array;
 use function ltrim;
@@ -23,7 +26,7 @@ use function substr;
  *
  * - 承载方法、路径、处理器与中间件
  * - 路径中的 `{name}`、`{name:约束}`、`{name?}` 在构造时编译为具名捕获组
- * - 可选参数(带 `?`)仅允许一个且须位于路径末尾
+ * - 可选参数(带 `?`)可多个, 但须构成 `/` 分隔的末尾序列, 如 `/a/{b?}/{c?}`
  */
 final class RouteItem {
 
@@ -177,21 +180,29 @@ final class RouteItem {
         $offset=0;
         $matches=array();
         preg_match_all(self::PARAM_PATTERN,$this->path,$matches,PREG_SET_ORDER|PREG_OFFSET_CAPTURE);
-        foreach($matches as $match) {
+        $count=count($matches);
+        foreach($matches as $index=>$match) {
             $name=$match[1][0];
             $optional=($match[2][1]??-1)!==-1;
             $literal=substr($this->path,$offset,$match[0][1]-$offset);
-            // 可选参数缺省: 连同其前的分隔符一并省略, 其后即路径尾部
-            if($optional&&!array_key_exists($name,$params)) {
+            if(!array_key_exists($name,$params)) {
+                if(!$optional)
+                    throw new Exception('Missing route parameter.',-412,array(
+                        'path'=>$this->path,
+                        'name'=>$name
+                    ));
+                // 末尾可选参数成链: 省略某个之后, 更靠后的参数不得再提供
+                for($later=$index+1;$later<$count;$later++)
+                    if(array_key_exists($matches[$later][1][0],$params))
+                        throw new Exception('Route parameter cannot be provided after an omitted optional one.',-412,array(
+                            'path'=>$this->path,
+                            'omitted'=>$name,
+                            'name'=>$matches[$later][1][0]
+                        ));
                 $uri.=rtrim($literal,'/');
                 $offset=strlen($this->path);
                 break;
             }
-            if(!array_key_exists($name,$params))
-                throw new Exception('Missing route parameter.',-412,array(
-                    'path'=>$this->path,
-                    'name'=>$name
-                ));
             $uri.=$literal.(string)$params[$name];
             $offset=$match[0][1]+strlen($match[0][0]);
         }
@@ -301,55 +312,157 @@ final class RouteItem {
      * 编译路径为匹配正则
      *
      * - 按占位符出现位置切分路径, 字面量转义后与捕获组交替拼接
-     * - 参数约束作为捕获组直接进入正则, 非法约束在编译期暴露
+     * - 可选参数须构成 `/` 分隔的**末尾**序列, 从右到左嵌套:
+     *   如 `/a/{b?}/{c?}` 编译为 `/a(?:/(?P<b>..)(?:/(?P<c>..))?)?`
      *
      * @access private
      * @return string
-     * @throws Exception 参数名重复或路径格式非法
+     * @throws Exception 参数名重复、路径格式非法或可选参数位置有误
      */
     private function compile(): string {
+        $tokens=$this->tokenize();
+        $first=$this->firstOptional($tokens);
+        if($first===null) {
+            $pattern='';
+            foreach($tokens as $token)
+                $pattern.=$this->renderToken($token);
+            return $this->finalizePattern($pattern);
+        }
+        // 可选序列之前的头部: 末位字面量的结尾 `/` 由可选链吸收
+        $head=array_slice($tokens,0,$first);
+        $last=array_pop($head);
+        if($last===null||$last['type']!=='literal'||substr($last['value'],-1)!=='/')
+            throw new Exception('Optional route parameter must follow a `/` segment.',-416,array(
+                'path'=>$this->path
+            ));
         $pattern='';
+        foreach($head as $token)
+            $pattern.=$this->renderToken($token);
+        $pattern.=$this->quoteLiteral(substr($last['value'],0,-1));
+        return $this->finalizePattern($pattern.$this->renderOptionalTail(array_slice($tokens,$first)));
+    }
+
+    /**
+     * 切分路径为令牌序列(字面量与参数交替)
+     *
+     * @access private
+     * @return array<array<string,mixed>>
+     */
+    private function tokenize(): array {
+        $tokens=array();
         $offset=0;
         $matches=array();
         preg_match_all(self::PARAM_PATTERN,$this->path,$matches,PREG_SET_ORDER|PREG_OFFSET_CAPTURE);
         foreach($matches as $match) {
             $literal=substr($this->path,$offset,$match[0][1]-$offset);
-            $name=$match[1][0];
-            $optional=($match[2][1]??-1)!==-1;
-            if(in_array($name,$this->params,true))
-                throw new Exception('Duplicate route parameter.',-413,array(
-                    'path'=>$this->path,
-                    'name'=>$name
-                ));
-            $this->params[]=$name;
-            // 未提供约束时匹配单个路径段
-            $constraint=($match[3][1]??-1)!==-1?$match[3][0]:'[^/]+';
+            if($literal!=='') {
+                $this->literalLength+=strlen($literal);
+                $tokens[]=array('type'=>'literal','value'=>$literal);
+            }
+            $tokens[]=array(
+                'type'=>'param',
+                'name'=>$match[1][0],
+                'optional'=>($match[2][1]??-1)!==-1,
+                // 未提供约束时匹配单个路径段
+                'constraint'=>($match[3][1]??-1)!==-1?$match[3][0]:'[^/]+'
+            );
             $offset=$match[0][1]+strlen($match[0][0]);
-            if(!$optional) {
-                $this->literalLength+=strlen($literal);
-                $pattern.=$this->quoteLiteral($literal).'(?P<'.$name.'>'.$constraint.')';
-                continue;
-            }
-            // 可选参数须位于路径末尾, 否则后续内容无法一并省略
-            if(substr($this->path,$offset)!=='')
-                throw new Exception('Optional route parameter must be at the end.',-416,array(
-                    'path'=>$this->path,
-                    'name'=>$name
-                ));
-            $this->optional[]=$name;
-            // 连同上一个分隔符一起可选, 如 `/index/{name?}` 同时匹配 `/index` 与 `/index/x`
-            if(substr($literal,-1)==='/') {
-                $this->literalLength+=strlen($literal)-1;
-                $pattern.=$this->quoteLiteral(substr($literal,0,-1));
-                $pattern.='(?:/(?P<'.$name.'>'.$constraint.'))?';
-            } else {
-                $this->literalLength+=strlen($literal);
-                $pattern.='(?:(?P<'.$name.'>'.$constraint.'))?';
-            }
         }
         $tail=substr($this->path,$offset);
-        $this->literalLength+=strlen($tail);
-        $pattern.=$this->quoteLiteral($tail);
+        if($tail!=='') {
+            $this->literalLength+=strlen($tail);
+            $tokens[]=array('type'=>'literal','value'=>$tail);
+        }
+        return $tokens;
+    }
+
+    /**
+     * 定位首个可选参数在令牌序列中的位置
+     *
+     * @access private
+     * @param array<array<string,mixed>> $tokens 令牌序列
+     * @return int|null
+     */
+    private function firstOptional(array $tokens): ?int {
+        foreach($tokens as $index=>$token)
+            if($token['type']==='param'&&$token['optional'])
+                return $index;
+        return null;
+    }
+
+    /**
+     * 渲染字面量或必填参数令牌
+     *
+     * @access private
+     * @param array<string,mixed> $token 令牌
+     * @return string
+     * @throws Exception 参数名重复或字面量非法
+     */
+    private function renderToken(array $token): string {
+        if($token['type']==='literal')
+            return $this->quoteLiteral($token['value']);
+        return $this->renderParam($token);
+    }
+
+    /**
+     * 渲染参数捕获组并登记参数名
+     *
+     * @access private
+     * @param array<string,mixed> $token 参数令牌
+     * @return string
+     * @throws Exception 参数名重复
+     */
+    private function renderParam(array $token): string {
+        $name=$token['name'];
+        if(in_array($name,$this->params,true))
+            throw new Exception('Duplicate route parameter.',-413,array(
+                'path'=>$this->path,
+                'name'=>$name
+            ));
+        $this->params[]=$name;
+        if($token['optional'])
+            $this->optional[]=$name;
+        return '(?P<'.$name.'>'.$token['constraint'].')';
+    }
+
+    /**
+     * 渲染可选参数尾部(从右到左嵌套)
+     *
+     * - 尾部须为 `/` 分隔的可选参数序列, 形如 `/{b?}/{c?}`
+     *
+     * @access private
+     * @param array<array<string,mixed>> $tokens 以首个可选参数起始的令牌序列
+     * @return string
+     * @throws Exception 可选参数序列格式非法
+     */
+    private function renderOptionalTail(array $tokens): string {
+        $count=count($tokens);
+        $groups=array();
+        for($i=0;$i<$count;$i+=2) {
+            $token=$tokens[$i];
+            $next=$tokens[$i+1]??null;
+            if($token['type']!=='param'||!$token['optional']||($next!==null&&($next['type']!=='literal'||$next['value']!=='/')))
+                throw new Exception('Optional route parameters must form a `/` separated trailing sequence.',-416,array(
+                    'path'=>$this->path
+                ));
+            // 按路径顺序登记, 保证参数名列表与书写顺序一致
+            $groups[]=$this->renderParam($token);
+        }
+        $pattern='';
+        foreach(array_reverse($groups) as $group)
+            $pattern='(?:/'.$group.$pattern.')?';
+        return $pattern;
+    }
+
+    /**
+     * 包裹编译结果并校验约束合法性
+     *
+     * @access private
+     * @param string $pattern 拼接后的正则片段
+     * @return string
+     * @throws Exception 约束中的正则非法
+     */
+    private function finalizePattern(string $pattern): string {
         $pattern='#^'.$pattern.'$#u';
         // 约束中的非法正则会让编译结果不可用, 在构造期拦下
         if(@preg_match($pattern,'')===false)

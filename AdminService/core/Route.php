@@ -9,6 +9,7 @@ use AdminService\Router\AttributeScanner;
 use AdminService\Router\RouteItem;
 use AdminService\Router\Router;
 use ReflectionClass;
+use base\RouteContextInterface;
 use ReflectionException;
 
 use function array_merge;
@@ -19,8 +20,6 @@ use function is_array;
 use function is_dir;
 use function is_numeric;
 use function is_string;
-use function lcfirst;
-use function preg_match;
 use function rtrim;
 use function sort;
 use function urldecode;
@@ -165,11 +164,12 @@ final class Route extends BaseRoute {
      */
     private function runRoute(RouteItem $route,array $params): void {
         $handler=$route->getHandler();
+        $params=self::decodeParams($params);
         // 路径参数写入属性区(不并入GET): 参数检索时属性优先, 同名查询参数仍按查询参数读取
-        foreach(self::decodeParams($params) as $name=>$value)
+        foreach($params as $name=>$value)
             $this->request->setAttribute($name,$value);
-        // 写入路由上下文, 供 App::getAppName 等继续可用
-        App::setData('route_info',self::handlerRouteInfo($handler));
+        // 注册路由上下文(**请求级**对象): 控制器基类、视图路径推断与 App::getAppName 系列都从它取值
+        App::instance(RouteContextInterface::class,RouteContext::fromHandler($handler,$params));
         $middlewares=array_merge(
             $route->getGroupMiddlewares(),
             $route->getRouteMiddlewares(),
@@ -257,33 +257,6 @@ final class Route extends BaseRoute {
             if(is_numeric($k))
                 unset($args[$k]);
         return $args;
-    }
-
-    /**
-     * 由处理器推断路由上下文
-     *
-     * - 控制器类位于 `app\{app}\controller\{Controller}` 时按命名空间推断
-     *
-     * @access private
-     * @param mixed $handler 处理器
-     * @return array<string,mixed>
-     */
-    private static function handlerRouteInfo(mixed $handler): array {
-        $class=is_array($handler)?($handler[0]??null):null;
-        $method=is_array($handler)?($handler[1]??null):null;
-        // 处理器可能是类名或已实例化对象, 统一记下**类名**: 控制器助手按它从容器取当前控制器实例
-        $class_name=is_object($class)?$class::class:(is_string($class)?$class:null);
-        $info=array(
-            'app'=>null,
-            'controller'=>null,
-            'method'=>$method,
-            'controller_class'=>$class_name
-        );
-        if($class_name!==null&&preg_match('/^app\\\\([^\\\\]+)\\\\controller\\\\([^\\\\]+)$/',$class_name,$matches)) {
-            $info['app']=lcfirst($matches[1]);
-            $info['controller']=$matches[2];
-        }
-        return $info;
     }
 
     /**

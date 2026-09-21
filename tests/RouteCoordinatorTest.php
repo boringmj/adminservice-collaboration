@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 
 use base\Request;
 use base\Response;
+use base\RouteContextInterface;
 use AdminService\App;
 use AdminService\Config;
 use AdminService\HttpRequest;
@@ -315,11 +316,13 @@ class RouteCoordinatorTest extends TestCase {
     public function testExplicitRouteAppContext(): void {
         $this->useRoutes("\$router->get('/t/ctx',array(\\app\\demo\\controller\\Index::class,'index'));");
         $this->dispatch('/t/ctx');
-        // 路由上下文属请求级数据: 请求结束后门面已收回应用级容器, 故这里经请求级容器读取
+        // 路由上下文属**请求级对象**: 请求结束后门面已收回应用级容器, 故经请求级容器读取
         $container=$this->main()->application()->requestContainer();
-        $this->assertSame('demo',$container->getData('route_info')['app']);
-        $this->assertSame('Index',$container->getData('route_info')['controller']);
-        $this->assertSame('index',$container->getData('route_info')['method']);
+        $context=$container->get(RouteContextInterface::class);
+        $this->assertSame('demo',$context->appName());
+        $this->assertSame('Index',$context->controllerName());
+        $this->assertSame('index',$context->methodName());
+        $this->assertSame(\app\demo\controller\Index::class,$context->controllerClass());
     }
 
     /**

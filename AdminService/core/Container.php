@@ -18,7 +18,7 @@ final class Container implements \base\Container {
      * 父容器(请求级容器 fork 自应用级容器)
      *
      * - 解析时先查自身, 未命中再委托父容器(实例 / 绑定 / 别名 / 单例)
-     * - `instance()` / `setData()` **只写自身**, 因此请求级容器不会污染应用级
+     * - `instance()` **只写自身**, 因此请求级容器不会污染应用级
      *
      * @var Container|null
      */
@@ -46,11 +46,6 @@ final class Container implements \base\Container {
      * @var array<string,string>
      */
     private array $singleton_container=array();
-
-    /**
-     * 全局数据容器
-     */
-    private array $data_container=array();
 
     /**
      * 反射缓存(实例状态)
@@ -227,7 +222,7 @@ final class Container implements \base\Container {
      * 派生一个请求级子容器
      *
      * - **共享**: 绑定表 / 别名表 / 单例表 / 反射缓存(复制标量表, 复用缓存对象)
-     * - **不共享**: 实例表 / 全局数据(请求级容器读写自己的, 不污染应用级)
+     * - **不共享**: 实例表(请求级容器读写自己的, 不污染应用级)
      * - 内核组件按子容器重新装配(它们的回调必须指向子容器, 否则实例会注册到父容器)
      *
      * @access public
@@ -245,7 +240,7 @@ final class Container implements \base\Container {
     }
 
     /**
-     * 清空实例表与全局数据(请求结束 / 复用时调用)
+     * 清空实例表(请求结束 / 复用时调用)
      *
      * - 绑定 / 别名 / 单例表与反射缓存**保留**(它们属应用级)
      * - 容器自身的登记会重新写回, 因此 `reset()` 后仍可按契约取到自身
@@ -255,7 +250,6 @@ final class Container implements \base\Container {
      */
     public function reset(): void {
         $this->container=array();
-        $this->data_container=array();
         $this->container[\base\Container::class]=$this;
         $this->container[static::class]=$this;
     }
@@ -275,7 +269,22 @@ final class Container implements \base\Container {
         if($this->parent!==null&&$this->parent->has($name))
             return true;
         $real=$this->resolve($name);
-        return isset($this->container[$real])||class_exists($real)||interface_exists($real);
+        // 只认"可实例化的具体类": 未绑定的接口/抽象类不算"容器能给出"(否则按接口取会抛异常)
+        return isset($this->container[$real])||(class_exists($real)&&$this->reflections->getClass($real)->isInstantiable());
+    }
+
+    /**
+     * 判断"实例是否已登记"(自身或父容器)
+     *
+     * @access public
+     * @param string $name 名称(类名 / 接口名 / 别名)
+     * @return bool
+     */
+    public function hasInstance(string $name): bool {
+        if($this->findInstance($name)!==null)
+            return true;
+        $real=$this->resolve($name);
+        return $real!==$name&&$this->findInstance($real)!==null;
     }
 
     /**
@@ -425,30 +434,6 @@ final class Container implements \base\Container {
             if($concrete===$real_class)
                 $this->container[$abstract]=$instance;
         }
-    }
-
-    /**
-     * 获取全局数据
-     * 
-     * @access public
-     * @param string $name 数据名
-     * @param mixed $default 默认值
-     * @return mixed
-     */
-    public function getData(string $name,mixed $default=null): mixed {
-        return $this->data_container[$name]??$default;
-    }
-
-    /**
-     * 设置或添加全局数据
-     * 
-     * @access public
-     * @param string $name 数据名
-     * @param mixed $data 数据
-     * @return void
-     */
-    public function setData(string $name,mixed $data): void {
-        $this->data_container[$name]=$data;
     }
 
 

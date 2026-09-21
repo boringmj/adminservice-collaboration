@@ -210,14 +210,26 @@ abstract class Controller {
         }
         if($this->config===null)
             throw new Exception('无法推断视图路径: 未注入配置契约(请让容器构建控制器)');
-        // 路由上下文(应用名 / 控制器名 / 方法名)取自容器内的分发信息
-        $route_info=$this->container===null?array():$this->container->getData('route_info',array());
-        $route_info=is_array($route_info)?$route_info:array();
+        // 路由上下文(应用名 / 控制器名 / 方法名)属请求级对象, 未分发时为 null
+        $context=$this->routeContext();
         if($template===null)
-            $template=$route_info['method']??null;
-        $template=$this->config->get('app.path').'/'.($route_info['app']??'').'/view'.'/'.($route_info['controller']??'').'/'.$template.'.html';
+            $template=$context?->methodName();
+        $template=$this->config->get('app.path').'/'.($context?->appName()??'').'/view'.'/'.($context?->controllerName()??'').'/'.$template.'.html';
         $this->view->init($template,$data);
         return $this->html($this->view->render(),$this->response->status());
+    }
+
+    /**
+     * 当前路由上下文(请求级对象; 未分发时为 null)
+     *
+     * @access private
+     * @return RouteContextInterface|null
+     */
+    private function routeContext(): ?RouteContextInterface {
+        if($this->container===null||!$this->container->hasInstance(RouteContextInterface::class))
+            return null;
+        $context=$this->container->get(RouteContextInterface::class);
+        return $context instanceof RouteContextInterface?$context:null;
     }
 
 }

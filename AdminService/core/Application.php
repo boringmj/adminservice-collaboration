@@ -166,11 +166,11 @@ final class Application {
      * @throws Exception
      */
     private function bootRequest(ContainerContract $container): void {
-        if(!$container->has(Request::class))
+        if(!$container->hasInstance(Request::class))
             $container->instance(Request::class,$container->build(Request::class));
-        if(!$container->has(Response::class))
+        if(!$container->hasInstance(Response::class))
             $container->instance(Response::class,$container->build(Response::class));
-        if(!$container->has(AbstractSession::class)) {
+        if(!$container->hasInstance(AbstractSession::class)) {
             /** @var AbstractSession $session */
             $session=$container->build(Config::get('session.class',ArraySession::class));
             if(Config::get('session.start',false))

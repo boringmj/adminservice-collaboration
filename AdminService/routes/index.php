@@ -1,5 +1,7 @@
 <?php
 
+use \app\index\controller\Index;
+
 /**
  * index 应用路由
  *
@@ -9,7 +11,7 @@
  * @var \AdminService\Router\Router $router
  */
 
-$router->any('/',array(\app\index\controller\Index::class,'index'));
-$router->any('/index',array(\app\index\controller\Index::class,'index'));
-$router->any('/index/index',array(\app\index\controller\Index::class,'index'));
-$router->any('/index/index/index/{name}',array(\app\index\controller\Index::class,'index'));
+$router->any('/index',array(Index::class,'index'));
+$router->any('/index/index',array(Index::class,'index'));
+$router->any('/index/index/index',array(Index::class,'index'));
+$router->any('/index/index/index/{name}',array(Index::class,'index'));

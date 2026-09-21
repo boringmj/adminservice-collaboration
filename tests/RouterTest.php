@@ -288,6 +288,75 @@ class RouterTest extends TestCase {
     }
 
     /**
+     * 测试重复注册(路径与方法均相同)时抛异常
+     * @return void
+     */
+    public function testDuplicateRouteThrows(): void {
+        $router=new Router();
+        $router->get('/dup',array('C','a'));
+        $this->expectException(Exception::class);
+        $router->get('/dup',array('C','b'));
+    }
+
+    /**
+     * 测试等价动态路由(匹配形状相同)时抛异常
+     * @return void
+     */
+    public function testEquivalentDynamicRouteThrows(): void {
+        $router=new Router();
+        $router->get('/user/{id}',array('C','a'));
+        $this->expectException(Exception::class);
+        $router->get('/user/{uid}',array('C','b'));
+    }
+
+    /**
+     * 测试同路径不同方法不算冲突
+     * @return void
+     */
+    public function testSamePathDifferentMethodsAllowed(): void {
+        $router=new Router();
+        $router->get('/same',array('C','index'));
+        $router->post('/same',array('C','store'));
+        $this->assertSame(array('C','index'),$router->find('GET','/same')[0]->getHandler());
+        $this->assertSame(array('C','store'),$router->find('POST','/same')[0]->getHandler());
+    }
+
+    /**
+     * 测试不限方法的路由与具体方法冲突
+     * @return void
+     */
+    public function testAnyConflictsWithSpecificMethod(): void {
+        $router=new Router();
+        $router->get('/mix',array('C','index'));
+        $this->expectException(Exception::class);
+        $router->any('/mix',array('C','any'));
+    }
+
+    /**
+     * 测试静态路径与含参路径并存(不算冲突, 匹配时静态优先)
+     * @return void
+     */
+    public function testStaticAndDynamicNotConflict(): void {
+        $router=new Router();
+        $router->get('/thing/{id}',array('C','show'));
+        $router->get('/thing/new',array('C','create'));
+        $this->assertSame(array('C','create'),$router->find('GET','/thing/new')[0]->getHandler());
+        $this->assertSame(array('C','show'),$router->find('GET','/thing/9')[0]->getHandler());
+    }
+
+    /**
+     * 测试属性声明与已注册路由冲突时抛异常
+     * @return void
+     */
+    public function testAttributeConflictThrows(): void {
+        $router=new Router();
+        // RouteController::hello 上声明了 #[Route('GET','/hello/{name}')]
+        $router->get('/hello/{name}',array('C','show'));
+        $this->expectException(Exception::class);
+        $router->registerAttributes(array(RouteController::class));
+    }
+
+    /**
      * 测试集中式路由文件加载
      * @return void
      */

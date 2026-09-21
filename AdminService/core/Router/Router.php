@@ -6,11 +6,13 @@ use AdminService\Exception;
 use ReflectionClass;
 use ReflectionMethod;
 
+use function array_intersect;
 use function array_merge;
 use function array_pop;
 use function class_exists;
 use function explode;
 use function implode;
+use function in_array;
 use function is_array;
 use function is_file;
 use function is_string;
@@ -173,12 +175,57 @@ final class Router {
      * @param string $path 路由路径
      * @param mixed $handler 处理器
      * @return RouteItem
-     * @throws Exception
+     * @throws Exception 与已注册路由冲突
      */
     public function add(array $methods,string $path,mixed $handler): RouteItem {
         $route=new RouteItem($methods,$this->prefix().$path,$handler,$this->middlewares());
+        $this->assertNoConflict($route);
         $this->routes[]=$route;
         return $route;
+    }
+
+    /**
+     * 校验路由冲突
+     *
+     * - 匹配形状相同且请求方法有交集即视为冲突: 「先注册者胜」会静默丢弃后注册的路由
+     * - 静态与含参路径形状不同, 不算冲突(匹配时静态优先)
+     *
+     * @access private
+     * @param RouteItem $route 待注册路由
+     * @return void
+     * @throws Exception 冲突时抛出
+     */
+    private function assertNoConflict(RouteItem $route): void {
+        foreach($this->routes as $exists) {
+            if($exists->getShape()!==$route->getShape())
+                continue;
+            if(!self::methodsIntersect($exists->getMethods(),$route->getMethods()))
+                continue;
+            throw new Exception('Route conflict.',-415,array(
+                'path'=>$route->getPath(),
+                'methods'=>$route->getMethods(),
+                'exists'=>array(
+                    'path'=>$exists->getPath(),
+                    'methods'=>$exists->getMethods()
+                )
+            ));
+        }
+    }
+
+    /**
+     * 判断两组请求方法是否有交集(空集合与 `*` 均视为不限方法)
+     *
+     * @access private
+     * @param array<string> $a 请求方法
+     * @param array<string> $b 请求方法
+     * @return bool
+     */
+    private static function methodsIntersect(array $a,array $b): bool {
+        if($a===array()||$b===array())
+            return true;
+        if(in_array('*',$a,true)||in_array('*',$b,true))
+            return true;
+        return array_intersect($a,$b)!==array();
     }
 
     /**

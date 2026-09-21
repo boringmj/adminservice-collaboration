@@ -99,7 +99,7 @@ final class Main {
      * @throws Exception|ReflectionException
      */
     public function run(): void {
-        $middlewares=(array)Config::get('middlewares.request',array());
+        $middlewares=Pipeline::order(Pipeline::normalize(Config::get('middlewares.request',array())));
         (new Pipeline($middlewares,App::get(Request::class)))->then(function(): void {
             App::make(Route::class,true)->run();
         });

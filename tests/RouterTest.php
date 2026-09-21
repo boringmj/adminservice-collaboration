@@ -209,6 +209,77 @@ class RouterTest extends TestCase {
     }
 
     /**
+     * 测试中间件层内优先级
+     *
+     * - 条目写法 `array('middleware'=>...,'priority'=>N)`: 数值大者靠外
+     * - 排序只作用于层内: 路由层的优先级再高也不会越过分组层
+     *
+     * @return void
+     */
+    public function testMiddlewarePriorityWithinLayer(): void {
+        $router=new Router();
+        $router->group(array('middleware'=>array(
+            array('middleware'=>FirstMiddleware::class,'priority'=>1),
+            array('middleware'=>SecondMiddleware::class,'priority'=>5)
+        )),function(Router $r): void {
+            $r->get('/prio',array('C','prio'))->middleware(array(
+                array('middleware'=>'RouteA','priority'=>1),
+                array('middleware'=>'RouteB','priority'=>9)
+            ));
+        });
+        $item=$router->find('GET','/prio')[0];
+        // 分组层按优先级排序
+        $this->assertSame(array(SecondMiddleware::class,FirstMiddleware::class),$item->getGroupMiddlewares());
+        // 路由层按优先级排序
+        $this->assertSame(array('RouteB','RouteA'),$item->getRouteMiddlewares());
+        // 层间顺序固定: 分组层整体仍在路由层之外
+        $this->assertSame(array(
+            SecondMiddleware::class,FirstMiddleware::class,'RouteB','RouteA'
+        ),$item->getMiddlewares());
+    }
+
+    /**
+     * 测试同优先级保持声明顺序
+     * @return void
+     */
+    public function testMiddlewarePriorityKeepsDeclarationOrder(): void {
+        $router=new Router();
+        $router->get('/same',array('C','same'))->middleware(array(
+            array('middleware'=>'A','priority'=>0),
+            array('middleware'=>'B','priority'=>0),
+            array('middleware'=>'C','priority'=>0)
+        ));
+        $this->assertSame(array('A','B','C'),$router->find('GET','/same')[0]->getRouteMiddlewares());
+    }
+
+    /**
+     * 测试中间件声明归一化与层内排序
+     * @return void
+     */
+    public function testPipelineNormalizeAndOrder(): void {
+        // 类名与实例: 默认优先级 0
+        $this->assertSame(
+            array(array('middleware'=>FirstMiddleware::class,'priority'=>0)),
+            Pipeline::normalize(FirstMiddleware::class)
+        );
+        // 空声明
+        $this->assertSame(array(),Pipeline::normalize(null));
+        $this->assertSame(array(),Pipeline::normalize(array()));
+        // 条目列表: 条目内可放多个中间件(共用该条目的优先级)
+        $normalized=Pipeline::normalize(array(
+            FirstMiddleware::class,
+            array('middleware'=>array('A','B'),'priority'=>3)
+        ));
+        $this->assertSame(array(
+            array('middleware'=>FirstMiddleware::class,'priority'=>0),
+            array('middleware'=>'A','priority'=>3),
+            array('middleware'=>'B','priority'=>3)
+        ),$normalized);
+        // 排序: 优先级大者靠前, 同优先级保持顺序
+        $this->assertSame(array('A','B',FirstMiddleware::class),Pipeline::order($normalized));
+    }
+
+    /**
      * 测试命名路由反向生成
      * @return void
      */
@@ -446,6 +517,9 @@ class RouterTest extends TestCase {
         $this->assertSame(array('name'=>'x'),$router->find('GET','/g/x')[1]);
         // 分组中间件继承到该控制器下的路由
         $this->assertSame(array(FirstMiddleware::class),$found[0]->getMiddlewares());
+        // 类级 #[RouteGroup] 的中间件归入分组层(路由层为空)
+        $this->assertSame(array(FirstMiddleware::class),$found[0]->getGroupMiddlewares());
+        $this->assertSame(array(),$found[0]->getRouteMiddlewares());
         // 命名可用于反向生成
         $this->assertSame('/g',$router->url('g.hello'));
         $this->assertSame('/g/y',$router->url('g.hello',array('name'=>'y')));

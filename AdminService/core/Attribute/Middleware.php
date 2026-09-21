@@ -10,9 +10,10 @@ use function is_array;
  * 控制器中间件属性
  *
  * - 类上声明对该控制器的所有方法生效, 方法上声明只对该方法生效
- * - 类与方法上的声明**同级**: 按 `priority` 排序(数值大者更靠外), 同 `priority` 时类上的在前
- * - 该层位于路由级之**内**(紧贴控制器), 配置项 `middlewares.controller` 为同层最低优先级
- * - 中间件写法与分组/路由一致: 类名(经容器实例化, 可依赖注入)或已实例化对象
+ * - 配置项 `middlewares.controller`、类上、方法上的声明**同级**: 按 `priority` 排序(数值大者更靠外)
+ * - 同 `priority` 时按 配置 → 类 → 方法 的收集顺序
+ * - 该层位于路由级之**内**(紧贴控制器)
+ * - 中间件写法与分组/路由一致: 类名(经容器实例化, 可依赖注入)、已实例化对象或含 `priority` 的条目
  * - 无 `#[Route]` 属性、仅由路由文件指向的控制器同样生效(按处理器类与方法解析)
  */
 #[Attribute(Attribute::TARGET_CLASS|Attribute::TARGET_METHOD|Attribute::IS_REPEATABLE)]

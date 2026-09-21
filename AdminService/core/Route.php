@@ -170,7 +170,11 @@ final class Route extends BaseRoute {
             $this->request->setAttribute($name,$value);
         // 写入路由上下文, 供 App::getAppName 等继续可用
         App::setData('route_info',self::handlerRouteInfo($handler));
-        $middlewares=array_merge($route->getMiddlewares(),$this->controllerMiddlewares($handler));
+        $middlewares=array_merge(
+            $route->getGroupMiddlewares(),
+            $route->getRouteMiddlewares(),
+            $this->controllerMiddlewares($handler)
+        );
         $response=App::get(Response::class);
         (new Pipeline($middlewares,$this->request))->then(function() use ($handler,$response): void {
             $response->body($this->callHandler($handler));
@@ -180,45 +184,42 @@ final class Route extends BaseRoute {
     /**
      * 组装控制器级中间件
      *
-     * - 顺序: 配置(`middlewares.controller`) → 类上 `#[Middleware]` → 方法上 `#[Middleware]`
-     * - 类与方法上的声明同级: 按 `priority` 排序(数值大者靠外), 同优先级时类上的在前
+     * - 来源: 配置(`middlewares.controller`) → 类上 `#[Middleware]` → 方法上 `#[Middleware]`
+     * - 三者**同级**: 按 `priority` 排序(数值大者靠外), 同优先级时按上述收集顺序
      *
      * @access private
      * @param mixed $handler 处理器
      * @return array<string|object>
      */
     private function controllerMiddlewares(mixed $handler): array {
-        $middlewares=(array)Config::get('middlewares.controller',array());
-        if(!is_array($handler)||count($handler)!==2||!is_string($handler[0])||!class_exists($handler[0]))
-            return $middlewares;
-        $reflection=new ReflectionClass($handler[0]);
-        $declared=self::collectMiddlewareAttributes($reflection->getAttributes(Middleware::class));
-        if($reflection->hasMethod($handler[1]))
-            $declared=array_merge($declared,self::collectMiddlewareAttributes(
-                $reflection->getMethod($handler[1])->getAttributes(Middleware::class)
-            ));
-        // 数值大者靠外; usort 为稳定排序, 同优先级保持"类先方法后"的收集顺序
-        usort($declared,static function(Middleware $a,Middleware $b): int {
-            return $b->getPriority()<=>$a->getPriority();
-        });
-        foreach($declared as $attribute)
-            foreach($attribute->getMiddlewares() as $middleware)
-                $middlewares[]=$middleware;
-        return $middlewares;
+        $entries=Pipeline::normalize(Config::get('middlewares.controller',array()));
+        if(is_array($handler)&&count($handler)===2&&is_string($handler[0])&&class_exists($handler[0])) {
+            $reflection=new ReflectionClass($handler[0]);
+            $entries=array_merge($entries,self::middlewareEntries($reflection->getAttributes(Middleware::class)));
+            if($reflection->hasMethod($handler[1]))
+                $entries=array_merge($entries,self::middlewareEntries(
+                    $reflection->getMethod($handler[1])->getAttributes(Middleware::class)
+                ));
+        }
+        return Pipeline::order($entries);
     }
 
     /**
-     * 实例化中间件属性
+     * 把中间件属性展开为中间件条目
      *
      * @access private
      * @param array<\ReflectionAttribute> $attributes 属性集合
-     * @return array<Middleware>
+     * @return array<array{middleware:string|object,priority:int}>
      */
-    private static function collectMiddlewareAttributes(array $attributes): array {
-        $instances=array();
-        foreach($attributes as $attribute)
-            $instances[]=$attribute->newInstance();
-        return $instances;
+    private static function middlewareEntries(array $attributes): array {
+        $entries=array();
+        foreach($attributes as $attribute) {
+            /** @var Middleware $declaration */
+            $declaration=$attribute->newInstance();
+            foreach($declaration->getMiddlewares() as $middleware)
+                $entries[]=array('middleware'=>$middleware,'priority'=>$declaration->getPriority());
+        }
+        return $entries;
     }
 
     /**

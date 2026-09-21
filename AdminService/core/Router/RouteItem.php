@@ -3,8 +3,10 @@
 namespace AdminService\Router;
 
 use AdminService\Exception;
+use AdminService\Pipeline;
 
 use function array_key_exists;
+use function array_merge;
 use function array_reverse;
 use function array_slice;
 use function count;
@@ -27,6 +29,7 @@ use function substr;
  * 单条路由
  *
  * - 承载方法、路径、处理器与中间件
+ * - 中间件按层分开放置: 分组层({@see groupMiddleware()})与路由层({@see middleware()}), 各层内部按 `priority` 排序
  * - 路径中的 `{name}`、`{name:约束}`、`{name?}` 在构造时编译为具名捕获组
  * - 可选参数(带 `?`)可多个, 但须构成 `/` 分隔的末尾序列, 如 `/a/{b?}/{c?}`
  * - 末尾的 `*` 为通配糖: `/files/*` 等价于 `/files/{any?:.*}`
@@ -58,10 +61,16 @@ final class RouteItem {
     private mixed $handler;
 
     /**
-     * 路由级中间件
-     * @var array<string|object>
+     * 分组层中间件(归一化条目)
+     * @var array<array{middleware:string|object,priority:int}>
      */
-    private array $middlewares;
+    private array $group_middlewares=array();
+
+    /**
+     * 路由层中间件(归一化条目)
+     * @var array<array{middleware:string|object,priority:int}>
+     */
+    private array $route_middlewares=array();
 
     /**
      * 路由名
@@ -106,16 +115,16 @@ final class RouteItem {
      * @param array<string> $methods 允许的请求方法(传 `*` 表示不限)
      * @param string $path 路由路径
      * @param mixed $handler 处理器
-     * @param array<string|object> $middlewares 路由级中间件
+     * @param mixed $middlewares 分组层中间件(类名 / 实例 / 数组 / 含 priority 的条目)
      * @throws Exception 路径参数名重复或路径格式非法
      */
-    public function __construct(array $methods,string $path,mixed $handler,array $middlewares=array()) {
+    public function __construct(array $methods,string $path,mixed $handler,mixed $middlewares=array()) {
         $this->methods=array();
         foreach($methods as $method)
             $this->methods[]=strtoupper((string)$method);
         $this->path=self::expandWildcard(self::normalizePath($path));
         $this->handler=$handler;
-        $this->middlewares=$middlewares;
+        $this->group_middlewares=Pipeline::normalize($middlewares);
         $this->pattern=$this->compile();
     }
 
@@ -278,17 +287,37 @@ final class RouteItem {
     }
 
     /**
-     * 追加路由级中间件
+     * 追加路由层中间件
      *
-     * - 追加在全局与分组中间件之后, 执行顺序上更靠近控制器
+     * - 追加在分组层之后, 执行顺序上更靠近控制器
+     * - 支持条目写法声明层内优先级: `array('middleware'=>Foo::class,'priority'=>10)`
      *
      * @access public
-     * @param string|object|array<string|object> $middlewares 中间件(类名或实例)
+     * @param mixed $middlewares 中间件(类名 / 实例 / 数组 / 含 priority 的条目)
      * @return static
      */
-    public function middleware(string|object|array $middlewares): static {
-        foreach(is_array($middlewares)?$middlewares:array($middlewares) as $middleware)
-            $this->middlewares[]=$middleware;
+    public function middleware(mixed $middlewares): static {
+        $this->route_middlewares=array_merge(
+            $this->route_middlewares,
+            Pipeline::normalize($middlewares)
+        );
+        return $this;
+    }
+
+    /**
+     * 追加分组的中间件
+     *
+     * - 用于类级 `#[RouteGroup]` 的声明: 归入分组层, 保持在路由层之外
+     *
+     * @access public
+     * @param mixed $middlewares 中间件(类名 / 实例 / 数组 / 含 priority 的条目)
+     * @return static
+     */
+    public function groupMiddleware(mixed $middlewares): static {
+        $this->group_middlewares=array_merge(
+            $this->group_middlewares,
+            Pipeline::normalize($middlewares)
+        );
         return $this;
     }
 
@@ -313,13 +342,33 @@ final class RouteItem {
     }
 
     /**
-     * 获取路由级中间件
+     * 获取分组层中间件(层内已按 priority 排序)
+     *
+     * @access public
+     * @return array<string|object>
+     */
+    public function getGroupMiddlewares(): array {
+        return Pipeline::order($this->group_middlewares);
+    }
+
+    /**
+     * 获取路由层中间件(层内已按 priority 排序)
+     *
+     * @access public
+     * @return array<string|object>
+     */
+    public function getRouteMiddlewares(): array {
+        return Pipeline::order($this->route_middlewares);
+    }
+
+    /**
+     * 获取全部中间件(分组层 + 路由层, 便于查看与测试)
      *
      * @access public
      * @return array<string|object>
      */
     public function getMiddlewares(): array {
-        return $this->middlewares;
+        return array_merge($this->getGroupMiddlewares(),$this->getRouteMiddlewares());
     }
 
     /**

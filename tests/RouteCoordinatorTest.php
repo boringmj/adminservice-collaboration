@@ -256,6 +256,8 @@ PHP
         $this->assertSame('Hello World!',$this->dispatch('/demo/index/index'));
         $this->assertSame('Hello world!',$this->dispatch('/index/index/index/world'));
         $this->assertSame('Hello World!',$this->dispatch('/index'));
+        // 该路由由控制器上的 #[Route] 属性声明, 经自动扫描注册
+        $this->assertSame('Hello World!',$this->dispatch('/index/index/index'));
     }
 
     /**

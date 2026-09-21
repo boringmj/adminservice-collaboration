@@ -6,6 +6,7 @@ use Exception;
 use base\Controller;
 use AdminService\Log;
 use AdminService\Autowire\AutowireProperty;
+use AdminService\Router\Route;
 
 class Index extends Controller {
 
@@ -23,8 +24,10 @@ class Index extends Controller {
      *  - 不建议使用任何标记来标记控制器的`public`属性的方法
      *  - 除非你知道其原理和且接受可能的副作用或其他未知风险
      *  - 已知风险: 部分标记可能导致方法被框架自动/重复调用
+     *  - 也可用`#[Route]`属性就近声明路由,框架会自动扫描控制器上的路由属性
      * @throws Exception
      */
+    #[Route('GET','/index/index/index')]
     public function index(string $name="World"): string {
         // 值得一说,如果你在路由中传入了name参数,那么这里的$name将会被覆盖
         $this->log->write($this->log::class.": Hello $name!");

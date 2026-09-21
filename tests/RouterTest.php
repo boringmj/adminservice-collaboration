@@ -361,6 +361,23 @@ class RouterTest extends TestCase {
     }
 
     /**
+     * 测试更具体的同级路由优先于通用路由
+     *
+     * - 通用路由先注册也不应遮蔽更具体的同级路由
+     *
+     * @return void
+     */
+    public function testSpecificRouteWinsOverCatchAll(): void {
+        $router=new Router();
+        $router->get('/index/{name?}',array('C','home'));
+        $router->get('/index/urlDemo/{name?}',array('C','url_demo'));
+        $this->assertSame(array('C','url_demo'),$router->find('GET','/index/urlDemo')[0]->getHandler());
+        $this->assertSame(array('C','url_demo'),$router->find('GET','/index/urlDemo/x')[0]->getHandler());
+        $this->assertSame(array('C','home'),$router->find('GET','/index')[0]->getHandler());
+        $this->assertSame(array('C','home'),$router->find('GET','/index/other')[0]->getHandler());
+    }
+
+    /**
      * 测试重复注册(路径与方法均相同)时抛异常
      * @return void
      */

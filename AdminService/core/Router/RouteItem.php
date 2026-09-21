@@ -82,6 +82,12 @@ final class RouteItem {
     private array $optional=array();
 
     /**
+     * 字面量字符数(路径去掉占位符后的长度, 用于具体度排序)
+     * @var int
+     */
+    private int $literalLength=0;
+
+    /**
      * 构造方法
      *
      * @access public
@@ -280,6 +286,18 @@ final class RouteItem {
     }
 
     /**
+     * 获取字面量字符数
+     *
+     * - 越大表示路径越具体, 用于匹配优先级排序
+     *
+     * @access public
+     * @return int
+     */
+    public function getLiteralLength(): int {
+        return $this->literalLength;
+    }
+
+    /**
      * 编译路径为匹配正则
      *
      * - 按占位符出现位置切分路径, 字面量转义后与捕获组交替拼接
@@ -308,6 +326,7 @@ final class RouteItem {
             $constraint=($match[3][1]??-1)!==-1?$match[3][0]:'[^/]+';
             $offset=$match[0][1]+strlen($match[0][0]);
             if(!$optional) {
+                $this->literalLength+=strlen($literal);
                 $pattern.=$this->quoteLiteral($literal).'(?P<'.$name.'>'.$constraint.')';
                 continue;
             }
@@ -320,12 +339,17 @@ final class RouteItem {
             $this->optional[]=$name;
             // 连同上一个分隔符一起可选, 如 `/index/{name?}` 同时匹配 `/index` 与 `/index/x`
             if(substr($literal,-1)==='/') {
+                $this->literalLength+=strlen($literal)-1;
                 $pattern.=$this->quoteLiteral(substr($literal,0,-1));
                 $pattern.='(?:/(?P<'.$name.'>'.$constraint.'))?';
-            } else
+            } else {
+                $this->literalLength+=strlen($literal);
                 $pattern.='(?:(?P<'.$name.'>'.$constraint.'))?';
+            }
         }
-        $pattern.=$this->quoteLiteral(substr($this->path,$offset));
+        $tail=substr($this->path,$offset);
+        $this->literalLength+=strlen($tail);
+        $pattern.=$this->quoteLiteral($tail);
         $pattern='#^'.$pattern.'$#u';
         // 约束中的非法正则会让编译结果不可用, 在构造期拦下
         if(@preg_match($pattern,'')===false)

@@ -145,6 +145,34 @@ class RouterTest extends TestCase {
     }
 
     /**
+     * 测试空路径与 `/` 等价
+     *
+     * - 归一化后均为分组前缀本身(`/p` + `''` 与 `/p` + `'/'` 同形)
+     *
+     * @return void
+     */
+    public function testEmptyPathEqualsSlash(): void {
+        // 分组内两种写法都归一化为分组前缀本身
+        $empty=new Router();
+        $empty->group(array('prefix'=>'/p'),function(Router $router): void {
+            $router->get('',array('C','x'))->name('n');
+        });
+        $slash=new Router();
+        $slash->group(array('prefix'=>'/p'),function(Router $router): void {
+            $router->get('/',array('C','x'))->name('n');
+        });
+        $this->assertSame('/p',$empty->url('n'));
+        $this->assertSame('/p',$slash->url('n'));
+        // 归一化后形状相同: 同一分组内同时注册即冲突
+        $both=new Router();
+        $this->expectException(Exception::class);
+        $both->group(array('prefix'=>'/p'),function(Router $router): void {
+            $router->get('',array('C','x'));
+            $router->get('/',array('C','y'));
+        });
+    }
+
+    /**
      * 测试分组可多层嵌套(前缀依次拼接, 退出后不再生效)
      * @return void
      */

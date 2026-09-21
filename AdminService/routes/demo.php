@@ -18,29 +18,29 @@ return function(Router $router): void {
     $router->group(array('prefix'=>'/demo'),function(Router $router): void {
 
         // 应用默认控制器
-        $router->any('',array(Index::class,'index'));
+        $router->any('/',array(Index::class,'index'));
 
         $router->group(array('prefix'=>'/autowire'),function(Router $router): void {
-            $router->any('',array(Autowire::class,'index'));
+            $router->any('/',array(Autowire::class,'index'));
             $router->any('/index',array(Autowire::class,'index'));
         });
 
         $router->group(array('prefix'=>'/databaseDemo'),function(Router $router): void {
-            $router->any('',array(DatabaseDemo::class,'index'));
+            $router->any('/',array(DatabaseDemo::class,'index'));
             $router->any('/index',array(DatabaseDemo::class,'index'));
             $router->any('/demo',array(DatabaseDemo::class,'demo'));
             $router->any('/facade',array(DatabaseDemo::class,'facade'));
         });
 
         $router->group(array('prefix'=>'/index'),function(Router $router): void {
-            $router->any('',array(Index::class,'index'));
+            $router->any('/',array(Index::class,'index'));
             // 子路径即方法名, 逐个注册
             foreach(array('index','request','view_demo','validator','log','exec','upload','curl') as $method)
                 $router->any('/'.$method,array(Index::class,$method));
         });
 
         $router->group(array('prefix'=>'/ormDemo'),function(Router $router): void {
-            $router->any('',array(OrmDemo::class,'index'));
+            $router->any('/',array(OrmDemo::class,'index'));
             // 子路径即方法名, 逐个注册
             foreach(array('index','schema','relation','prefixCheck','transaction','addUpdatedAt') as $method)
                 $router->any('/'.$method,array(OrmDemo::class,$method));

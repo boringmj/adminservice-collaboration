@@ -28,7 +28,21 @@ php start
 如果您需要更多帮助,可以前往 [Wiki](https://github.com/boringmj/adminservice-collaboration/wiki/准备), 在那里有更加详细的教程和文档
 
 ## 路由
-默认路由继承至`base\Route`基类,使用`AdminService\Route`实现, 请先[配置](https://github.com/boringmj/adminservice-collaboration/wiki/开始#默认路由)您的 `webserver` 支持该路由形式
+路由由`AdminService\Route`(继承`base\Route`)实现, 支持两种方式
+
+**显式路由(默认)**: 在 [AdminService/routes/web.php](AdminService/routes/web.php) 中注册, 支持请求方法、路径参数、分组、资源路由与命名
+```php
+// AdminService/routes/web.php
+
+$router->get('/user/{id:\d+}', array(\app\demo\controller\Index::class,'index'))->name('user.show');
+$router->post('/user', array(\app\demo\controller\Index::class,'request'));
+
+$router->group(array('prefix'=>'/api/v1'), function(\AdminService\Router\Router $router): void {
+    $router->get('/profile', array(\app\demo\controller\Index::class,'request'));
+});
+```
+**约定式路由(可选)**: 按 `/app/controller/method` 定位控制器, 由配置项 `route.convention_fallback` 开启\
+默认关闭: 未命中显式路由时返回 `404`, 不泄漏目录结构; 开启后请先[配置](https://github.com/boringmj/adminservice-collaboration/wiki/开始#默认路由)您的 `webserver` 支持该路由形式
 ```
 http[s]://domain/app/controller/method[/param1,/param2...][?get=value&...]
 或
@@ -38,18 +52,16 @@ http[s]://domain[/web_path]/?/app/controller/method[/param1,/param2...][/&get=va
 // 例如
 http://localhost:8000/index/index/index?get=value
 http://localhost:8000/?/index/index/index&get=value
-http://localhost:8000/index/index/index/get/value 推荐的路由形式
+http://localhost:8000/index/index/index/get/value
 ```
 您可以在`AdminService/Main.php`中查看路由的引用
 ```php
-use base\Route;
-
 public function run(): void {
     $route=App::get(Route::class);
     $route->run();
 }
 ```
-如果默认路由并不适用于您的项目,你可以自由创建一个适用的路由类,并在`AdminService/Main.php`中引入您的类,并实例化
+如果路由并不适用于您的项目,你可以自由创建一个适用的路由类,并在`AdminService/Main.php`中引入您的类,并实例化
 ## 未来
 我们将逐步构建出一个完善的轻量级快速响应框架,这可能需要非常久的时间\
 我们由衷的希望大家提出意见,也由衷的欢迎大家加入到我们的开发之中\

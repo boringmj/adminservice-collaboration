@@ -64,12 +64,27 @@ final class Route extends BaseRoute {
             return;
         }
         // 未命中显式路由: 是否回落约定式由配置决定
-        if(!Config::get('route.convention_fallback',true))
-            throw new Exception('Route not found.',-407,array(
-                'uri'=>'/'.implode('/',$this->get())
-            ));
+        if(!Config::get('route.convention_fallback',false)) {
+            $this->notFound();
+            return;
+        }
         $this->load();
         $this->runController();
+    }
+
+    /**
+     * 未命中路由时的响应
+     *
+     * - 直接返回 404: 不回显请求路径, 也不泄漏目录结构
+     *
+     * @access private
+     * @return void
+     * @throws Exception|ReflectionException
+     */
+    private function notFound(): void {
+        $response=App::get(Response::class);
+        $response->setStatusCode(404);
+        $response->setControllerReturn('404 Not Found');
     }
 
     /**

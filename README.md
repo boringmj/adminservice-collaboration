@@ -42,12 +42,18 @@ $router->group(array('prefix'=>'/api/v1'), function(\AdminService\Router\Router 
 });
 ```
 路由文件列表由配置项 `route.explicit.files` 指定, 可写目录(加载其中全部 `.php`, 按文件名排序)或具体文件路径\
-也可在控制器方法上就近声明单条路由, 框架自动扫描控制器目录注册(规则见 [Wiki](https://github.com/boringmj/adminservice-collaboration/wiki/开始#属性路由自动扫描))
+路径参数支持 `{name}` / `{name:约束}` / `{name?}`(可选, 须位于末尾)\
+也可在控制器上就近声明路由(类级 `#[RouteGroup]` 定前缀与中间件, 方法级 `#[Route]` 定子路径/命名/中间件, 可重复声明), 框架自动扫描控制器目录注册(规则见 [Wiki](https://github.com/boringmj/adminservice-collaboration/wiki/开始#属性路由自动扫描))
 ```php
 use AdminService\Router\Route;
+use AdminService\Router\RouteGroup;
 
-#[Route('GET','/index/index/index')]
-public function index(string $name="World"): string { ... }
+#[RouteGroup('/index')]                     // 类级: 前缀 + 中间件
+class Index {
+
+    #[Route('GET','/{name?}',name:'index.home')]
+    public function index(string $name="World"): string { ... }
+}
 ```
 **约定式路由(可选)**: 按 `/app/controller/method` 定位控制器, 由配置项 `route.convention_fallback` 开启\
 默认关闭: 未命中显式路由时返回 `404`, 不泄漏目录结构; 开启后请先[配置](https://github.com/boringmj/adminservice-collaboration/wiki/开始#默认路由)您的 `webserver` 支持该路由形式

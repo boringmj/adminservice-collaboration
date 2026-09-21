@@ -10,6 +10,7 @@ use AdminService\Router\Pipeline;
 use AdminService\Router\RouteItem;
 use AdminService\Router\Router;
 use Tests\Fixtures\FirstMiddleware;
+use Tests\Fixtures\GroupedController;
 use Tests\Fixtures\MiddlewareLog;
 use Tests\Fixtures\RouteController;
 use Tests\Fixtures\SecondMiddleware;
@@ -285,6 +286,78 @@ class RouterTest extends TestCase {
         $router=new Router();
         $router->get('/user',array('C','index'));
         $this->assertNull($router->find('GET','/missing'));
+    }
+
+    /**
+     * 测试可选参数(位于末尾时匹配与否均可)
+     * @return void
+     */
+    public function testOptionalParameter(): void {
+        $router=new Router();
+        $router->get('/opt/{name?}',array('C','index'))->name('opt');
+        // 提供与否都命中; 未提供时不注入该参数
+        $this->assertSame(array(),$router->find('GET','/opt')[1]);
+        $this->assertSame(array('name'=>'x'),$router->find('GET','/opt/x')[1]);
+        // 可选参数只占一个路径段
+        $this->assertNull($router->find('GET','/opt/x/y'));
+        // 反向生成: 缺省时整段省略
+        $this->assertSame('/opt',$router->url('opt'));
+        $this->assertSame('/opt/x',$router->url('opt',array('name'=>'x')));
+    }
+
+    /**
+     * 测试可选参数可带约束
+     * @return void
+     */
+    public function testOptionalParameterWithConstraint(): void {
+        $router=new Router();
+        $router->get('/num/{id?:\d+}',array('C','index'));
+        $this->assertSame(array(),$router->find('GET','/num')[1]);
+        $this->assertSame(array('id'=>'42'),$router->find('GET','/num/42')[1]);
+        $this->assertNull($router->find('GET','/num/abc'));
+    }
+
+    /**
+     * 测试可选参数不在末尾时抛异常
+     * @return void
+     */
+    public function testOptionalParameterMustBeAtEnd(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $router->get('/bad/{x?}/tail',array('C','index'));
+    }
+
+    /**
+     * 测试任意请求方法
+     * @return void
+     */
+    public function testArbitraryMethod(): void {
+        $router=new Router();
+        $router->match(array('PROPFIND'),'/dav',array('C','dav'));
+        $this->assertNotNull($router->find('PROPFIND','/dav'));
+        $this->assertNull($router->find('GET','/dav'));
+    }
+
+    /**
+     * 测试控制器级分组属性(前缀 + 中间件 + 命名 + 可选参数 + 多路径)
+     * @return void
+     */
+    public function testControllerGroupAttribute(): void {
+        $router=new Router();
+        $router->registerAttributes(array(GroupedController::class));
+        // 前缀生效: 方法只声明子路径
+        $found=$router->find('GET','/g');
+        $this->assertNotNull($found);
+        $this->assertSame('hello',$found[0]->getHandler()[1]);
+        $this->assertSame(array(),$found[1]);
+        $this->assertSame(array('name'=>'x'),$router->find('GET','/g/x')[1]);
+        // 分组中间件继承到该控制器下的路由
+        $this->assertSame(array(FirstMiddleware::class),$found[0]->getMiddlewares());
+        // 命名可用于反向生成
+        $this->assertSame('/g',$router->url('g.hello'));
+        $this->assertSame('/g/y',$router->url('g.hello',array('name'=>'y')));
+        // 同一处理器的多条路径
+        $this->assertSame($router->find('GET','/g/a')[0]->getHandler(),$router->find('GET','/g/b')[0]->getHandler());
     }
 
     /**

@@ -7,7 +7,9 @@ use base\Controller;
 use AdminService\Log;
 use AdminService\Autowire\AutowireProperty;
 use AdminService\Router\Route;
+use AdminService\Router\RouteGroup;
 
+#[RouteGroup('/index')]
 class Index extends Controller {
 
     /**
@@ -25,9 +27,10 @@ class Index extends Controller {
      *  - 除非你知道其原理和且接受可能的副作用或其他未知风险
      *  - 已知风险: 部分标记可能导致方法被框架自动/重复调用
      *  - 也可用`#[Route]`属性就近声明路由,框架会自动扫描控制器上的路由属性
+     *  - 类上的`#[RouteGroup]`为该控制器下所有路由提供统一前缀与中间件
      * @throws Exception
      */
-    #[Route('GET','/')]
+    #[Route('GET','/{name?}',name:'index.home')]
     public function index(string $name="World"): string {
         // 值得一说,如果你在路由中传入了name参数,那么这里的$name将会被覆盖
         $this->log->write($this->log::class.": Hello $name!");

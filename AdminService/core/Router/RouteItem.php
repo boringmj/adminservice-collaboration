@@ -12,7 +12,6 @@ use function preg_match;
 use function preg_match_all;
 use function preg_quote;
 use function preg_replace;
-use function preg_replace_callback;
 use function rtrim;
 use function str_contains;
 use function strlen;
@@ -23,15 +22,16 @@ use function substr;
  * 单条路由
  *
  * - 承载方法、路径、处理器与中间件
- * - 路径中的 `{name}` 与 `{name:约束}` 在构造时编译为具名捕获组
+ * - 路径中的 `{name}`、`{name:约束}`、`{name?}` 在构造时编译为具名捕获组
+ * - 可选参数(带 `?`)仅允许一个且须位于路径末尾
  */
 final class RouteItem {
 
     /**
-     * 路径参数模式(含捕获组, 用于提取参数名与约束)
+     * 路径参数模式(含捕获组: 参数名 / 可选标记 / 约束)
      * @var string
      */
-    private const PARAM_PATTERN='/\{([a-zA-Z_][a-zA-Z0-9_]*)(?::([^}]+))?\}/';
+    private const PARAM_PATTERN='/\{([a-zA-Z_][a-zA-Z0-9_]*)(\?)?(?::([^}]+))?\}/';
 
     /**
      * 允许的请求方法(为空或含 `*` 表示不限方法)
@@ -76,6 +76,12 @@ final class RouteItem {
     private array $params=array();
 
     /**
+     * 可选参数名列表
+     * @var array<string>
+     */
+    private array $optional=array();
+
+    /**
      * 构造方法
      *
      * @access public
@@ -116,11 +122,16 @@ final class RouteItem {
      * @return array<string,string>|null 匹配失败返回 null
      */
     public function matchUri(string $uri): ?array {
-        if(preg_match($this->pattern,$uri,$matches)!==1)
+        // 未参与匹配的可选参数为 null, 据此与「匹配到空值」区分
+        if(preg_match($this->pattern,$uri,$matches,PREG_UNMATCHED_AS_NULL)!==1)
             return null;
         $params=array();
-        foreach($this->params as $name)
-            $params[$name]=$matches[$name]??null;
+        foreach($this->params as $name) {
+            // 可选参数未提供时不注入, 交由控制器形参默认值生效
+            if($matches[$name]===null)
+                continue;
+            $params[$name]=$matches[$name];
+        }
         return $params;
     }
 
@@ -156,15 +167,29 @@ final class RouteItem {
      * @throws Exception 缺少路径参数
      */
     public function buildUri(array $params=array()): string {
-        return preg_replace_callback(self::PARAM_PATTERN,function(array $matches) use ($params): string {
-            $name=$matches[1];
+        $uri='';
+        $offset=0;
+        $matches=array();
+        preg_match_all(self::PARAM_PATTERN,$this->path,$matches,PREG_SET_ORDER|PREG_OFFSET_CAPTURE);
+        foreach($matches as $match) {
+            $name=$match[1][0];
+            $optional=($match[2][1]??-1)!==-1;
+            $literal=substr($this->path,$offset,$match[0][1]-$offset);
+            // 可选参数缺省: 连同其前的分隔符一并省略, 其后即路径尾部
+            if($optional&&!array_key_exists($name,$params)) {
+                $uri.=rtrim($literal,'/');
+                $offset=strlen($this->path);
+                break;
+            }
             if(!array_key_exists($name,$params))
                 throw new Exception('Missing route parameter.',-412,array(
                     'path'=>$this->path,
                     'name'=>$name
                 ));
-            return (string)$params[$name];
-        },$this->path);
+            $uri.=$literal.(string)$params[$name];
+            $offset=$match[0][1]+strlen($match[0][0]);
+        }
+        return $uri.substr($this->path,$offset);
     }
 
     /**
@@ -270,8 +295,9 @@ final class RouteItem {
         $matches=array();
         preg_match_all(self::PARAM_PATTERN,$this->path,$matches,PREG_SET_ORDER|PREG_OFFSET_CAPTURE);
         foreach($matches as $match) {
-            $pattern.=$this->quoteLiteral(substr($this->path,$offset,$match[0][1]-$offset));
+            $literal=substr($this->path,$offset,$match[0][1]-$offset);
             $name=$match[1][0];
+            $optional=($match[2][1]??-1)!==-1;
             if(in_array($name,$this->params,true))
                 throw new Exception('Duplicate route parameter.',-413,array(
                     'path'=>$this->path,
@@ -279,9 +305,25 @@ final class RouteItem {
                 ));
             $this->params[]=$name;
             // 未提供约束时匹配单个路径段
-            $constraint=($match[2][1]??-1)!==-1?$match[2][0]:'[^/]+';
-            $pattern.='(?P<'.$name.'>'.$constraint.')';
+            $constraint=($match[3][1]??-1)!==-1?$match[3][0]:'[^/]+';
             $offset=$match[0][1]+strlen($match[0][0]);
+            if(!$optional) {
+                $pattern.=$this->quoteLiteral($literal).'(?P<'.$name.'>'.$constraint.')';
+                continue;
+            }
+            // 可选参数须位于路径末尾, 否则后续内容无法一并省略
+            if(substr($this->path,$offset)!=='')
+                throw new Exception('Optional route parameter must be at the end.',-416,array(
+                    'path'=>$this->path,
+                    'name'=>$name
+                ));
+            $this->optional[]=$name;
+            // 连同上一个分隔符一起可选, 如 `/index/{name?}` 同时匹配 `/index` 与 `/index/x`
+            if(substr($literal,-1)==='/') {
+                $pattern.=$this->quoteLiteral(substr($literal,0,-1));
+                $pattern.='(?:/(?P<'.$name.'>'.$constraint.'))?';
+            } else
+                $pattern.='(?:(?P<'.$name.'>'.$constraint.'))?';
         }
         $pattern.=$this->quoteLiteral(substr($this->path,$offset));
         $pattern='#^'.$pattern.'$#u';

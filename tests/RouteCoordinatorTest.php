@@ -48,8 +48,8 @@ class RouteCoordinatorTest extends TestCase {
      * @return void
      */
     protected function setUp(): void {
-        App::set(Request::class,new HttpRequest());
-        App::set(Response::class,new HttpResponse());
+        App::instance(Request::class,new HttpRequest());
+        App::instance(Response::class,new HttpResponse());
     }
 
     /**
@@ -152,14 +152,14 @@ class RouteCoordinatorTest extends TestCase {
      * @return mixed 控制器返回值
      */
     private function dispatch(string $uri,string $method='GET',array $query=array()): mixed {
-        App::set(Request::class,new HttpRequest(array(
+        App::instance(Request::class,new HttpRequest(array(
             'server'=>array(
                 'REQUEST_URI'=>$uri,
                 'REQUEST_METHOD'=>$method
             ),
             'query'=>$query
         )));
-        App::set(Response::class,new HttpResponse());
+        App::instance(Response::class,new HttpResponse());
         (new Main())->run();
         return $this->response()->body();
     }

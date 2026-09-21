@@ -42,7 +42,7 @@ class SessionTest extends TestCase {
      */
     public function testContractResolvesToRegisteredDriver(): void {
         $session=new ArraySession();
-        App::set(AbstractSession::class,$session);
+        App::instance(AbstractSession::class,$session);
         $this->assertSame($session,App::get(AbstractSession::class));
     }
 

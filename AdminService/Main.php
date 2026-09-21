@@ -50,8 +50,8 @@ final class Main {
         // 安装数据库配置提供者: 数据库层(契约层)不读全局配置, 由应用层把配置能力交给它
         BaseDb::setConfig(new DatabaseConfig());
         // 初始化请求与响应: 每请求新建实例(而非复位单例), 常驻模式下同样安全
-        App::set(Request::class,App::new(Request::class));
-        App::set(Response::class,App::new(Response::class));
+        App::instance(Request::class,App::new(Request::class));
+        App::instance(Response::class,App::new(Response::class));
         // 初始化Session
         $this->initSession();
         // 初始化完成
@@ -76,7 +76,7 @@ final class Main {
         $session=App::new(Config::get('session.class',ArraySession::class));
         if(Config::get('session.start',false))
             $session->init();
-        App::set(AbstractSession::class,$session);
+        App::instance(AbstractSession::class,$session);
     }
 
     /**
@@ -113,7 +113,7 @@ final class Main {
         ($this->application??new Application())->handle(function(): void {
             $middlewares=Pipeline::order(Pipeline::normalize(Config::get('middlewares.request',array())));
             (new Pipeline($middlewares,App::get(Request::class)))->then(function(): void {
-                App::make(Route::class,true)->run();
+                App::fresh(Route::class)->run();
             });
         });
     }

@@ -28,7 +28,9 @@ class AppTest extends TestCase {
      */
     public function testBind(): void {
         App::bind('Service', ConcreteService::class);
-        $this->assertEquals(ConcreteService::class, App::getRealClass("Service"));
+        // 绑定生效: 按别名取到的就是绑定的实现类(真实类名解析已收为容器内部实现)
+        $this->assertInstanceOf(ConcreteService::class, App::get('Service'));
+        $this->assertTrue(App::has('Service'));
     }
 
     /**

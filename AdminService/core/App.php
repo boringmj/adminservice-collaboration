@@ -83,7 +83,7 @@ final class App {
      * 获取对象(传入构造参数则不会添加到实例容器中)
      *
      * 注意: 依赖简单支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
-     * 这种情况请先使用 App::set(Class::class,new Class())添加到容器中
+     * 这种情况请先使用 App::instance(Class::class,new Class())添加到容器中
      *
      * @access public
      * @template T of object
@@ -94,9 +94,21 @@ final class App {
      */
     public static function get(string $__name,...$args): object {
         if(count($args)>0)
-            return self::new($__name,...$args);
+            return self::build($__name,...$args);
         // 如果不存在则通过自动依赖注入实例化一个对象
         return self::getInstance()->make($__name);
+    }
+
+    /**
+     * 判断容器能否给出该名称
+     *
+     * @access public
+     * @param string $name 名称(类名 / 接口名 / 别名)
+     * @return bool
+     * @throws Exception
+     */
+    public static function has(string $name): bool {
+        return self::getInstance()->has($name);
     }
 
     /**
@@ -104,16 +116,40 @@ final class App {
      *
      * @access public
      * @param string $name 对象名(类名或别名)
-     * @param bool $is_force 是否强制新建
      * @return object
      * @throws Exception|\ReflectionException
      */
-    public static function make(string $name,bool $is_force=false): object {
-        return self::getInstance()->make($name,$is_force);
+    public static function make(string $name): object {
+        return self::getInstance()->make($name);
     }
 
     /**
-     * 新建对象(每次都是新实例, 并自动装配, 不写入实例容器)
+     * 强制新建对象(每次都是新实例, 做完整装配, 结果覆盖登记)
+     *
+     * @access public
+     * @param string $name 对象名(类名或别名)
+     * @return object
+     * @throws Exception|\ReflectionException
+     */
+    public static function fresh(string $name): object {
+        return self::getInstance()->fresh($name);
+    }
+
+    /**
+     * 构建对象(带构造参数, 做完整装配, 不登记到实例容器)
+     *
+     * @access public
+     * @param string $__name 类名或别名
+     * @param mixed ...$args 构造函数参数
+     * @return object
+     * @throws Exception|\ReflectionException
+     */
+    public static function build(string $__name,...$args): object {
+        return self::getInstance()->build($__name,...$args);
+    }
+
+    /**
+     * 新建对象(同 `build`, 保留旧名)
      *
      * @access public
      * @param string $__name 类名或别名
@@ -122,7 +158,7 @@ final class App {
      * @throws Exception|\ReflectionException
      */
     public static function new(string $__name,...$args): object {
-        return self::getInstance()->new($__name,...$args);
+        return self::build($__name,...$args);
     }
 
     /**
@@ -134,8 +170,8 @@ final class App {
      * @return void
      * @throws Exception
      */
-    public static function set(string $name,object $object): void {
-        self::getInstance()->set($name,$object);
+    public static function instance(string $name,object $object): void {
+        self::getInstance()->instance($name,$object);
     }
 
     /**
@@ -152,30 +188,29 @@ final class App {
     }
 
     /**
-     * 为抽象类或接口绑定实现类(同 `bind`, 旧名)
+     * 为名称设置别名(与绑定分表)
      *
      * @access public
-     * @param string $name 别名或抽象类或接口名
-     * @param string $class 目标类名
+     * @param string $alias 别名
+     * @param string $abstract 目标名称(类名 / 接口名 / 另一个别名)
      * @return void
      * @throws Exception
      */
-    public static function setClass(string $name,string $class): void {
-        self::getInstance()->setClass($name,$class);
+    public static function alias(string $alias,string $abstract): void {
+        self::getInstance()->alias($alias,$abstract);
     }
 
     /**
-     * 获取真实类名
+     * 单例绑定:解析后抽象名与实现类名指向同一实例
      *
      * @access public
-     * @param string $name 别名或类名
-     * @param bool $recursive 是否递归解析嵌套绑定
-     * @param int $max_depth 最大递归深度
-     * @return string
+     * @param string $abstract 抽象类或接口名
+     * @param string $concrete 实现类
+     * @return void
      * @throws Exception
      */
-    public static function getRealClass(string $name,bool $recursive=true,int $max_depth=255): string {
-        return self::getInstance()->getRealClass($name,$recursive,$max_depth);
+    public static function singleton(string $abstract,string $concrete): void {
+        self::getInstance()->singleton($abstract,$concrete);
     }
 
     /**

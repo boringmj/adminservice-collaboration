@@ -71,7 +71,7 @@ final class ClassFinder {
      */
     public function findDirectSubClassRecursive(string $class,array &$flags=array()): ?string {
         // 获取真实类名
-        $class=$this->getRealClass($class);
+        $class=$this->resolve($class);
         // 如果标识重复则直接返回
         if(in_array($class,$flags))
             return null;
@@ -130,7 +130,7 @@ final class ClassFinder {
     public function getFirstInstantiableClass(array $types): ?string {
         foreach($types as $type) {
             // 判断是否可以实例化该类
-            $class_name=$this->getRealClass($type);
+            $class_name=$this->resolve($type);
             if(class_exists($class_name)) {
                 // 通过反射判断是否可以实例化该类
                 $ref_type=$this->reflections->getClass($class_name);
@@ -163,7 +163,7 @@ final class ClassFinder {
      * @param string $class 类名或别名
      * @return string
      */
-    private function getRealClass(string $class): string {
+    private function resolve(string $class): string {
         if($this->class_resolver===null)
             return $class;
         return ($this->class_resolver)($class);

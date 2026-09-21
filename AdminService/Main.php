@@ -27,9 +27,11 @@ final class Main {
         // 调整环境
         error_reporting(0);
         date_default_timezone_set('PRC');
-        // 注册错误处理(响应出口: 正常退出时发送响应)
+        // 注册错误处理(响应出口: 正常退出时按请求准备好响应再发送)
         Error::register(static function(): void {
-            App::get(Response::class)->send(App::get(Request::class));
+            $response=App::get(Response::class);
+            $response->prepare(App::get(Request::class));
+            $response->send();
         },false);
         // 加载配置文件
         Config::load();
@@ -50,7 +52,9 @@ final class Main {
     /**
      * 初始化Session
      *
-     * - 未启用时不注册: 会话服务不可从容器取用, 避免无谓的会话开启与Cookie下发
+     * - 会话服务**总是注册**: 未开启原生会话时用内存驱动(ArraySession), 避免"取到会话却写不进"的假会话
+     * - `session.start` 为真时调用驱动的 init()(原生驱动会在此下发会话Cookie)
+     * - 需要按路由开启时, 可在请求中间件里调用 App::get(\base\AbstractSession::class)->init()
      *
      * @access private
      * @return void
@@ -58,11 +62,10 @@ final class Main {
      * @throws ReflectionException
      */
     private function initSession(): void {
-        if(!Config::get('session.enable',false))
-            return;
         /** @var AbstractSession $session */
-        $session=App::new(Config::get('session.class',NativeSession::class));
-        $session->init();
+        $session=App::new(Config::get('session.class',ArraySession::class));
+        if(Config::get('session.start',false))
+            $session->init();
         App::set(AbstractSession::class,$session);
     }
 

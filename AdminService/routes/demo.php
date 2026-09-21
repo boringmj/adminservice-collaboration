@@ -35,8 +35,10 @@ return function(Router $router): void {
         $router->group(array('prefix'=>'/index'),function(Router $router): void {
             $router->any('/',array(Index::class,'index'));
             // 子路径即方法名, 逐个注册
-            foreach(array('index','request','view_demo','validator','log','exec','upload','curl') as $method)
+            foreach(array('index','request','view_demo','log','exec','upload','curl') as $method)
                 $router->any('/'.$method,array(Index::class,$method));
+            // 校验演示: 形参 $name 由路径参数注入(查询参数不参与形参注入)
+            $router->any('/validator/{name?}',array(Index::class,'validator'));
         });
 
         $router->group(array('prefix'=>'/ormDemo'),function(Router $router): void {

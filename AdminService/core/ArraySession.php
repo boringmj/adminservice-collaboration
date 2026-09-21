@@ -7,34 +7,36 @@ use base\AbstractSession;
 use function is_array;
 
 /**
- * 原生会话驱动
+ * 数组会话驱动
  *
- * - 基于 PHP 原生 `$_SESSION`: 须先 {@see init()} 开启, 开启时下发会话Cookie
- * - 未开启就读写会抛异常, 避免"看似写入成功实则丢失"(需要无持久化的会话请改用 {@see ArraySession})
+ * - 数据只在内存中: 不开启原生会话、不下发会话Cookie, 请求结束即消失
+ * - 语义与主流框架的 array 驱动一致, 用于「需要会话接口但不需要跨请求持久化」的场景
+ * - 未显式开启原生会话时的默认驱动, 避免出现"看似写入成功实则丢失"的假会话
  */
-class NativeSession extends AbstractSession {
+final class ArraySession extends AbstractSession {
 
     /**
-     * 初始化
+     * 会话数据
+     * @var array<string,mixed>
+     */
+    protected array $data=array();
+
+    /**
+     * 初始化(内存驱动无需额外动作)
      *
      * @access public
      * @return void
      */
-    public function init(): void {
-        if(session_status()===PHP_SESSION_NONE) {
-            session_start();
-            $this->session_id=session_id();
-        }
-    }
+    public function init(): void { }
 
     /**
-     * 获取Session ID
+     * 获取Session ID(内存驱动无会话ID)
      *
      * @access public
      * @return string
      */
     public function getId(): string {
-        return $this->session_id??session_id();
+        return $this->session_id??'';
     }
 
     /**
@@ -46,11 +48,10 @@ class NativeSession extends AbstractSession {
      * @return void
      */
     public function set(string|array $params,string $value): void {
-        $this->assertStarted();
         if(is_array($params)) {
             foreach($params as $key=>$val)
-                $_SESSION[$key]=$val;
-        } else $_SESSION[$params]=$value;
+                $this->data[$key]=$val;
+        } else $this->data[$params]=$value;
     }
 
     /**
@@ -62,8 +63,7 @@ class NativeSession extends AbstractSession {
      * @return mixed
      */
     public function get(string $name,mixed $default=null): mixed {
-        $this->assertStarted();
-        return $_SESSION[$name]??$default;
+        return $this->data[$name]??$default;
     }
 
     /**
@@ -74,11 +74,10 @@ class NativeSession extends AbstractSession {
      * @return void
      */
     public function delete(string|array $params): void {
-        $this->assertStarted();
         if(is_array($params)) {
             foreach($params as $key)
-                unset($_SESSION[$key]);
-        } else unset($_SESSION[$params]);
+                unset($this->data[$key]);
+        } else unset($this->data[$params]);
     }
 
     /**
@@ -88,8 +87,7 @@ class NativeSession extends AbstractSession {
      * @return void
      */
     public function clear(): void {
-        $this->assertStarted();
-        $_SESSION=[];
+        $this->data=array();
     }
 
     /**
@@ -99,21 +97,8 @@ class NativeSession extends AbstractSession {
      * @return void
      */
     public function destroy(): void {
-        $_SESSION=[];
-        if(session_id()!=='') session_destroy();
+        $this->data=array();
         $this->session_id=null;
-    }
-
-    /**
-     * 断言会话已开启
-     *
-     * @access private
-     * @throws Exception 会话未开启
-     * @return void
-     */
-    private function assertStarted(): void {
-        if(session_status()!==PHP_SESSION_ACTIVE)
-            throw new Exception('会话未开启: 请先调用 init() 开启原生会话, 或改用 AdminService\ArraySession');
     }
 
 }

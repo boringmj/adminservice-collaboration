@@ -395,10 +395,61 @@ PHP
     }
 
     /**
+     * 测试请求中间件的层内优先级
+     *
+     * - 配置中可用条目写法声明: 数值大者靠外
+     *
+     * @return void
+     */
+    public function testRequestMiddlewarePriority(): void {
+        MiddlewareLog::clear();
+        $configs=Config::all();
+        $configs['middlewares']['request']=array(
+            array('middleware'=>new LabelMiddleware('low'),'priority'=>1),
+            array('middleware'=>new LabelMiddleware('high'),'priority'=>9)
+        );
+        Config::set($configs);
+        $this->useRoutes("\$router->get('/t/p',array(\\app\\demo\\controller\\Index::class,'index'));");
+        $this->assertSame('Hello World!',$this->dispatch('/t/p'));
+        $this->assertSame(array('high','low','low:after','high:after'),MiddlewareLog::$calls);
+    }
+
+    /**
+     * 测试层间顺序固定
+     *
+     * - 层内优先级不跨层: 分组/路由层优先级再高也排在请求层之内
+     *
+     * @return void
+     */
+    public function testMiddlewareLayersAreFixed(): void {
+        MiddlewareLog::clear();
+        $configs=Config::all();
+        $configs['middlewares']['request']=array(
+            array('middleware'=>new LabelMiddleware('request'),'priority'=>1)
+        );
+        Config::set($configs);
+        $this->useRoutes(<<<'PHP'
+$router->group(array('middleware'=>array(
+    array('middleware'=>new \Tests\Fixtures\LabelMiddleware('group'),'priority'=>100)
+)),function($router): void {
+    $router->any('/t/layers',array(\app\demo\controller\Index::class,'index'))
+        ->middleware(array(
+            array('middleware'=>new \Tests\Fixtures\LabelMiddleware('route'),'priority'=>50)
+        ));
+});
+PHP
+        );
+        $this->assertSame('Hello World!',$this->dispatch('/t/layers'));
+        $this->assertSame(array(
+            'request','group','route','route:after','group:after','request:after'
+        ),MiddlewareLog::$calls);
+    }
+
+    /**
      * 测试控制器级中间件属性
      *
-     * - 类上与方法上的声明同级: 按 priority 排序(数值大者靠外), 同优先级时类上在前
-     * - 配置项 `middlewares.controller` 为同层最低优先级
+     * - 配置项、类上、方法上的声明同级: 按 priority 排序(数值大者靠外)
+     * - 同优先级时按 配置 → 类 → 方法 的收集顺序(此处配置未给优先级, 故排在本层最内)
      * - 仅由路由文件指向的处理器同样按类与方法解析属性
      *
      * @return void
@@ -411,8 +462,8 @@ PHP
         $this->useRoutes("\$router->get('/mw/attr',array(\\Tests\\Fixtures\\MiddlewaredController::class,'handle'));");
         $this->assertSame('mw-handled',$this->dispatch('/mw/attr'));
         $this->assertSame(array(
-            'config','class_high','class_low','method_low',
-            'method_low:after','class_low:after','class_high:after','config:after'
+            'class_high','class_low','method_low','config',
+            'config:after','method_low:after','class_low:after','class_high:after'
         ),MiddlewareLog::$calls);
     }
 

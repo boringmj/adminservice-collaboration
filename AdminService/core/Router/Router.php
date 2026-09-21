@@ -5,6 +5,7 @@ namespace AdminService\Router;
 use AdminService\Attribute\Route;
 use AdminService\Attribute\RouteGroup;
 use AdminService\Exception;
+use AdminService\Pipeline;
 use ReflectionClass;
 use ReflectionMethod;
 
@@ -180,7 +181,7 @@ final class Router {
      * @throws Exception 与已注册路由冲突
      */
     public function add(array $methods,string $path,mixed $handler): RouteItem {
-        $route=new RouteItem($methods,$this->prefix().$path,$handler,$this->groupMiddlewares());
+        $route=new RouteItem($methods,$this->prefix().$path,$handler,$this->groupMiddlewareEntries());
         $this->assertNoConflict($route);
         $this->routes[]=$route;
         $this->named=null;
@@ -244,7 +245,7 @@ final class Router {
      */
     public function group(array $attributes,callable $callback): void {
         $this->prefixStack[]=isset($attributes['prefix'])?'/'.trim((string)$attributes['prefix'],'/'):'';
-        $this->middlewareStack[]=self::normalizeMiddlewares($attributes['middleware']??array());
+        $this->middlewareStack[]=Pipeline::normalize($attributes['middleware']??array());
         try {
             $callback($this);
         } finally {
@@ -341,17 +342,20 @@ final class Router {
             $reflection=new ReflectionClass($class);
             // 类级声明: 路径前缀与分组中间件
             $prefix='';
-            $middlewares=array();
+            $group_middlewares=array();
             foreach($reflection->getAttributes(RouteGroup::class) as $attribute) {
                 $group=$attribute->newInstance();
                 $prefix.=$group->getPrefix();
-                $middlewares=array_merge($middlewares,$group->getMiddlewares());
+                $group_middlewares=array_merge($group_middlewares,$group->getMiddlewares());
             }
             foreach($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
                 foreach($method->getAttributes(Route::class) as $attribute) {
                     $route=$attribute->newInstance();
                     $item=$this->add(array($route->getMethod()),$prefix.$route->getPath(),array($class,$method->getName()));
-                    $item->middleware(array_merge($middlewares,$route->getMiddlewares()));
+                    // 类级 #[RouteGroup] 的中间件归入分组层, 路由层只放 #[Route] 声明的
+                    if($group_middlewares!==array())
+                        $item->groupMiddleware($group_middlewares);
+                    $item->middleware($route->getMiddlewares());
                     if($route->getName()!==null)
                         $item->name($route->getName());
                 }
@@ -520,31 +524,18 @@ final class Router {
     }
 
     /**
-     * 获取当前分组栈生效的中间件(路由级由 RouteItem 继续持有)
+     * 获取当前分组栈的中间件条目(层内排序由 RouteItem 完成)
      *
      * - 请求级与控制器级中间件不在此组装: 前者在匹配前执行, 后者由分发时按处理器解析
      *
      * @access private
-     * @return array<string|object>
+     * @return array<array{middleware:string|object,priority:int}>
      */
-    private function groupMiddlewares(): array {
-        $middlewares=array();
+    private function groupMiddlewareEntries(): array {
+        $entries=array();
         foreach($this->middlewareStack as $stack)
-            $middlewares=array_merge($middlewares,$stack);
-        return $middlewares;
-    }
-
-    /**
-     * 归一化中间件写法(单个或数组)
-     *
-     * @access private
-     * @param mixed $middleware 中间件
-     * @return array<string|object>
-     */
-    private static function normalizeMiddlewares(mixed $middleware): array {
-        if($middleware===null||$middleware===array())
-            return array();
-        return is_array($middleware)?$middleware:array($middleware);
+            $entries=array_merge($entries,$stack);
+        return $entries;
     }
 
     /**

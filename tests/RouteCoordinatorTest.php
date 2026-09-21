@@ -129,12 +129,19 @@ class RouteCoordinatorTest extends TestCase {
     /**
      * 分发一次请求
      *
+     * - 每次分发前重置请求与返回值: 同一测试内多次分发时状态互不影响
+     *
      * @access private
      * @param string $uri 请求路径
      * @param string $method 请求方法
+     * @param array<string,mixed> $query 预先写入的 GET 参数
      * @return mixed 控制器返回值
      */
-    private function dispatch(string $uri,string $method='GET'): mixed {
+    private function dispatch(string $uri,string $method='GET',array $query=array()): mixed {
+        HttpRequest::init();
+        foreach($query as $key=>$value)
+            HttpRequest::setGet($key,$value);
+        Response::setControllerReturn(null);
         HttpRequest::setServer('REQUEST_URI',$uri);
         HttpRequest::setServer('REQUEST_METHOD',$method);
         (new Route())->run();
@@ -178,8 +185,7 @@ class RouteCoordinatorTest extends TestCase {
      */
     public function testPathParameterOverridesQuery(): void {
         $this->useRoutes("\$router->get('/t/param/{name}',array(\\app\\demo\\controller\\Index::class,'request'));");
-        HttpRequest::setGet('name','other');
-        $data=$this->dispatch('/t/param/hello');
+        $data=$this->dispatch('/t/param/hello',query:array('name'=>'other'));
         $this->assertSame('hello',$data['get']['name']);
     }
 
@@ -236,6 +242,20 @@ PHP
             'global','group','route','controller',
             'controller:after','route:after','group:after','global:after'
         ),MiddlewareLog::$calls);
+    }
+
+    /**
+     * 测试随项目提供的路由表可被加载
+     *
+     * - 使用真实配置(指向 `AdminService/routes` 目录), 覆盖按应用拆分与路径参数注入
+     * - 仅使用不依赖数据库的端点
+     *
+     * @return void
+     */
+    public function testShippedRouteTable(): void {
+        $this->assertSame('Hello World!',$this->dispatch('/demo/Index/index'));
+        $this->assertSame('Hello world!',$this->dispatch('/index/Index/index/world'));
+        $this->assertSame('Hello World!',$this->dispatch('/index'));
     }
 
     /**

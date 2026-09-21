@@ -161,7 +161,7 @@ class RouteCoordinatorTest extends TestCase {
         )));
         App::set(Response::class,new HttpResponse());
         (new Main())->run();
-        return $this->response()->getControllerReturn();
+        return $this->response()->body();
     }
 
     /**
@@ -181,8 +181,8 @@ class RouteCoordinatorTest extends TestCase {
         $this->useRoutes("\$router->post('/t/hello',array(\\app\\demo\\controller\\Index::class,'index'));");
         // 路径存在但方法不符 → 405, 并告知允许的方法
         $this->dispatch('/t/hello');
-        $this->assertSame(405,$this->response()->getStatusCode());
-        $this->assertSame('POST',$this->response()->getHeader('Allow'));
+        $this->assertSame(405,$this->response()->status());
+        $this->assertSame('POST',$this->response()->header('Allow'));
     }
 
     /**
@@ -193,7 +193,7 @@ class RouteCoordinatorTest extends TestCase {
         $this->useRoutes("\$router->get('/t/g',array(\\app\\demo\\controller\\Index::class,'index'));");
         $data=$this->dispatch('/t/g','HEAD');
         $this->assertSame('Hello World!',$data);
-        $this->assertSame(200,$this->response()->getStatusCode());
+        $this->assertSame(200,$this->response()->status());
     }
 
     /**
@@ -203,8 +203,8 @@ class RouteCoordinatorTest extends TestCase {
     public function testOptionsAutoRespond(): void {
         $this->useRoutes("\$router->get('/t/o',array(\\app\\demo\\controller\\Index::class,'index'));");
         $this->dispatch('/t/o','OPTIONS');
-        $this->assertSame(204,$this->response()->getStatusCode());
-        $this->assertSame('GET, HEAD',$this->response()->getHeader('Allow'));
+        $this->assertSame(204,$this->response()->status());
+        $this->assertSame('GET, HEAD',$this->response()->header('Allow'));
     }
 
     /**
@@ -214,7 +214,7 @@ class RouteCoordinatorTest extends TestCase {
     public function testUnknownPathReturns404(): void {
         $this->useRoutes("\$router->get('/t/only',array(\\app\\demo\\controller\\Index::class,'index'));");
         $this->dispatch('/t/other');
-        $this->assertSame(404,$this->response()->getStatusCode());
+        $this->assertSame(404,$this->response()->status());
     }
 
     /**
@@ -231,23 +231,33 @@ class RouteCoordinatorTest extends TestCase {
     }
 
     /**
-     * 测试路径参数注入(并入 GET 参数)
+     * 测试路径参数写入属性区
+     *
+     * - 路径参数不再并入GET: `attributes` 可取到, 合并取值(`param`)时优先
+     *
      * @return void
      */
     public function testExplicitRoutePathParameter(): void {
         $this->useRoutes("\$router->get('/t/param/{name}',array(\\app\\demo\\controller\\Index::class,'request'));");
         $data=$this->dispatch('/t/param/hello');
-        $this->assertSame('hello',$data['get']['name']);
+        $this->assertSame('hello',$data['attributes']['name']);
+        $this->assertSame('hello',$data['param']);
+        $this->assertArrayNotHasKey('name',$data['get']);
     }
 
     /**
-     * 测试路径参数优先于同名查询参数
+     * 测试同名查询参数不被路径参数覆盖
+     *
+     * - 两者分区存放, 合并取值时路径参数优先
+     *
      * @return void
      */
-    public function testPathParameterOverridesQuery(): void {
+    public function testPathParameterDoesNotOverwriteQuery(): void {
         $this->useRoutes("\$router->get('/t/param/{name}',array(\\app\\demo\\controller\\Index::class,'request'));");
         $data=$this->dispatch('/t/param/hello',query:array('name'=>'other'));
-        $this->assertSame('hello',$data['get']['name']);
+        $this->assertSame('hello',$data['attributes']['name']);
+        $this->assertSame('other',$data['get']['name']);
+        $this->assertSame('hello',$data['param']);
     }
 
     /**
@@ -259,7 +269,7 @@ class RouteCoordinatorTest extends TestCase {
         $this->assertSame('Hello World!',$this->dispatch('/t/num/42'));
         // 约束不满足视为未命中
         $this->dispatch('/t/num/abc');
-        $this->assertSame(404,$this->response()->getStatusCode());
+        $this->assertSame(404,$this->response()->status());
     }
 
     /**
@@ -302,7 +312,7 @@ class RouteCoordinatorTest extends TestCase {
         $this->dispatch('/block');
         $this->assertSame(array('blocked'),MiddlewareLog::$calls);
         // 控制器未执行, 无返回值(可据此自定义响应)
-        $this->assertNull($this->response()->getControllerReturn());
+        $this->assertNull($this->response()->body());
     }
 
     /**
@@ -346,7 +356,7 @@ PHP
         Config::set($configs);
         $this->useRoutes('// 未注册任何路由');
         $this->dispatch('/nope');
-        $this->assertSame(404,$this->response()->getStatusCode());
+        $this->assertSame(404,$this->response()->status());
         $this->assertSame(array('request','request:after'),MiddlewareLog::$calls);
     }
 
@@ -363,8 +373,8 @@ PHP
         $this->dispatch('/t/r');
         // 请求中间件进入路由, 路由中间件中断: 控制器未执行
         $this->assertSame(array('request','blocked','request:after'),MiddlewareLog::$calls);
-        $this->assertNull($this->response()->getControllerReturn());
-        $this->assertSame(200,$this->response()->getStatusCode());
+        $this->assertNull($this->response()->body());
+        $this->assertSame(200,$this->response()->status());
     }
 
     /**
@@ -469,8 +479,8 @@ PHP
     public function testNotFoundReturns404(): void {
         $this->useRoutes('// 未注册任何路由');
         $this->dispatch('/demo/index/index');
-        $this->assertSame(404,$this->response()->getStatusCode());
-        $this->assertSame('404 Not Found',$this->response()->getControllerReturn());
+        $this->assertSame(404,$this->response()->status());
+        $this->assertSame('404 Not Found',$this->response()->body());
     }
 
 }

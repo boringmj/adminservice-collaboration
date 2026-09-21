@@ -2,10 +2,13 @@
 
 namespace base;
 
+use function func_num_args;
+
 /**
  * 响应抽象基类
  *
  * - 契约以**实例**为准: 状态码 / 返回内容 / 内容类型随实例走, 不使用静态初始化
+ * - 读写合一: 不传值即读取, 传值即写入(空值同样合法的成员用 `func_num_args()` 判定)
  * - 渲染与发送需要请求上下文(内容协商读 `Accept` 头, HEAD 不出响应体), 由调用方传入 `Request`
  */
 abstract class Response {
@@ -17,7 +20,7 @@ abstract class Response {
     protected int $code=200;
 
     /**
-     * 控制器返回数据
+     * 控制器返回值(渲染前的原始返回)
      * @var mixed
      */
     protected mixed $controller_return=null;
@@ -29,72 +32,65 @@ abstract class Response {
     protected string $contentType='*/*';
 
     /**
-     * 待返回内容
+     * 渲染后的响应内容
      * @var ?string
      */
     protected ?string $return_content=null;
 
     /**
-     * 获取状态码
+     * 获取或设置状态码
      *
      * @access public
+     * @param int|null $code 状态码(null 时仅读取)
      * @return int
      */
-    public function getStatusCode(): int {
+    public function status(?int $code=null): int {
+        if($code!==null)
+            $this->code=$code;
         return $this->code;
     }
 
     /**
-     * 设置状态码
+     * 获取或设置返回内容类型
      *
      * @access public
-     * @param int $code 状态码
-     * @return void
-     */
-    public function setStatusCode(int $code): void {
-        $this->code=$code;
-    }
-
-    /**
-     * 获取控制器返回值
-     *
-     * @access public
-     * @return mixed
-     */
-    public function getControllerReturn(): mixed {
-        return $this->controller_return;
-    }
-
-    /**
-     * 设置控制器返回值
-     *
-     * @access public
-     * @param mixed $return 控制器返回值
-     * @return void
-     */
-    public function setControllerReturn(mixed $return): void {
-        $this->controller_return=$return;
-    }
-
-    /**
-     * 获取返回内容类型
-     *
-     * @access public
+     * @param string|null $type 类型(null 时仅读取)
      * @return string
      */
-    public function getContentType(): string {
+    public function contentType(?string $type=null): string {
+        if($type!==null)
+            $this->contentType=$type;
         return $this->contentType;
     }
 
     /**
-     * 设置返回内容类型
+     * 获取或设置控制器返回值
+     *
+     * - 不传参数为读取; 传参数为写入(可写 `null`)
      *
      * @access public
-     * @param string $type 类型
-     * @return void
+     * @param mixed $content 控制器返回值
+     * @return mixed
      */
-    public function setContentType(string $type): void {
-        $this->contentType=$type;
+    public function body(mixed $content=null): mixed {
+        if(func_num_args()>0)
+            $this->controller_return=$content;
+        return $this->controller_return;
+    }
+
+    /**
+     * 获取或设置渲染后的响应内容
+     *
+     * - 不传参数为读取; 传参数为写入(可写 `null`); 已渲染时 {@see render()} 直接复用该值
+     *
+     * @access public
+     * @param string|null $content 渲染后的内容
+     * @return ?string
+     */
+    public function rendered(?string $content=null): ?string {
+        if(func_num_args()>0)
+            $this->return_content=$content;
+        return $this->return_content;
     }
 
     /**
@@ -134,31 +130,10 @@ abstract class Response {
     }
 
     /**
-     * 获取最终返回内容
-     *
-     * @access public
-     * @return ?string
-     */
-    public function getReturnContent(): ?string {
-        return $this->return_content;
-    }
-
-    /**
-     * 设置最终返回内容
-     *
-     * @access public
-     * @param string|null $content 内容(null 表示未设置)
-     * @return void
-     */
-    public function setReturnContent(?string $content): void {
-        $this->return_content=$content;
-    }
-
-    /**
      * 获取一个标准的返回类型
      *
      * @access public
-     * @param string|null $type 类型
+     * @param string|null $type 类型(null 时取当前内容类型)
      * @return string
      */
     abstract public function getStandardContentType(
@@ -166,26 +141,59 @@ abstract class Response {
     ): string;
 
     /**
-     * 获取Header
+     * 获取或设置单个Header
      *
      * @access public
      * @param string $name Header名
+     * @param string|null $value 值(null 时仅读取)
      * @return string
      */
-    abstract public function getHeader(string $name): string;
+    abstract public function header(string $name,?string $value=null): string;
 
     /**
-     * 设置Header
+     * 批量设置Header
      *
      * @access public
-     * @param string|array $params 参数(string时为header名,array时为header数组)
-     * @param string $value $params 参数为数组时此参数无效)
+     * @param array<string,string> $headers Header数组
      * @return void
      */
-    abstract public function setHeader(
-        string|array $params,
-        string $value
-    ): void;
+    abstract public function headers(array $headers): void;
+
+    /**
+     * 获取或设置单个Cookie
+     *
+     * - 不传值即读取; 传值即下发, 其余参数为该Cookie的属性
+     *
+     * @access public
+     * @param string $name Cookie名
+     * @param string|null $value Cookie值(null 时仅读取)
+     * @param int|null $expire 过期时间
+     * @param string|null $path 路径
+     * @param string|null $domain 域名
+     * @param bool $secure 是否安全传输
+     * @param bool $httponly 是否仅http传输
+     * @return string
+     */
+    abstract public function cookie(
+        string $name,
+        ?string $value=null,
+        ?int $expire=null,
+        ?string $path=null,
+        ?string $domain=null,
+        ?bool $secure=null,
+        ?bool $httponly=null
+    ): string;
+
+    /**
+     * 批量设置Cookie
+     *
+     * - 支持 `name => value` 与 `name => array(value / expire / path / domain / secure / httponly)` 两种写法
+     *
+     * @access public
+     * @param array<string,mixed> $cookies Cookie数组
+     * @return void
+     */
+    abstract public function cookies(array $cookies): void;
 
     /**
      * 发送请求头和状态码
@@ -194,38 +202,6 @@ abstract class Response {
      * @return void
      */
     abstract public function sendHeaders(): void;
-
-    /**
-     * 获取Cookie
-     *
-     * @access public
-     * @param string $name Cookie名
-     * @return string
-     */
-    abstract public function getCookie(string $name): string;
-
-    /**
-     * 设置Cookie信息
-     *
-     * @access public
-     * @param string|array $params 参数(string时为cookie名,array时为cookie数组)
-     * @param string|null $value Cookie值($params 参数为数组时此参数无效)
-     * @param int|null $expire 过期时间($params 参数为数组时此参数无效)
-     * @param string|null $path 路径($params 参数为数组时此参数无效)
-     * @param string|null $domain 域名($params 参数为数组时此参数无效)
-     * @param bool $secure 是否安全传输($params 参数为数组时此参数无效)
-     * @param bool $httponly 是否仅http传输($params 参数为数组时此参数无效)
-     * @return void
-     */
-    abstract public function setCookie(
-        string|array $params,
-        ?string $value=null,
-        ?int $expire=null,
-        ?string $path=null,
-        ?string $domain=null,
-        ?bool $secure=null,
-        ?bool $httponly=null
-    ): void;
 
     /**
      * 渲染结果

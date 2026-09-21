@@ -48,25 +48,30 @@ return function(Router $router): void {
 };
 ```
 路由文件列表由配置项 `route.files` 指定, 可写目录(加载其中全部 `.php`, 按文件名排序)或具体文件路径\
-路径参数支持 `{name}` / `{name:约束}` / `{name?}`(可选, 须位于末尾)\
+路径参数支持 `{name}` / `{name:约束}` / `{name?}`(可选, 须位于末尾); 路径参数写入请求的 `attributes` 区(不并入查询串), 合并取值 `$request->param('id')` 时优先于同名查询参数\
 也可在控制器上就近声明路由(类级 `#[RouteGroup]` 定前缀与中间件, 方法级 `#[Route]` 定子路径/命名/中间件, 可重复声明), 框架自动扫描控制器目录注册(规则见 [Wiki](https://github.com/boringmj/adminservice-collaboration/wiki/开始#属性路由自动扫描))
 ```php
+use AdminService\Attribute\Middleware;
 use AdminService\Attribute\Route;
 use AdminService\Attribute\RouteGroup;
 
 #[RouteGroup('/index')]                     // 类级: 前缀 + 中间件
+#[Middleware(AuthMiddleware::class)]        // 类级: 控制器级中间件
 class Index {
 
     #[Route('GET','/{name?}',name:'index.home')]
     public function index(string $name="World"): string { ... }
 }
 ```
-未命中即返回 `404`\
+中间件四级, 由外向内: 请求(`middlewares.request`, 在路由匹配前执行, 未命中的请求同样经过)→ 分组 → 路由 → 控制器(`middlewares.controller` 与 `#[Middleware]`)\
+未命中即返回 `404`; 路径存在但方法不符返回 `405` 并带 `Allow` 头; `OPTIONS` 以 `204` 应答; `HEAD` 由 `GET` 承接且不输出响应体\
 您可以在`AdminService/Main.php`中查看路由的引用
 ```php
 public function run(): void {
-    $route=App::get(Route::class);
-    $route->run();
+    $middlewares=(array)Config::get('middlewares.request',array());
+    (new Pipeline($middlewares,App::get(Request::class)))->then(function(): void {
+        App::make(Route::class,true)->run();
+    });
 }
 ```
 如果路由并不适用于您的项目,你可以自由创建一个适用的路由类,并在`AdminService/Main.php`中引入您的类,并实例化

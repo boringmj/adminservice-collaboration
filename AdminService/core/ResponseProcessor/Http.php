@@ -20,7 +20,7 @@ class Http extends AbstractResponseProcessor {
      * @return void
      */
     public function handle(): void {
-        $temp=$this->getResponse()->getControllerReturn();
+        $temp=$this->getResponse()->body();
         // 将bool值转为字面量
         if(is_bool($temp)) $temp=$temp?'true':'false';
         // 如果是数字型则转为字符串
@@ -29,7 +29,7 @@ class Http extends AbstractResponseProcessor {
         if(is_array($temp)||is_object($temp)) $temp=json_encode($temp);
         // 如果是字符串则直接返回
         if(is_string($temp)) {
-            $this->getResponse()->setReturnContent($temp);
+            $this->getResponse()->rendered($temp);
             return;
         }
     }

@@ -66,7 +66,7 @@ abstract class Controller {
      * @return mixed
      */
     final protected function param(int|string $param,mixed $default=null): mixed {
-        return $this->request->getParam($param,Request::ALL_PARAM,$default);
+        return $this->request->param($param,Request::ALL_PARAM,$default);
     }
 
     /**
@@ -78,7 +78,7 @@ abstract class Controller {
      * @return void
      */
     final protected function header(string $name,string $value): void {
-        $this->response->setHeader($name,$value);
+        $this->response->header($name,$value);
     }
 
     /**
@@ -103,7 +103,11 @@ abstract class Controller {
         ?bool $secure=null,
         ?bool $httponly=null
     ): void {
-        $this->response->setCookie(
+        if(is_array($params)) {
+            $this->response->cookies($params);
+            return;
+        }
+        $this->response->cookie(
             $params,
             $value,
             $expire,
@@ -122,7 +126,7 @@ abstract class Controller {
      * @return static
      */
     final protected function type(string $type): static {
-        $this->response->setContentType($type);
+        $this->response->contentType($type);
         return $this;
     }
 
@@ -134,7 +138,7 @@ abstract class Controller {
      * @return static
      */
     final protected function code(int $code): static {
-        $this->response->setStatusCode($code);
+        $this->response->status($code);
         return $this;
     }
 
@@ -147,7 +151,7 @@ abstract class Controller {
      * @return mixed
      */
     final protected function json(mixed $data,int $code=200): mixed {
-        $this->response->setStatusCode($code);
+        $this->response->status($code);
         return $this->response->json($data);
     }
 
@@ -160,7 +164,7 @@ abstract class Controller {
      * @return mixed
      */
     final protected function html(mixed $html,int $code=200): mixed {
-        $this->response->setStatusCode($code);
+        $this->response->status($code);
         return $this->response->html($html);
     }
 
@@ -182,7 +186,7 @@ abstract class Controller {
             $template=App::getMethodName();
         $template=Config::get('app.path').'/'.App::getAppName().'/view'.'/'.App::getControllerName().'/'.$template.'.html';
         $this->view->init($template,$data);
-        return $this->html($this->view->render(),$this->response->getStatusCode());
+        return $this->html($this->view->render(),$this->response->status());
     }
 
 }

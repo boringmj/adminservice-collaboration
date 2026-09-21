@@ -72,17 +72,17 @@ class RequestTest extends TestCase {
             'rawInput'=>'{"a":1}',
             'files'=>array()
         ));
-        $this->assertSame('g',$request->getGet('only_get'));
-        $this->assertSame('from-query',$request->getGet('name'));
-        $this->assertSame('from-post',$request->getPost('name'));
-        $this->assertSame('from-cookie',$request->getCookie('name'));
-        $this->assertSame('custom-value',$request->getHeader('x-custom'));
-        $this->assertSame('POST',$request->getServer('REQUEST_METHOD'));
-        $this->assertSame('{"a":1}',$request->getRawInput());
+        $this->assertSame('g',$request->query('only_get'));
+        $this->assertSame('from-query',$request->query('name'));
+        $this->assertSame('from-post',$request->post('name'));
+        $this->assertSame('from-cookie',$request->cookie('name'));
+        $this->assertSame('custom-value',$request->header('x-custom'));
+        $this->assertSame('POST',$request->server('REQUEST_METHOD'));
+        $this->assertSame('{"a":1}',$request->rawInput());
         // 数组形式取全部
-        $this->assertSame(array('name'=>'from-query','only_get'=>'g'),$request->getGets());
-        $this->assertSame(array('name'=>'from-post'),$request->getPosts());
-        $this->assertSame(array('name'=>'from-cookie'),$request->getCookies());
+        $this->assertSame(array('name'=>'from-query','only_get'=>'g'),$request->query());
+        $this->assertSame(array('name'=>'from-post'),$request->post());
+        $this->assertSame(array('name'=>'from-cookie'),$request->cookie());
     }
 
     /**
@@ -91,8 +91,8 @@ class RequestTest extends TestCase {
      */
     public function testUndeclaredHeadersAreEmpty(): void {
         $request=new HttpRequest(array('query'=>array(),'server'=>array()));
-        $this->assertSame(array(),$request->getHeaders());
-        $this->assertSame('',$request->getRawInput());
+        $this->assertSame(array(),$request->header());
+        $this->assertSame('',$request->rawInput());
     }
 
     /**
@@ -105,8 +105,8 @@ class RequestTest extends TestCase {
             'CONTENT_TYPE'=>'application/json',
             'REQUEST_URI'=>'/a'
         )));
-        $this->assertSame('tk',$request->getHeader('x-token'));
-        $this->assertSame('application/json',$request->getHeader('content-type'));
+        $this->assertSame('tk',$request->header('x-token'));
+        $this->assertSame('application/json',$request->header('content-type'));
     }
 
     /**
@@ -122,10 +122,10 @@ class RequestTest extends TestCase {
             'post'=>array('name'=>'from-post'),
             'cookie'=>array('name'=>'from-cookie')
         );
-        $this->assertSame('from-cookie',(new HttpRequest($sources))->getParam('name'));
+        $this->assertSame('from-cookie',(new HttpRequest($sources))->param('name'));
         // 调整为 GCP 后 Get 优先
         $this->setConfig(array('request.default.param.order'=>'GCP'));
-        $this->assertSame('from-query',(new HttpRequest($sources))->getParam('name'));
+        $this->assertSame('from-query',(new HttpRequest($sources))->param('name'));
     }
 
     /**
@@ -137,10 +137,10 @@ class RequestTest extends TestCase {
             'query'=>array('name'=>'from-query'),
             'post'=>array('name'=>'from-post')
         ));
-        $this->assertSame('from-query',$request->getParam('name',HttpRequest::GET_PARAM));
-        $this->assertSame('from-post',$request->getParam('name',HttpRequest::POST_PARAM));
-        $this->assertNull($request->getParam('name',HttpRequest::COOKIE_PARAM));
-        $this->assertSame('fallback',$request->getParam('missing',HttpRequest::ALL_PARAM,'fallback'));
+        $this->assertSame('from-query',$request->param('name',HttpRequest::GET_PARAM));
+        $this->assertSame('from-post',$request->param('name',HttpRequest::POST_PARAM));
+        $this->assertNull($request->param('name',HttpRequest::COOKIE_PARAM));
+        $this->assertSame('fallback',$request->param('missing',HttpRequest::ALL_PARAM,'fallback'));
     }
 
     /**
@@ -152,9 +152,9 @@ class RequestTest extends TestCase {
             'query'=>array('a'=>1,'b'=>2),
             'post'=>array('b'=>3,'c'=>4)
         ));
-        $this->assertSame(array('a','b','c'),$request->getParamKeys());
-        $this->assertSame(array('a','b'),$request->getParamKeys(HttpRequest::GET_PARAM));
-        $this->assertSame(array('b','c'),$request->getParamKeys(HttpRequest::POST_PARAM));
+        $this->assertSame(array('a','b','c'),$request->paramKeys());
+        $this->assertSame(array('a','b'),$request->paramKeys(HttpRequest::GET_PARAM));
+        $this->assertSame(array('b','c'),$request->paramKeys(HttpRequest::POST_PARAM));
     }
 
     /**
@@ -164,11 +164,11 @@ class RequestTest extends TestCase {
     public function testSetAndRemoveParam(): void {
         $request=new HttpRequest(array('query'=>array('keep'=>1)));
         $request->setParam('added','v',HttpRequest::GET_PARAM);
-        $this->assertSame('v',$request->getGet('added'));
-        $this->assertNull($request->getPost('added'));
+        $this->assertSame('v',$request->query('added'));
+        $this->assertNull($request->post('added'));
         $request->removeParam('added',HttpRequest::GET_PARAM);
-        $this->assertNull($request->getGet('added'));
-        $this->assertSame(1,$request->getGet('keep'));
+        $this->assertNull($request->query('added'));
+        $this->assertSame(1,$request->query('keep'));
     }
 
     /**
@@ -177,9 +177,9 @@ class RequestTest extends TestCase {
      */
     public function testHeadersAreCaseInsensitive(): void {
         $request=new HttpRequest(array('headers'=>array('Accept'=>'application/json')));
-        $this->assertSame('application/json',$request->getHeader('Accept'));
-        $this->assertSame('application/json',$request->getHeader('accept'));
-        $this->assertSame('application/json',$request->getHeader('ACCEPT'));
+        $this->assertSame('application/json',$request->header('Accept'));
+        $this->assertSame('application/json',$request->header('accept'));
+        $this->assertSame('application/json',$request->header('ACCEPT'));
     }
 
     /**
@@ -188,8 +188,8 @@ class RequestTest extends TestCase {
      */
     public function testJsonInputParsed(): void {
         $request=$this->jsonRequest('{"name":"fromjson","n":7}');
-        $this->assertSame(array('name'=>'fromjson','n'=>7),$request->getInputs());
-        $this->assertSame('fromjson',$request->getInput('name'));
+        $this->assertSame(array('name'=>'fromjson','n'=>7),$request->input());
+        $this->assertSame('fromjson',$request->input('name'));
     }
 
     /**
@@ -199,19 +199,19 @@ class RequestTest extends TestCase {
     public function testInputMergedByConfig(): void {
         // 默认合并进POST
         $request=$this->jsonRequest('{"name":"fromjson"}');
-        $this->assertSame('fromjson',$request->getPost('name'));
-        $this->assertNull($request->getGet('name'));
+        $this->assertSame('fromjson',$request->post('name'));
+        $this->assertNull($request->query('name'));
         // 调整为合并进GET
         $this->setConfig(array('request.default.param.input'=>HttpRequest::GET_PARAM));
         $request=$this->jsonRequest('{"name":"fromjson"}');
-        $this->assertSame('fromjson',$request->getGet('name'));
-        $this->assertNull($request->getPost('name'));
+        $this->assertSame('fromjson',$request->query('name'));
+        $this->assertNull($request->post('name'));
         // 置0则不合并
         $this->setConfig(array('request.default.param.input'=>0));
         $request=$this->jsonRequest('{"name":"fromjson"}');
-        $this->assertNull($request->getGet('name'));
-        $this->assertNull($request->getPost('name'));
-        $this->assertSame('fromjson',$request->getInput('name'));
+        $this->assertNull($request->query('name'));
+        $this->assertNull($request->post('name'));
+        $this->assertSame('fromjson',$request->input('name'));
     }
 
     /**
@@ -223,8 +223,8 @@ class RequestTest extends TestCase {
             'headers'=>array('Content-Type'=>'application/x-www-form-urlencoded'),
             'rawInput'=>'name=form'
         ));
-        $this->assertSame(array(),$request->getInputs());
-        $this->assertSame('name=form',$request->getRawInput());
+        $this->assertSame(array(),$request->input());
+        $this->assertSame('name=form',$request->rawInput());
     }
 
     /**
@@ -233,9 +233,49 @@ class RequestTest extends TestCase {
      */
     public function testUploadFormIsEmptyWithoutFiles(): void {
         $request=new HttpRequest(array('files'=>array()));
-        $this->assertSame(0,count($request->getUploadFilesInstance()));
-        $this->assertSame(0,count($request->getUploadFiles('files')));
-        $this->assertSame(array(),$request->getUploadFilesInstance()->toArray());
+        $this->assertSame(0,count($request->files()));
+        $this->assertSame(0,count($request->file('files')));
+        $this->assertSame(array(),$request->files()->toArray());
+    }
+
+    /**
+     * 测试属性区的读写
+     * @return void
+     */
+    public function testAttributes(): void {
+        $request=new HttpRequest(array('query'=>array('name'=>'from-query')));
+        $this->assertSame(array(),$request->attributes());
+        $request->setAttribute('name','from-route');
+        $request->setAttribute('id',7);
+        $this->assertSame('from-route',$request->attribute('name'));
+        $this->assertSame(7,$request->attribute('id'));
+        $this->assertSame('fallback',$request->attribute('missing','fallback'));
+        $this->assertSame(array('name'=>'from-route','id'=>7),$request->attributes());
+    }
+
+    /**
+     * 测试属性优先于任一输入区
+     *
+     * - 路由参数(属性)优先于查询参数, 但分区存放互不覆盖
+     *
+     * @return void
+     */
+    public function testAttributePrecedesInput(): void {
+        $request=new HttpRequest(array(
+            'query'=>array('name'=>'from-query'),
+            'post'=>array('name'=>'from-post')
+        ));
+        $request->setAttribute('name','from-route');
+        $this->assertSame('from-route',$request->param('name'));
+        // 指定来源时不受属性影响
+        $this->assertSame('from-query',$request->param('name',HttpRequest::GET_PARAM));
+        // 分区数据未被改动
+        $this->assertSame('from-query',$request->query('name'));
+        $this->assertSame('from-post',$request->post('name'));
+        // 键名汇总时属性在最前
+        $this->assertSame(array('name'),$request->paramKeys());
+        $request->setAttribute('id',1);
+        $this->assertSame(array('name','id'),$request->paramKeys());
     }
 
     /**
@@ -249,12 +289,12 @@ class RequestTest extends TestCase {
         $first=new HttpRequest(array('query'=>array('name'=>'first')));
         $second=new HttpRequest(array('query'=>array('name'=>'second')));
         $first->setParam('only_first','1',HttpRequest::GET_PARAM);
-        $this->assertSame('first',$first->getGet('name'));
-        $this->assertSame('second',$second->getGet('name'));
-        $this->assertNull($second->getGet('only_first'));
+        $this->assertSame('first',$first->query('name'));
+        $this->assertSame('second',$second->query('name'));
+        $this->assertNull($second->query('only_first'));
         // 写入只落在被改的实例上
-        $this->assertSame(array('name'=>'first','only_first'=>'1'),$first->getGets());
-        $this->assertSame(array('name'=>'second'),$second->getGets());
+        $this->assertSame(array('name'=>'first','only_first'=>'1'),$first->query());
+        $this->assertSame(array('name'=>'second'),$second->query());
     }
 
     /**

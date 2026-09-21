@@ -48,8 +48,8 @@ final class Route extends BaseRoute {
      * @throws Exception|ReflectionException
      */
     public function run(): void {
-        $uri=(string)$this->request->getServer('REQUEST_URI','');
-        $method=$this->requestMethod();
+        $uri=$this->request->uri();
+        $method=$this->request->method();
         $match=$this->router()->find($method,$uri);
         if($match!==null) {
             $this->runRoute($match[0],$match[1]);
@@ -77,14 +77,14 @@ final class Route extends BaseRoute {
      */
     private function notAllowed(array $allowed,bool $isOptions): void {
         $response=App::get(Response::class);
-        $response->setHeader('Allow',implode(', ',$allowed));
+        $response->header('Allow',implode(', ',$allowed));
         if($isOptions) {
-            $response->setStatusCode(204);
-            $response->setControllerReturn('');
+            $response->status(204);
+            $response->body('');
             return;
         }
-        $response->setStatusCode(405);
-        $response->setControllerReturn('405 Method Not Allowed');
+        $response->status(405);
+        $response->body('405 Method Not Allowed');
     }
 
     /**
@@ -98,8 +98,8 @@ final class Route extends BaseRoute {
      */
     private function notFound(): void {
         $response=App::get(Response::class);
-        $response->setStatusCode(404);
-        $response->setControllerReturn('404 Not Found');
+        $response->status(404);
+        $response->body('404 Not Found');
     }
 
     /**
@@ -165,14 +165,15 @@ final class Route extends BaseRoute {
      */
     private function runRoute(RouteItem $route,array $params): void {
         $handler=$route->getHandler();
-        // 路径参数优先: 同名查询参数被覆盖
-        $this->request->setGet(array_merge($this->request->getGets(),self::decodeParams($params)));
+        // 路径参数写入属性区(不并入GET): 参数检索时属性优先, 同名查询参数仍按查询参数读取
+        foreach(self::decodeParams($params) as $name=>$value)
+            $this->request->setAttribute($name,$value);
         // 写入路由上下文, 供 App::getAppName 等继续可用
         App::setData('route_info',self::handlerRouteInfo($handler));
         $middlewares=array_merge($route->getMiddlewares(),$this->controllerMiddlewares($handler));
         $response=App::get(Response::class);
         (new Pipeline($middlewares,$this->request))->then(function() use ($handler,$response): void {
-            $response->setControllerReturn($this->callHandler($handler));
+            $response->body($this->callHandler($handler));
         });
     }
 
@@ -244,23 +245,15 @@ final class Route extends BaseRoute {
     }
 
     /**
-     * 获取当前请求方法
-     *
-     * @access private
-     * @return string
-     */
-    private function requestMethod(): string {
-        return (string)$this->request->getServer('REQUEST_METHOD','GET');
-    }
-
-    /**
      * 提取控制器方法参数(仅保留键名不为数字的参数)
+     *
+     * - 路径参数(属性区)优先于查询参数
      *
      * @access private
      * @return array
      */
     private function controllerArgs(): array {
-        $args=$this->request->getGets();
+        $args=array_merge($this->request->query(),$this->request->attributes());
         foreach($args as $k=>$v)
             if(is_numeric($k))
                 unset($args[$k]);

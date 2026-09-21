@@ -19,8 +19,8 @@ class ParamMiddleware extends Middleware {
      * @return void
      */
     public function handle(Request $request,callable $next): void {
-        // 路径参数已并入 GET, 中间件可直接读取
-        MiddlewareLog::$calls[]='param:'.$request->getGet('name');
+        // 路径参数位于属性区, 中间件可直接读取
+        MiddlewareLog::$calls[]='param:'.$request->attribute('name');
         $next();
     }
 

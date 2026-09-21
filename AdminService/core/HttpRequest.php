@@ -18,6 +18,7 @@ use function is_subclass_of;
 use function str_replace;
 use function str_starts_with;
 use function strtolower;
+use function strtoupper;
 use function substr;
 use function trim;
 use function ucwords;
@@ -37,13 +38,13 @@ final class HttpRequest extends Request {
     protected Data $headers;
 
     /**
-     * GET请求参数(查询字符串)
+     * 查询串参数
      * @var Data
      */
     protected Data $query;
 
     /**
-     * POST请求参数
+     * POST参数
      * @var Data
      */
     protected Data $post;
@@ -67,7 +68,13 @@ final class HttpRequest extends Request {
     protected Data $server;
 
     /**
-     * 原始Input信息
+     * 请求属性(程序内部附加, 如路由参数)
+     * @var Data
+     */
+    protected Data $attributes;
+
+    /**
+     * 原始请求体
      * @var string
      */
     protected string $raw_input='';
@@ -106,6 +113,7 @@ final class HttpRequest extends Request {
         $this->post=new Data($sources['post']??$_POST??array());
         $this->cookie=new Data($sources['cookie']??$_COOKIE??array());
         $this->server=new Data($sources['server']??$_SERVER??array());
+        $this->attributes=new Data();
         $this->raw_files=$sources['files']??$_FILES??array();
         $this->raw_input=$sources['rawInput']??(@file_get_contents('php://input')?:'');
         // 解析Input信息
@@ -151,7 +159,7 @@ final class HttpRequest extends Request {
     /**
      * 解析Input信息
      *
-     * - 按Content-Type查找处理器, 解析结果可选合并进get/post/cookie(见配置项`request.default.param.input`)
+     * - 按Content-Type查找处理器, 解析结果可选合并进query/post/cookie(见配置项`request.default.param.input`)
      *
      * @access private
      * @return void
@@ -203,25 +211,154 @@ final class HttpRequest extends Request {
     }
 
     /**
-     * 获取上传的文件信息,
-     * 传入字段名则返回`UploadFiles`,
-     * 不传入则返回`UploadFilesForm`
+     * 获取查询串参数(不传参数名时返回全部)
      *
      * @access public
-     * @param string|null $name 字段名(null时获取全部)
-     * @return UploadFilesForm|UploadFiles
+     * @param string|null $name 参数名(null时获取全部)
+     * @param mixed $default 默认值(仅取单个时生效)
+     * @return mixed
      */
-    public function getUploadFiles(
-        ?string $name=null
-    ): UploadFilesForm|UploadFiles {
-        if($name===null) return $this->fileForm();
-        $files=$this->fileForm()->getFilesByField($name);
-        if($files===null) return $this->fileForm()->buildEmpty();
-        return $files;
+    public function query(?string $name=null,mixed $default=null): mixed {
+        if($name===null) return $this->query->all();
+        return $this->query->get($name,$default);
     }
 
     /**
-     * 设置Cookie信息(仅修改`Request`容器内缓存,不同步后续请求,不同步到`Response`)
+     * 获取POST参数(不传参数名时返回全部)
+     *
+     * @access public
+     * @param string|null $name 参数名(null时获取全部)
+     * @param mixed $default 默认值(仅取单个时生效)
+     * @return mixed
+     */
+    public function post(?string $name=null,mixed $default=null): mixed {
+        if($name===null) return $this->post->all();
+        return $this->post->get($name,$default);
+    }
+
+    /**
+     * 获取Cookie参数(不传参数名时返回全部)
+     *
+     * @access public
+     * @param string|null $name 参数名(null时获取全部)
+     * @param mixed $default 默认值(仅取单个时生效)
+     * @return mixed
+     */
+    public function cookie(?string $name=null,mixed $default=null): mixed {
+        if($name===null) return $this->cookie->all();
+        return $this->cookie->get($name,$default);
+    }
+
+    /**
+     * 获取Header参数(不传参数名时返回全部, 键名大小写不敏感)
+     *
+     * @access public
+     * @param string|null $name 参数名(null时获取全部)
+     * @param mixed $default 默认值(仅取单个时生效)
+     * @return mixed
+     */
+    public function header(?string $name=null,mixed $default=null): mixed {
+        if($name===null) return $this->headers->all();
+        return $this->headers->get($name,$default);
+    }
+
+    /**
+     * 获取Input参数(不传参数名时返回全部)
+     *
+     * @access public
+     * @param string|null $name 参数名(null时获取全部)
+     * @param mixed $default 默认值(仅取单个时生效)
+     * @return mixed
+     */
+    public function input(?string $name=null,mixed $default=null): mixed {
+        if($name===null) return $this->input->all();
+        return $this->input->get($name,$default);
+    }
+
+    /**
+     * 获取Server参数(不传参数名时返回全部)
+     *
+     * @access public
+     * @param string|null $name 参数名(null时获取全部)
+     * @param mixed $default 默认值(仅取单个时生效)
+     * @return mixed
+     */
+    public function server(?string $name=null,mixed $default=null): mixed {
+        if($name===null) return $this->server->all();
+        return $this->server->get($name,$default);
+    }
+
+    /**
+     * 获取原始请求体
+     *
+     * @access public
+     * @return string
+     */
+    public function rawInput(): string {
+        return $this->raw_input;
+    }
+
+    /**
+     * 获取请求方法(大写, 缺省为GET)
+     *
+     * @access public
+     * @return string
+     */
+    public function method(): string {
+        return strtoupper((string)$this->server->get('REQUEST_METHOD','GET'));
+    }
+
+    /**
+     * 获取请求URI(含查询串)
+     *
+     * @access public
+     * @return string
+     */
+    public function uri(): string {
+        return (string)$this->server->get('REQUEST_URI','');
+    }
+
+    /**
+     * 获取请求路径(不含查询串, 去掉末尾斜杠)
+     *
+     * @access public
+     * @return string
+     */
+    public function path(): string {
+        return '/'.trim(explode('?',$this->uri(),2)[0],'/');
+    }
+
+    /**
+     * 设置查询串参数
+     *
+     * @access public
+     * @param string|array $params 参数名或参数组
+     * @param mixed $value 值($params 参数为数组时此参数无效)
+     * @return void
+     */
+    public function setQuery(string|array $params,mixed $value=null): void {
+        if(is_array($params))
+            $this->query->batchSet($params);
+        else $this->query->set($params,$value);
+    }
+
+    /**
+     * 设置POST参数
+     *
+     * @access public
+     * @param string|array $params 参数名或参数组
+     * @param mixed $value 值($params 参数为数组时此参数无效)
+     * @return void
+     */
+    public function setPost(string|array $params,mixed $value=null): void {
+        if(is_array($params))
+            $this->post->batchSet($params);
+        else $this->post->set($params,$value);
+    }
+
+    /**
+     * 设置Cookie信息(仅修改本请求实例的Cookie容器, 不同步到`Response`)
+     *
      * @access public
      * @param string|array $params 参数名或参数组
      * @param string $value Cookie值($params 参数为数组时此参数无效)
@@ -234,32 +371,7 @@ final class HttpRequest extends Request {
     }
 
     /**
-     * 获取Cookie参数
-     *
-     * @access public
-     * @param string $name 参数名
-     * @param mixed $default 默认值
-     * @return mixed
-     */
-    public function getCookie(
-        string $name,
-        mixed $default=null
-    ): mixed {
-        return $this->cookie->get($name,$default);
-    }
-
-    /**
-     * 获取全部Cookie参数
-     *
-     * @access public
-     * @return array
-     */
-    public function getCookies(): array {
-        return $this->cookie->all();
-    }
-
-    /**
-     * 设置Header信息(仅修改`Request`容器内缓存,不同步后续请求,不同步到`Response`)
+     * 设置Header信息(仅修改本请求实例的Header容器, 不同步到`Response`)
      *
      * @access public
      * @param string|array $params 参数名或参数组
@@ -273,80 +385,17 @@ final class HttpRequest extends Request {
     }
 
     /**
-     * 获取Header参数
-     *
-     * @access public
-     * @param string $name 参数名
-     * @param mixed $default 默认值
-     * @return mixed
-     */
-    public function getHeader(
-        string $name,
-        mixed $default=null
-    ): mixed {
-        return $this->headers->get($name,$default);
-    }
-
-    /**
-     * 获取全部Header参数
-     *
-     * @access public
-     * @return array
-     */
-    public function getHeaders(): array {
-        return $this->headers->all();
-    }
-
-    /**
      * 设置Input参数
      *
      * @access public
-     * @param string|array $params 参数
+     * @param string|array $params 参数名或参数组
      * @param string $value Input值($params 参数为数组时此参数无效)
      * @return void
      */
-    public function setInput(
-        string|array $params,
-        string $value=''
-    ): void {
+    public function setInput(string|array $params,string $value=''): void {
         if(is_array($params))
             $this->input->batchSet($params);
         else $this->input->set($params,$value);
-    }
-
-    /**
-     * 获取Input参数
-     *
-     * @access public
-     * @param string $name 参数名
-     * @param mixed $default 默认值
-     * @return mixed
-     */
-    public function getInput(
-        string $name,
-        mixed $default=null
-    ): mixed {
-        return $this->input->get($name,$default);
-    }
-
-    /**
-     * 获取全部Input参数
-     *
-     * @access public
-     * @return array
-     */
-    public function getInputs(): array {
-        return $this->input->all();
-    }
-
-    /**
-     * 获取原始Input数据
-     *
-     * @access public
-     * @return string
-     */
-    public function getRawInput(): string {
-        return $this->raw_input;
     }
 
     /**
@@ -354,175 +403,35 @@ final class HttpRequest extends Request {
      *
      * @access public
      * @param string|array $params 参数名或参数组
-     * @param mixed $value Server值($params 参数为数组时此参数无效)
+     * @param mixed $value 值($params 参数为数组时此参数无效)
      * @return void
      */
-    public function setServer(
-        string|array $params,
-        mixed $value=null
-    ): void {
+    public function setServer(string|array $params,mixed $value=null): void {
         if(is_array($params))
             $this->server->batchSet($params);
         else $this->server->set($params,$value);
     }
 
     /**
-     * 获取Server参数
-     *
-     * @access public
-     * @param string $name 参数名
-     * @param mixed $default 默认值
-     * @return mixed
-     */
-    public function getServer(
-        string $name,
-        mixed $default=null
-    ): mixed {
-        return $this->server->get($name,$default);
-    }
-
-    /**
-     * 获取全部Server参数
-     *
-     * @access public
-     * @return array
-     */
-    public function getServers(): array {
-        return $this->server->all();
-    }
-
-    /**
-     * 设置Get参数
-     *
-     * @access public
-     * @param string|array $params 参数名或参数组
-     * @param mixed $value Get值($params 参数为数组时此参数无效)
-     * @return void
-     */
-    public function setGet(
-        string|array $params,
-        mixed $value=null
-    ): void {
-        if(is_array($params))
-            $this->query->batchSet($params);
-        else $this->query->set($params,$value);
-    }
-
-    /**
-     * 获取Get参数
-     *
-     * @access public
-     * @param string $name 参数名
-     * @param mixed $default 默认值
-     * @return mixed
-     */
-    public function getGet(
-        string $name,
-        mixed $default=null
-    ): mixed {
-        return $this->query->get($name,$default);
-    }
-
-    /**
-     * 获取全部GET参数
-     *
-     * @access public
-     * @return array
-     */
-    public function getGets(): array {
-        return $this->query->all();
-    }
-
-    /**
-     * 设置Post参数
-     *
-     * @access public
-     * @param string|array $params 参数名或参数组
-     * @param mixed $value Post值($params 参数为数组时此参数无效)
-     * @return void
-     */
-    public function setPost(
-        string|array $params,
-        mixed $value=null
-    ): void {
-        if(is_array($params))
-            $this->post->batchSet($params);
-        else $this->post->set($params,$value);
-    }
-
-    /**
-     * 获取Post参数
-     *
-     * @access public
-     * @param string $name 参数名
-     * @param mixed $default 默认值
-     * @return mixed
-     */
-    public function getPost(
-        string $name,
-        mixed $default=null
-    ): mixed {
-        return $this->post->get($name,$default);
-    }
-
-    /**
-     * 获取全部POST参数
-     *
-     * @access public
-     * @return array
-     */
-    public function getPosts(): array {
-        return $this->post->all();
-    }
-
-    /**
-     * 获取请求参数键名
-     *
-     * @access public
-     * @param int $type 参数类型
-     * @return array
-     */
-    public function getParamKeys(
-        int $type=self::ALL_PARAM
-    ): array {
-        $keys=[];
-        // 按顺序追加键名
-        foreach(str_split(strtoupper($this->order)) as $ch) {
-            switch($ch) {
-                case 'G':
-                    if($type===self::ALL_PARAM||$type===self::GET_PARAM)
-                        $keys=array_merge($keys,$this->query->keys());
-                    break;
-                case 'P':
-                    if($type===self::ALL_PARAM||$type===self::POST_PARAM)
-                        $keys=array_merge($keys,$this->post->keys());
-                    break;
-                case 'C':
-                    if($type===self::ALL_PARAM||$type===self::COOKIE_PARAM)
-                        $keys=array_merge($keys,$this->cookie->keys());
-                    break;
-            }
-        }
-        // 去重
-        return array_values(array_unique($keys));
-    }
-
-    /**
      * 通过键名获取请求参数
      *
+     * - 属性(如路由参数)优先于任一输入区: 路径结构优先于查询串
+     *
      * @access public
      * @param string $name 参数名
      * @param int $type 参数类型
      * @param mixed $default 默认值
      * @return mixed
      */
-    public function getParam(
+    public function param(
         string $name,
         int $type=self::ALL_PARAM,
         mixed $default=null
     ): mixed {
         // 如果是 ALL_PARAM，就按顺序找
         if($type===self::ALL_PARAM) {
+            if($this->attributes->has($name))
+                return $this->attributes->get($name);
             foreach(str_split(strtoupper($this->order)) as $ch) {
                 switch($ch) {
                     case 'G':
@@ -548,6 +457,37 @@ final class HttpRequest extends Request {
             self::COOKIE_PARAM=>$this->cookie->get($name,$default),
             default=>$default,
         };
+    }
+
+    /**
+     * 获取请求参数键名
+     *
+     * @access public
+     * @param int $type 参数类型
+     * @return array
+     */
+    public function paramKeys(int $type=self::ALL_PARAM): array {
+        // 属性(如路由参数)优先
+        $keys=$type===self::ALL_PARAM?$this->attributes->keys():array();
+        // 按顺序追加键名
+        foreach(str_split(strtoupper($this->order)) as $ch) {
+            switch($ch) {
+                case 'G':
+                    if($type===self::ALL_PARAM||$type===self::GET_PARAM)
+                        $keys=array_merge($keys,$this->query->keys());
+                    break;
+                case 'P':
+                    if($type===self::ALL_PARAM||$type===self::POST_PARAM)
+                        $keys=array_merge($keys,$this->post->keys());
+                    break;
+                case 'C':
+                    if($type===self::ALL_PARAM||$type===self::COOKIE_PARAM)
+                        $keys=array_merge($keys,$this->cookie->keys());
+                    break;
+            }
+        }
+        // 去重
+        return array_values(array_unique($keys));
     }
 
     /**
@@ -605,12 +545,62 @@ final class HttpRequest extends Request {
     }
 
     /**
-     * 获取上传文件实例
+     * 设置请求属性(程序内部附加的数据, 如路由参数)
+     *
+     * @access public
+     * @param string $name 属性名
+     * @param mixed $value 属性值
+     * @return void
+     */
+    public function setAttribute(string $name,mixed $value): void {
+        $this->attributes->set($name,$value);
+    }
+
+    /**
+     * 获取请求属性
+     *
+     * @access public
+     * @param string $name 属性名
+     * @param mixed $default 默认值
+     * @return mixed
+     */
+    public function attribute(string $name,mixed $default=null): mixed {
+        return $this->attributes->get($name,$default);
+    }
+
+    /**
+     * 获取全部请求属性
+     *
+     * @access public
+     * @return array
+     */
+    public function attributes(): array {
+        return $this->attributes->all();
+    }
+
+    /**
+     * 获取上传的文件信息,
+     * 传入字段名则返回`UploadFiles`,
+     * 不传入则返回`UploadFilesForm`
+     *
+     * @access public
+     * @param string|null $name 字段名(null时获取全部)
+     * @return UploadFilesForm|UploadFiles
+     */
+    public function file(?string $name=null): UploadFilesForm|UploadFiles {
+        if($name===null) return $this->fileForm();
+        $files=$this->fileForm()->getFilesByField($name);
+        if($files===null) return $this->fileForm()->buildEmpty();
+        return $files;
+    }
+
+    /**
+     * 获取表单文件实例(全部上传文件)
      *
      * @access public
      * @return UploadFilesForm
      */
-    public function getUploadFilesInstance(): UploadFilesForm {
+    public function files(): UploadFilesForm {
         return $this->fileForm();
     }
 

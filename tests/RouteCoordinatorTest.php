@@ -152,9 +152,13 @@ class RouteCoordinatorTest extends TestCase {
 
     /**
      * 测试约定式回落
+     *
+     * - 显式路由表未覆盖该路径时, 按 /app/controller/method 回落
+     *
      * @return void
      */
     public function testConventionFallback(): void {
+        $this->useRoutes('// 未注册任何路由');
         $this->assertSame('Hello World!',$this->dispatch('/demo/Index/index'));
     }
 
@@ -163,6 +167,7 @@ class RouteCoordinatorTest extends TestCase {
      * @return void
      */
     public function testConventionFallbackDisabled(): void {
+        $this->useRoutes('// 未注册任何路由');
         $configs=Config::all();
         $configs['route']['convention_fallback']=false;
         Config::set($configs);
@@ -175,6 +180,7 @@ class RouteCoordinatorTest extends TestCase {
      * @return void
      */
     public function testConventionPathParameters(): void {
+        $this->useRoutes('// 未注册任何路由');
         $data=$this->dispatch('/demo/Index/request/name/hello');
         $this->assertSame('hello',$data['get']['name']);
     }

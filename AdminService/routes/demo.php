@@ -9,6 +9,7 @@ use \app\demo\controller\OrmDemo;
 /**
  * demo 应用路由
  *
+ * - 每个控制器一个分组: 分组声明前缀, 组内只写子路径
  * - 演示路由使用 `any()`: 原约定式路由不区分请求方法, 此处保持一致
  */
 
@@ -17,34 +18,31 @@ return function(Router $router): void {
     // 应用默认控制器
     $router->any('/demo',array(Index::class,'index'));
 
-    // Autowire
-    $router->any('/demo/autowire',array(Autowire::class,'index'));
-    $router->any('/demo/autowire/index',array(Autowire::class,'index'));
+    // 子路径与控制器方法同名, 逐条注册
+    $router->group(array('prefix'=>'/demo/autowire'),function(Router $router): void {
+        $router->any('',array(Autowire::class,'index'));
+        $router->any('/index',array(Autowire::class,'index'));
+    });
 
-    // DatabaseDemo
-    $router->any('/demo/databaseDemo',array(DatabaseDemo::class,'index'));
-    $router->any('/demo/databaseDemo/index',array(DatabaseDemo::class,'index'));
-    $router->any('/demo/databaseDemo/demo',array(DatabaseDemo::class,'demo'));
-    $router->any('/demo/databaseDemo/facade',array(DatabaseDemo::class,'facade'));
+    $router->group(array('prefix'=>'/demo/databaseDemo'),function(Router $router): void {
+        $router->any('',array(DatabaseDemo::class,'index'));
+        $router->any('/index',array(DatabaseDemo::class,'index'));
+        $router->any('/demo',array(DatabaseDemo::class,'demo'));
+        $router->any('/facade',array(DatabaseDemo::class,'facade'));
+    });
 
-    // Index
-    $router->any('/demo/index',array(Index::class,'index'));
-    $router->any('/demo/index/index',array(Index::class,'index'));
-    $router->any('/demo/index/request',array(Index::class,'request'));
-    $router->any('/demo/index/view_demo',array(Index::class,'view_demo'));
-    $router->any('/demo/index/validator',array(Index::class,'validator'));
-    $router->any('/demo/index/log',array(Index::class,'log'));
-    $router->any('/demo/index/exec',array(Index::class,'exec'));
-    $router->any('/demo/index/upload',array(Index::class,'upload'));
-    $router->any('/demo/index/curl',array(Index::class,'curl'));
+    $router->group(array('prefix'=>'/demo/index'),function(Router $router): void {
+        $router->any('',array(Index::class,'index'));
+        // 子路径即方法名, 逐个注册
+        foreach(array('index','request','view_demo','validator','log','exec','upload','curl') as $method)
+            $router->any('/'.$method,array(Index::class,$method));
+    });
 
-    // OrmDemo
-    $router->any('/demo/ormDemo',array(OrmDemo::class,'index'));
-    $router->any('/demo/ormDemo/index',array(OrmDemo::class,'index'));
-    $router->any('/demo/ormDemo/schema',array(OrmDemo::class,'schema'));
-    $router->any('/demo/ormDemo/relation',array(OrmDemo::class,'relation'));
-    $router->any('/demo/ormDemo/prefixCheck',array(OrmDemo::class,'prefixCheck'));
-    $router->any('/demo/ormDemo/transaction',array(OrmDemo::class,'transaction'));
-    $router->any('/demo/ormDemo/addUpdatedAt',array(OrmDemo::class,'addUpdatedAt'));
+    $router->group(array('prefix'=>'/demo/ormDemo'),function(Router $router): void {
+        $router->any('',array(OrmDemo::class,'index'));
+        // 子路径即方法名, 逐个注册
+        foreach(array('index','schema','relation','prefixCheck','transaction','addUpdatedAt') as $method)
+            $router->any('/'.$method,array(OrmDemo::class,$method));
+    });
 
 };

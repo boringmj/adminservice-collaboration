@@ -5,6 +5,7 @@ namespace Tests;
 use PHPUnit\Framework\TestCase;
 
 use AdminService\Config;
+use AdminService\Exception;
 use AdminService\Router\AttributeScanner;
 
 /**
@@ -50,10 +51,13 @@ class AttributeScannerTest extends TestCase {
     }
 
     /**
-     * 测试文件名与类名不一致时该文件被跳过
+     * 测试文件名与类名不一致时抛异常
+     *
+     * - 静默跳过会让路由凭空消失, 难以排查, 故按约定报错
+     *
      * @return void
      */
-    public function testScanSkipsFileWithoutMatchingClass(): void {
+    public function testScanThrowsOnFileWithoutMatchingClass(): void {
         $this->tempDir=sys_get_temp_dir().'/scan_'.uniqid();
         mkdir($this->tempDir.'/foo/controller',0777,true);
         // 文件名 NotAClass.php, 而类名为 Other → 推出的类名不存在
@@ -61,7 +65,8 @@ class AttributeScannerTest extends TestCase {
             $this->tempDir.'/foo/controller/NotAClass.php',
             "<?php\nnamespace app\\foo\\controller;\nclass Other {}\n"
         );
-        $this->assertSame(array(),(new AttributeScanner())->scan($this->tempDir));
+        $this->expectException(Exception::class);
+        (new AttributeScanner())->scan($this->tempDir);
     }
 
 }

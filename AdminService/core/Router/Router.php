@@ -18,6 +18,7 @@ use function is_array;
 use function is_callable;
 use function is_file;
 use function is_string;
+use function sort;
 use function str_replace;
 use function trim;
 use function usort;
@@ -36,6 +37,18 @@ final class Router {
      * @var array<RouteItem>
      */
     private array $routes=array();
+
+    /**
+     * 路由名索引(惰性构建, 注册后失效)
+     * @var array<string,RouteItem>|null
+     */
+    private ?array $named=null;
+
+    /**
+     * 最近命中的路由
+     * @var RouteItem|null
+     */
+    private ?RouteItem $current=null;
 
     /**
      * 全局中间件
@@ -184,6 +197,7 @@ final class Router {
         $route=new RouteItem($methods,$this->prefix().$path,$handler,$this->middlewares());
         $this->assertNoConflict($route);
         $this->routes[]=$route;
+        $this->named=null;
         return $route;
     }
 
@@ -278,6 +292,28 @@ final class Router {
     }
 
     /**
+     * 注册 RESTful API 资源路由
+     *
+     * - 生成 index/store/show/update/destroy 五个动作, 不含 create/edit 表单页
+     * - 路由名规则同 resource()
+     *
+     * @access public
+     * @param string $path 资源路径
+     * @param string $controller 控制器类名
+     * @return void
+     * @throws Exception
+     */
+    public function apiResource(string $path,string $controller): void {
+        $base='/'.trim($path,'/');
+        $name=trim(str_replace('/','.',$base),'.');
+        $this->get($base,array($controller,'index'))->name($name.'.index');
+        $this->post($base,array($controller,'store'))->name($name.'.store');
+        $this->get($base.'/{id}',array($controller,'show'))->name($name.'.show');
+        $this->match(array('PUT','PATCH'),$base.'/{id}',array($controller,'update'))->name($name.'.update');
+        $this->delete($base.'/{id}',array($controller,'destroy'))->name($name.'.destroy');
+    }
+
+    /**
      * 加载集中式路由文件
      *
      * - 路由文件须返回接收本实例的闭包: `return function (Router $router): void { ... };`
@@ -351,10 +387,62 @@ final class Router {
             if(!$route->matchesMethod($method))
                 continue;
             $params=$route->matchUri($uri);
-            if($params!==null)
-                return array($route,$params);
+            if($params===null)
+                continue;
+            $this->current=$route;
+            return array($route,$params);
         }
         return null;
+    }
+
+    /**
+     * 汇总某路径允许的请求方法
+     *
+     * - 供 405 响应生成 `Allow` 头使用
+     *
+     * @access public
+     * @param string $uri 请求路径
+     * @return array<string> 路径未命中任何路由时返回空数组
+     */
+    public function allowedMethods(string $uri): array {
+        $uri=self::normalizeUri($uri);
+        $methods=array();
+        foreach($this->routes as $route) {
+            if($route->matchUri($uri)===null)
+                continue;
+            // 不限方法的路由可命中任何方法, 无须汇总
+            if($route->allowedMethods()===array())
+                return array();
+            foreach($route->allowedMethods() as $method) {
+                if(!in_array($method,$methods,true))
+                    $methods[]=$method;
+            }
+        }
+        sort($methods);
+        return $methods;
+    }
+
+    /**
+     * 获取最近命中的路由
+     *
+     * @access public
+     * @return RouteItem|null
+     */
+    public function current(): ?RouteItem {
+        return $this->current;
+    }
+
+    /**
+     * 校验路由名唯一
+     *
+     * - 装配完成后调用, 让重名尽早暴露
+     *
+     * @access public
+     * @return void
+     * @throws Exception 存在重名
+     */
+    public function assertNamesUnique(): void {
+        $this->nameIndex();
     }
 
     /**
@@ -388,14 +476,41 @@ final class Router {
      * @throws Exception 路由名不存在或缺少路径参数
      */
     public function url(string $name,array $params=array()): string {
+        $index=$this->nameIndex();
+        if(!isset($index[$name]))
+            throw new Exception('Route name not found.',-411,array(
+                'name'=>$name
+            ));
+        return $index[$name]->buildUri($params);
+    }
+
+    /**
+     * 构建路由名索引
+     *
+     * - 惰性构建并缓存, 注册新路由后失效
+     * - 重名直接报错: 否则反向生成会静默取先注册的那条
+     *
+     * @access private
+     * @return array<string,RouteItem>
+     * @throws Exception 存在重名
+     */
+    private function nameIndex(): array {
+        if($this->named!==null)
+            return $this->named;
+        $index=array();
         foreach($this->routes as $route) {
-            if($route->getName()!==$name)
+            $name=$route->getName();
+            if($name===null)
                 continue;
-            return $route->buildUri($params);
+            if(isset($index[$name]))
+                throw new Exception('Duplicate route name.',-419,array(
+                    'name'=>$name,
+                    'path'=>$route->getPath(),
+                    'exists'=>$index[$name]->getPath()
+                ));
+            $index[$name]=$route;
         }
-        throw new Exception('Route name not found.',-411,array(
-            'name'=>$name
-        ));
+        return $this->named=$index;
     }
 
     /**

@@ -45,12 +45,43 @@ final class Route extends BaseRoute {
      * @throws Exception|ReflectionException
      */
     public function run(): void {
-        $match=$this->router()->find($this->requestMethod(),(string)$this->request->getServer('REQUEST_URI',''));
-        if($match===null) {
-            $this->notFound();
+        $uri=(string)$this->request->getServer('REQUEST_URI','');
+        $method=$this->requestMethod();
+        $match=$this->router()->find($method,$uri);
+        if($match!==null) {
+            $this->runRoute($match[0],$match[1]);
             return;
         }
-        $this->runRoute($match[0],$match[1]);
+        // 路径存在但方法不符: 告知允许的方法; OPTIONS 以 204 应答
+        $allowed=$this->router()->allowedMethods($uri);
+        if($allowed!==array()) {
+            $this->notAllowed($allowed,$method==='OPTIONS');
+            return;
+        }
+        $this->notFound();
+    }
+
+    /**
+     * 方法不被允许时的响应
+     *
+     * - 405 与 204 均带 `Allow` 头, 客户端据此得知可用方法
+     *
+     * @access private
+     * @param array<string> $allowed 允许的请求方法
+     * @param bool $isOptions 是否为 OPTIONS 请求
+     * @return void
+     * @throws Exception|ReflectionException
+     */
+    private function notAllowed(array $allowed,bool $isOptions): void {
+        $response=App::get(Response::class);
+        $response->setHeader('Allow',implode(', ',$allowed));
+        if($isOptions) {
+            $response->setStatusCode(204);
+            $response->setControllerReturn('');
+            return;
+        }
+        $response->setStatusCode(405);
+        $response->setControllerReturn('405 Method Not Allowed');
     }
 
     /**
@@ -89,6 +120,8 @@ final class Route extends BaseRoute {
             $this->router->registerAttributes((new AttributeScanner())->scan((string)Config::get('app.path')));
         if(!empty($attributes['classes']))
             $this->router->registerAttributes($attributes['classes']);
+        // 装配完成后校验路由名唯一, 让重名尽早暴露
+        $this->router->assertNamesUnique();
         // 登记到容器, 供运行时(控制器/视图)反向生成 URL: App::get(Router::class)->url(...)
         App::set(Router::class,$this->router);
         return $this->router;

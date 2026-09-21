@@ -3,6 +3,7 @@
 namespace AdminService;
 
 use base\Error as BaseError;
+use base\Container as ContainerContract;
 use base\Response;
 use base\View;
 
@@ -17,6 +18,7 @@ use function is_resource;
 use function is_callable;
 use function is_bool;
 use function preg_match;
+use function str_replace;
 use function substr;
 use function trim;
 use function call_user_func;
@@ -29,10 +31,42 @@ use function call_user_func;
 final class Error extends BaseError {
 
     /**
+     * 框架容器(引导期由 `Main::init()` 一次性注入)
+     *
+     * - 错误 / 异常路径**不再经静态门面**, 只在引导期拿一次容器引用
+     * - 为 `null` 时(引导尚未完成或容器不可用)走**不依赖容器的兜底路径**:
+     *   内置最小错误页 + `error_log()` 直写, 从而避免"错误处理要容器、容器出错又要错误处理"的死循环
+     *
+     * @var ContainerContract|null
+     */
+    private static ?ContainerContract $container=null;
+
+    /**
      * 标记框架是否初始化完成(用于决定是否记录日志)
      * @var bool
      */
     private static $initialized=false;
+
+    /**
+     * 注入容器(引导期调用; 传 null 可卸载)
+     *
+     * @access public
+     * @param ContainerContract|null $container 容器契约
+     * @return void
+     */
+    public static function setContainer(?ContainerContract $container): void {
+        self::$container=$container;
+    }
+
+    /**
+     * 获取已注入的容器(未注入时为 null)
+     *
+     * @access public
+     * @return ContainerContract|null
+     */
+    public static function container(): ?ContainerContract {
+        return self::$container;
+    }
 
     /**
      * 正常退出时的回调函数
@@ -207,8 +241,8 @@ final class Error extends BaseError {
             ob_end_clean();
         }
         // 输出错误信息
-        if(self::$initialized) {
-            $response=App::get(Response::class);
+        if(self::$initialized&&self::$container!==null) {
+            $response=self::$container->get(Response::class);
             $response->status(500);
             $response->html();
             $response->header('Is-Error','true');
@@ -222,22 +256,42 @@ final class Error extends BaseError {
                     $errorType=self::$errorTypes[$error['type']]??'Unknown';
                     $logMessage="[{$errorType}] {message} in {file} on line {line}";
                     if(!empty($error['stack_trace'])) {
-                        $stackTrace=is_array($error['stack_trace']) 
+                        $stackTrace=is_array($error['stack_trace'])
                             ? self::formatStackTraceForLog($error['stack_trace'])
                             : $error['stack_trace'];
                         $logMessage.="\nStack Trace:\n".$stackTrace;
                     }
-                    App::exec_class_function(Log::class,'write',array($logMessage,array(
+                    $context=array(
                         'message'=>$error['message'],
                         'file'=>$error['file'],
                         'line'=>$error['line']
-                    )));
+                    );
+                    if(self::$container===null)
+                        // 容器不可用: 直写 PHP 错误日志(不依赖容器, 也不依赖配置)
+                        self::writeFallbackLog($logMessage,$context);
+                    else
+                        self::$container->exec_class_function(Log::class,'write',array($logMessage,$context));
                 }
-            } catch(\Exception $e) {
+            } catch(\Throwable $e) {
                 echo "<br>日志记录失败: ".htmlspecialchars($e->getMessage());
             }
         }
         exit();
+    }
+
+    /**
+     * 兜底日志(容器不可用时直写 PHP 错误日志)
+     *
+     * @access private
+     * @param string $logMessage 日志模板
+     * @param array<string,mixed> $context 模板变量
+     * @return void
+     */
+    private static function writeFallbackLog(string $logMessage,array $context): void {
+        $line=$logMessage;
+        foreach($context as $key=>$value)
+            $line=str_replace('{'.$key.'}',$value,$line);
+        error_log('[AdminService] '.str_replace(array("\r","\n"),' ',$line));
     }
 
     /**
@@ -311,8 +365,8 @@ final class Error extends BaseError {
             'output_content'=>null,
         ];
         // 在调试模式下添加输出内容
-        if($debug_mode&&self::$initialized) {
-            $response=App::get(Response::class);
+        if($debug_mode&&self::$initialized&&self::$container!==null) {
+            $response=self::$container->get(Response::class);
             $response->render();
             $output_content=$response->rendered();
             if($output_content!==null&&$output_content!=='') {
@@ -321,7 +375,10 @@ final class Error extends BaseError {
         }
         // 使用模板引擎渲染
         try {
-            $view=App::get(View::class);
+            // 容器不可用(引导未完成/容器出错)时走内置最小错误页, 不依赖视图服务
+            $view=self::$container?->get(View::class);
+            if($view===null)
+                return self::renderMinimalErrors($processed_errors);
             // 设置模板路径
             $template_path=Config::get('app.error_template',null);
             if($template_path==null||!is_file($template_path))
@@ -329,10 +386,28 @@ final class Error extends BaseError {
             else
                 $view->init($template_path,$template_data);
             return $view->render();
-        } catch(Exception $e) {
+        } catch(\Throwable $e) {
             // 如果模板渲染失败，回退到简单错误显示
-            return '<h1>发生错误</h1><p>' . htmlspecialchars($e->getMessage()).'</p>';
+            return self::renderMinimalErrors($processed_errors,htmlspecialchars($e->getMessage()));
         }
+    }
+
+    /**
+     * 内置最小错误页(不依赖容器与配置)
+     *
+     * @access private
+     * @param array<mixed> $processed_errors 处理后的错误列表
+     * @param string|null $reason 回退原因(模板渲染失败时给出)
+     * @return string
+     */
+    private static function renderMinimalErrors(array $processed_errors,?string $reason=null): string {
+        $html='<h1>发生错误</h1>';
+        if($reason!==null)
+            $html.='<p>'.$reason.'</p>';
+        $html.='<ul>';
+        foreach($processed_errors as $error)
+            $html.='<li>'.htmlspecialchars((string)($error['message']??'')).'</li>';
+        return $html.'</ul>';
     }
 
     /**

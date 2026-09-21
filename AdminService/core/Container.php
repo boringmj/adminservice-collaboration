@@ -85,8 +85,13 @@ final class Container implements \base\Container {
         $this->arguments=new ArgumentResolver($this->reflections);
         $this->classes=new ClassFinder($this->reflections);
         $this->autowire=new Autowire($this->reflections);
-        // 装配器: 类名解析 + 按类名装配实例 + 参数解析(生命周期方法注入)
+        // 装配器: 类名解析 + 按类名装配实例 + 参数解析(生命周期方法注入) + 代理创建(注入容器)
         $this->autowire->setArgumentResolver($this->arguments);
+        $this->autowire->setProxyResolver(function(string $class,array $args=array()): DynamicProxy {
+            $proxy=new DynamicProxy($class,...$args);
+            $proxy->setContainer($this);
+            return $proxy;
+        });
         $this->autowire->setClassResolver(function(string $class): string {
             return $this->resolve($class);
         });

@@ -24,9 +24,13 @@ class Exception extends BaseException {
         parent::__construct($message,$error_code,$data);
         if(!Config::get('app.debug',false))
             return;
+        // 容器未就绪(引导期异常 / 容器不可用)时不写日志: 与生产环境一致, 避免引导期刷日志
+        $container=Error::container();
+        if($container===null)
+            return;
         try{
             //写入日志
-            App::get(Log::class)->write(
+            $container->get(Log::class)->write(
                 '{class_name}({error_code}): {message} | data: {data} in {file} on line {line}, trace: {trace}',
                 array(
                     'class_name'=>get_called_class(),
@@ -38,7 +42,7 @@ class Exception extends BaseException {
                     'trace'=>$this->getTraceAsString()
                 )
             );
-        } catch(\Exception) {
+        } catch(\Throwable) {
             echo 'Log write failed: "'.$message.'"';
         }
     }

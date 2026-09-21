@@ -201,6 +201,19 @@ class RouteCoordinatorTest extends TestCase {
     }
 
     /**
+     * 测试通配捕获值按名注入控制器形参
+     *
+     * - 通配糖 `*` 的参数名固定为 `any`
+     *
+     * @return void
+     */
+    public function testWildcardValueInjected(): void {
+        $this->useRoutes("\$router->get('/w/*',array(\\Tests\\Fixtures\\RouteController::class,'wildcard'));");
+        $this->assertSame('any=a/b',$this->dispatch('/w/a/b'));
+        $this->assertSame('any=',$this->dispatch('/w'));
+    }
+
+    /**
      * 测试路径参数注入(并入 GET 参数)
      * @return void
      */

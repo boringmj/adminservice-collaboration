@@ -15,11 +15,11 @@ class Http extends AbstractResponseProcessor {
    
     /**
      * 处理响应数据
-     * 
-     * @access protected
+     *
+     * @access public
      * @return void
      */
-    protected function handle(): void {
+    public function handle(): void {
         $temp=$this->getResponse()->getControllerReturn();
         // 将bool值转为字面量
         if(is_bool($temp)) $temp=$temp?'true':'false';

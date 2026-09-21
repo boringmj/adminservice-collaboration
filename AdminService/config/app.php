@@ -8,6 +8,7 @@ use AdminService\Route;
 use AdminService\Cookie;
 use AdminService\Response;
 use AdminService\HttpRequest;
+use AdminService\NativeSession;
 
 // app 相关配置
 return array(
@@ -25,5 +26,6 @@ return array(
         \base\Cookie::class=>Cookie::class,
         \base\Response::class=>Response::class,
         \base\Request::class=>HttpRequest::class,
+        \base\AbstractSession::class=>NativeSession::class,
     )
 );

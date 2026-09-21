@@ -4,8 +4,6 @@ namespace AdminService;
 
 use base\Request;
 use base\AbstractInputProcessor;
-use base\AbstractSession;
-use AdminService\Exception;
 
 use function array_key_exists;
 use function array_merge;
@@ -26,6 +24,9 @@ use function ucwords;
 
 /**
  * HttpRequest核心类
+ *
+ * - 输入在构造时一次就位, 不持有静态状态, 每个请求一个实例
+ * - 上传表单惰性构建: 未访问上传接口时既不读配置也不触碰上传目录
  */
 final class HttpRequest extends Request {
 
@@ -33,75 +34,105 @@ final class HttpRequest extends Request {
      * 请求头数据
      * @var Data
      */
-    public static Data $request_headers;
+    protected Data $headers;
 
     /**
-     * GET请求参数
+     * GET请求参数(查询字符串)
      * @var Data
      */
-    public static Data $request_get;
-    
+    protected Data $query;
+
     /**
      * POST请求参数
      * @var Data
      */
-    public static Data $request_post;
-    
+    protected Data $post;
+
     /**
      * Cookie信息
      * @var Data
      */
-    public static Data $request_cookie;
+    protected Data $cookie;
 
     /**
      * Input信息
      * @var Data
      */
-    public static Data $request_input;
+    protected Data $input;
 
     /**
      * Server信息
      * @var Data
      */
-    public static Data $request_server;
-
-    /**
-     * Session信息
-     * @var AbstractSession|null
-     */
-    public static ?AbstractSession $request_session=null;
-
-    /**
-     * 表单文件
-     * @var UploadFilesForm|null
-     */
-    public static ?UploadFilesForm $request_files=null;
+    protected Data $server;
 
     /**
      * 原始Input信息
      * @var string
      */
-    protected static string $request_raw_input='';
+    protected string $raw_input='';
 
     /**
      * 参数处理顺序
      * @var string
      */
-    protected static string $request_order='';
+    protected string $order='';
 
     /**
-     * 获取全部请求头信息
-     * 
-     * @access protected
-     * @return array
+     * 原始上传文件数组
+     * @var array<string,mixed>
      */
-    protected static function getAllHeaders() {
-        // 判断是否存在getallheaders函数
-        if(function_exists('getallheaders'))
+    protected array $raw_files=array();
+
+    /**
+     * 表单文件(首次访问上传接口时构建)
+     * @var UploadFilesForm|null
+     */
+    protected ?UploadFilesForm $file_form=null;
+
+    /**
+     * 构造方法
+     *
+     * - `$sources` 为可选输入源, 缺省读超全局; 测试可注入以避免触碰 `$_GET` 等
+     * - 支持的键: `headers` / `query` / `post` / `cookie` / `server` / `rawInput` / `files`
+     *
+     * @access public
+     * @param array<string,mixed> $sources 输入源
+     */
+    public function __construct(array $sources=array()) {
+        $this->headers=(new Data(self::parseHeaders($sources)))
+            ->setCaseSensitive(false)->resetKey();
+        $this->query=new Data($sources['query']??$_GET??array());
+        $this->post=new Data($sources['post']??$_POST??array());
+        $this->cookie=new Data($sources['cookie']??$_COOKIE??array());
+        $this->server=new Data($sources['server']??$_SERVER??array());
+        $this->raw_files=$sources['files']??$_FILES??array();
+        $this->raw_input=$sources['rawInput']??(@file_get_contents('php://input')?:'');
+        // 解析Input信息
+        $this->input=new Data();
+        $this->parseInput();
+        // 获取参数处理顺序
+        $this->order=Config::get('request.default.param.order','CGP');
+    }
+
+    /**
+     * 解析请求头
+     *
+     * - 显式传入 `headers` 时直接采用; 显式传入 `server` 时由其推导(便于测试注入)
+     *
+     * @access private
+     * @param array<string,mixed> $sources 输入源
+     * @return array<string,mixed>
+     */
+    private static function parseHeaders(array $sources): array {
+        if(isset($sources['headers']))
+            return $sources['headers'];
+        // 未显式传入server时优先使用getallheaders
+        if(!isset($sources['server'])&&function_exists('getallheaders'))
             return getallheaders();
-        // 如果不存在则手动获取
-        $headers=[];
-        foreach($_SERVER as $key=>$value) {
+        $server=$sources['server']??$_SERVER??array();
+        $headers=array();
+        foreach($server as $key=>$value) {
             if(str_starts_with($key,'HTTP_')) {
                 // 去掉前缀并格式化为标准Header格式
                 $name=str_replace('_','-',substr($key,5));
@@ -118,95 +149,76 @@ final class HttpRequest extends Request {
     }
 
     /**
-     * 初始化请求
+     * 解析Input信息
      *
-     * @access public
+     * - 按Content-Type查找处理器, 解析结果可选合并进get/post/cookie(见配置项`request.default.param.input`)
+     *
+     * @access private
      * @return void
      */
-    public static function init(): void {
-        self::$request_headers=new Data(self::getAllHeaders());
-        self::$request_headers->setCaseSensitive(false)->resetKey();
-        self::$request_get=new Data($_GET??[]);
-        self::$request_post=new Data($_POST??[]);
-        self::$request_cookie=new Data($_COOKIE??[]);
-        self::$request_server=new Data($_SERVER??[]);
-        self::$request_input=new Data();
-        // 处理上传文件信息
-        $save_dir=Config::get(
-            'request.default.upload.save.dir',
-            __DIR__.'/../uploads'
-        );
-        self::$request_files=new UploadFilesForm($save_dir,$_FILES);
-        // 处理input信息
-        self::$request_raw_input=@file_get_contents('php://input')?:'';
+    private function parseInput(): void {
         // 获取Content-Type的值
-        $content_type_header=self::$request_headers->get('content-type','');
+        $content_type_header=$this->headers->get('content-type','');
         $content_type=strtolower(trim(explode(';',$content_type_header)[0]));
         /** @var array<string, string> $input_list */
         $input_list=Config::get('request.default.input',[]);
-        if(array_key_exists($content_type,$input_list)) {
-            // 验证是否属于 AbstractInputProcessor
-            if(is_subclass_of(
-                $input_list[$content_type],AbstractInputProcessor::class
-            )) {
-                /** @var AbstractInputProcessor $parser*/
-                $parser=App::new(
-                    $input_list[$content_type],
-                    self::$request_raw_input
-                );
-                self::$request_input->init($parser->toArray());
-                // 判断是否需要将input参数与其他参数合并
-                $input=Config::get('request.default.param.input',0);
-                switch($input) {
-                    case self::GET_PARAM:
-                        self::$request_get->batchSet(
-                            self::$request_input->all()
-                        );
-                        break;
-                    case self::POST_PARAM:
-                        self::$request_post->batchSet(
-                            self::$request_input->all()
-                        );
-                        break;
-                    case self::COOKIE_PARAM:
-                        self::$request_cookie->batchSet(
-                            self::$request_input->all()
-                        );
-                        break;
-                }
-            }
+        if(!array_key_exists($content_type,$input_list))
+            return;
+        // 验证是否属于 AbstractInputProcessor
+        if(!is_subclass_of($input_list[$content_type],AbstractInputProcessor::class))
+            return;
+        /** @var AbstractInputProcessor $parser */
+        $parser=App::new($input_list[$content_type])->parse($this->raw_input);
+        $this->input->init($parser->toArray());
+        // 判断是否需要将input参数与其他参数合并
+        $input=Config::get('request.default.param.input',0);
+        switch($input) {
+            case self::GET_PARAM:
+                $this->query->batchSet($this->input->all());
+                break;
+            case self::POST_PARAM:
+                $this->post->batchSet($this->input->all());
+                break;
+            case self::COOKIE_PARAM:
+                $this->cookie->batchSet($this->input->all());
+                break;
         }
-        // 处理Session信息
-        if(Config::get('request.default.session.enable',false)) {
-            /** @var AbstractSession $session*/
-            $session=App::new(
-                Config::get('request.default.session.class',NativeSession::class)
+    }
+
+    /**
+     * 获取表单文件(首次访问时构建)
+     *
+     * @access private
+     * @return UploadFilesForm
+     */
+    private function fileForm(): UploadFilesForm {
+        if($this->file_form===null) {
+            $save_dir=(string)Config::get(
+                'request.default.upload.save.dir',
+                __DIR__.'/../uploads'
             );
-            self::$request_session=$session;
-            $session->init();
+            $this->file_form=new UploadFilesForm($save_dir,$this->raw_files);
         }
-        // 获取参数处理顺序
-        self::$request_order=Config::get('request.default.param.order','CGP');
+        return $this->file_form;
     }
 
     /**
      * 获取上传的文件信息,
-     * 传入字段名则返回`AbstractUploadFiles`,
-     * 不传入则返回`AbstractUploadFilesForm`
-     * 
+     * 传入字段名则返回`UploadFiles`,
+     * 不传入则返回`UploadFilesForm`
+     *
      * @access public
      * @param string|null $name 字段名(null时获取全部)
      * @return UploadFilesForm|UploadFiles
      */
-    public static function getUploadFiles(
+    public function getUploadFiles(
         ?string $name=null
     ): UploadFilesForm|UploadFiles {
-        if($name===null) return self::$request_files;
-        $files=self::$request_files->getFilesByField($name);
-        if($files===null) return self::$request_files->buildEmpty();
+        if($name===null) return $this->fileForm();
+        $files=$this->fileForm()->getFilesByField($name);
+        if($files===null) return $this->fileForm()->buildEmpty();
         return $files;
     }
-
 
     /**
      * 设置Cookie信息(仅修改`Request`容器内缓存,不同步后续请求,不同步到`Response`)
@@ -215,74 +227,74 @@ final class HttpRequest extends Request {
      * @param string $value Cookie值($params 参数为数组时此参数无效)
      * @return void
      */
-    public static function setCookie(string|array $params,string $value=''): void {
+    public function setCookie(string|array $params,string $value=''): void {
         if(is_array($params))
-            self::$request_cookie->batchSet($params);
-        else self::$request_cookie->set($params,$value);
+            $this->cookie->batchSet($params);
+        else $this->cookie->set($params,$value);
     }
 
     /**
      * 获取Cookie参数
-     * 
+     *
      * @access public
      * @param string $name 参数名
      * @param mixed $default 默认值
      * @return mixed
      */
-    public static function getCookie(
+    public function getCookie(
         string $name,
         mixed $default=null
     ): mixed {
-        return self::$request_cookie->get($name,$default);
+        return $this->cookie->get($name,$default);
     }
 
     /**
      * 获取全部Cookie参数
-     * 
+     *
      * @access public
      * @return array
      */
-    public static function getCookies(): array {
-        return self::$request_cookie->all();
+    public function getCookies(): array {
+        return $this->cookie->all();
     }
 
     /**
      * 设置Header信息(仅修改`Request`容器内缓存,不同步后续请求,不同步到`Response`)
-     * 
+     *
      * @access public
      * @param string|array $params 参数名或参数组
-     * @param string $value Cookie值($params 参数为数组时此参数无效)
+     * @param string $value Header值($params 参数为数组时此参数无效)
      * @return void
      */
-    public static function setHeader(string|array $params,string $value=''): void {
+    public function setHeader(string|array $params,string $value=''): void {
         if(is_array($params))
-            self::$request_headers->batchSet($params);
-        else self::$request_headers->set($params,$value);
+            $this->headers->batchSet($params);
+        else $this->headers->set($params,$value);
     }
 
     /**
      * 获取Header参数
-     * 
+     *
      * @access public
      * @param string $name 参数名
      * @param mixed $default 默认值
      * @return mixed
      */
-    public static function getHeader(
+    public function getHeader(
         string $name,
         mixed $default=null
     ): mixed {
-        return self::$request_headers->get($name,$default);
+        return $this->headers->get($name,$default);
     }
 
     /**
      * 获取全部Header参数
-     * 
+     *
      * @access public
      * @return array
      */
-    public static function getHeaders(): array {
-        return self::$request_headers->all();
+    public function getHeaders(): array {
+        return $this->headers->all();
     }
 
     /**
@@ -290,51 +302,51 @@ final class HttpRequest extends Request {
      *
      * @access public
      * @param string|array $params 参数
-     * @param string $value Cookie值($params 参数为数组时此参数无效)
+     * @param string $value Input值($params 参数为数组时此参数无效)
      * @return void
      */
-    public static function setInput(
+    public function setInput(
         string|array $params,
         string $value=''
     ): void {
         if(is_array($params))
-            self::$request_input->batchSet($params);
-        else self::$request_input->set($params,$value);
+            $this->input->batchSet($params);
+        else $this->input->set($params,$value);
     }
 
     /**
      * 获取Input参数
-     * 
+     *
      * @access public
      * @param string $name 参数名
      * @param mixed $default 默认值
      * @return mixed
      */
-    public static function getInput(
+    public function getInput(
         string $name,
         mixed $default=null
     ): mixed {
-        return self::$request_input->get($name,$default);
+        return $this->input->get($name,$default);
     }
 
     /**
      * 获取全部Input参数
-     * 
+     *
      * @access public
      * @return array
      */
-    public static function getInputs(): array {
-        return self::$request_input->all();
+    public function getInputs(): array {
+        return $this->input->all();
     }
 
     /**
      * 获取原始Input数据
-     * 
+     *
      * @access public
      * @return string
      */
-    public static function getRawInput(): string {
-        return self::$request_raw_input;
+    public function getRawInput(): string {
+        return $this->raw_input;
     }
 
     /**
@@ -342,41 +354,41 @@ final class HttpRequest extends Request {
      *
      * @access public
      * @param string|array $params 参数名或参数组
-     * @param mixed $value Cookie值($params 参数为数组时此参数无效)
+     * @param mixed $value Server值($params 参数为数组时此参数无效)
      * @return void
      */
-    public static function setServer(
+    public function setServer(
         string|array $params,
         mixed $value=null
     ): void {
         if(is_array($params))
-            self::$request_server->batchSet($params);
-        else self::$request_server->set($params,$value);
+            $this->server->batchSet($params);
+        else $this->server->set($params,$value);
     }
 
     /**
      * 获取Server参数
-     * 
+     *
      * @access public
      * @param string $name 参数名
      * @param mixed $default 默认值
      * @return mixed
      */
-    public static function getServer(
+    public function getServer(
         string $name,
         mixed $default=null
     ): mixed {
-        return self::$request_server->get($name,$default);
+        return $this->server->get($name,$default);
     }
 
     /**
      * 获取全部Server参数
-     * 
+     *
      * @access public
      * @return array
      */
-    public static function getServers(): array {
-        return self::$request_server->all();
+    public function getServers(): array {
+        return $this->server->all();
     }
 
     /**
@@ -384,41 +396,41 @@ final class HttpRequest extends Request {
      *
      * @access public
      * @param string|array $params 参数名或参数组
-     * @param mixed $value Cookie值($params 参数为数组时此参数无效)
+     * @param mixed $value Get值($params 参数为数组时此参数无效)
      * @return void
      */
-    public static function setGet(
+    public function setGet(
         string|array $params,
         mixed $value=null
     ): void {
         if(is_array($params))
-            self::$request_get->batchSet($params);
-        else self::$request_get->set($params,$value);
+            $this->query->batchSet($params);
+        else $this->query->set($params,$value);
     }
 
     /**
      * 获取Get参数
-     * 
+     *
      * @access public
      * @param string $name 参数名
      * @param mixed $default 默认值
      * @return mixed
      */
-    public static function getGet(
+    public function getGet(
         string $name,
         mixed $default=null
     ): mixed {
-        return self::$request_get->get($name,$default);
+        return $this->query->get($name,$default);
     }
 
     /**
      * 获取全部GET参数
-     * 
+     *
      * @access public
      * @return array
      */
-    public static function getGets(): array {
-        return self::$request_get->all();
+    public function getGets(): array {
+        return $this->query->all();
     }
 
     /**
@@ -426,106 +438,68 @@ final class HttpRequest extends Request {
      *
      * @access public
      * @param string|array $params 参数名或参数组
-     * @param mixed $value Cookie值($params 参数为数组时此参数无效)
+     * @param mixed $value Post值($params 参数为数组时此参数无效)
      * @return void
      */
-    public static function setPost(
+    public function setPost(
         string|array $params,
         mixed $value=null
     ): void {
         if(is_array($params))
-            self::$request_post->batchSet($params);
-        else self::$request_post->set($params,$value);
+            $this->post->batchSet($params);
+        else $this->post->set($params,$value);
     }
 
     /**
      * 获取Post参数
-     * 
+     *
      * @access public
      * @param string $name 参数名
      * @param mixed $default 默认值
      * @return mixed
      */
-    public static function getPost(
+    public function getPost(
         string $name,
         mixed $default=null
     ): mixed {
-        return self::$request_post->get($name,$default);
+        return $this->post->get($name,$default);
     }
 
     /**
      * 获取全部POST参数
-     * 
+     *
      * @access public
      * @return array
      */
-    public static function getPosts(): array {
-        return self::$request_post->all();
-    }
-
-    /**
-     * 设置Session参数
-     *
-     * @access public
-     * @param string|array $params 参数名或参数组
-     * @param string $value Cookie值($params 参数为数组时此参数无效) 
-     * @return void
-     */
-    public static function setSession(
-        string|array $params,
-        string $value=''
-    ): void {
-        if(self::$request_session==null)
-            throw new Exception('Session is not initialized.');
-        if(is_array($params))
-            foreach($params as $key=>$val)
-                self::$request_session->set($key,$val);
-        else self::$request_session->set($params,$value);
-    }
-
-    /**
-     * 获取Session参数
-     * 
-     * @access public
-     * @param string $name 参数名
-     * @param mixed $default 默认值
-     * @return mixed
-     */
-    public static function getSession(
-        string $name,
-        mixed $default=null
-    ): mixed {
-        if(self::$request_session==null)
-            throw new Exception('Session is not initialized.');
-        return self::$request_session->get($name,$default);
+    public function getPosts(): array {
+        return $this->post->all();
     }
 
     /**
      * 获取请求参数键名
-     * 
+     *
      * @access public
      * @param int $type 参数类型
      * @return array
      */
-    public static function getParamKeys(
+    public function getParamKeys(
         int $type=self::ALL_PARAM
     ): array {
         $keys=[];
-        $order=self::$request_order;
         // 按顺序追加键名
-        foreach(str_split(strtoupper($order)) as $ch) {
+        foreach(str_split(strtoupper($this->order)) as $ch) {
             switch($ch) {
                 case 'G':
                     if($type===self::ALL_PARAM||$type===self::GET_PARAM)
-                        $keys=array_merge($keys,self::$request_get->keys());
+                        $keys=array_merge($keys,$this->query->keys());
                     break;
                 case 'P':
                     if($type===self::ALL_PARAM||$type===self::POST_PARAM)
-                        $keys=array_merge($keys,self::$request_post->keys());
+                        $keys=array_merge($keys,$this->post->keys());
                     break;
                 case 'C':
                     if($type===self::ALL_PARAM||$type===self::COOKIE_PARAM)
-                        $keys=array_merge($keys,self::$request_cookie->keys());
+                        $keys=array_merge($keys,$this->cookie->keys());
                     break;
             }
         }
@@ -535,35 +509,33 @@ final class HttpRequest extends Request {
 
     /**
      * 通过键名获取请求参数
-     * 
+     *
      * @access public
      * @param string $name 参数名
      * @param int $type 参数类型
      * @param mixed $default 默认值
      * @return mixed
      */
-    public static function getParam(
+    public function getParam(
         string $name,
         int $type=self::ALL_PARAM,
         mixed $default=null
     ): mixed {
-        // 获取顺序
-        $order=self::$request_order;
         // 如果是 ALL_PARAM，就按顺序找
         if($type===self::ALL_PARAM) {
-            foreach(str_split(strtoupper($order)) as $ch) {
+            foreach(str_split(strtoupper($this->order)) as $ch) {
                 switch($ch) {
                     case 'G':
-                        if(self::$request_get->has($name))
-                            return self::$request_get->get($name);
+                        if($this->query->has($name))
+                            return $this->query->get($name);
                         break;
                     case 'P':
-                        if(self::$request_post->has($name))
-                            return self::$request_post->get($name);
+                        if($this->post->has($name))
+                            return $this->post->get($name);
                         break;
                     case 'C':
-                        if(self::$request_cookie->has($name))
-                            return self::$request_cookie->get($name);
+                        if($this->cookie->has($name))
+                            return $this->cookie->get($name);
                         break;
                 }
             }
@@ -571,23 +543,23 @@ final class HttpRequest extends Request {
         }
         // 仅查询单一来源
         return match($type) {
-            self::GET_PARAM=>self::$request_get->get($name,$default),
-            self::POST_PARAM=>self::$request_post->get($name,$default),
-            self::COOKIE_PARAM=>self::$request_cookie->get($name,$default),
+            self::GET_PARAM=>$this->query->get($name,$default),
+            self::POST_PARAM=>$this->post->get($name,$default),
+            self::COOKIE_PARAM=>$this->cookie->get($name,$default),
             default=>$default,
         };
     }
 
     /**
      * 通过键名设置请求参数
-     * 
+     *
      * @access public
      * @param string|array $params 参数名或参数组
      * @param mixed $value 值($params 参数为数组时此参数无效)
      * @param int $type 参数类型
      * @return void
      */
-    public static function setParam(
+    public function setParam(
         string|array $params,
         mixed $value=null,
         int $type=self::ALL_PARAM
@@ -599,22 +571,22 @@ final class HttpRequest extends Request {
             }
         };
         if($type===self::ALL_PARAM||$type===self::GET_PARAM)
-            $apply(self::$request_get);
+            $apply($this->query);
         if($type===self::ALL_PARAM||$type===self::POST_PARAM)
-            $apply(self::$request_post);
+            $apply($this->post);
         if($type===self::ALL_PARAM||$type===self::COOKIE_PARAM)
-            $apply(self::$request_cookie);
+            $apply($this->cookie);
     }
 
     /**
      * 通过键名删除请求参数
-     * 
+     *
      * @access public
      * @param string|array $params 参数名或参数组
      * @param int $type 参数类型
      * @return void
      */
-    public static function removeParam(
+    public function removeParam(
         string|array $params,
         int $type=self::ALL_PARAM
     ): void {
@@ -625,31 +597,21 @@ final class HttpRequest extends Request {
             }
         };
         if($type===self::ALL_PARAM||$type===self::GET_PARAM)
-            $remove(self::$request_get);
+            $remove($this->query);
         if($type===self::ALL_PARAM||$type===self::POST_PARAM)
-            $remove(self::$request_post);
+            $remove($this->post);
         if($type===self::ALL_PARAM||$type===self::COOKIE_PARAM)
-            $remove(self::$request_cookie);
+            $remove($this->cookie);
     }
 
     /**
      * 获取上传文件实例
-     * 
+     *
      * @access public
      * @return UploadFilesForm
      */
-    public static function getUploadFilesInstance(): UploadFilesForm {
-        return self::$request_files;
-    }
-
-    /**
-     * 获取Session实例
-     * 
-     * @access public
-     * @return AbstractSession
-     */
-    public static function getSessionInstance(): AbstractSession {
-        return self::$request_session;
+    public function getUploadFilesInstance(): UploadFilesForm {
+        return $this->fileForm();
     }
 
 }

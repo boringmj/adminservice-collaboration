@@ -4,7 +4,6 @@ namespace AdminService\config;
 
 use base\Request;
 use AdminService\JsonInput;
-use AdminService\NativeSession;
 
 // request 相关配置
 return array(
@@ -28,10 +27,6 @@ return array(
         'param'=>array(
             'input'=>Request::POST_PARAM, // 将input参数合并到何处,`0`为不合并,默认为`0`
             'order'=>'CGP' // 参数处理顺序,默认为CGP,即Cookie<Get<Post,目前仅支持Cookie,Get,Post
-        ),
-        'session'=>array(
-            'enable'=>false, // 是否启用Session
-            'class'=>NativeSession::class, // Session处理类
         )
     )
 );

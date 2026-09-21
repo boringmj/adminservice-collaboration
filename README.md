@@ -51,8 +51,8 @@ return function(Router $router): void {
 路径参数支持 `{name}` / `{name:约束}` / `{name?}`(可选, 须位于末尾)\
 也可在控制器上就近声明路由(类级 `#[RouteGroup]` 定前缀与中间件, 方法级 `#[Route]` 定子路径/命名/中间件, 可重复声明), 框架自动扫描控制器目录注册(规则见 [Wiki](https://github.com/boringmj/adminservice-collaboration/wiki/开始#属性路由自动扫描))
 ```php
-use AdminService\Router\Route;
-use AdminService\Router\RouteGroup;
+use AdminService\Attribute\Route;
+use AdminService\Attribute\RouteGroup;
 
 #[RouteGroup('/index')]                     // 类级: 前缀 + 中间件
 class Index {

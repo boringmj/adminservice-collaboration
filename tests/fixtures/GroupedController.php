@@ -2,8 +2,8 @@
 
 namespace Tests\Fixtures;
 
-use AdminService\Router\Route;
-use AdminService\Router\RouteGroup;
+use AdminService\Attribute\Route;
+use AdminService\Attribute\RouteGroup;
 
 /**
  * 测试用属性路由控制器(控制器级分组 + 命名 + 多路径)

@@ -1,8 +1,7 @@
 <?php
 
-namespace AdminService\Router;
+namespace AdminService;
 
-use AdminService\App;
 use base\Request;
 
 use function array_reverse;
@@ -12,7 +11,9 @@ use function is_object;
  * 中间件管道
  *
  * - 按声明顺序包裹执行, 最先声明的中间件在最外层
- * - 中间件经容器实例化, 支持构造函数依赖注入
+ * - 中间件经容器实例化, 支持构造函数依赖注入; 容器中已登记实例时直接取用
+ * - 只负责执行, 不关心中间件来源与层间顺序(请求 / 分组 / 路由 / 控制器由调用方组装)
+ * - 请求对象显式传入, 缺省取容器中的当前请求
  */
 final class Pipeline {
 
@@ -23,13 +24,21 @@ final class Pipeline {
     private array $middlewares;
 
     /**
+     * 请求对象
+     * @var Request
+     */
+    private Request $request;
+
+    /**
      * 构造方法
      *
      * @access public
      * @param array<string|object> $middlewares 中间件列表(类名或实例)
+     * @param Request|null $request 请求对象(null 时取容器中的当前请求)
      */
-    public function __construct(array $middlewares=array()) {
+    public function __construct(array $middlewares=array(),?Request $request=null) {
         $this->middlewares=$middlewares;
+        $this->request=$request??App::get(Request::class);
     }
 
     /**
@@ -62,7 +71,7 @@ final class Pipeline {
         return function() use ($middleware,$next): void {
             $instance=is_object($middleware)?$middleware:App::get($middleware);
             App::exec_class_function($instance,'handle',array(
-                'request'=>App::get(Request::class),
+                'request'=>$this->request,
                 'next'=>$next
             ));
         };

@@ -7,6 +7,8 @@ use base\UploadStorageInterface;
 use AdminService\exception\UploadStorageException;
 
 use function file_exists;
+use function is_dir;
+use function mkdir;
 
 final class UploadStorage implements UploadStorageInterface {
 
@@ -19,11 +21,14 @@ final class UploadStorage implements UploadStorageInterface {
     /**
      * 保存文件
      *
+     * - 目标目录由存储方准备: 上传目录不再在请求解析阶段创建
+     *
      * @access public
      * @param AbstractUploadFile $file 文件对象
      * @return void
      */
     public function save(AbstractUploadFile $file): void {
+        $this->prepareDir($file->getConfirmDir());
         $this->validate($file);
         $save_path=$this->generateSavePath($file);
         if(!@move_uploaded_file($file->getTempPath(),$save_path))
@@ -62,9 +67,24 @@ final class UploadStorage implements UploadStorageInterface {
     }
 
     /**
+     * 准备保存目录
+     *
+     * @access protected
+     * @param string $dir 保存目录
+     * @throws UploadStorageException
+     * @return void
+     */
+    protected function prepareDir(string $dir): void {
+        if(is_dir($dir)) return;
+        $dir_mode=Config::get('request.default.upload.save.mode',0755);
+        if(!@mkdir($dir,$dir_mode,true)&&!is_dir($dir))
+            throw new UploadStorageException('创建上传目录失败');
+    }
+
+    /**
      * 生成最终保存路径
      *
-     * @access public
+     * @access protected
      * @param AbstractUploadFile $file 文件对象
      * @return string
      */

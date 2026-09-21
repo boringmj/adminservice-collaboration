@@ -1,8 +1,10 @@
 <?php
 
-namespace AdminService\Router;
+namespace AdminService\Attribute;
 
 use Attribute;
+
+use function is_array;
 
 /**
  * 路由声明属性(方法级)
@@ -45,18 +47,18 @@ final class Route {
      * @param string $method 请求方法(传 `*` 表示不限)
      * @param string $path 路由路径
      * @param string|null $name 路由名
-     * @param array<string|object> $middleware 路由级中间件
+     * @param string|array<string|object>|object $middleware 路由级中间件(类名 / 实例 / 数组)
      */
     public function __construct(
         string $method,
         string $path,
         ?string $name=null,
-        array $middleware=array()
+        string|array|object $middleware=array()
     ) {
         $this->method=$method;
         $this->path=$path;
         $this->name=$name;
-        $this->middlewares=$middleware;
+        $this->middlewares=is_array($middleware)?$middleware:array($middleware);
     }
 
     /**

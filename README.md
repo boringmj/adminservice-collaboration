@@ -30,9 +30,9 @@ php start
 ## 路由
 路由由`AdminService\Route`(继承`base\Route`)实现, 支持两种方式
 
-**显式路由(默认)**: 在 [AdminService/routes/web.php](AdminService/routes/web.php) 中注册, 支持请求方法、路径参数、分组、资源路由与命名
+**显式路由(默认)**: 在 [AdminService/routes/](AdminService/routes) 目录下按应用拆分注册, 目录内全部 `.php` 会被加载; 支持请求方法、路径参数、分组、资源路由与命名
 ```php
-// AdminService/routes/web.php
+// AdminService/routes/demo.php
 
 $router->get('/user/{id:\d+}', array(\app\demo\controller\Index::class,'index'))->name('user.show');
 $router->post('/user', array(\app\demo\controller\Index::class,'request'));
@@ -41,6 +41,7 @@ $router->group(array('prefix'=>'/api/v1'), function(\AdminService\Router\Router 
     $router->get('/profile', array(\app\demo\controller\Index::class,'request'));
 });
 ```
+路由文件列表由配置项 `route.explicit.files` 指定, 可写目录(加载其中全部 `.php`, 按文件名排序)或具体文件路径
 **约定式路由(可选)**: 按 `/app/controller/method` 定位控制器, 由配置项 `route.convention_fallback` 开启\
 默认关闭: 未命中显式路由时返回 `404`, 不泄漏目录结构; 开启后请先[配置](https://github.com/boringmj/adminservice-collaboration/wiki/开始#默认路由)您的 `webserver` 支持该路由形式
 ```

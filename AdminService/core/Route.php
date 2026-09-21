@@ -15,6 +15,7 @@ use function class_exists;
 use function count;
 use function explode;
 use function file_exists;
+use function glob;
 use function implode;
 use function in_array;
 use function is_array;
@@ -27,6 +28,8 @@ use function is_string;
 use function lcfirst;
 use function method_exists;
 use function preg_match;
+use function rtrim;
+use function sort;
 use function ucfirst;
 use function urldecode;
 
@@ -177,13 +180,33 @@ final class Route extends BaseRoute {
         if($this->router!==null)
             return $this->router;
         $this->router=new Router(Config::get('middlewares.global',array()));
-        $file=Config::get('route.explicit.file');
-        if(is_string($file)&&is_file($file))
-            $this->router->load($file);
+        foreach((array)Config::get('route.explicit.files',array()) as $path)
+            $this->loadRoutes($path);
         $classes=Config::get('route.explicit.attributes',array());
         if(!empty($classes))
             $this->router->registerAttributes($classes);
         return $this->router;
+    }
+
+    /**
+     * 加载路由文件或目录
+     *
+     * - 目录加载其中全部 `.php`, 按文件名排序保证注册顺序稳定
+     *
+     * @access private
+     * @param string $path 路由文件或目录路径
+     * @return void
+     * @throws Exception 路径不存在
+     */
+    private function loadRoutes(string $path): void {
+        if(is_dir($path)) {
+            $files=glob(rtrim($path,'/\\').'/*.php');
+            sort($files);
+            foreach($files as $file)
+                $this->router->load($file);
+            return;
+        }
+        $this->router->load($path);
     }
 
     /**

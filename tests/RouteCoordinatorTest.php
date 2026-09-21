@@ -10,6 +10,8 @@ use AdminService\Exception;
 use AdminService\HttpRequest;
 use AdminService\Response;
 use AdminService\Route;
+use Tests\Fixtures\LabelMiddleware;
+use Tests\Fixtures\MiddlewareLog;
 
 /**
  * 路由协调器测试
@@ -148,6 +150,33 @@ class RouteCoordinatorTest extends TestCase {
         $this->assertSame('demo',App::getAppName());
         $this->assertSame('Index',App::getControllerName());
         $this->assertSame('index',App::getMethodName());
+    }
+
+    /**
+     * 测试中间件四级执行顺序
+     *
+     * - 全局 → 分组 → 路由 → 控制器, 由外向内包裹
+     *
+     * @return void
+     */
+    public function testMiddlewareLevelsOrder(): void {
+        MiddlewareLog::clear();
+        $configs=Config::all();
+        $configs['middlewares']['global']=array(new LabelMiddleware('global'));
+        $configs['middlewares']['controller']=array(new LabelMiddleware('controller'));
+        Config::set($configs);
+        $this->useRoutes(<<<'PHP'
+$router->group(array('middleware'=>array(new \Tests\Fixtures\LabelMiddleware('group'))),function($router): void {
+    $router->any('/t/mw',array(\app\demo\controller\Index::class,'index'))
+        ->middleware(new \Tests\Fixtures\LabelMiddleware('route'));
+});
+PHP
+        );
+        $this->assertSame('Hello World!',$this->dispatch('/t/mw'));
+        $this->assertSame(array(
+            'global','group','route','controller',
+            'controller:after','route:after','group:after','global:after'
+        ),MiddlewareLog::$calls);
     }
 
     /**

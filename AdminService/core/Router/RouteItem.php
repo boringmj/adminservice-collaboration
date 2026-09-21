@@ -6,6 +6,7 @@ use AdminService\Exception;
 
 use function array_key_exists;
 use function in_array;
+use function is_array;
 use function ltrim;
 use function preg_match;
 use function preg_match_all;
@@ -161,6 +162,21 @@ final class RouteItem {
      */
     public function name(string $name): static {
         $this->name=$name;
+        return $this;
+    }
+
+    /**
+     * 追加路由级中间件
+     *
+     * - 追加在全局与分组中间件之后, 执行顺序上更靠近控制器
+     *
+     * @access public
+     * @param string|object|array<string|object> $middlewares 中间件(类名或实例)
+     * @return static
+     */
+    public function middleware(string|object|array $middlewares): static {
+        foreach(is_array($middlewares)?$middlewares:array($middlewares) as $middleware)
+            $this->middlewares[]=$middleware;
         return $this;
     }
 

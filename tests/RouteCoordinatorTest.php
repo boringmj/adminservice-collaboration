@@ -261,6 +261,34 @@ class RouteCoordinatorTest extends TestCase {
     }
 
     /**
+     * 测试中间件可读取路径参数
+     *
+     * - 路径参数在管道执行前并入 GET, 中间件即拿到路由上下文
+     *
+     * @return void
+     */
+    public function testMiddlewareSeesRouteParams(): void {
+        MiddlewareLog::clear();
+        $this->useRoutes("\$router->get('/mw/{name}',array(\\app\\demo\\controller\\Index::class,'index'))->middleware(\\Tests\\Fixtures\\ParamMiddleware::class);");
+        $this->assertSame('Hello World!',$this->dispatch('/mw/abc'));
+        $this->assertSame(array('param:abc'),MiddlewareLog::$calls);
+    }
+
+    /**
+     * 测试中间件不调用 $next 时中断后续
+     *
+     * @return void
+     */
+    public function testMiddlewareShortCircuit(): void {
+        MiddlewareLog::clear();
+        $this->useRoutes("\$router->get('/block',array(\\app\\demo\\controller\\Index::class,'index'))->middleware(\\Tests\\Fixtures\\BlockingMiddleware::class);");
+        $this->dispatch('/block');
+        $this->assertSame(array('blocked'),MiddlewareLog::$calls);
+        // 控制器未执行, 无返回值(可据此自定义响应)
+        $this->assertNull(Response::getControllerReturn());
+    }
+
+    /**
      * 测试中间件四级执行顺序
      *
      * - 全局 → 分组 → 路由 → 控制器, 由外向内包裹

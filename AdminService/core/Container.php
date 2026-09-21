@@ -2,43 +2,15 @@
 
 namespace AdminService;
 
-use ReflectionType;
 use ReflectionClass;
-use ReflectionMethod;
-use ReflectionFunction;
 
-use function array_filter;
-use function array_key_exists;
-use function array_merge;
-use function array_unique;
-use function array_values;
 use function class_exists;
-use function count;
 use function explode;
-use function gettype;
 use function in_array;
 use function interface_exists;
-use function is_subclass_of;
-use function str_replace;
-use function str_contains;
 use function is_string;
-use function is_callable;
-use function is_numeric;
-use function is_int;
-use function is_float;
-use function is_bool;
-use ReflectionParameter;
-use ReflectionNamedType;
-use ReflectionUnionType;
-// use ReflectionIntersectionType; // PHP 8.0 不支持
-use ReflectionProperty;
 use ReflectionException;
 use AdminService\Exception;
-use AdminService\DynamicProxy;
-use AdminService\Autowire\AutowireSetter;
-use AdminService\Autowire\AutowireProperty;
-use AdminService\Autowire\AutowireMethod;
-use AdminService\exception\AutowireException;
 
 final class Container implements \base\Container {
 
@@ -77,9 +49,15 @@ final class Container implements \base\Container {
     private ClassFinder $classes;
 
     /**
+     * 自动装配器(三路装配: 属性 / Setter / 生命周期方法)
+     * @var Autowire
+     */
+    private Autowire $autowire;
+
+    /**
      * 构造方法
      *
-     * - 三个内核组件都是实例对象; 依赖方向为 容器 → 组件(单向)
+     * - 四个内核组件(反射缓存 / 参数解析器 / 类查找器 / 装配器)都是实例对象; 依赖方向为 容器 → 组件(单向)
      * - 组件需要的"类名解析""按类型取实例"能力由容器以回调回填, 避免组件反向依赖容器
      *
      * @access public
@@ -88,6 +66,15 @@ final class Container implements \base\Container {
         $this->reflections=new ReflectionCache();
         $this->arguments=new ArgumentResolver($this->reflections);
         $this->classes=new ClassFinder($this->reflections);
+        $this->autowire=new Autowire($this->reflections);
+        // 装配器: 类名解析 + 按类名装配实例 + 参数解析(生命周期方法注入)
+        $this->autowire->setArgumentResolver($this->arguments);
+        $this->autowire->setClassResolver(function(string $class): string {
+            return $this->getRealClass($class);
+        });
+        $this->autowire->setInstanceResolver(function(string $class,bool $is_force=false,array &$flags=array()): object {
+            return $this->make($class,$is_force,$flags);
+        });
         // 类查找器: 别名与绑定解析
         $this->classes->setClassResolver(function(string $class): string {
             return $this->getRealClass($class);
@@ -298,300 +285,6 @@ final class Container implements \base\Container {
         $this->data_container[$name]=$data;
     }
 
-    /**
-     * 自动注入
-     * 
-     * @access protected
-     * @param object $instance 需要注入属性的对象实例
-     * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
-     * @throws Exception
-     * @return void
-     */
-    protected function autowire(object $instance,array &$flags=[]): void {
-        // 获取对象的反射
-        $ref=$this->getReflectionByObject($instance);
-        // 获取类的所有属性
-        $properties=$ref->getProperties();
-        // 自动注入属性
-        $this->autowireProperty($properties,$instance,$ref,$flags);
-        // 获取类的所有方法
-        $methods=$ref->getMethods();
-        // 自动注入Setter方法
-        $this->autowireSetter($methods,$instance,$ref,$flags);
-        // 自动注入生命周期方法(#[AutowireMethod])
-        $this->autowireMethod($methods,$instance,$ref,$flags);
-    }
-
-    /**
-     * 将反射类型转为类型数组
-     * 
-     * @access protected
-     * @param ?ReflectionType $type 反射类型实例
-     * @param bool $allow_builtin 是否允许返回内置类型 
-     * @return string[] 类型名数组
-     */
-    protected function reflectionTypeToArray(
-        ?ReflectionType $type,
-        bool $allow_builtin=true
-    ): array {
-        if($type instanceof ReflectionNamedType) {
-            $name=$type->getName();
-            if(!$allow_builtin&&$type->isBuiltin())
-                return [];
-            $types=[$name];
-            if($allow_builtin&&$type->allowsNull()&&$name!=='null') {
-                $types[]='null';
-            }
-            return $types;
-        }
-        if($type instanceof ReflectionUnionType) {
-            $types=[];
-            foreach($type->getTypes() as $t) {
-                $types=array_merge($types,$this->reflectionTypeToArray($t,$allow_builtin));
-            }
-            // 去重
-            return array_values(array_unique($types));
-        }
-        // 其他
-        return [];
-    }
-
-    /**
-     * 通过类型和注解构造一个自动注入的参数
-     * 
-     * @access protected
-     * @param ReflectionProperty|ReflectionParameter $parameter 反射参数实例
-     * @param ReflectionClass $ref 需要注入属性的反射类实例
-     * @param ?string $explicit_class 显式标注的类名
-     * @param bool $proxy 是否注入动态代理类
-     * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
-     * @throws AutowireException
-     * @return object
-     */
-    protected function getReflectionPropertyValue(
-        ReflectionProperty|ReflectionParameter $parameter,
-        ReflectionClass $ref,
-        ?string $explicit_class=null,
-        bool $proxy=false,
-        array &$flags=[]
-    ): object {
-        try {
-            // 获取属性的类型
-            $type=$parameter->getType();
-            $type_array=$this->reflectionTypeToArray($type,false);
-            if($explicit_class!==null) {
-                $explicit_class=$this->getRealClass($explicit_class);
-                // 判断是否兼容代理类
-                if($proxy) {
-                    if(in_array(DynamicProxy::class,$type_array)||empty($type_array)) {
-                        return $this->proxy($explicit_class);
-                    }
-                }
-                // 判断是否是当前类的子类
-                if(!empty($type_array)&&$proxy===false) {
-                    foreach($type_array as $t) {
-                        if(is_a($t,$explicit_class,true)) {
-                            // 直接注入并跳出循环
-                            return $this->make($explicit_class,false,$flags);
-                        }
-                    }
-                }
-                // 判断是否兼容当前类
-                if(empty($type_array)&&$proxy===false) {
-                    return $this->make($explicit_class,false,$flags);
-                }
-            }
-            // 判断允许的类型是否为空
-            if(empty($type_array))
-                throw new AutowireException(
-                'Parameter "'.$parameter->getName().'" of class "'.$ref->getName().
-                '" has no type declaration and no class name is specified.',
-            );
-            // 如果没有指定类名,则根据类型注入
-            $class_name=$this->getRealClass($type_array[0]);
-            return $this->make($class_name,false,$flags);
-        } catch(Exception $e) {
-            throw new AutowireException(
-                $e->getMessage(),
-                0,
-                [
-                    'property'=>$parameter->getName(),
-                    'class'=>$ref->getName()
-                ]
-            );
-        }
-    }
-
-    /**
-     * 自动注入属性
-     * 
-     * @access protected
-     * @param ReflectionProperty[] $properties 需要注入属性的反射实例数组
-     * @param object $instance 需要注入属性的对象实例
-     * @param ReflectionClass $ref 需要注入属性的反射类实例
-     * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
-     * @throws AutowireException
-     * @return void
-     */
-    protected function autowireProperty(
-        array $properties,
-        object $instance,
-        ReflectionClass $ref,
-        array &$flags=[]
-    ): void {
-        foreach($properties as $property) {
-            // 获取属性是否有 AutowireProperty 标签
-            $attributes=$property->getAttributes(AutowireProperty::class);
-            if(empty($attributes))
-                continue;
-            // 获取 AutowireProperty 实例
-            $autowire_attr=$attributes[0]->newInstance();
-            // 获取需要注入的对象
-            $explicit_class=$autowire_attr->getName();
-            $make_object=$this->getReflectionPropertyValue(
-                $property,
-                $ref,
-                $explicit_class,
-                $autowire_attr->getProxy(),
-                $flags
-            );
-            // 注入对象
-            $property->setAccessible(true);
-            $property->setValue($instance, $make_object);
-        }
-    }
-
-    /**
-     * 自动Setter注入
-     * 
-     * @access protected
-     * @param ReflectionMethod[] $methods 需要注入属性的反射实例数组
-     * @param object $instance 需要注入属性的对象实例
-     * @param ReflectionClass $ref 需要注入属性的反射类实例
-     * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
-     * @throws AutowireException
-     * @return void
-     */
-    protected function autowireSetter(
-        array $methods,
-        object $instance,
-        ReflectionClass $ref,
-        array &$flags=[]
-    ): void {
-        $method=null;
-        try{
-            foreach($methods as $method) {
-                // 获取属性是否有 AutowireSetter 标签
-                $attributes=$method->getAttributes(AutowireSetter::class);
-                if(empty($attributes))
-                    continue;
-                // 判断参数是否为一个类名或接口名
-                $params=$method->getParameters();
-                if(count($params)!==1)
-                    throw new AutowireException(
-                        'Setter method "'.$method->getName().'" of class "'.$ref->getName().
-                        '" must have exactly one parameter.',
-                    );
-                $param=$params[0];
-                // 获取 AutowireSetter 实例
-                $autowire_attr=$attributes[0]->newInstance();
-                // 获取需要注入的对象
-                $explicit_class=$autowire_attr->getName();
-                $make_object=$this->getReflectionPropertyValue(
-                    $param,
-                    $ref,
-                    $explicit_class,
-                    $autowire_attr->getProxy(),
-                    $flags
-                );
-                // 注入对象
-                $method->setAccessible(true);
-                $method->invoke($instance, $make_object);
-            }
-        } catch(Exception $e) {
-            throw new AutowireException(
-                $e->getMessage(),
-                0,
-                [
-                    'property'=>$method?->getName(),
-                    'class'=>$ref->getName()
-                ]
-            );
-        }
-    }
-
-    /**
-     * 自动方法注入(生命周期钩子)
-     *
-     * - 对标记了 #[AutowireMethod] 的方法, 在构建并注入属性/Setter 后自动调用
-     * - 参数按类型自动注入, 与构造函数注入一致(复用 mergeParams: 类型解析 → 默认值 → null → 报错)
-     *
-     * @access protected
-     * @param ReflectionMethod[] $methods 需要注入方法的反射实例数组
-     * @param object $instance 需要注入方法的对象实例
-     * @param ReflectionClass $ref 需要注入方法的反射类实例
-     * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
-     * @throws AutowireException
-     * @return void
-     */
-    protected function autowireMethod(
-        array $methods,
-        object $instance,
-        ReflectionClass $ref,
-        array &$flags=[]
-    ): void {
-        $method=null;
-        try {
-            foreach($methods as $method) {
-                // 获取方法是否有 AutowireMethod 标签
-                $attributes=$method->getAttributes(AutowireMethod::class);
-                if(empty($attributes))
-                    continue;
-                $autowire_attr=$attributes[0]->newInstance();
-                $params=$method->getParameters();
-                // 显式指定 name: 仅支持单参数方法(与 Setter 注入一致, 支持 proxy)
-                if($autowire_attr->getName()!==null) {
-                    if(count($params)!==1)
-                        throw new AutowireException(
-                            'Method "'.$method->getName().'" of class "'.$ref->getName().
-                            '" with explicit name must have exactly one parameter.',
-                        );
-                    $args=array($this->getReflectionPropertyValue(
-                        $params[0],$ref,$autowire_attr->getName(),$autowire_attr->getProxy(),$flags
-                    ));
-                } else {
-                    // 未指定 name: 全部参数按类型注入(与构造函数注入一致)
-                    $args=$this->arguments->merge($params,array());
-                }
-                // 调用方法
-                $method->setAccessible(true);
-                $method->invokeArgs($instance,$args);
-            }
-        } catch(Exception $e) {
-            throw new AutowireException(
-                $e->getMessage(),
-                0,
-                [
-                    'method'=>$method?->getName(),
-                    'class'=>$ref->getName()
-                ]
-            );
-        }
-    }
-
-    /**
-     * 生成一个类的代理实例
-     *
-     * @access public
-     * @template T of object
-     * @param class-string<T> $name 类名
-     * @param array<mixed> $args 构造函数参数
-     * @return DynamicProxy<T>
-     * @throws Exception
-     */
-    public function proxy(string $name,array $args=array()): DynamicProxy {
-        return new DynamicProxy($name,...$args);
-    }
 
     /**
      * 通过自动依赖注入实例化一个对象
@@ -667,7 +360,7 @@ final class Container implements \base\Container {
             // 如果没有构造函数则直接实例化一个新的对象
             $object=$ref->newInstance();
         // 自动注入属性
-        $this->autowire($object,$flags);
+        $this->autowire->autowire($object,$flags);
         // 将对象添加到容器中
         $this->set($name,$object);
         // 移出标识中的当前对象

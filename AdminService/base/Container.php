@@ -137,24 +137,16 @@ interface Container {
     public function reset(): void;
 
     /**
-     * 获取全局数据
+     * 判断"实例是否已登记"(自身或父容器)
+     *
+     * - 与 `has()` 的区别: 只看**实例表**, 不承诺"容器能构建出来"
+     * - 典型用途: 判断请求级对象是否已就位(如路由上下文、响应)
      *
      * @access public
-     * @param string $name 数据名
-     * @param mixed $default 默认值
-     * @return mixed
+     * @param string $name 名称(类名 / 接口名 / 别名)
+     * @return bool
      */
-    public function getData(string $name,mixed $default=null): mixed;
-
-    /**
-     * 设置或添加全局数据
-     *
-     * @access public
-     * @param string $name 数据名
-     * @param mixed $data 数据
-     * @return void
-     */
-    public function setData(string $name,mixed $data): void;
+    public function hasInstance(string $name): bool;
 
     /**
      * 获取对象(复用已登记实例; 未登记则实例化并做完整装配)

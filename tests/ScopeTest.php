@@ -6,12 +6,14 @@ use PHPUnit\Framework\TestCase;
 
 use base\Container as ContainerContract;
 use base\Request;
+use base\RouteContextInterface;
 use Tests\Fixtures\AbstractService;
 use Tests\Fixtures\ConcreteService;
 use Tests\Fixtures\ServiceInterface;
 use AdminService\App;
 use AdminService\Application;
 use AdminService\Container;
+use AdminService\RouteContext;
 
 /**
  * 生命周期分层(应用级 / 请求级 scope)用例
@@ -61,16 +63,19 @@ class ScopeTest extends TestCase {
     }
 
     /**
-     * 测试 fork:全局数据不共享(请求级数据不出请求)
+     * 测试 fork:请求级对象(路由上下文)不回流向父容器, 父容器的对子容器可见
      * @return void
      */
-    public function testForkDataIsIsolated(): void {
+    public function testRouteContextIsRequestScoped(): void {
         $app=App::getInstance();
-        $app->setData('from_app','1');
+        $app->instance(RouteContextInterface::class,new RouteContext('demo','Index','index'));
         $child=$app->fork();
-        $this->assertNull($child->getData('from_app'));
-        $child->setData('from_child','2');
-        $this->assertNull($app->getData('from_child'));
+        // 父容器登记的请求级对象对子容器可见
+        $this->assertTrue($child->hasInstance(RouteContextInterface::class));
+        // 子容器登记的实例不回流
+        $child->instance(RouteContextInterface::class,new RouteContext('index','Home','index'));
+        $this->assertSame('demo',$app->get(RouteContextInterface::class)->appName());
+        $this->assertSame('index',$child->get(RouteContextInterface::class)->appName());
     }
 
     /**
@@ -90,21 +95,22 @@ class ScopeTest extends TestCase {
     public function testRequestsDoNotLeakBetweenHandles(): void {
         $application=new Application();
         $containers=array();
-        $application->handle(function() use (&$containers): void {
+        $marker=new ConcreteService();
+        $application->handle(function() use (&$containers,$marker): void {
             $containers[]=App::getInstance();
-            $containers[0]->setData('marker','first');
-            $this->assertSame('first',App::getInstance()->getData('marker'));
+            $containers[0]->instance(ConcreteService::class,$marker);
+            $this->assertTrue($containers[0]->hasInstance(ConcreteService::class));
         });
         $application->handle(function() use (&$containers): void {
             $containers[]=App::getInstance();
-            // 第二次请求:新容器, 看不到上一次请求的数据
+            // 第二次请求:新容器, 看不到上一次请求登记的实例
             $this->assertNotSame($containers[0],$containers[1]);
-            $this->assertNull(App::getInstance()->getData('marker'));
+            $this->assertFalse($containers[1]->hasInstance(ConcreteService::class));
             // 请求级对象也是新的
             $this->assertNotSame($containers[0]->get(Request::class),$containers[1]->get(Request::class));
         });
-        // 上一个请求的容器已被回收
-        $this->assertNull($containers[0]->getData('marker'));
+        // 上一个请求的容器已被回收(reset)
+        $this->assertFalse($containers[0]->hasInstance(ConcreteService::class));
     }
 
     /**
@@ -130,11 +136,11 @@ class ScopeTest extends TestCase {
         $container=new Container();
         $container->bind(ServiceInterface::class, ConcreteService::class);
         $first=$container->get(ServiceInterface::class);
-        $container->setData('k','v');
+        $container->instance(ConcreteService::class,new ConcreteService());
         $container->reset();
-        // 数据清空
-        $this->assertNull($container->getData('k'));
-        // 实例表清空(重新解析得到新实例)
+        // 实例表清空
+        $this->assertFalse($container->hasInstance(ConcreteService::class));
+        // 重新解析得到新实例
         $this->assertNotSame($first,$container->get(ServiceInterface::class));
         // 绑定保留
         $this->assertTrue($container->has(ServiceInterface::class));

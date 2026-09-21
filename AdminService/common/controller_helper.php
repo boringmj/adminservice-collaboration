@@ -3,6 +3,7 @@
 namespace AdminService\common;
 
 use base\Response;
+use base\RouteContextInterface;
 use AdminService\App;
 use AdminService\Exception;
 use ReflectionException;
@@ -16,8 +17,10 @@ use ReflectionException;
  * @throws ReflectionException|Exception
  */
 function view(null|string|array $template=null,array $data=array()): string {
-    $route_info=App::getData('route_info',array());
-    $controller_class=is_array($route_info)?($route_info['controller_class']??null):null;
+    $container=App::getInstance();
+    // 路由上下文属请求级对象: 仅分发中可用
+    $context=$container->hasInstance(RouteContextInterface::class)?$container->get(RouteContextInterface::class):null;
+    $controller_class=$context instanceof RouteContextInterface?$context->controllerClass():null;
     if(!is_string($controller_class))
         throw new Exception('无法定位当前控制器: 路由上下文不可用(仅可在控制器内调用 view())');
     $controller=App::get($controller_class);

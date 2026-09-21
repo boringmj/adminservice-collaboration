@@ -3,6 +3,7 @@
 namespace AdminService;
 
 use base\Container as ContainerContract;
+use base\RouteContextInterface;
 use ReflectionClass;
 
 use function count;
@@ -248,32 +249,6 @@ final class App {
     }
 
     /**
-     * 获取全局数据
-     *
-     * @access public
-     * @param string $name 数据名
-     * @param mixed $default 默认值
-     * @return mixed
-     * @throws Exception
-     */
-    public static function getData(string $name,mixed $default=null): mixed {
-        return self::getInstance()->getData($name,$default);
-    }
-
-    /**
-     * 设置或添加全局数据
-     *
-     * @access public
-     * @param string $name 数据名
-     * @param mixed $data 数据
-     * @return void
-     * @throws Exception
-     */
-    public static function setData(string $name,mixed $data): void {
-        self::getInstance()->setData($name,$data);
-    }
-
-    /**
      * 执行类或对象的方法
      *
      * @access public
@@ -310,7 +285,7 @@ final class App {
      * @throws Exception
      */
     public static function getAppName(): ?string {
-        return self::getData('route_info')['app']??null;
+        return self::routeContext()?->appName();
     }
 
     /**
@@ -321,7 +296,7 @@ final class App {
      * @throws Exception
      */
     public static function getControllerName(): ?string {
-        return self::getData('route_info')['controller']??null;
+        return self::routeContext()?->controllerName();
     }
 
     /**
@@ -332,7 +307,22 @@ final class App {
      * @throws Exception
      */
     public static function getMethodName(): ?string {
-        return self::getData('route_info')['method']??null;
+        return self::routeContext()?->methodName();
+    }
+
+    /**
+     * 当前请求的路由上下文(**请求级**对象; 未分发时为 null)
+     *
+     * @access private
+     * @return RouteContextInterface|null
+     * @throws Exception
+     */
+    private static function routeContext(): ?RouteContextInterface {
+        $container=self::getInstance();
+        if(!$container->hasInstance(RouteContextInterface::class))
+            return null;
+        $context=$container->get(RouteContextInterface::class);
+        return $context instanceof RouteContextInterface?$context:null;
     }
 
 }

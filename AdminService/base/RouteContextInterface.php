@@ -41,6 +41,16 @@ interface RouteContextInterface {
     public function methodName(): ?string;
 
     /**
+     * 控制器类名(完整命名空间)
+     *
+     * - 控制器实例由容器按该类名登记, 因此助手函数与视图路径推断可以据此取用
+     *
+     * @access public
+     * @return string|null
+     */
+    public function controllerClass(): ?string;
+
+    /**
      * 路径参数(路由参数)
      *
      * @access public

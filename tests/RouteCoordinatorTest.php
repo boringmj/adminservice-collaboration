@@ -9,6 +9,7 @@ use AdminService\Config;
 use AdminService\HttpRequest;
 use AdminService\Response;
 use AdminService\Route;
+use AdminService\Router\Router;
 use Tests\Fixtures\LabelMiddleware;
 use Tests\Fixtures\MiddlewareLog;
 
@@ -257,6 +258,20 @@ PHP
         // index 应用由控制器属性声明: 类级 #[RouteGroup('/index')] + 方法级可选参数
         $this->assertSame('Hello World!',$this->dispatch('/index'));
         $this->assertSame('Hello world!',$this->dispatch('/index/world'));
+    }
+
+    /**
+     * 测试运行时用路由名反向生成 URL
+     *
+     * - 路由名注册进容器, 控制器/视图中经 App::get(Router::class) 取用
+     *
+     * @return void
+     */
+    public function testUrlGenerationAtRuntime(): void {
+        $this->dispatch('/index');
+        $router=App::get(Router::class);
+        $this->assertSame('/index',$router->url('index.home'));
+        $this->assertSame('/index/world',$router->url('index.home',array('name'=>'world')));
     }
 
     /**

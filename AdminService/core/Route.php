@@ -189,6 +189,8 @@ final class Route extends BaseRoute {
             $this->router->registerAttributes((new AttributeScanner())->scan((string)Config::get('app.path')));
         if(!empty($attributes['classes']))
             $this->router->registerAttributes($attributes['classes']);
+        // 登记到容器, 供运行时(控制器/视图)反向生成 URL: App::get(Router::class)->url(...)
+        App::set(Router::class,$this->router);
         return $this->router;
     }
 

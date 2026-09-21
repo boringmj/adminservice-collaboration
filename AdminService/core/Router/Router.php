@@ -10,6 +10,7 @@ use function array_intersect;
 use function array_merge;
 use function array_pop;
 use function class_exists;
+use function count;
 use function explode;
 use function implode;
 use function in_array;
@@ -18,6 +19,7 @@ use function is_file;
 use function is_string;
 use function str_replace;
 use function trim;
+use function usort;
 
 /**
  * 路由注册与匹配
@@ -339,17 +341,35 @@ final class Router {
      */
     public function find(string $method,string $uri): ?array {
         $uri=self::normalizeUri($uri);
-        // 两轮扫描: 静态路径优先, 其次含参路径
-        foreach(array(true,false) as $static) {
-            foreach($this->routes as $route) {
-                if($route->isStatic()!==$static||!$route->matchesMethod($method))
-                    continue;
-                $params=$route->matchUri($uri);
-                if($params!==null)
-                    return array($route,$params);
-            }
+        foreach($this->sortedRoutes() as $route) {
+            if(!$route->matchesMethod($method))
+                continue;
+            $params=$route->matchUri($uri);
+            if($params!==null)
+                return array($route,$params);
         }
         return null;
+    }
+
+    /**
+     * 按具体度排序的路由列表
+     *
+     * - 顺序: 静态路径 → 字面量更长者 → 参数更少者, 同级保持注册顺序
+     * - 避免通用路由(如 `/index/{name?}`)遮蔽更具体的同级路由(如 `/index/urlDemo/{name?}`)
+     *
+     * @access private
+     * @return array<RouteItem>
+     */
+    private function sortedRoutes(): array {
+        $routes=$this->routes;
+        usort($routes,function(RouteItem $a,RouteItem $b): int {
+            if($a->isStatic()!==$b->isStatic())
+                return $a->isStatic()?-1:1;
+            if($a->getLiteralLength()!==$b->getLiteralLength())
+                return $b->getLiteralLength()<=>$a->getLiteralLength();
+            return count($a->getParamNames())<=>count($b->getParamNames());
+        });
+        return $routes;
     }
 
     /**

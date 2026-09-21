@@ -15,6 +15,7 @@ use function explode;
 use function implode;
 use function in_array;
 use function is_array;
+use function is_callable;
 use function is_file;
 use function is_string;
 use function str_replace;
@@ -279,20 +280,25 @@ final class Router {
     /**
      * 加载集中式路由文件
      *
-     * - 文件内可直接使用变量 `$router` 注册路由
+     * - 路由文件须返回接收本实例的闭包: `return function (Router $router): void { ... };`
+     * - 显式传参而非依赖 `require` 的作用域继承, 便于静态分析与阅读
      *
      * @access public
      * @param string $file 路由文件路径
      * @return void
-     * @throws Exception 路由文件不存在
+     * @throws Exception 路由文件不存在或返回值不是可调用结构
      */
     public function load(string $file): void {
         if(!is_file($file))
             throw new Exception('Route file not found.',-410,array(
                 'file'=>$file
             ));
-        $router=$this;
-        require $file;
+        $definition=require $file;
+        if(!is_callable($definition))
+            throw new Exception('Route file must return a callable.',-417,array(
+                'file'=>$file
+            ));
+        $definition($this);
     }
 
     /**

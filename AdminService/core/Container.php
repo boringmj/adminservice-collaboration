@@ -21,9 +21,21 @@ final class Container implements \base\Container {
     private array $container=array();
 
     /**
-     * 未被实例化的类容器
+     * 未被实例化的类容器(绑定表: 抽象名 → 实现类)
      */
     private array $class_container=array();
+
+    /**
+     * 别名表(与绑定分表: 名字 → 名字)
+     * @var array<string,string>
+     */
+    private array $alias_container=array();
+
+    /**
+     * 单例表(抽象名 → 真实类名)
+     * @var array<string,string>
+     */
+    private array $singleton_container=array();
 
     /**
      * 全局数据容器
@@ -70,14 +82,14 @@ final class Container implements \base\Container {
         // 装配器: 类名解析 + 按类名装配实例 + 参数解析(生命周期方法注入)
         $this->autowire->setArgumentResolver($this->arguments);
         $this->autowire->setClassResolver(function(string $class): string {
-            return $this->getRealClass($class);
+            return $this->resolve($class);
         });
         $this->autowire->setInstanceResolver(function(string $class,bool $is_force=false,array &$flags=array()): object {
-            return $this->make($class,$is_force,$flags);
+            return $this->makeInternal($class,$is_force,$flags);
         });
         // 类查找器: 别名与绑定解析
         $this->classes->setClassResolver(function(string $class): string {
-            return $this->getRealClass($class);
+            return $this->resolve($class);
         });
         // 参数解析器: 按类型解析出实例(先看容器里已有的实例, 再找可实例化的类交给容器装配)
         $this->arguments->setInstanceResolver(function(array $types): ?object {
@@ -111,7 +123,7 @@ final class Container implements \base\Container {
                 continue;
             if(isset($this->container[$type]))
                 return $this->container[$type];
-            $name=$this->getRealClass($type);
+            $name=$this->resolve($type);
             if(isset($this->container[$name]))
                 return $this->container[$name];
         }
@@ -152,15 +164,18 @@ final class Container implements \base\Container {
     }
 
     /**
-     * 获取对象(如果不存在则自动实例化,自动实例化的前提是构造函数不含任何参数且在类容器中存在)
+     * 获取对象(如果不存在则自动实例化)
+     *
+     * - 已登记的实例优先; 否则要求该类可实例化, 并登记解析结果(同一实现只构建一次)
      *
      * @access public
      * @template T of object
-     * @param class-string<T> $name 对象名（类名）
+     * @param class-string<T>|string $name 对象名(类名 / 接口名 / 别名)
      * @return T|object 返回指定类的实例
+     * @throws Exception
      */
     public function get(string $name): object {
-        $name=$this->getRealClass($name);
+        $name=$this->resolve($name);
         if(!isset($this->container[$name])) {
             // 如果不存在则判断是否存在该类
             if(!class_exists($name))
@@ -170,125 +185,177 @@ final class Container implements \base\Container {
             if(!$ref->isInstantiable())
                 throw new Exception('Class "'.$name.'" is not instantiable.');
             // 如果可以实例化则实例化一个新的对象
-            $this->container[$name]=$ref->newInstance();
+            $instance=$ref->newInstance();
+            $this->container[$name]=$instance;
+            // 单例绑定: 抽象名与实现类名指向同一实例
+            $this->registerSingletons($name,$instance);
         }
         return $this->container[$name];
     }
 
     /**
-     * 设置或添加对象
-     * 
+     * 判断容器能否给出该名称
+     *
+     * - 别名 / 绑定 / 实例任一命中即为真; 否则看它是不是一个可构建的类或接口
+     *
      * @access public
-     * @param string $name 对象名
+     * @param string $name 名称(类名 / 接口名 / 别名)
+     * @return bool
+     */
+    public function has(string $name): bool {
+        if(isset($this->container[$name])||isset($this->alias_container[$name])||isset($this->class_container[$name]))
+            return true;
+        $real=$this->resolve($name);
+        return isset($this->container[$real])||class_exists($real)||interface_exists($real);
+    }
+
+    /**
+     * 登记一个已实例化对象(按真实类名存储)
+     *
+     * @access public
+     * @param string $name 对象名(类名 / 接口名 / 别名)
      * @param object $object 对象
      * @return void
      */
-    public function set(string $name,object $object): void {
-        $name=$this->getRealClass($name);
-        $this->container[$name]=$object;
+    public function instance(string $name,object $object): void {
+        $this->container[$this->resolve($name)]=$object;
     }
 
     /**
-     * 获取名称在容器中实际的类名(如果不存在则返回原类名)
-     * 
-     * @access public
-     * @param string $name 类名
-     * @param bool $recursive 是否递归查找(默认为true)
-     * @param int $max_depth 最大递归深度
+     * 解析名称的真实类名(先别名后绑定, 支持嵌套, 带深度保护)
+     *
+     * - 内部使用: 对外请用 `has()` 判断存在性、用 `get()` 取用
+     *
+     * @access private
+     * @param string $name 别名 / 抽象类 / 接口 / 类名
+     * @param int $max_depth 最大解析深度
      * @return string
-     */
-    public function getRealClass(
-        string $name,
-        bool $recursive=true,
-        int $max_depth=255
-        ): string {
-        if(isset($this->class_container[$name])) {
-            if($max_depth<=0)
-                throw new Exception('Maximum recursion depth exceeded while resolving class "'.$name.'"');
-            // 判断是否为自身循环
-            if($this->class_container[$name]===$name)
-                return $name;
-            // 判断该类是绑定了其他类
-            if($recursive&&isset($this->class_container[$this->class_container[$name]])) {
-                $name=$this->getRealClass(
-                    $this->class_container[$name],
-                    $recursive,
-                    $max_depth-1
-                );
-            } else
-                $name=$this->class_container[$name];
-        }
-        return $name;
-    }
-
-    /**
-     * 为抽象类或接口绑定实现类(会覆盖已存在的绑定或别名)
-     * - 支持子类逐级查找(除非方法特殊说明)
-     * - 支持嵌套绑定
-     * 
-     * @access public
-     * @param string $name 别名或抽象类或接口名
-     * @param string $class 目标类名
-     * @return void
      * @throws Exception
      */
-    public function setClass(string $name,string $class): void {
-        // 如果类不存在则抛出异常
-        if(!class_exists($class))
-            throw new Exception('Class "'.$class.'" not found.');
-        // 判断新绑定是否会形成循环关系
-        if($this->isCircular($name,$class))
-            throw new Exception('Circular dependency detected for "'.$name.'" and "'.$class.'"');
-        $this->class_container[$name]=$class;
-    }
-
-    /**
-     * 判断绑定是否会形成循环关系
-     * 
-     * @access public
-     * @param string $abstract 别名或父类类名
-     * @param string $concrete 目标类名
-     * @return bool
-     */
-    public function isCircular(string $abstract,string $concrete): bool {
-        $visited=[$abstract];
-        while(isset($this->class_container[$concrete])) {
-            if(in_array($concrete,$visited,true))
-                // 检查到循环
-                return true;
-            $visited[]=$concrete;
-            $concrete=$this->class_container[$concrete];
+    private function resolve(string $name,int $max_depth=255): string {
+        while(true) {
+            if(isset($this->alias_container[$name]))
+                $target=$this->alias_container[$name];
+            elseif(isset($this->class_container[$name]))
+                $target=$this->class_container[$name];
+            else
+                return $name;
+            // 自身映射(自别名 / 自绑定)原样返回
+            if($target===$name)
+                return $name;
+            if($max_depth--<=0)
+                throw new Exception('Maximum recursion depth exceeded while resolving class "'.$name.'"');
+            $name=$target;
         }
-        // 最终还需要是否自循环
-        return $concrete===$abstract;
     }
 
     /**
-     * 为抽象类或接口绑定实现类(会覆盖已存在的绑定或别名)
+     * 为抽象类或接口绑定实现类(会覆盖已存在的绑定)
+     *
      * - 支持子类逐级查找(除非方法特殊说明)
-     * - 支持嵌套绑定
-     * 
+     * - 支持嵌套绑定; 解析结果按**真实类名**复用(同一实现只构建一次)
+     *
      * @access public
-     * @param string $abstract 别名或抽象类或接口名
-     * @param string $concrete 目标类名
+     * @param string $abstract 抽象类或接口名
+     * @param string $concrete 实现类
      * @return void
      * @throws Exception
      */
     public function bind(string $abstract,string $concrete): void {
-        $this->setClass($abstract,$concrete);
+        // 如果类不存在则抛出异常
+        if(!class_exists($concrete))
+            throw new Exception('Class "'.$concrete.'" not found.');
+        // 判断新绑定是否会形成循环关系
+        if($this->wouldCycle($abstract,$concrete))
+            throw new Exception('Circular dependency detected for "'.$abstract.'" and "'.$concrete.'"');
+        $this->class_container[$abstract]=$concrete;
     }
 
     /**
-     * 批量设置或添加未被实例化的类
+     * 为名称设置别名(与绑定**分表**)
+     *
+     * - 别名只描述"名字 → 名字", 不承诺目标是可实例化的类
+     * - 支持嵌套与链式解析(解析时先别名后绑定)
      *
      * @access public
-     * @param array<string,string> $classes 类数组
+     * @param string $alias 别名
+     * @param string $abstract 目标名称(类名 / 接口名 / 另一个别名)
      * @return void
      * @throws Exception
      */
-    public function setClassByArray(array $classes): void {
-        foreach($classes as $name=>$class)
-            $this->setClass($name,$class);
+    public function alias(string $alias,string $abstract): void {
+        if($this->wouldCycle($alias,$abstract))
+            throw new Exception('Circular alias detected for "'.$alias.'" and "'.$abstract.'"');
+        $this->alias_container[$alias]=$abstract;
+    }
+
+    /**
+     * 单例绑定:解析后**抽象名与实现类名指向同一实例**
+     *
+     * - `bind()` 只保证"按真实类名复用";`singleton()` 额外把抽象名也指向该实例
+     * - **懒解析**:首次解析(经抽象名或实现类名)时登记, 不在绑定时构建
+     *
+     * @access public
+     * @param string $abstract 抽象类或接口名
+     * @param string $concrete 实现类
+     * @return void
+     * @throws Exception
+     */
+    public function singleton(string $abstract,string $concrete): void {
+        $this->bind($abstract,$concrete);
+        $this->singleton_container[$abstract]=$this->resolve($abstract);
+    }
+
+    /**
+     * 批量绑定(抽象 → 实现)
+     *
+     * @access public
+     * @param array<string,string> $bindings 绑定表(键为抽象名, 值为实现类)
+     * @return void
+     * @throws Exception
+     */
+    public function bindAll(array $bindings): void {
+        foreach($bindings as $abstract=>$concrete)
+            $this->bind($abstract,$concrete);
+    }
+
+    /**
+     * 判断目标是否会造成解析循环(查别名表与绑定表两条链)
+     *
+     * @access private
+     * @param string $abstract 起点名称
+     * @param string $concrete 目标名称
+     * @return bool
+     */
+    private function wouldCycle(string $abstract,string $concrete): bool {
+        $visited=array($abstract);
+        $name=$concrete;
+        while(true) {
+            if($name===$abstract||in_array($name,$visited,true))
+                return true;
+            $visited[]=$name;
+            if(isset($this->alias_container[$name]))
+                $name=$this->alias_container[$name];
+            elseif(isset($this->class_container[$name]))
+                $name=$this->class_container[$name];
+            else
+                return false;
+        }
+    }
+
+    /**
+     * 单例登记:把配置为单例的抽象名也指向刚解析出的实例
+     *
+     * @access private
+     * @param string $real_class 真实类名
+     * @param object $instance 实例
+     * @return void
+     */
+    private function registerSingletons(string $real_class,object $instance): void {
+        foreach($this->singleton_container as $abstract=>$concrete) {
+            if($concrete===$real_class)
+                $this->container[$abstract]=$instance;
+        }
     }
 
     /**
@@ -320,7 +387,7 @@ final class Container implements \base\Container {
      * 通过自动依赖注入实例化一个对象
      *
      * 注意: 依赖简单支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
-     * 这种情况请先使用App::set(Class::class,new Class())添加到容器中
+     * 这种情况请先使用App::instance(Class::class,new Class())添加到容器中
      *
      * @access public
      * @template T of object
@@ -330,8 +397,41 @@ final class Container implements \base\Container {
      * @return T|object
      * @throws Exception|ReflectionException
      */
-    public function make(string $name,bool $is_force=false,array &$flags=array()): object {
-        $name=$this->getRealClass($name);
+    public function make(string $name): object {
+        $flags=array();
+        return $this->makeInternal($name,false,$flags);
+    }
+
+    /**
+     * 强制新建对象
+     *
+     * - 跳过"复用已登记实例", 但仍做完整装配(属性 / Setter / 生命周期方法)
+     * - 结果会覆盖登记(与 `make()` 一致), 因此适合"每请求要一个干净实例"的场景
+     *
+     * @access public
+     * @param string $name 对象名(类名 / 接口名 / 别名)
+     * @return object
+     * @throws Exception
+     */
+    public function fresh(string $name): object {
+        $flags=array();
+        return $this->makeInternal($name,true,$flags);
+    }
+
+    /**
+     * 构建对象(内部实现)
+     *
+     * - `$is_force` 为假时复用已登记实例;`$flags` 为**引用传递**的构建栈, 用于阻断依赖注入死循环
+     *
+     * @access private
+     * @param string $name 对象名(类名 / 接口名 / 别名)
+     * @param bool $is_force 是否强制新建
+     * @param array<mixed> $flags 构建标识(引用传递)
+     * @return object
+     * @throws Exception
+     */
+    private function makeInternal(string $name,bool $is_force,array &$flags): object {
+        $name=$this->resolve($name);
         // 如果不强制实例化且容器中存在该对象则直接返回,如果标识重复也会直接返回
         if((!$is_force&&isset($this->container[$name])||in_array($name,$flags)))
             return $this->get($name);
@@ -341,7 +441,7 @@ final class Container implements \base\Container {
             $real_class=$this->classes->getFirstInstantiableClass(array($name));
             if($real_class===null)
                 throw new Exception('Class "'.$name.'" is not instantiable.');
-            return $this->make($real_class,false,$flags);
+            return $this->makeInternal($real_class,false,$flags);
         }
         // 判断类或接口是否存在
         if(!class_exists($name))
@@ -355,7 +455,7 @@ final class Container implements \base\Container {
             $real_class=$this->classes->getFirstInstantiableClass(array($name));
             if($real_class===null)
                 throw new Exception('Class "'.$name.'" is not instantiable.');
-            return $this->make($real_class,false,$flags);
+            return $this->makeInternal($real_class,false,$flags);
         }
         $constructor=$ref->getConstructor();
         if($constructor!==null) {
@@ -378,7 +478,7 @@ final class Container implements \base\Container {
                 $real_class=$this->classes->getFirstInstantiableClass($types);
                 if($real_class!==null) {
                     // 递归实例化依赖
-                    $args[]=$this->make($real_class,false,$flags);
+                    $args[]=$this->makeInternal($real_class,false,$flags);
                     continue;
                 }
                 else if($param->isDefaultValueAvailable())
@@ -398,26 +498,31 @@ final class Container implements \base\Container {
             $object=$ref->newInstance();
         // 自动注入属性
         $this->autowire->autowire($object,$flags);
-        // 将对象添加到容器中
-        $this->set($name,$object);
+        // 将对象添加到容器中(并处理单例绑定的抽象名)
+        $this->container[$name]=$object;
+        $this->registerSingletons($name,$object);
         // 移出标识中的当前对象
         array_pop($flags);
         return $object;
     }
 
     /**
-     * 实例化一个新对象(不添加到实例容器中)
-     * 
+     * 构建一个新对象
+     *
+     * - 支持传入构造函数参数($args 中的关系型键按参数名赋值, 索引键按位置赋值)
+     * - 与 `new` 的区别: **会做完整装配**(属性 / Setter / 生命周期方法注入), 解决"带参构造静默少注入"的问题
+     * - 结果**不登记**到实例容器(要复用的场景请用 `get()` / `make()`)
+     *
      * @access public
      * @template T of object
-     * @param class-string<T> $__name 对象名
+     * @param class-string<T>|string $__name 对象名(类名 / 接口名 / 别名)
      * @param mixed ...$args 构造函数参数($args中不允许传入“__name”参数)
      * @return T|object
      * @throws Exception|ReflectionException
      */
-    public function new(string $__name,...$args): object {
+    public function build(string $__name,...$args): object {
         // 获取真实类名
-        $__name=$this->getRealClass($__name);
+        $__name=$this->resolve($__name);
         // 判断类或接口是否存在
         if(!class_exists($__name)&&!interface_exists($__name))
             throw new Exception('Class "'.$__name.'" not found.');
@@ -427,18 +532,23 @@ final class Container implements \base\Container {
             $real_class=$this->classes->getFirstInstantiableClass(array($__name));
             if($real_class===null)
                 throw new Exception('Class "'.$__name.'" is not instantiable.');
-            return $this->new($real_class,...$args);
+            return $this->build($real_class,...$args);
         }
         // 获取构造函数的参数
         $constructor=$ref->getConstructor();
-        if($constructor===null) {
+        if($constructor===null)
             // 如果构造函数不存在则直接实例化一个对象
-            return $ref->newInstance();
+            $object=$ref->newInstance();
+        else {
+            $params=$constructor->getParameters();
+            $args_temp=$this->arguments->merge($params,$args);
+            $object=$ref->newInstanceArgs($args_temp);
         }
-        $params=$constructor->getParameters();
-        $args_temp=$this->arguments->merge($params,$args);
-        // 直接返回对象,不添加到父容器中
-        return $ref->newInstanceArgs($args_temp);
+        // 完整装配(以自身名字作为构建标识起点, 阻断自引用注入的无限递归)
+        $flags=array($__name);
+        $this->autowire->autowire($object,$flags);
+        // 直接返回对象,不添加到实例容器中
+        return $object;
     }
 
     /**

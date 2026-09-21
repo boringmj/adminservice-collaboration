@@ -126,7 +126,7 @@ final class Route extends BaseRoute {
         // 装配完成后校验路由名唯一, 让重名尽早暴露
         $this->router->assertNamesUnique();
         // 登记到容器, 供运行时(控制器/视图)反向生成 URL: App::get(Router::class)->url(...)
-        App::set(Router::class,$this->router);
+        App::instance(Router::class,$this->router);
         return $this->router;
     }
 
@@ -236,10 +236,10 @@ final class Route extends BaseRoute {
         if(is_array($handler)&&count($handler)===2) {
             // 与既有约定一致: 控制器类名与实例均登记到容器
             if(is_string($handler[0])) {
-                App::setClass('Controller',$handler[0]);
-                $handler[0]=App::make($handler[0],true);
+                App::bind('Controller',$handler[0]);
+                $handler[0]=App::fresh($handler[0]);
             }
-            App::set('Controller',$handler[0]);
+            App::instance('Controller',$handler[0]);
             return App::exec_class_function($handler[0],$handler[1],$this->controllerArgs());
         }
         return App::exec_function($handler,$this->controllerArgs());

@@ -58,9 +58,9 @@ final class Application {
      * @throws Exception
      */
     public function init(array $classes=array()): static {
-        // 获取配置文件中的别名
+        // 获取配置文件中的别名(与绑定分表: 别名只描述"名字 → 名字")
         $aliases=Config::get('app.alias',array());
-        // 获取配置文件中需要直接绑定到容器中的类
+        // 获取配置文件中需要直接绑定到容器中的类(数值键为"绑定自身", 字符串键为"别名 → 类")
         $binds=array();
         $classes=array_merge($classes,Config::get('app.classes',array()));
         foreach($classes as $alias=>$class) {
@@ -69,19 +69,23 @@ final class Application {
             else
                 $binds[$alias]=$class;
         }
-        // 合并所有类
-        $classes=array_merge($binds,$aliases);
         // 遍历类是否存在
-        foreach($classes as $class)
+        foreach(array_merge($binds,$aliases) as $class)
             if(!class_exists($class)&&!interface_exists($class))
                 throw new Exception('Class "'.$class.'" not found.');
         // 设置是否允许标量参数静默转换(可在 config/app.php 中配置 app.param_cast)
         $this->container->setParamCast(Config::get('app.param_cast',true));
-        // 写入绑定表: 自身映射无意义(解析时原样返回), 直接跳过, 其余走 setClass(含循环检测)
-        foreach($classes as $name=>$class) {
+        // 写入绑定表: 自身映射无意义(解析时原样返回), 直接跳过, 其余走 bind(含循环检测)
+        foreach($binds as $name=>$class) {
             if($name===$class)
                 continue;
-            $this->container->setClass($name,$class);
+            $this->container->bind($name,$class);
+        }
+        // 写入别名表
+        foreach($aliases as $alias=>$abstract) {
+            if($alias===$abstract)
+                continue;
+            $this->container->alias($alias,$abstract);
         }
         // 安装到门面(使用者入口)
         App::setInstance($this->container);

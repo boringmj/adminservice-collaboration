@@ -30,7 +30,7 @@ class AutowireCycleTest extends TestCase {
      * @return void
      */
     public function testAutowireCycleIsCutByFlags(): void {
-        $a=App::make(CircularA::class,true);
+        $a=App::fresh(CircularA::class);
         // 第一圈: A 的属性 b 正常装配
         $this->assertInstanceOf(CircularB::class,$a->b);
         // 第二圈: B 的属性 a 由"标识重复则复用"分支给出 —— 是一个**未装配**的裸对象

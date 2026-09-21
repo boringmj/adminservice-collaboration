@@ -4,6 +4,7 @@ namespace AdminService;
 
 use base\Response;
 use base\Route as BaseRoute;
+use AdminService\Router\AttributeScanner;
 use AdminService\Router\Pipeline;
 use AdminService\Router\RouteItem;
 use AdminService\Router\Router;
@@ -182,9 +183,12 @@ final class Route extends BaseRoute {
         $this->router=new Router(Config::get('middlewares.global',array()));
         foreach((array)Config::get('route.explicit.files',array()) as $path)
             $this->loadRoutes($path);
-        $classes=Config::get('route.explicit.attributes',array());
-        if(!empty($classes))
-            $this->router->registerAttributes($classes);
+        // 属性路由: 自动扫描 + 手工登记
+        $attributes=Config::get('route.explicit.attributes',array());
+        if(!empty($attributes['scan']))
+            $this->router->registerAttributes((new AttributeScanner())->scan((string)Config::get('app.path')));
+        if(!empty($attributes['classes']))
+            $this->router->registerAttributes($attributes['classes']);
         return $this->router;
     }
 

@@ -2,7 +2,7 @@
 
 namespace Tests\Fixtures;
 
-use AdminService\Attribute\Middleware;
+use base\Attribute\Middleware;
 
 /**
  * 测试用控制器(控制器级中间件属性)

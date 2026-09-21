@@ -2,8 +2,8 @@
 
 namespace AdminService\Router;
 
-use AdminService\Attribute\Route;
-use AdminService\Attribute\RouteGroup;
+use base\Attribute\Route;
+use base\Attribute\RouteGroup;
 use AdminService\Exception;
 use AdminService\Pipeline;
 use ReflectionClass;

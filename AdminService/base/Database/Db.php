@@ -3,8 +3,7 @@
 namespace base\Database;
 
 use Throwable;
-use AdminService\App;
-use AdminService\Config;
+use base\Database\DatabaseConfigInterface;
 use base\Database\Connection\ConnectionConfig;
 use base\Database\Connection\ConnectionManagerInterface;
 use base\Database\Connection\ConnectionSessionInterface;
@@ -71,6 +70,27 @@ final class Db {
     private static array $instances=array();
 
     /**
+     * 数据库配置提供者(契约)
+     *
+     * - 由**应用层在引导期安装**: `Db::setConfig(new \AdminService\Database\DatabaseConfig())`
+     * - 未安装且未提供手动配置时, 按"连接未配置"处理(抛 `ConfigException`)
+     *
+     * @var DatabaseConfigInterface|null
+     */
+    private static ?DatabaseConfigInterface $config=null;
+
+    /**
+     * 安装数据库配置提供者
+     *
+     * @access public
+     * @param DatabaseConfigInterface|null $config 配置提供者(传 null 可卸载)
+     * @return void
+     */
+    public static function setConfig(?DatabaseConfigInterface $config): void {
+        self::$config=$config;
+    }
+
+    /**
      * 构造方法
      *
      * @access public
@@ -102,15 +122,13 @@ final class Db {
      * @throws ConfigException 指定连接未配置且未提供覆盖
      */
     public static function fromConfig(string $name='default',array $config=array()): static {
-        $base=Config::get('database.connections.'.$name,array());
-        if(!is_array($base))
-            $base=array();
+        $base=self::$config===null?array():self::$config->connection($name);
         if(empty($base)&&empty($config))
             throw new ConfigException('Database connection "'.$name.'" is not configured.',100801,array(
                 'name'=>$name
             ));
         $merged=array_merge($base,$config);
-        $middleware_config=Config::get('database.middlewares',array());
+        $middleware_config=self::$config===null?array():self::$config->middlewares();
         // 纯配置调用(无手动覆盖)按「连接名 + 连接配置 + 中间件配置」缓存单例:
         // - 同连接共享同一 Db → 同一连接池/编译器/方言, 连接真正复用
         // - 配置变化(含中间件实例)指纹随之变化, 自动失效重建
@@ -163,7 +181,7 @@ final class Db {
     /**
      * 解析中间件配置
      *
-     * - 支持类名(通过框架容器 App::get 解析, 可依赖注入)与已实例化对象
+     * - 支持类名(经数据库配置提供者解析, 可依赖注入)与已实例化对象
      * - 解析结果必须是 QueryMiddlewareInterface 实例
      *
      * @access private
@@ -174,8 +192,13 @@ final class Db {
     private static function resolveMiddlewares(array $middlewares): array {
         $resolved=array();
         foreach($middlewares as $middleware) {
-            if(is_string($middleware))
-                $middleware=App::get($middleware);
+            if(is_string($middleware)) {
+                if(self::$config===null)
+                    throw new ConfigException('Middleware "'.$middleware.'" requires a database config provider.',100805,array(
+                        'middleware'=>$middleware
+                    ));
+                $middleware=self::$config->resolveMiddleware($middleware);
+            }
             if(!$middleware instanceof QueryMiddlewareInterface)
                 throw new ConfigException('Invalid middleware.',100804,array(
                     'middleware'=>get_debug_type($middleware)

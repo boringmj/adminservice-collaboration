@@ -3,7 +3,7 @@
 namespace Tests\Fixtures;
 
 use AdminService\DynamicProxy;
-use AdminService\Autowire\AutowireProperty;
+use base\Attribute\AutowireProperty;
 
 /**
  * 模拟用户信息类

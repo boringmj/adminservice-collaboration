@@ -5,6 +5,8 @@ require __DIR__.'/../vendor/autoload.php';
 use AdminService\App;
 use AdminService\Config;
 use AdminService\Container;
+use AdminService\Database\DatabaseConfig;
+use base\Database\Db as BaseDb;
 
 /**
  * 测试环境配置加载
@@ -45,10 +47,11 @@ load_test_config();
 load_test_functions();
 
 /**
- * 测试进程的容器安装
+ * 测试进程的引导
  *
  * - 容器改为实例状态后, 门面需要一个"当前容器"才能工作; 这里装一个空的应用级容器,
  *   与旧版"全局静态容器初值(空)"等价 —— 不调用 App::init(), 以免把配置别名提前注入而改变既有用例的解析路径
+ * - 数据库层(契约层)不读全局配置, 这里按框架引导的做法安装配置提供者
  * - 需要配置绑定的用例请自行调用 App::init()
  *
  * @return void
@@ -56,6 +59,7 @@ load_test_functions();
 function boot_test_container(): void {
     if(!App::hasInstance())
         App::setInstance(new Container());
+    BaseDb::setConfig(new DatabaseConfig());
 }
 
 boot_test_container();

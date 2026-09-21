@@ -23,7 +23,7 @@ class Autowire {
      * @param ?string $name 依赖的类名
      * @param bool $proxy 是否注入动态代理类
      *  - 需要`$name`参数不为`null`
-     *  - 需要属性未声明类型,或类型为 {@see \AdminService\DynamicProxy}
+     *  - 需要属性未声明类型, 或当前框架实现支持代理注入(时序与判定见实现层的装配器)
      *  - 否则此参数无效
      */
     public function __construct(?string $name=null,bool $proxy=false) {

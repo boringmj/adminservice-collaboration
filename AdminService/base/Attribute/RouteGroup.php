@@ -1,6 +1,6 @@
 <?php
 
-namespace AdminService\Attribute;
+namespace base\Attribute;
 
 use Attribute;
 

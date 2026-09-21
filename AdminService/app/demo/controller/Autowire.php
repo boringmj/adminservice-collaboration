@@ -4,8 +4,8 @@ namespace app\demo\controller;
 
 use base\Controller;
 use AdminService\Log;
-use AdminService\Autowire\AutowireSetter;
-use AdminService\Autowire\AutowireProperty;
+use base\Attribute\AutowireSetter;
+use base\Attribute\AutowireProperty;
 
 class Autowire extends Controller {
 

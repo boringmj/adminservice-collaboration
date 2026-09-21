@@ -51,9 +51,9 @@ return function(Router $router): void {
 路径参数支持 `{name}` / `{name:约束}` / `{name?}`(可选, 须位于末尾); 路径参数写入请求的 `attributes` 区(不并入查询串), 合并取值 `$request->param('id')` 时优先于同名查询参数\
 也可在控制器上就近声明路由(类级 `#[RouteGroup]` 定前缀与中间件, 方法级 `#[Route]` 定子路径/命名/中间件, 可重复声明), 框架自动扫描控制器目录注册(规则见 [Wiki](https://github.com/boringmj/adminservice-collaboration/wiki/开始#属性路由自动扫描))
 ```php
-use AdminService\Attribute\Middleware;
-use AdminService\Attribute\Route;
-use AdminService\Attribute\RouteGroup;
+use base\Attribute\Middleware;
+use base\Attribute\Route;
+use base\Attribute\RouteGroup;
 
 #[RouteGroup('/index')]                     // 类级: 前缀 + 中间件
 #[Middleware(AuthMiddleware::class)]        // 类级: 控制器级中间件

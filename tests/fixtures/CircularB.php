@@ -2,7 +2,7 @@
 
 namespace Tests\Fixtures;
 
-use AdminService\Autowire\AutowireProperty;
+use base\Attribute\AutowireProperty;
 
 /**
  * 循环依赖用例 B(与 A 互相注入属性)

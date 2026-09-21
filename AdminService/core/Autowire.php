@@ -9,10 +9,12 @@ use ReflectionNamedType;
 use ReflectionUnionType;
 // use ReflectionIntersectionType; // PHP 8.0 不支持
 use ReflectionProperty;
+use base\AutowireInterface;
+use base\ArgumentResolverInterface;
 use AdminService\DynamicProxy;
-use AdminService\Autowire\AutowireSetter;
-use AdminService\Autowire\AutowireProperty;
-use AdminService\Autowire\AutowireMethod;
+use base\Attribute\AutowireSetter;
+use base\Attribute\AutowireProperty;
+use base\Attribute\AutowireMethod;
 use AdminService\exception\AutowireException;
 use Closure;
 
@@ -34,7 +36,7 @@ use function in_array;
  * @package AdminService
  * @version 1.0.0
  */
-final class Autowire {
+final class Autowire implements AutowireInterface {
 
     /**
      * 反射缓存
@@ -56,9 +58,9 @@ final class Autowire {
 
     /**
      * 参数解析器(生命周期方法的形参按类型注入时复用同一套合并规则)
-     * @var ArgumentResolver|null
+     * @var ArgumentResolverInterface|null
      */
-    private ?ArgumentResolver $arguments=null;
+    private ?ArgumentResolverInterface $arguments=null;
 
     /**
      * 构造方法
@@ -99,10 +101,10 @@ final class Autowire {
      * - 必须在调用 `autowire()` 之前回填
      *
      * @access public
-     * @param ArgumentResolver $arguments 参数解析器
+     * @param ArgumentResolverInterface $arguments 参数解析器
      * @return void
      */
-    public function setArgumentResolver(ArgumentResolver $arguments): void {
+    public function setArgumentResolver(ArgumentResolverInterface $arguments): void {
         $this->arguments=$arguments;
     }
 
@@ -421,6 +423,9 @@ final class Autowire {
 
     /**
      * 生成一个类的代理实例
+     *
+     * - 与 `#[AutowireProperty(类名, proxy: true)]` 配套: 需要属性**未声明类型**,
+     *   或类型声明为 `DynamicProxy`, 否则注解里的 `proxy` 参数无效
      *
      * @access public
      * @template T of object

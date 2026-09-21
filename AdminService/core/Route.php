@@ -4,7 +4,7 @@ namespace AdminService;
 
 use base\Response;
 use base\Route as BaseRoute;
-use AdminService\Attribute\Middleware;
+use base\Attribute\Middleware;
 use AdminService\Router\AttributeScanner;
 use AdminService\Router\RouteItem;
 use AdminService\Router\Router;

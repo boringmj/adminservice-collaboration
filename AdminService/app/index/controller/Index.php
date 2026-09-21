@@ -5,9 +5,9 @@ namespace app\index\controller;
 use Exception;
 use base\Controller;
 use AdminService\Log;
-use AdminService\Autowire\AutowireProperty;
-use AdminService\Attribute\Route;
-use AdminService\Attribute\RouteGroup;
+use base\Attribute\AutowireProperty;
+use base\Attribute\Route;
+use base\Attribute\RouteGroup;
 
 #[RouteGroup('/index')]
 class Index extends Controller {

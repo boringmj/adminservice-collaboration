@@ -5,6 +5,7 @@ namespace AdminService;
 use ReflectionParameter;
 use ReflectionException;
 use Closure;
+use base\ArgumentResolverInterface;
 
 use function array_filter;
 use function array_key_exists;
@@ -35,7 +36,7 @@ use function str_replace;
  * @package AdminService
  * @version 1.0.0
  */
-final class ArgumentResolver {
+final class ArgumentResolver implements ArgumentResolverInterface {
 
     /**
      * 反射缓存

@@ -4,25 +4,73 @@ namespace AdminService;
 
 use base\Response;
 use base\Route as BaseRoute;
+use AdminService\Router\Pipeline;
+use AdminService\Router\RouteItem;
+use AdminService\Router\Router;
 use ReflectionException;
 
-use function array_reduce;
-use function array_reverse;
+use function array_merge;
+use function array_slice;
 use function class_exists;
 use function count;
 use function explode;
 use function file_exists;
+use function implode;
 use function in_array;
+use function is_array;
+use function is_callable;
+use function is_dir;
+use function is_file;
+use function is_numeric;
 use function is_null;
+use function is_string;
+use function lcfirst;
+use function method_exists;
 use function preg_match;
+use function ucfirst;
+use function urldecode;
 
+/**
+ * 路由协调器
+ *
+ * - 显式路由优先, 未命中时按配置决定是否回落约定式解析
+ * - 显式路由表在首次请求时装配, 之后复用
+ */
 final class Route extends BaseRoute {
 
     /**
-     * 控制器方法
+     * 显式路由表
+     * @var Router|null
+     */
+    private ?Router $router=null;
+
+    /**
+     * 控制器方法(约定式解析结果)
      * @var mixed
      */
     private mixed $method;
+
+    /**
+     * 运行请求
+     *
+     * @access public
+     * @return void
+     * @throws Exception|ReflectionException
+     */
+    public function run(): void {
+        $match=$this->router()->find($this->requestMethod(),'/'.implode('/',$this->get()));
+        if($match!==null) {
+            $this->runRoute($match[0],$match[1]);
+            return;
+        }
+        // 未命中显式路由: 是否回落约定式由配置决定
+        if(!Config::get('route.convention_fallback',true))
+            throw new Exception('Route not found.',-407,array(
+                'uri'=>'/'.implode('/',$this->get())
+            ));
+        $this->load();
+        $this->runController();
+    }
 
     /**
      * 通过路由路径组返回控制器
@@ -87,7 +135,7 @@ final class Route extends BaseRoute {
 
     /**
      * 通过路由路径组返回路由信息(调用此方法前请先调用 checkInit() 方法)
-     * 
+     *
      * @access public
      * @return array
      */
@@ -102,37 +150,154 @@ final class Route extends BaseRoute {
     }
 
     /**
-     * 开始运行控制器(如果没有加载路由则会自动加载)
+     * 获取显式路由表(首次访问时装配)
      *
-     * @access public
+     * - 集中式路由文件与属性声明只解析一次, 后续请求复用同一实例
+     *
+     * @access private
+     * @return Router
+     * @throws Exception
+     */
+    private function router(): Router {
+        if($this->router!==null)
+            return $this->router;
+        $this->router=new Router(Config::get('middlewares.global',array()));
+        $file=Config::get('route.explicit.file');
+        if(is_string($file)&&is_file($file))
+            $this->router->load($file);
+        $classes=Config::get('route.explicit.attributes',array());
+        if(!empty($classes))
+            $this->router->registerAttributes($classes);
+        return $this->router;
+    }
+
+    /**
+     * 执行显式路由
+     *
+     * - 路径参数并入 GET 参数, 与约定式的取参方式保持一致
+     * - 中间件按 global → group → route → controller 顺序包裹
+     *
+     * @access private
+     * @param RouteItem $route 命中的路由
+     * @param array<string,string> $params 路径参数
      * @return void
      * @throws Exception|ReflectionException
      */
-    public function run(): void {
-        // 先判断是否已经加载 load() 方法
-        if(empty($this->method))
-            $this->load();
+    private function runRoute(RouteItem $route,array $params): void {
+        $handler=$route->getHandler();
+        // 路径参数优先: 同名查询参数被覆盖
+        $this->request->setGet(array_merge($this->request->getGets(),self::decodeParams($params)));
+        // 写入路由上下文, 供 App::getAppName 等继续可用
+        App::setData('route_info',self::handlerRouteInfo($handler));
+        $middlewares=array_merge($route->getMiddlewares(),Config::get('middlewares.controller',array()));
+        $response=App::get(Response::class);
+        (new Pipeline($middlewares))->then(function() use ($handler,$response): void {
+            $response->setControllerReturn($this->callHandler($handler));
+        });
+    }
+
+    /**
+     * 执行约定式路由
+     *
+     * @access private
+     * @return void
+     * @throws Exception|ReflectionException
+     */
+    private function runController(): void {
         $method=$this->method;
-        //return $method();
+        $middlewares=Config::get('middlewares.controller',array());
+        $response=App::get(Response::class);
+        (new Pipeline($middlewares))->then(function() use ($method,$response): void {
+            $response->setControllerReturn(App::exec_class_function($method[0],$method[1],$this->controllerArgs()));
+        });
+    }
+
+    /**
+     * 调用处理器
+     *
+     * @access private
+     * @param mixed $handler 处理器
+     * @return mixed
+     * @throws Exception|ReflectionException
+     */
+    private function callHandler(mixed $handler): mixed {
+        if(is_array($handler)&&count($handler)===2) {
+            // 与约定式一致: 控制器类名与实例均登记到容器
+            if(is_string($handler[0])) {
+                App::setClass('Controller',$handler[0]);
+                $handler[0]=App::get($handler[0]);
+            }
+            App::set('Controller',$handler[0]);
+            return App::exec_class_function($handler[0],$handler[1],$this->controllerArgs());
+        }
+        return App::exec_function($handler,$this->controllerArgs());
+    }
+
+    /**
+     * 获取当前请求方法
+     *
+     * @access private
+     * @return string
+     */
+    private function requestMethod(): string {
+        return (string)$this->request->getServer('REQUEST_METHOD','GET');
+    }
+
+    /**
+     * 提取控制器方法参数(仅保留键名不为数字的参数)
+     *
+     * @access private
+     * @return array
+     */
+    private function controllerArgs(): array {
         $args=$this->request->getGets();
-        // 提取出全部key不为数字的参数
         foreach($args as $k=>$v)
             if(is_numeric($k))
                 unset($args[$k]);
-        $middlewares=Config::get('middlewares.controller',[]);
-        $response=App::get(Response::class);
-        self::dispatch(
-            $middlewares,
-            function() use ($method,$args,$response) {
-                $data=App::exec_class_function($method[0],$method[1],$args);
-                $response->setControllerReturn($data);
-            }
+        return $args;
+    }
+
+    /**
+     * 由处理器推断路由上下文
+     *
+     * - 控制器类位于 `app\{app}\controller\{Controller}` 时按命名空间推断
+     *
+     * @access private
+     * @param mixed $handler 处理器
+     * @return array<string,mixed>
+     */
+    private static function handlerRouteInfo(mixed $handler): array {
+        $class=is_array($handler)?($handler[0]??null):null;
+        $method=is_array($handler)?($handler[1]??null):null;
+        if(is_string($class)&&preg_match('/^app\\\\([^\\\\]+)\\\\controller\\\\([^\\\\]+)$/',$class,$matches))
+            return array(
+                'app'=>lcfirst($matches[1]),
+                'controller'=>$matches[2],
+                'method'=>$method
+            );
+        return array(
+            'app'=>null,
+            'controller'=>null,
+            'method'=>$method
         );
     }
 
     /**
+     * 解码路径参数
+     *
+     * @access private
+     * @param array<string,string> $params 路径参数
+     * @return array<string,string>
+     */
+    private static function decodeParams(array $params): array {
+        foreach($params as $k=>$v)
+            $params[$k]=urldecode((string)$v);
+        return $params;
+    }
+
+    /**
      * 将路由参数转换为GET参数
-     * 
+     *
      * @access private
      * @param array<string,mixed> $params 路由参数
      * @return void
@@ -164,30 +329,6 @@ final class Route extends BaseRoute {
         }
         // 将GET参数存入请求体中
         $this->request->setGet($get);
-    }
-
-    /**
-     * 执行中间件
-     *
-     * @param array<mixed> $middlewares 中间件
-     * @param callable $core 核心逻辑
-     * @return void
-     */
-    public static function dispatch(array $middlewares,callable $core): void {
-        $pipeline=array_reduce(
-            array_reverse($middlewares),
-            function($next,$middleware) {
-                return function() use ($middleware,$next) {
-                    // 从容器拿实例，支持构造函数自动注入
-                    $instance=App::get($middleware);
-                    App::exec_class_function($instance,'handle',[
-                        $next,
-                    ]);
-                };
-            },
-            $core // 核心逻辑
-        );
-        $pipeline();
     }
 
 }

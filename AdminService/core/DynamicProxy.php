@@ -2,6 +2,7 @@
 
 namespace AdminService;
 
+use base\Container as ContainerContract;
 use ReflectionException;
 
 use function class_exists;
@@ -14,6 +15,12 @@ use function interface_exists;
  * @mixin T
  */
 class DynamicProxy {
+
+    /**
+     * 容器契约(由创建代理的一方注入)
+     * @var ContainerContract|null
+     */
+    protected ?ContainerContract $container=null;
 
     /**
      * 目标类名
@@ -60,7 +67,7 @@ class DynamicProxy {
         if(!method_exists($this->__getTarget(),$name))
             throw new Exception('Method "'.$name.'" not found.');
         // 调用目标类的方法
-        return App::exec_class_function($this->__getTarget(),$name,$arguments);
+        return $this->container()->exec_class_function($this->__getTarget(),$name,$arguments);
     }
 
     /**
@@ -118,10 +125,36 @@ class DynamicProxy {
     protected function __getTarget(): object {
         // 如果目标类对象不存在则实例化一个
         if(!isset($this->__target_object)) {
-           // 通过容器类实例化目标类
-           $this->__target_object=App::new($this->__getTargetClass(),...$this->__args);
+           // 通过容器构建目标类(带构造参数)
+           $this->__target_object=$this->container()->build($this->__getTargetClass(),...$this->__args);
         }
         return $this->__target_object;
+    }
+
+    /**
+     * 获取容器(由创建代理的一方注入)
+     *
+     * - 代理不再反向依赖静态门面;未注入容器时给出明确异常
+     *
+     * @access protected
+     * @return ContainerContract
+     * @throws Exception
+     */
+    protected function container(): ContainerContract {
+        if($this->container===null)
+            throw new Exception('代理未绑定容器: 请由容器构建被注入的代理对象(如 #[AutowireProperty(类名,proxy:true)])');
+        return $this->container;
+    }
+
+    /**
+     * 绑定容器
+     *
+     * @access public
+     * @param ContainerContract $container 容器契约
+     * @return void
+     */
+    public function setContainer(ContainerContract $container): void {
+        $this->container=$container;
     }
 
     /**

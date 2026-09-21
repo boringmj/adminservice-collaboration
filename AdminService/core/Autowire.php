@@ -63,6 +63,12 @@ final class Autowire implements AutowireInterface {
     private ?ArgumentResolverInterface $arguments=null;
 
     /**
+     * 代理创建器回调(签名: string $class, array $args => DynamicProxy)
+     * @var Closure|null
+     */
+    private ?Closure $proxy_resolver=null;
+
+    /**
      * 构造方法
      *
      * @access public
@@ -426,6 +432,8 @@ final class Autowire implements AutowireInterface {
      *
      * - 与 `#[AutowireProperty(类名, proxy: true)]` 配套: 需要属性**未声明类型**,
      *   或类型声明为 `DynamicProxy`, 否则注解里的 `proxy` 参数无效
+     * - 代理通常由**容器**创建(容器会把自身注入代理, 代理因此不再反向依赖静态门面);
+     *   未回填创建器时退化为直接 `new`(此时代理在使用前需要自行绑定容器)
      *
      * @access public
      * @template T of object
@@ -435,6 +443,21 @@ final class Autowire implements AutowireInterface {
      * @throws Exception
      */
     public function proxy(string $name,array $args=array()): DynamicProxy {
+        if($this->proxy_resolver!==null)
+            return ($this->proxy_resolver)($name,$args);
         return new DynamicProxy($name,...$args);
+    }
+
+    /**
+     * 设置代理创建器
+     *
+     * - 由容器回填, 使代理拿到容器(与 `setClassResolver()` / `setInstanceResolver()` 同一套路)
+     *
+     * @access public
+     * @param callable $resolver 回调(接收类名与构造参数, 返回代理实例)
+     * @return void
+     */
+    public function setProxyResolver(callable $resolver): void {
+        $this->proxy_resolver=$resolver(...);
     }
 }

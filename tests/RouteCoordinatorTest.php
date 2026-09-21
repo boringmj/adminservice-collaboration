@@ -36,6 +36,12 @@ class RouteCoordinatorTest extends TestCase {
     private ?string $routesDir=null;
 
     /**
+     * 入口(持有 Application, 请求级容器由它承载)
+     * @var Main|null
+     */
+    private ?Main $main=null;
+
+    /**
      * 类初始化前执行
      * @return void
      */
@@ -78,7 +84,17 @@ class RouteCoordinatorTest extends TestCase {
      * @return Response
      */
     private function response(): Response {
-        return App::get(Response::class);
+        // 响应属请求级对象: 经 Application 的请求级容器取(与框架关停阶段的响应出口同一条路径)
+        return $this->main()->application()->requestContainer()->get(Response::class);
+    }
+
+    /**
+     * 入口实例(每个测试方法内复用, 请求级容器随之重建)
+     *
+     * @return Main
+     */
+    private function main(): Main {
+        return $this->main??=new Main();
     }
 
     /**
@@ -160,7 +176,7 @@ class RouteCoordinatorTest extends TestCase {
             'query'=>$query
         )));
         App::instance(Response::class,new HttpResponse());
-        (new Main())->run();
+        $this->main()->run();
         return $this->response()->body();
     }
 
@@ -299,9 +315,11 @@ class RouteCoordinatorTest extends TestCase {
     public function testExplicitRouteAppContext(): void {
         $this->useRoutes("\$router->get('/t/ctx',array(\\app\\demo\\controller\\Index::class,'index'));");
         $this->dispatch('/t/ctx');
-        $this->assertSame('demo',App::getAppName());
-        $this->assertSame('Index',App::getControllerName());
-        $this->assertSame('index',App::getMethodName());
+        // 路由上下文属请求级数据: 请求结束后门面已收回应用级容器, 故这里经请求级容器读取
+        $container=$this->main()->application()->requestContainer();
+        $this->assertSame('demo',$container->getData('route_info')['app']);
+        $this->assertSame('Index',$container->getData('route_info')['controller']);
+        $this->assertSame('index',$container->getData('route_info')['method']);
     }
 
     /**
@@ -506,7 +524,7 @@ PHP
      */
     public function testUrlGenerationAtRuntime(): void {
         $this->dispatch('/index');
-        $router=App::get(Router::class);
+        $router=$this->main()->application()->requestContainer()->get(Router::class);
         $this->assertSame('/index',$router->url('index.index'));
         $this->assertSame('/index/world',$router->url('index.index',array('name'=>'world')));
     }

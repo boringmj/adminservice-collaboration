@@ -15,6 +15,16 @@ use AdminService\Exception;
 final class Container implements \base\Container {
 
     /**
+     * 父容器(请求级容器 fork 自应用级容器)
+     *
+     * - 解析时先查自身, 未命中再委托父容器(实例 / 绑定 / 别名 / 单例)
+     * - `instance()` / `setData()` **只写自身**, 因此请求级容器不会污染应用级
+     *
+     * @var Container|null
+     */
+    private ?Container $parent=null;
+
+    /**
      * 对象实例容器
      * @var array
      */
@@ -73,9 +83,10 @@ final class Container implements \base\Container {
      * - 组件需要的"类名解析""按类型取实例"能力由容器以回调回填, 避免组件反向依赖容器
      *
      * @access public
+     * @param ReflectionCache|null $reflections 反射缓存(请求级容器与父容器共享同一份缓存)
      */
-    public function __construct() {
-        $this->reflections=new ReflectionCache();
+    public function __construct(?ReflectionCache $reflections=null) {
+        $this->reflections=$reflections??new ReflectionCache();
         $this->arguments=new ArgumentResolver($this->reflections);
         $this->classes=new ClassFinder($this->reflections);
         $this->autowire=new Autowire($this->reflections);
@@ -121,12 +132,28 @@ final class Container implements \base\Container {
         foreach($types as $type) {
             if($type===''||$type==='NULL'||$type==='mixed')
                 continue;
-            if(isset($this->container[$type]))
-                return $this->container[$type];
-            $name=$this->resolve($type);
-            if(isset($this->container[$name]))
-                return $this->container[$name];
+            $bound=$this->findInstance($type)??$this->findInstance($this->resolve($type));
+            if($bound!==null)
+                return $bound;
         }
+        return null;
+    }
+
+    /**
+     * 按名称取"已登记的实例"(先自身, 再父容器)
+     *
+     * - 请求级容器因此能看到应用级登记的对象(如配置、日志、数据库);`instance()` 只写自身
+     * - 不把父容器的实例复制到自身: 父容器换实例后请求级容器立刻看到新的
+     *
+     * @access private
+     * @param string $name 名称(类名 / 接口名 / 别名, 需已是真实类名或原名)
+     * @return object|null
+     */
+    private function findInstance(string $name): ?object {
+        if(isset($this->container[$name]))
+            return $this->container[$name];
+        if($this->parent!==null&&isset($this->parent->container[$name]))
+            return $this->parent->container[$name];
         return null;
     }
 
@@ -177,6 +204,9 @@ final class Container implements \base\Container {
     public function get(string $name): object {
         $name=$this->resolve($name);
         if(!isset($this->container[$name])) {
+            // 自身没有则委托父容器(请求级容器能看到应用级登记的对象; 不缓存到自身, 父容器换实例后立刻生效)
+            if($this->parent!==null&&isset($this->parent->container[$name]))
+                return $this->parent->container[$name];
             // 如果不存在则判断是否存在该类
             if(!class_exists($name))
                 throw new Exception('Class "'.$name.'" not found.');
@@ -194,6 +224,43 @@ final class Container implements \base\Container {
     }
 
     /**
+     * 派生一个请求级子容器
+     *
+     * - **共享**: 绑定表 / 别名表 / 单例表 / 反射缓存(复制标量表, 复用缓存对象)
+     * - **不共享**: 实例表 / 全局数据(请求级容器读写自己的, 不污染应用级)
+     * - 内核组件按子容器重新装配(它们的回调必须指向子容器, 否则实例会注册到父容器)
+     *
+     * @access public
+     * @return static
+     */
+    public function fork(): static {
+        $child=new static($this->reflections);
+        $child->parent=$this;
+        $child->class_container=$this->class_container;
+        $child->alias_container=$this->alias_container;
+        $child->singleton_container=$this->singleton_container;
+        // 参数转换开关跟随父容器(它属进程级配置, 不是请求级状态)
+        $child->arguments->setParamCast($this->arguments->getParamCast());
+        return $child;
+    }
+
+    /**
+     * 清空实例表与全局数据(请求结束 / 复用时调用)
+     *
+     * - 绑定 / 别名 / 单例表与反射缓存**保留**(它们属应用级)
+     * - 容器自身的登记会重新写回, 因此 `reset()` 后仍可按契约取到自身
+     *
+     * @access public
+     * @return void
+     */
+    public function reset(): void {
+        $this->container=array();
+        $this->data_container=array();
+        $this->container[\base\Container::class]=$this;
+        $this->container[static::class]=$this;
+    }
+
+    /**
      * 判断容器能否给出该名称
      *
      * - 别名 / 绑定 / 实例任一命中即为真; 否则看它是不是一个可构建的类或接口
@@ -204,6 +271,8 @@ final class Container implements \base\Container {
      */
     public function has(string $name): bool {
         if(isset($this->container[$name])||isset($this->alias_container[$name])||isset($this->class_container[$name]))
+            return true;
+        if($this->parent!==null&&$this->parent->has($name))
             return true;
         $real=$this->resolve($name);
         return isset($this->container[$real])||class_exists($real)||interface_exists($real);
@@ -432,9 +501,10 @@ final class Container implements \base\Container {
      */
     private function makeInternal(string $name,bool $is_force,array &$flags): object {
         $name=$this->resolve($name);
-        // 如果不强制实例化且容器中存在该对象则直接返回,如果标识重复也会直接返回
-        if((!$is_force&&isset($this->container[$name])||in_array($name,$flags)))
-            return $this->get($name);
+        // 复用规则: 自身或**父容器**已登记则直接返回(除非强制新建); 构建栈里出现同一类也直接返回(阻断循环)
+        $bound=$this->findInstance($name);
+        if((!$is_force&&$bound!==null)||in_array($name,$flags))
+            return $bound??$this->get($name);
         // 判断是否为接口
         if(interface_exists($name)) {
             // 寻找一个可实例化的子类

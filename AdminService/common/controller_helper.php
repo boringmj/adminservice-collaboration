@@ -16,10 +16,15 @@ use ReflectionException;
  * @throws ReflectionException|Exception
  */
 function view(null|string|array $template=null,array $data=array()): string {
-    $reflector=App::getReflectionByObject(App::get('Controller'));
+    $route_info=App::getData('route_info',array());
+    $controller_class=is_array($route_info)?($route_info['controller_class']??null):null;
+    if(!is_string($controller_class))
+        throw new Exception('无法定位当前控制器: 路由上下文不可用(仅可在控制器内调用 view())');
+    $controller=App::get($controller_class);
+    $reflector=App::getReflectionByObject($controller);
     $method=$reflector->getMethod('view');
     $method->setAccessible(true);
-    return $method->invoke(App::get('Controller'),$template,$data);
+    return $method->invoke($controller,$template,$data);
 }
 
 /**

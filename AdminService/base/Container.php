@@ -118,6 +118,25 @@ interface Container {
     public function bindAll(array $bindings): void;
 
     /**
+     * 派生一个请求级子容器
+     *
+     * - 共享绑定 / 别名 / 单例表与反射缓存
+     * - 实例表与全局数据独立(请求结束丢弃, 不影响应用级)
+     *
+     * @access public
+     * @return static
+     */
+    public function fork(): static;
+
+    /**
+     * 清空实例表与全局数据(绑定 / 别名 / 单例表与反射缓存保留)
+     *
+     * @access public
+     * @return void
+     */
+    public function reset(): void;
+
+    /**
      * 获取全局数据
      *
      * @access public

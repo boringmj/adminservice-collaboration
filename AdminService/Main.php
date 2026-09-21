@@ -21,6 +21,18 @@ final class Main {
     private ?Application $application=null;
 
     /**
+     * 获取应用(不存在则建立)
+     *
+     * - 请求级容器由它承载: 关停阶段或自定义入口需要请求级对象时用它取(`application()->requestContainer()`)
+     *
+     * @access public
+     * @return Application
+     */
+    public function application(): Application {
+        return $this->application??=new Application();
+    }
+
+    /**
      * 初始化
      *
      * @access public
@@ -36,9 +48,11 @@ final class Main {
         error_reporting(0);
         date_default_timezone_set('PRC');
         // 注册错误处理(响应出口: 正常退出时按请求准备好响应再发送)
-        Error::register(static function(): void {
-            $response=App::get(Response::class);
-            $response->prepare(App::get(Request::class));
+        // 关停阶段门面已收回应用级容器, 故这里直接向 Application 取请求级容器(框架内部不走门面)
+        Error::register(function(): void {
+            $container=$this->application===null?App::getInstance():$this->application->requestContainer();
+            $response=$container->get(Response::class);
+            $response->prepare($container->get(Request::class));
             $response->send();
         },false);
         // 加载配置文件
@@ -49,34 +63,10 @@ final class Main {
         $this->application=(new Application())->init();
         // 安装数据库配置提供者: 数据库层(契约层)不读全局配置, 由应用层把配置能力交给它
         BaseDb::setConfig(new DatabaseConfig());
-        // 初始化请求与响应: 每请求新建实例(而非复位单例), 常驻模式下同样安全
-        App::instance(Request::class,App::new(Request::class));
-        App::instance(Response::class,App::new(Response::class));
-        // 初始化Session
-        $this->initSession();
+        // 请求 / 响应 / 会话属**请求级**对象: 由 Application::handle() 每请求新建, 不再在引导期注册
         // 初始化完成
         Error::setInitialized(true);
         return $this;
-    }
-
-    /**
-     * 初始化Session
-     *
-     * - 会话服务**总是注册**: 未开启原生会话时用内存驱动(ArraySession), 避免"取到会话却写不进"的假会话
-     * - `session.start` 为真时调用驱动的 init()(原生驱动会在此下发会话Cookie)
-     * - 需要按路由开启时, 可在请求中间件里调用 App::get(\base\AbstractSession::class)->init()
-     *
-     * @access private
-     * @return void
-     * @throws Exception
-     * @throws ReflectionException
-     */
-    private function initSession(): void {
-        /** @var AbstractSession $session */
-        $session=App::new(Config::get('session.class',ArraySession::class));
-        if(Config::get('session.start',false))
-            $session->init();
-        App::instance(AbstractSession::class,$session);
     }
 
     /**
@@ -109,8 +99,8 @@ final class Main {
      * @throws Exception|ReflectionException
      */
     public function run(): void {
-        // 由应用承载请求处理(请求级 scope 的 fork/reset 与门面指针切换将在 Application::handle() 内接入)
-        ($this->application??new Application())->handle(function(): void {
+        // 由应用承载请求处理: 每请求一个请求级容器(fork/reset 与门面指针切换都在 Application::handle() 内)
+        $this->application()->handle(function(): void {
             $middlewares=Pipeline::order(Pipeline::normalize(Config::get('middlewares.request',array())));
             (new Pipeline($middlewares,App::get(Request::class)))->then(function(): void {
                 App::fresh(Route::class)->run();

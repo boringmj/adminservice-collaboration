@@ -145,6 +145,27 @@ class RouterTest extends TestCase {
     }
 
     /**
+     * 测试分组可多层嵌套(前缀依次拼接, 退出后不再生效)
+     * @return void
+     */
+    public function testNestedGroups(): void {
+        $router=new Router();
+        $router->group(array('prefix'=>'/a'),function(Router $router): void {
+            $router->get('/',array('C','a'));
+            $router->group(array('prefix'=>'/b'),function(Router $router): void {
+                $router->group(array('prefix'=>'/c'),function(Router $router): void {
+                    $router->get('/d',array('C','abcd'));
+                });
+            });
+        });
+        $router->get('/top',array('C','top'));
+        $this->assertSame(array('C','a'),$router->find('GET','/a')[0]->getHandler());
+        $this->assertSame(array('C','abcd'),$router->find('GET','/a/b/c/d')[0]->getHandler());
+        // 退出分组后前缀不再生效
+        $this->assertSame(array('C','top'),$router->find('GET','/top')[0]->getHandler());
+    }
+
+    /**
      * 测试全局中间件与分组中间件合并
      * @return void
      */

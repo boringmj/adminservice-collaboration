@@ -328,6 +328,50 @@ class RouterTest extends TestCase {
     }
 
     /**
+     * 测试多个末尾可选参数(递进匹配)
+     * @return void
+     */
+    public function testMultipleOptionalParameters(): void {
+        $router=new Router();
+        $router->get('/a/{b?}/{c?}',array('C','x'))->name('a');
+        $this->assertSame(array(),$router->find('GET','/a')[1]);
+        $this->assertSame(array('b'=>'1'),$router->find('GET','/a/1')[1]);
+        $this->assertSame(array('b'=>'1','c'=>'2'),$router->find('GET','/a/1/2')[1]);
+        $this->assertNull($router->find('GET','/a/1/2/3'));
+        // 反向生成: 按顺序提供, 缺省则整段省略
+        $this->assertSame('/a',$router->url('a'));
+        $this->assertSame('/a/1',$router->url('a',array('b'=>'1')));
+        $this->assertSame('/a/1/2',$router->url('a',array('b'=>'1','c'=>'2')));
+    }
+
+    /**
+     * 测试省略靠前的可选参数后不得再提供靠后的
+     * @return void
+     */
+    public function testOptionalParameterOrderViolation(): void {
+        $router=new Router();
+        $router->get('/a/{b?}/{c?}',array('C','x'))->name('a');
+        $this->expectException(Exception::class);
+        $router->url('a',array('c'=>'2'));
+    }
+
+    /**
+     * 测试可选参数序列不合法时报错(非 `/` 分隔或其后仍有必填参数)
+     * @return void
+     */
+    public function testInvalidOptionalSequenceThrows(): void {
+        $router=new Router();
+        try {
+            $router->get('/bad/{x?}tail',array('C','index'));
+            $this->fail('预期抛出异常');
+        } catch(Exception $e) {
+            $this->assertStringContainsString('Optional route parameter',$e->getMessage());
+        }
+        $this->expectException(Exception::class);
+        $router->get('/bad/{x?}/{y}',array('C','index'));
+    }
+
+    /**
      * 测试任意请求方法
      * @return void
      */

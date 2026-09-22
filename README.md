@@ -28,7 +28,7 @@
 1. 启动 [php webserver](https://www.php.net/manual/zh/features.commandline.webserver.php), 框架提供了简单的快捷启动脚本
 
     ```bash
-    // 需要把 php 加入环境变量(版本要求见开头)
+    // 需要配置php环境变量且php>=5.4.0
     php start
     ```
 

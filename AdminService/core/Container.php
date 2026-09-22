@@ -199,6 +199,27 @@ final class Container implements \base\Container {
     }
 
     /**
+     * 按名字取反射类对象(取不到时抛既有的"类不存在"文案)
+     *
+     * - **这是容器边界上"类是否存在"的唯一判定口**: 不再逐个方法写 `class_exists` / `interface_exists` 预检查
+     *   —— 那几个预检查只是"友好报错", 而"取反射"这一步本来就会触发自动加载(该加载的躲不掉),
+     *   预检查等于把同一件事做两遍, 还多出几个需要跟 PHP 语义保持同步的地方(见计划 S7)
+     * - 语义与旧写法一致: 不存在的名字 → `Class "X" not found.`;接口/抽象类取得到反射, 由调用方判 `isInstantiable()`
+     *
+     * @access private
+     * @param string $name 类名(已解析别名/绑定后的真实名字)
+     * @return ReflectionClass
+     * @throws Exception 类不存在
+     */
+    private function getReflection(string $name): ReflectionClass {
+        try {
+            return $this->reflections->getClass($name);
+        } catch(ReflectionException) {
+            throw new Exception('Class "'.$name.'" not found.');
+        }
+    }
+
+    /**
      * 获取对象(如果不存在则自动实例化)
      *
      * - 已登记的实例优先; 否则要求该类可实例化, 并登记解析结果(同一实现只构建一次)
@@ -215,11 +236,8 @@ final class Container implements \base\Container {
             // 自身没有则委托父容器(请求级容器能看到应用级登记的对象; 不缓存到自身, 父容器换实例后立刻生效)
             if($this->parent!==null&&isset($this->parent->container[$name]))
                 return $this->parent->container[$name];
-            // 如果不存在则判断是否存在该类
-            if(!class_exists($name))
-                throw new Exception('Class "'.$name.'" not found.');
             // 如果存在则判断是否可以实例化
-            $ref=$this->reflections->getClass($name);
+            $ref=$this->getReflection($name);
             if(!$ref->isInstantiable())
                 throw new Exception('Class "'.$name.'" is not instantiable.');
             // 如果可以实例化则实例化一个新的对象
@@ -560,10 +578,8 @@ final class Container implements \base\Container {
     public function build(string $__name,...$args): object {
         // 获取真实类名
         $__name=$this->resolve($__name);
-        // 判断类或接口是否存在
-        if(!class_exists($__name)&&!interface_exists($__name))
-            throw new Exception('Class "'.$__name.'" not found.');
-        $ref=$this->reflections->getClass($__name);
+        // 判断类或接口是否存在(取不到反射即不存在)
+        $ref=$this->getReflection($__name);
         // 判断是否可以被实例化,如果不能则尝试寻找一个可实例化的子类
         if(!$ref->isInstantiable()) {
             $real_class=$this->classes->getFirstInstantiableClass(array($__name));

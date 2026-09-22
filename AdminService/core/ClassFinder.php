@@ -8,6 +8,7 @@ use function array_diff;
 use function array_filter;
 use function array_pop;
 use function class_exists;
+use function count;
 use function class_implements;
 use function get_declared_classes;
 use function get_parent_class;
@@ -41,6 +42,12 @@ final class ClassFinder {
     private ?Closure $class_resolver=null;
 
     /**
+     * 全量扫描次数(诊断 / 测试用)
+     * @var int
+     */
+    private int $scans=0;
+
+    /**
      * 构造方法
      *
      * @access public
@@ -64,12 +71,43 @@ final class ClassFinder {
     /**
      * 逐级寻找一个类的直接子类并查找可实例化的子类(支持别名和绑定)
      *
+     * - 缓存口径(挂在 `ReflectionCache`, 故请求级容器与父容器共享同一份):
+     *   **只缓存顶层查询里"找到了"的结果**。递归内部不缓存(结果依赖"防环标识");
+     *   否定结果也不缓存(见 `ReflectionCache::$sub_classes` 的说明)
+     * - ⚠ 已知限制: 本方法只在**已声明类**里找子类, 因此某个子类的文件还没被加载时找不到它 ——
+     *   也就是说结果受"进程里恰好加载了哪些类"影响(实测: `phpunit --filter 'AppTest|ContainerBindingTest|…'`
+     *   会因 `Tests\Fixtures\UserStatus` 没被顺带加载而报 `AbstractStatus is not instantiable`,
+     *   改动前的代码同样如此)。正因如此, 否定结果**不缓存** —— 免得把这种临时答案固化。
+     *
      * @access public
      * @param string $class 类名
      * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止解析死循环)
      * @return ?string
      */
     public function findDirectSubClassRecursive(string $class,array &$flags=array()): ?string {
+        $top=$flags===array();
+        // 缓存键用**解析后**的名字: 别名/绑定变了就是另一个键, 不会拿到旧映射的结果
+        $resolved=$this->resolve($class);
+        if($top) {
+            $cached=$this->reflections->getSubClass($resolved);
+            if($cached!==null)
+                return $cached;
+        }
+        $found=$this->findSubClass($class,$flags);
+        if($top&&$found!==null)
+            $this->reflections->setSubClass($resolved,$found);
+        return $found;
+    }
+
+    /**
+     * 查找主体(不含缓存)
+     *
+     * @access private
+     * @param string $class 类名
+     * @param array<mixed> $flags 防环标识(引用传递)
+     * @return ?string
+     */
+    private function findSubClass(string $class,array &$flags): ?string {
         // 获取真实类名
         $class=$this->resolve($class);
         // 如果标识重复则直接返回
@@ -84,6 +122,7 @@ final class ClassFinder {
             return $class;
         // 获取所有已声明类
         $all_classes=get_declared_classes();
+        $this->scans++;
         // 区分是类还是接口
         $is_class=class_exists($class);
         $is_interface=interface_exists($class);
@@ -118,6 +157,16 @@ final class ClassFinder {
         }
         // 没有找到可实例化子类
         return null;
+    }
+
+    /**
+     * 本实例做过几次"全量扫描"(诊断 / 测试用: 用来证明缓存之后不再重复扫)
+     *
+     * @access public
+     * @return int
+     */
+    public function scanCount(): int {
+        return $this->scans;
     }
 
     /**

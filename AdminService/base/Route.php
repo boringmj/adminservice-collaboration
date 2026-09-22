@@ -2,6 +2,7 @@
 
 namespace base;
 
+use base\Exception\DependencyException;
 use ReflectionException;
 
 /**
@@ -30,7 +31,7 @@ abstract class Route {
     final public function __construct(?Request $request=null,?Container $container=null) {
         if($request===null) {
             if($container===null)
-                throw new Exception('路由需要请求对象: 请传入 $request, 或由容器构建(注入 base\Container 契约)');
+                throw new DependencyException('路由需要请求对象: 请传入 $request, 或由容器构建(注入 base\Container 契约)');
             $request=$container->get(Request::class);
         }
         $this->request=$request;

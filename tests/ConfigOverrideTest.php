@@ -158,4 +158,69 @@ class ConfigOverrideTest extends TestCase {
         $this->assertSame(3306,$repo->get('database.connections.default.port'),'int 项: 忽略覆盖, 保留文件值(不给 null/0)');
     }
 
+
+    /**
+     * 测试: **运行时临时值优先级最高** —— 盖得过 `.env` 的路径键, 也盖得过配置文件
+     *
+     * - 用途: 临时改一项而不必重写整份配置;而且**其它键的 `.env` 覆盖照旧生效**(只加一层, 不拆原有那层)
+     *
+     * @return void
+     */
+    public function testRuntimeValueWinsOverEverything(): void {
+        $repo=new Repository($this->configs(),array(),$this->env(implode("\n",array(
+            'app.name=from-env',
+            'database.connections.default.port=13306',
+            'database.connections.default.host=from-env-host',
+            'database.connections.default.password=from-env-pwd',
+        ))));
+        $repo->put('app.name','from-runtime');
+        $repo->put('database.connections.default.port',2222);
+        $this->assertSame('from-runtime',$repo->get('app.name'),'临时值盖过 .env 的路径键');
+        $this->assertSame(2222,$repo->get('database.connections.default.port'),'临时值原样给出(不做类型转换 —— 它是代码写的, 不是解析来的)');
+        // 关键对照: 同一份仓储里, **没被临时值碰过**的键, `.env` 覆盖照旧生效(证明是"加一层", 不是拆了 `.env` 那层)
+        $this->assertSame('from-env-host',$repo->get('database.connections.default.host'));
+        $this->assertSame('from-env-pwd',$repo->get('database.connections.default.password'));
+    }
+
+    /**
+     * 测试: `put()` 只允许写在已存在的配置项上(不存在的路径是代码写错, 直接抛)
+     * @return void
+     */
+    public function testPutOnUnknownPathThrows(): void {
+        $repo=new Repository($this->configs());
+        try {
+            $repo->put('brand.new.key',1);
+            $this->fail('不存在的路径应当抛 ConfigException');
+        } catch(\AdminService\exception\ConfigException $e) {
+            $this->assertStringContainsString('brand.new.key',$e->getMessage());
+        }
+    }
+
+    /**
+     * 测试: `putAll()`(供 `Config::set()` 用)把树里的标量叶子钉到临时层
+     *
+     * - 于是"刚 set 的值"赢过 `.env` 的路径键(否则会出现"我明明 set 了却被改掉")
+     *
+     * @return void
+     */
+    public function testPutAllPinsSetValues(): void {
+        $repo=new Repository($this->configs(),array(),$this->env('app.name=from-env'));
+        $this->assertSame('from-env',$repo->get('app.name'),'先确认 `.env` 覆盖是生效的');
+        $repo->putAll(array('app'=>array('name'=>'from-set')));
+        $this->assertSame('from-set',$repo->get('app.name'),'钉过之后 set 的值胜出');
+        $this->assertSame('demo',$repo->file('app.name'),'`file()` 仍然只看配置文件, 不受影响');
+    }
+
+    /**
+     * 测试: `all()` 也体现临时值, 且只写回已存在的路径
+     * @return void
+     */
+    public function testAllIncludesRuntimeValues(): void {
+        $repo=new Repository($this->configs(),array(),$this->env('app.name=from-env'));
+        $repo->put('app.name','from-runtime');
+        $all=$repo->all();
+        $this->assertSame('from-runtime',$all['app']['name']);
+        $this->assertSame(3306,$all['database']['connections']['default']['port'],'未涉及项保持文件值');
+    }
+
 }

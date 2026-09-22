@@ -8,6 +8,7 @@ use AdminService\App;
 use AdminService\Config;
 use AdminService\Config\Repository;
 use AdminService\Container;
+use AdminService\exception\ConfigException;
 use base\Attribute\Config as ConfigAttribute;
 use base\ConfigInterface;
 
@@ -149,6 +150,26 @@ class ConfigFacadeTest extends TestCase {
         $container->instance(ConfigInterface::class,$repository);
         $this->assertSame($repository,$container->get(ConfigInterface::class));
         $this->assertSame(1,$container->get(ConfigInterface::class)->get('x'));
+    }
+
+
+    /**
+     * 测试: `setValue()` 的临时值优先级最高(盖过 `.env` 与配置文件), 且不牵动其它层
+     * @return void
+     */
+    public function testSetValueWinsOverEverything(): void {
+        $this->withRestoredGlobals(function(): void {
+            Config::set(array('log'=>array('path'=>'from-set')));
+            Config::setValue('log.path','from-runtime');
+            $this->assertSame('from-runtime',Config::get('log.path'));
+            $this->assertSame('from-set',Config::file('log.path'),'`file()` 反映的是 set 进去的那棵树');
+            try {
+                Config::setValue('nope.nope',1);
+                $this->fail('配置项不存在时应当抛 ConfigException');
+            } catch(ConfigException $e) {
+                $this->assertStringContainsString('nope.nope',$e->getMessage());
+            }
+        });
     }
 
 }

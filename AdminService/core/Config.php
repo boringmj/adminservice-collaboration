@@ -4,6 +4,7 @@ namespace AdminService;
 
 use AdminService\Config\Loader;
 use AdminService\Config\Repository;
+use AdminService\exception\ConfigException;
 
 
 /**
@@ -68,8 +69,8 @@ final class Config {
      * 设置配置(整体替换当前仓储)
      *
      * - 引导期与测试用: 传进来的数组成为**全部**配置, 不做深合并(与旧版语义一致)
-     * - **不受 `.env` 路径键覆盖影响**: `set()` 的语义是"我就要这份配置"(引导期/测试),
-     *   若还让部署侧的 `.env` 把它盖掉, 就会出现"明明 set 了却被改掉"的困惑
+     * - **这批值会被钉到"临时层"**(优先级最高): 于是"我刚 set 的值"不会被 `.env` 的路径键盖掉;
+     *   而**其它键**的 `.env` 覆盖照旧生效(不是把整层 `.env` 拆掉, 只加一层)
      * - 若当前已安装容器且容器里登记着配置实例, 会**同步换掉**容器里那一份 ——
      *   否则会出现"门面是新的、容器还是旧的"这种最难查的不一致
      *
@@ -78,9 +79,11 @@ final class Config {
      * @return void
      */
     public static function set(array $configs): void {
-        // 注意: **不带 `.env` 快照** —— `set()` 的语义是"我就要这份配置"(引导期/测试),
-        // 若还让它被 `.env` 的路径键覆盖, 就会出现"我明明 set 了却被别处改掉"的困惑
-        self::$repository=new Repository($configs);
+        // 保留 `.env` 快照(其它键的覆盖照旧), 同时把这一批值钉到临时层(优先级最高),
+        // 于是"我刚 set 的值"不会被 `.env` 的路径键盖掉 —— 是"加一层", 不是把 `.env` 那层拆掉
+        $repository=new Repository($configs,array(),env_snapshot());
+        $repository->putAll($configs);
+        self::$repository=$repository;
         if(App::hasInstance())
             App::getInstance()->instance(\base\ConfigInterface::class,self::$repository);
     }
@@ -125,6 +128,26 @@ final class Config {
      */
     public static function get(string $key,mixed $default=null): mixed {
         return self::$repository===null?$default:self::$repository->get($key,$default);
+    }
+
+    /**
+     * 写入一个**运行时临时值**(优先级最高, `.env` 的路径键也盖不掉)
+     *
+     * - 用途: 临时改一项, 不必重写整份配置, 也不会牵动 `.env` 的覆盖层
+     * - 只允许写在**已存在的配置项**上;不存在的路径属代码写错, 直接抛(不让它变成"只活在代码里的配置项")
+     * - ⚠ 它写在**应用级仓储实例**上: 常驻模式下会跨请求保留;需要请求级隔离请 `fork()` 请求级容器
+     *   并在其仓储上写
+     *
+     * @access public
+     * @param string $key 配置键(点分键)
+     * @param mixed $value 值
+     * @return void
+     * @throws ConfigException 尚未装配配置, 或该配置项不存在
+     */
+    public static function setValue(string $key,mixed $value): void {
+        if(self::$repository===null)
+            throw new ConfigException('配置尚未装配, 无法写入临时值(请先调用 Config::load())',100906);
+        self::$repository->put($key,$value);
     }
 
     /**

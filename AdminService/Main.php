@@ -10,6 +10,7 @@ use base\Route;
 use AdminService\Database\DatabaseConfig;
 use ReflectionException;
 
+use function array_merge;
 use function count;
 use function implode;
 use function is_array;
@@ -111,7 +112,8 @@ final class Main {
      * @throws Exception|ReflectionException
      */
     private function reportConfigDiagnostics(Repository $config): void {
-        $diagnostics=$config->diagnostics();
+        // 装配期诊断 + `.env` 自身的解析错误(`Env` 只记录不抛, 由这里在 debug 下落一次日志)
+        $diagnostics=array_merge($config->diagnostics(),env_snapshot()->errors());
         if($diagnostics===array()||!$config->get('app.debug',false))
             return;
         $this->application->container()->get(Log::class)->write(

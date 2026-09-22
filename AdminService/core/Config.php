@@ -5,7 +5,6 @@ namespace AdminService;
 use AdminService\Config\Loader;
 use AdminService\Config\Repository;
 
-use function is_file;
 
 /**
  * 配置门面
@@ -61,7 +60,8 @@ final class Config {
      */
     public static function load(): void {
         $loader=new Loader(__DIR__.'/../config');
-        self::$repository=new Repository($loader->load(),$loader->diagnostics());
+        // 把 `.env` 快照交给仓储: 它的"小写点分路径键"会覆盖同名配置项(见 Repository 的说明)
+        self::$repository=new Repository($loader->load(),$loader->diagnostics(),env_snapshot());
     }
 
     /**
@@ -76,7 +76,7 @@ final class Config {
      * @return void
      */
     public static function set(array $configs): void {
-        self::$repository=new Repository($configs);
+        self::$repository=new Repository($configs,array(),env_snapshot());
         if(App::hasInstance())
             App::getInstance()->instance(\base\ConfigInterface::class,self::$repository);
     }
@@ -121,6 +121,20 @@ final class Config {
      */
     public static function get(string $key,mixed $default=null): mixed {
         return self::$repository===null?$default:self::$repository->get($key,$default);
+    }
+
+    /**
+     * 读取配置项(**只看配置文件**, 不看 `.env` 的路径键覆盖)
+     *
+     * - 排查用: "这个值到底是 `config/*.php` 里写的, 还是被 `.env` 覆盖了?"
+     *
+     * @access public
+     * @param string $key 配置键(点分键)
+     * @param mixed $default 默认值
+     * @return mixed
+     */
+    public static function file(string $key,mixed $default=null): mixed {
+        return self::$repository===null?$default:self::$repository->file($key,$default);
     }
 
     /**

@@ -70,7 +70,8 @@ final class Response extends BaseResponse {
      * 构造方法
      *
      * @access public
-     */
+          * @param ConfigInterface|null $config 配置契约实例(未注入时回落门面当前那份)
+*/
     public function __construct(?ConfigInterface $config=null) {
         $this->config=$config;
         $this->headers=new Data();

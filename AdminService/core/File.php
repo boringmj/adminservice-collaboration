@@ -53,7 +53,8 @@ final class File {
      * @access public
      * @param string|null $file_name 文件名称(不含扩展名和多余的路径)
      * @throws \AdminService\Exception
-     */
+          * @param ConfigInterface|null $config 配置契约实例(未注入时回落门面当前那份)
+*/
     public function __construct(?string $file_name=null,?ConfigInterface $config=null) {
         $this->config=$config;
         $this->init($file_name);

@@ -17,12 +17,13 @@ use function unlink;
  *
  * 覆盖三类:
  *  1. **值语法**: 值含 `=`、`=` 左/右空格、单双引号(含转义)、`export` 前缀、行尾注释、空行、CRLF
- *  2. **类型推断**: `true`/`false`/`null`/整数/浮点/科学计数法, 以及"保留字符串"的边界
- *     (前导 0、超出 int 范围、引号形式)
- *  3. **兼容口径与容错**: 键名大小写不敏感且后写覆盖、无法解析的行进 `errors()` 而不抛异常
+ *  2. **类型推断(主流口径)**: 只转 `true`/`false`/`null`;**数字一律保持字符串**
+ *     (躲开前导 `0` 被当八进制、超 int 范围被静默截断这类惊喜)
+ *  3. **键口径(主流口径)**: 大小写敏感、点号是普通字符;无法解析的行进 `errors()` 而不抛异常
  *
  * 这些用例正是计划 S2 要求的清单 —— 旧实现(`Config::load()` 内联 30 行)在"值含 `=`"
- * "`=` 左侧空格""引号""export""行尾注释"上**全都不对**, 故此处逐条固定行为。
+ * "`=` 左侧空格""引号""export""行尾注释"上**全都不对**, 故此处逐条固定行为;
+ * 键名大小写与"数字不转类型"这两条是 S8 按主流改的(旧实现把键整体小写、把数字转成 int/float)。
  */
 class EnvParserTest extends TestCase {
 
@@ -42,7 +43,7 @@ class EnvParserTest extends TestCase {
      */
     public function testValueContainingEquals(): void {
         $env=$this->env("PWD=ab=cd=ef\nDSN=mysql:host=x;dbname=y");
-        $this->assertSame('ab=cd=ef',$env->get('pwd'),'值里的 `=` 必须原样保留(旧实现只取第一段之后的第 2 段)');
+        $this->assertSame('ab=cd=ef',$env->get('PWD'),'值里的 `=` 必须原样保留(旧实现只取第一段之后的第 2 段)');
         $this->assertSame('mysql:host=x;dbname=y',$env->get('DSN'));
     }
 
@@ -112,8 +113,8 @@ class EnvParserTest extends TestCase {
             'F="a # b" # 行尾注释',
             'G=#开头不是注释',
         )));
-        $this->assertSame(1,$env->get('A'),'export 前缀(小写)');
-        $this->assertSame(2,$env->get('B'),'export 前缀(大写, 大小写不敏感)');
+        $this->assertSame('1',$env->get('A'),'export 前缀(小写);数字保持字符串');
+        $this->assertSame('2',$env->get('B'),'export 前缀(大写不敏感, 但**键名**大小写敏感)');
         $this->assertSame('value',$env->get('C'));
         $this->assertSame('value',$env->get('D'),'注释前的空白不留在值里');
         $this->assertSame('va#lue',$env->get('E'),'`#` 前无空白时不是注释');
@@ -127,26 +128,25 @@ class EnvParserTest extends TestCase {
      */
     public function testBlankLinesAndCrlf(): void {
         $env=$this->env("\r\nA=1\r\n\r\n   \r\nB=2\r\n");
-        $this->assertSame(array('A'=>1,'B'=>2),$env->all());
+        $this->assertSame(array('A'=>'1','B'=>'2'),$env->all());
         $this->assertSame(array(),$this->env('')->all(),'空文本解析出空表');
         $this->assertSame(array(),$this->env("\n\n\n")->all());
     }
 
     /**
-     * 测试: 类型推断(仅非引号值)
+     * 测试: 类型推断**只转 bool / null**, 数字一律保持字符串(主流口径)
      *
-     * - 整数只在"能直接还原"时才转: 前导 `0` 与超出 int 范围的一律保留字符串
-     * - `+7` 不转(`-` 号认, `+` 号不认) —— 刻意的窄口径, 避免与字符串混淆
+     * - 数字不转类型是刻意的(Laravel / phpdotenv 都这样): 躲开前导 `0` 被当八进制、
+     *   位数超 int 范围被静默截断这类惊喜; 要数字请在配置里显式 `(int)env('DB_PORT', 3306)`
+     * - 引号形式永远是字符串(见 `testQuotes`)
      *
      * @return void
      */
-    public function testTypeInference(): void {
+    public function testMainstreamTypeInference(): void {
         $env=$this->env(implode("\n",array(
             'T1=true','T2=TRUE','T3=True','T4=false','T5=FALSE',
-            'T6=null','T7=NULL','T8=None',
-            'I1=123','I2=-7','I3=+7','I4=0012','I5=99999999999999999999','I6=-0',
-            'F1=1.5','F2=1.','F3=.5','F4=-0.25','F5=1e3','F6=1E-3','F7=1.5e2',
-            'S1=abc','S2=1 2','S3=Infinity','S4=0x1A','S5=','S6=08',
+            'T6=null','T7=NULL','T8=None','T9=true ',
+            'N1=123','N2=-7','N3=+7','N4=0012','N5=99999999999999999999','N6=1.5','N7=1e3','N8=08','N9=',
         )));
         $this->assertTrue($env->get('T1'));
         $this->assertTrue($env->get('T2'));
@@ -156,41 +156,30 @@ class EnvParserTest extends TestCase {
         $this->assertNull($env->get('T6'));
         $this->assertNull($env->get('T7'));
         $this->assertSame('None',$env->get('T8'),'不是标准的 null 写法就保留字符串');
-        $this->assertSame(123,$env->get('I1'));
-        $this->assertSame(-7,$env->get('I2'));
-        $this->assertSame('+7',$env->get('I3'));
-        $this->assertSame('0012',$env->get('I4'),'前导 0 保留字符串, 免得被当成八进制或丢零');
-        $this->assertSame('99999999999999999999',$env->get('I5'),'超出 int 范围不静默截断');
-        $this->assertSame('-0',$env->get('I6'));
-        $this->assertSame(1.5,$env->get('F1'));
-        $this->assertSame(1.0,$env->get('F2'));
-        $this->assertSame(0.5,$env->get('F3'));
-        $this->assertSame(-0.25,$env->get('F4'));
-        $this->assertSame(1000.0,$env->get('F5'));
-        $this->assertSame(0.001,$env->get('F6'));
-        $this->assertSame(150.0,$env->get('F7'));
-        $this->assertSame('abc',$env->get('S1'));
-        $this->assertSame('1 2',$env->get('S2'));
-        $this->assertSame('Infinity',$env->get('S3'));
-        $this->assertSame('0x1A',$env->get('S4'));
-        $this->assertSame('',$env->get('S5'),'`KEY=` 是空字符串(与旧实现一致)');
-        $this->assertSame('08',$env->get('S6'));
+        $this->assertTrue($env->get('T9'),'整行会 trim, 故行尾空白不留 —— 值右侧的空格只在紧跟 `=` 时才保留(见 testSpacesAroundEquals)');
+        foreach(array('N1'=>'123','N2'=>'-7','N3'=>'+7','N4'=>'0012','N5'=>'99999999999999999999','N6'=>'1.5','N7'=>'1e3','N8'=>'08','N9'=>'') as $key=>$expected)
+            $this->assertSame($expected,$env->get($key),$key.' 必须原样保持字符串(数字不转类型)');
     }
 
     /**
-     * 测试: 键名大小写不敏感 + 后写覆盖前写(旧的 `strtolower()` 语义等价)
+     * 测试: 键名**大小写敏感**、点号是普通字符(主流口径)
      * @return void
      */
-    public function testCaseInsensitiveOverride(): void {
+    public function testKeyCaseSensitivity(): void {
         $env=$this->env(implode("\n",array(
-            'APP.DEBUG=true',
-            'app.debug=false',
+            'APP_DEBUG=true',
+            'app_debug=false',
+            'a.b=literal',
         )));
-        $this->assertSame(1,count($env->all()),'同名(忽略大小写)的键只保留一个');
-        $this->assertFalse($env->get('app.debug'),'后写的覆盖先写的');
-        $this->assertFalse($env->get('App.Debug'),'查找不区分大小写');
-        $this->assertTrue($env->has('APP.DEBUG'),'用先写的写法也能查到');
-        $this->assertSame('app.debug',array_keys($env->all())[0],'保留后写的写法');
+        $this->assertTrue($env->get('APP_DEBUG'));
+        $this->assertFalse($env->get('app_debug'),'大小写不同就是两个键');
+        $this->assertSame(3,count($env->all()),'不同大小写的键各自保留(不折叠)');
+        $this->assertFalse($env->has('App_Debug'));
+        $this->assertSame('literal',$env->get('a.b'),'点号是普通字符, 没有层级语义');
+        $this->assertSame('(大小写不同, 取不到)',$env->get('A.B','(大小写不同, 取不到)'),'`A.B` 与 `a.b` 是两个键');
+        // 完全同名的键仍然后写覆盖前写
+        $this->assertFalse($this->env("K=1\nK=2")->get('K')==='1');
+        $this->assertSame('2',$this->env("K=1\nK=2")->get('K'));
     }
 
     /**
@@ -205,7 +194,7 @@ class EnvParserTest extends TestCase {
             'UNCLOSED="abc',
             'EXTRA="abc" junk',
         )));
-        $this->assertSame(1,$env->get('OK'),'合法行不受影响');
+        $this->assertSame('1',$env->get('OK'),'合法行不受影响');
         $this->assertSame('"abc',$env->get('UNCLOSED'),'引号未闭合时按普通字符串保留');
         $this->assertSame('abc',$env->get('EXTRA'),'引号闭合, 其后的多余内容被忽略');
         $this->assertCount(4,$env->errors());
@@ -256,7 +245,7 @@ class EnvParserTest extends TestCase {
         file_put_contents($file,"# 临时\nA=1\nB=\"x y\"\n");
         try {
             $env=Env::fromFile($file);
-            $this->assertSame(1,$env->get('A'));
+            $this->assertSame('1',$env->get('A'));
             $this->assertSame('x y',$env->get('B'));
             $this->assertSame($file,$env->path());
             $this->assertSame(array(),$env->errors());
@@ -289,6 +278,25 @@ class EnvParserTest extends TestCase {
             if(preg_match('/password|secret|token/i',(string)$key)===1)
                 continue;
             $this->assertSame($value,env($key),'env() 助手的取值与直接解析 .env 不一致: '.$key);
+        }
+    }
+
+    /**
+     * 测试: `env()` 的"必需键"语义 —— **不传默认值就表示必需, 缺失即抛**
+     *
+     * - 这是主流做法里最能治"静默失效"的一条: `.env` 里键名写错时, 引用它的配置**启动就报错**,
+     *   而不是悄悄拿到 null 或默认值(线上那次事故正是后者)
+     * - 传了第二个参数就是可缺省, 缺失时回落默认值
+     *
+     * @return void
+     */
+    public function testGlobalEnvHelperRequiresKeysWithoutDefault(): void {
+        $this->assertSame('fallback',env('DEFINITELY_NOT_IN_ENV','fallback'),'给了默认值就回落');
+        try {
+            env('DEFINITELY_NOT_IN_ENV');
+            $this->fail('缺省必需键时应当抛 ConfigException');
+        } catch(\AdminService\exception\ConfigException $e) {
+            $this->assertStringContainsString('DEFINITELY_NOT_IN_ENV',$e->getMessage());
         }
     }
 

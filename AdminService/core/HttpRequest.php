@@ -139,7 +139,8 @@ final class HttpRequest extends Request {
      * @access public
      * @param array<string,mixed> $sources 输入源
      * @param ContainerContract|null $container 容器契约
-     */
+          * @param ConfigInterface|null $config 配置契约实例(未注入时回落门面当前那份)
+*/
     public function __construct(array $sources=array(),?ContainerContract $container=null,?ConfigInterface $config=null) {
         $this->config=$config;
         // 容器由容器构建时注入(输入处理器因此可依赖注入);直接 new 时为 null

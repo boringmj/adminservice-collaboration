@@ -11,14 +11,17 @@ return array(
     // 多个命名连接, 通过 Db::fromConfig('连接名') 切换
     'connections'=>array(
         'default'=>array(
-            'type'=>'mysql', // default: mysql (仅用于构建 PDO DSN, 方言/编译器由下面两个类决定)
-            'host'=>'localhost', // 数据库地址 default: localhost
-            'port'=>3306, // 数据库端口 default: 3306
-            'user'=>'', // 数据库用户名
-            'password'=>'', // 数据库密码
-            'dbname'=>'', // 数据库名
-            'charset'=>'utf8mb4', // 数据库编码 default: utf8, utf8mb4 需要mysql5.5.3及以上且数据库、表和字段都支持
-            'prefix'=>'', // 数据表前缀 default: '' (由新 DBAL 编译期统一添加)
+            // 下面几项取自 `.env`(键名大小写敏感);给了默认值 = 可缺省, 不给 = 必需
+            // 注意 `port` 显式转了 `(int)`: `.env` 的值**只转 bool/null, 数字保持字符串**(主流口径),
+            // 要数字就在这里转, 别指望解析器替你猜
+            'type'=>env('DB_TYPE','mysql'), // default: mysql (仅用于构建 PDO DSN, 方言/编译器由下面两个类决定)
+            'host'=>env('DB_HOST','localhost'), // 数据库地址 default: localhost
+            'port'=>(int)env('DB_PORT',3306), // 数据库端口 default: 3306
+            'user'=>env('DB_USER',''), // 数据库用户名
+            'password'=>env('DB_PASSWORD',''), // 数据库密码
+            'dbname'=>env('DB_NAME',''), // 数据库名
+            'charset'=>env('DB_CHARSET','utf8mb4'), // 数据库编码 default: utf8, utf8mb4 需要mysql5.5.3及以上且数据库、表和字段都支持
+            'prefix'=>env('DB_PREFIX',''), // 数据表前缀 default: '' (由新 DBAL 编译期统一添加)
             // 方言类(可选, 未指定则按类型使用默认 MySQL; 自定义方言需实现 base\Database\Sql\Dialect\DialectInterface)
             'dialect'=>MysqlDialect::class,
             // 编译器类(可选, 未指定默认 MySQL; 自定义编译器需实现 base\Database\Sql\Compiler\SqlCompilerInterface)

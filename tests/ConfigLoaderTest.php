@@ -4,15 +4,13 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
-use AdminService\Config\Env;
 use AdminService\Config\Loader;
 use AdminService\Config\Repository;
-use AdminService\exception\ConfigException;
 use base\ConfigInterface;
 
 use function file_put_contents;
+use function is_array;
 use function is_dir;
-use function is_file;
 use function mkdir;
 use function rmdir;
 use function scandir;
@@ -23,14 +21,17 @@ use function unlink;
 /**
  * 配置仓储与加载器用例(`AdminService\Config\Repository` / `Loader`)
  *
- * 三段覆盖:
- *  1. `Repository`: 点分键口径与旧 `Config::get()` **等价**(子树、列表下标、子空数组、`null` 视为不存在、
- *     字面含 `.` 的键取不到), 并实现 `base\ConfigInterface`
- *  2. `Loader` 的**文件来源**: 目录扫描的顺序、名字规范过滤、**显式清单不扫目录**(S6 编译缓存走这条路)
- *  3. `Loader` 的 **`.env` 合并**过渡行为: 点分键覆盖/新建、键名小写化、**值按字符串写入**、
- *     仅布尔节点套旧换算、三种未知键策略、路径冲突不再留半个节点
+ * 两段覆盖:
+ *  1. `Repository`: 点分键口径(子树、列表下标、子空数组、`null` 视为不存在、字面含 `.` 的键取不到),
+ *     并实现 `base\ConfigInterface`
+ *  2. `Loader` 的**文件来源**: 目录扫描的顺序、名字规范过滤、**显式清单不扫目录**
  *
- * 全部用临时目录造样例, 不依赖仓库里的真实配置与 `.env`(唯一的例外是最后那条集成用例, 且缺 `.env` 时跳过)。
+ * ⚠ S8 之前这里还有一整段"`.env` 合并"的用例(点分键覆盖/新建、值按字符串写入、布尔节点的旧换算、
+ * 未知键的三种策略、路径冲突保护)。**S8 把那条合并通道整体删掉了**(`.env` 只提供值, 结构由
+ * `config/*.php` 里的 `env('KEY')` 声明), 那些用例连功能一起消失 —— 对应行为现在由
+ * `EnvParserTest`(`.env` 解析口径)与 `tools/config_lint.php`(键的对照体检)覆盖。
+ *
+ * 用例全部用临时目录造样例, 不依赖仓库里的真实配置(唯一的例外是最后那条集成用例)。
  */
 class ConfigLoaderTest extends TestCase {
 
@@ -61,21 +62,6 @@ class ConfigLoaderTest extends TestCase {
             if($entry!=='.'&&$entry!=='..'&&$entry!==false)
                 unlink($dir.'/'.$entry);
         rmdir($dir);
-    }
-
-    /**
-     * 造一个加载器(配置目录 + 可选 .env 路径)
-     *
-     * @param string $dir 配置目录
-     * @param string|null $env_file `.env` 路径
-     * @param array<string>|null $files 显式清单
-     * @return Loader
-     */
-    private function loader(string $dir,?string $env_file=null,?array $files=null): Loader {
-        $loader=new Loader($dir,$files);
-        if($env_file!==null)
-            $loader->setEnvFile($env_file);
-        return $loader;
     }
 
     /**
@@ -146,9 +132,9 @@ class ConfigLoaderTest extends TestCase {
             'app.php'=>"<?php return array('debug'=>false);",
         ));
         try {
-            $loader=$this->loader($dir);
+            $loader=new Loader($dir);
             $configs=$loader->load();
-            $this->assertSame(array('app','log'),array_keys($configs),'按文件名字典序(显式 sort, 不靠 glob 的平台行为)');
+            $this->assertSame(array('app','log'),array_keys($configs),'按文件名字典序(显式 sort)');
             $this->assertSame('/log',$configs['log']['path']);
             $this->assertSame(array($dir.'/app.php',$dir.'/log.php'),$loader->files());
             $this->assertSame(array(),$loader->diagnostics());
@@ -167,7 +153,7 @@ class ConfigLoaderTest extends TestCase {
             'my-config.php'=>"<?php return array('nope'=>1);",
         ));
         try {
-            $loader=$this->loader($dir);
+            $loader=new Loader($dir);
             $configs=$loader->load();
             $this->assertSame(array('app'),array_keys($configs));
             $this->assertCount(1,$loader->diagnostics());
@@ -184,7 +170,7 @@ class ConfigLoaderTest extends TestCase {
     public function testNonArrayReturnIsDiagnosed(): void {
         $dir=$this->makeDir(array('weird.php'=>"<?php return 'oops';"));
         try {
-            $loader=$this->loader($dir);
+            $loader=new Loader($dir);
             $this->assertSame(array('weird'=>'oops'),$loader->load());
             $this->assertStringContainsString('没有返回数组',$loader->diagnostics()[0]);
         } finally {
@@ -203,12 +189,12 @@ class ConfigLoaderTest extends TestCase {
             'stray.php'=>"<?php return array('c'=>3);",
         ));
         try {
-            $loader=$this->loader($dir,null,array('app','log'));
+            $loader=new Loader($dir,array('app','log'));
             $configs=$loader->load();
             $this->assertSame(array('app','log'),array_keys($configs),'stray.php 不在清单里, 就不该被加载');
             $this->assertSame(array(),$loader->diagnostics());
 
-            $loader=$this->loader($dir,null,array('app.php','missing'));
+            $loader=new Loader($dir,array('app.php','missing'));
             $this->assertSame(array('app'),array_keys($loader->load()),'带 .php 后缀也认');
             $this->assertStringContainsString('清单里的配置文件不存在',$loader->diagnostics()[0]);
         } finally {
@@ -217,209 +203,25 @@ class ConfigLoaderTest extends TestCase {
     }
 
     /**
-     * 测试: `.env` 合并 —— 点分键覆盖已有值、键名大小写与小写化映射
-     * @return void
-     */
-    public function testEnvMergeOverridesExistingValues(): void {
-        $dir=$this->makeDir(array(
-            'app.php'=>"<?php return array('debug'=>false);",
-            'database.php'=>"<?php return array('connections'=>array('default'=>array('host'=>'localhost','password'=>'')));",
-        ));
-        $env=$this->makeDir(array('only.env'=>"APP.DEBUG=true\ndatabase.connections.default.password=ab=cd\n"));
-        try {
-            $loader=$this->loader($dir,$env.'/only.env');
-            $configs=$loader->load();
-            $this->assertTrue($configs['app']['debug'],'大写的 .env 键映射到小写配置键, 且布尔节点套旧换算');
-            $this->assertSame('ab=cd',$configs['database']['connections']['default']['password'],'值里的 `=` 不再被截断');
-            $this->assertSame(array(),$loader->diagnostics(),'真实用法下不应产生任何诊断');
-            $this->assertInstanceOf(Env::class,$loader->env());
-        } finally {
-            $this->removeDir($dir);
-            $this->removeDir($env);
-        }
-    }
-
-    /**
-     * 测试: `.env` 的值一律按**字符串**写入(只有布尔节点例外) —— 旧的"值只能是字符串和布尔值"
-     * @return void
-     */
-    public function testEnvValuesAreWrittenAsStrings(): void {
-        $dir=$this->makeDir(array(
-            'log.php'=>"<?php return array('dir_mode'=>493,'path'=>'');",
-            'str.php'=>"<?php return array('flag'=>'x');",
-        ));
-        $env=$this->makeDir(array('only.env'=>"log.dir_mode=755\nstr.flag=1e3\n"));
-        try {
-            $configs=$this->loader($dir,$env.'/only.env')->load();
-            $this->assertSame('755',$configs['log']['dir_mode'],'数字不做类型推断, 原样按字符串写入(旧行为)');
-            $this->assertSame('1e3',$configs['str']['flag']);
-        } finally {
-            $this->removeDir($dir);
-            $this->removeDir($env);
-        }
-    }
-
-    /**
-     * 测试: 布尔节点的旧换算口径(false/null/0 → false, 其余(含空串) → true)
-     * @return void
-     */
-    public function testBooleanCoercionOnBooleanNode(): void {
-        $dir=$this->makeDir(array('app.php'=>"<?php return array('t'=>true,'f'=>false);"));
-        $env=$this->makeDir(array('only.env'=>implode("\n",array(
-            'app.t=0','app.f=yes',
-        ))));
-        try {
-            $configs=$this->loader($dir,$env.'/only.env')->load();
-            $this->assertFalse($configs['app']['t'],'原值为 bool 时 `0` 算假');
-            $this->assertTrue($configs['app']['f'],'原值为 bool 时 `yes` 算真');
-        } finally {
-            $this->removeDir($dir);
-            $this->removeDir($env);
-        }
-        $dir2=$this->makeDir(array('app.php'=>"<?php return array('t'=>true,'f'=>false);"));
-        $env2=$this->makeDir(array('only.env'=>"app.t=\napp.f=null\n"));
-        try {
-            $configs=$this->loader($dir2,$env2.'/only.env')->load();
-            $this->assertTrue($configs['app']['t'],'空串算真 —— 旧实现的口径就是如此, 这里如实固定');
-            $this->assertFalse($configs['app']['f'],'`null` 算假');
-        } finally {
-            $this->removeDir($dir2);
-            $this->removeDir($env2);
-        }
-    }
-
-    /**
-     * 测试: 未知键的三种策略(create 是默认, 即旧行为)
-     * @return void
-     */
-    public function testUnknownKeyPolicies(): void {
-        $dir=$this->makeDir(array('app.php'=>"<?php return array('debug'=>false);"));
-        $env=$this->makeDir(array('only.env'=>"database.default.host=x\n"));
-
-        try {
-            $loader=$this->loader($dir,$env.'/only.env');
-            $configs=$loader->load();
-            $this->assertSame('x',$configs['database']['default']['host'],'create(默认): 按旧行为新建节点, 行为不变');
-            $this->assertStringContainsString('在配置里不存在',$loader->diagnostics()[0]);
-
-            $loader=$this->loader($dir,$env.'/only.env');
-            $loader->setUnknownKeyPolicy(Loader::UNKNOWN_KEY_IGNORE);
-            $configs=$loader->load();
-            $this->assertArrayNotHasKey('database',$configs,'ignore: 不新建节点');
-            $this->assertStringContainsString('已按 ignore 策略忽略',$loader->diagnostics()[0]);
-
-            $loader=$this->loader($dir,$env.'/only.env');
-            $loader->setUnknownKeyPolicy(Loader::UNKNOWN_KEY_THROW);
-            $this->expectException(ConfigException::class);
-            $this->expectExceptionCode(100901);
-            $loader->load();
-        } finally {
-            $this->removeDir($dir);
-            $this->removeDir($env);
-        }
-    }
-
-    /**
-     * 测试: 未知键策略取值非法要立刻报错(而不是静默退回默认)
-     * @return void
-     */
-    public function testInvalidPolicyIsRejected(): void {
-        $this->expectException(ConfigException::class);
-        $this->expectExceptionCode(100902);
-        (new Loader(sys_get_temp_dir()))->setUnknownKeyPolicy('nope');
-    }
-
-    /**
-     * 测试: 路径中途遇到标量 → 记诊断并跳过该行(旧实现会留半个节点), 不破坏原配置
-     * @return void
-     */
-    public function testScalarMidPathIsDiagnosedNotCorrupted(): void {
-        $dir=$this->makeDir(array('a.php'=>"<?php return array('b'=>'scalar');"));
-        $env=$this->makeDir(array('only.env'=>"a.b.c=1\n"));
-        try {
-            $loader=$this->loader($dir,$env.'/only.env');
-            $configs=$loader->load();
-            $this->assertSame('scalar',$configs['a']['b'],'原值必须保持不动');
-            // 该行会先后触发两条诊断: 先"路径在配置里不存在", 再"中途段已是标量"
-            $this->assertStringContainsString('与现有配置冲突',implode("\n",$loader->diagnostics()));
-        } finally {
-            $this->removeDir($dir);
-            $this->removeDir($env);
-        }
-    }
-
-    /**
-     * 测试: `.env` 用标量覆盖整棵子树 → 照旧覆盖, 但要留诊断
-     * @return void
-     */
-    public function testArrayOverwriteIsDiagnosed(): void {
-        $dir=$this->makeDir(array('a.php'=>"<?php return array('b'=>array('c'=>1));"));
-        $env=$this->makeDir(array('only.env'=>"a.b=flat\n"));
-        try {
-            $loader=$this->loader($dir,$env.'/only.env');
-            $configs=$loader->load();
-            $this->assertSame('flat',$configs['a']['b']);
-            $this->assertStringContainsString('覆盖了配置里的整棵子树',$loader->diagnostics()[0]);
-        } finally {
-            $this->removeDir($dir);
-            $this->removeDir($env);
-        }
-    }
-
-    /**
-     * 测试: `.env` 里解析不了的行 → 诊断里带 `.env` 前缀与行号
-     * @return void
-     */
-    public function testEnvParseErrorsBecomeDiagnostics(): void {
-        $dir=$this->makeDir(array('app.php'=>"<?php return array('debug'=>false);"));
-        $env=$this->makeDir(array('only.env'=>"NOT_A_PAIR\napp.debug=false\n"));
-        try {
-            $loader=$this->loader($dir,$env.'/only.env');
-            $loader->load();
-            $this->assertStringStartsWith('.env 第 1 行',$loader->diagnostics()[0]);
-            $this->assertCount(1,$loader->env()->errors(),'解析器的错误可从 env() 取到');
-        } finally {
-            $this->removeDir($dir);
-            $this->removeDir($env);
-        }
-    }
-
-    /**
-     * 测试: `.env` 不存在时按空配置处理(留诊断, 不抛异常)
-     * @return void
-     */
-    public function testMissingEnvFileIsNotFatal(): void {
-        $dir=$this->makeDir(array('app.php'=>"<?php return array('debug'=>false);"));
-        try {
-            $loader=$this->loader($dir,$dir.'/no-such.env');
-            $this->assertFalse($loader->load()['app']['debug'],'配置本身照常, 只是没有覆盖');
-            $this->assertStringContainsString('不存在',$loader->diagnostics()[0]);
-        } finally {
-            $this->removeDir($dir);
-        }
-    }
-
-    /**
-     * 测试: 仓库真实的配置走新加载器 —— 层级与键集合符合预期, 且不产生任何诊断
+     * 测试: 仓库真实的 `config/` 走加载器 —— 11 个文件、零诊断、`env()` 已在配置文件里生效
      *
-     * - 旧版这里是与 `Config::load()` 做 `===` 全等比对(S3 的"行为不变"证据);
-     *   S4 把 `Config::load()` 改成"转发到同一个 Loader"之后, 那种比对就成了自己比自己, 故退化为
-     *   "真实输入 + 零诊断"这条仍然有意义的检查 —— 它守的是"`.env` 的键与 `config/*.php` 对得上"
-     *   (D4 那件事的现状快照)
-     * - 缺 `.env` 时只做结构断言
+     * - 守的是"配置文件本身没毛病";`.env` 与配置键的对照由 `tools/config_lint.php` 负责
+     *   (S8 之后运行期不再合并 `.env`: 键写错的表现是 `env()` 取到默认值, 或"必需键"直接报错)
      *
      * @return void
      */
     public function testRealConfigLoadsCleanly(): void {
         $root=dirname(__DIR__);
         $loader=new Loader($root.'/AdminService/config');
-        if(is_file($root.'/.env'))
-            $loader->setEnvFile($root.'/.env');
         $configs=$loader->load();
         $this->assertCount(11,$configs,'本仓库有 11 个配置文件');
-        $this->assertArrayHasKey('app',$configs);
-        $this->assertArrayHasKey('database',$configs);
-        $this->assertSame(array(),$loader->diagnostics(),'真实输入下不该产生任何诊断(含"键名写错"的怀疑)');
+        $this->assertSame(array(),$loader->diagnostics());
+        // 这里**直接**走 Loader, 不经 tests/bootstrap.php 的 load_test_config(),
+        // 因此 `app.debug` 反映的是本机真实 `.env` 的 `APP_DEBUG` —— 只断言"类型对"(bool),
+        // 不断言具体值, 免得用例依赖某台机器的 `.env`
+        $this->assertIsBool($configs['app']['debug'],'`env(\'APP_DEBUG\', false)` 取到的是 bool');
+        $this->assertTrue(is_array($configs['database']['connections']['default']));
+        $this->assertIsInt($configs['database']['connections']['default']['port'],'配置里显式 (int)env(...), 故是 int');
     }
 
 }

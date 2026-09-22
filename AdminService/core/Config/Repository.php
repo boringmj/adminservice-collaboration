@@ -4,15 +4,40 @@ namespace AdminService\Config;
 
 use base\ConfigInterface;
 
+use function count;
+use function explode;
+use function in_array;
 use function is_array;
+use function is_bool;
+use function is_float;
+use function is_int;
+use function is_numeric;
+use function is_string;
 use function str_contains;
+use function strtolower;
 
 /**
  * 配置仓储(实例化, 只读)
  *
  * - 职责: 持有装配好的配置**数组树**, 提供点分键读取; 应用级容器持有一个实例
- * - 依赖方向: 只依赖契约 `base\ConfigInterface`(实现它), 不依赖容器、不依赖 `AdminService\Config`
- * - 与 `Loader` 的分工: `Loader` 负责"读文件 + 合并", 本类只负责"已装配结果的读取"
+ * - 依赖方向: 只依赖契约 `base\ConfigInterface`(实现它)与 `.env` 快照, 不依赖容器、不依赖 `AdminService\Config`
+ * - 与 `Loader` 的分工: `Loader` 负责"读配置文件", 本类只负责"读取 + 生效值计算"
+ *
+ * ## 生效值 = `.env` 的路径键(覆盖) > 配置文件里的值 > 默认值
+ *
+ *  `.env` 里的**小写点分路径键**(如 `database.connections.default.host=...`)**会覆盖**同名配置项。
+ *  用意(2026-09-23 定): 下游项目**不必改框架的配置文件**就能覆盖任何一项 ——
+ *  于是上游更新配置时不会和下游的改动冲突, 也不必人工比对合并。
+ *
+ *  三条边界(都是刻意的, 别当 bug):
+ *  1. **只覆盖"已存在的路径"**: 路径不在配置树里 → 该键被忽略。反过来, 本类**绝不新建节点**
+ *     —— 配置树的结构只由 `config/*.php` 决定, 这正是"不允许虚空节点"那条约定的机械保证
+ *  2. **只覆盖标量叶子**: 路径指向数组时忽略覆盖(要改数组请写配置文件)
+ *  3. **类型跟着配置文件里那个值的类型走**: 文件里是 `int` 就把 `.env` 的字符串转成 `int`
+ *     (否则 `port` 会从 int 变成字符串), `bool` 按"false/null/0/空 → false, 其余 → true"折算;
+ *     文件里是字符串就给字符串;文件里是数组/`null` 则忽略覆盖。**转不了就不转**(原样给出, 不猜)
+ *
+ *  也正因为它是**查表**而不是**合并**, `.env` 不可能在配置树里造出节点 ✓
  *
  * ## 点分键口径(与旧 `Config::get()` 逐段 `isset` 下钻**等价**)
  *
@@ -29,16 +54,16 @@ use function str_contains;
  * ## 性能口径
  *
  *  平坦表是**代码整洁性**改进, 不是性能手段 —— 实测 `Config::get()` 24 次调用合计 0.156 ms
- *  (单请求 0.07%, 见评估报告 C7)。别把它当性能亮点汇报。
+ *  (单请求 0.07%, 见评估报告 C7)。覆盖查表只在 `.env` 非空且该键存在时多一次数组查表, 同样不是热点。
  *
  * @access public
  * @package AdminService\Config
- * @version 1.0.0
+ * @version 1.1.0
  */
 final class Repository implements ConfigInterface {
 
     /**
-     * 配置树
+     * 配置树(纯配置文件的结果, 不含 `.env` 覆盖)
      * @var array<string,mixed>
      */
     private array $configs=array();
@@ -48,6 +73,12 @@ final class Repository implements ConfigInterface {
      * @var array<string,mixed>
      */
     private array $flat=array();
+
+    /**
+     * `.env` 快照(用于"路径键覆盖"; 没有则为 null —— 此时 `get()` 只读配置文件)
+     * @var Env|null
+     */
+    private ?Env $env=null;
 
     /**
      * 装配期诊断(来自 `Loader`)
@@ -63,17 +94,19 @@ final class Repository implements ConfigInterface {
      * 构造方法
      *
      * @access public
-     * @param array<string,mixed> $configs 配置树(**必填**: 见构造方法注释)
+     * @param array<string,mixed> $configs 配置树(**必填**)
      * @param array<string> $diagnostics 装配期诊断
+     * @param Env|null $env `.env` 快照(传了才启用"路径键覆盖")
      */
-    public function __construct(array $configs,array $diagnostics=array()) {
+    public function __construct(array $configs,array $diagnostics=array(),?Env $env=null) {
         $this->configs=$configs;
         $this->diagnostics=$diagnostics;
+        $this->env=$env;
         $this->flatten($configs,'');
     }
 
     /**
-     * 读取配置项
+     * 读取配置项(生效值)
      *
      * @access public
      * @param string $key 点分键
@@ -81,6 +114,25 @@ final class Repository implements ConfigInterface {
      * @return mixed
      */
     public function get(string $key,mixed $default=null): mixed {
+        if(!isset($this->flat[$key]))
+            return $default;
+        $file=$this->flat[$key];
+        if($this->env!==null&&!is_array($file)&&$this->env->has($key))
+            return $this->castOverride($this->env->get($key),$file);
+        return $file;
+    }
+
+    /**
+     * 读取配置项(**只看配置文件**, 不看 `.env` 覆盖)
+     *
+     * - 排查用: "这个值到底是文件里写的, 还是被 `.env` 覆盖了?"
+     *
+     * @access public
+     * @param string $key 点分键
+     * @param mixed $default 默认值
+     * @return mixed
+     */
+    public function file(string $key,mixed $default=null): mixed {
         return isset($this->flat[$key])?$this->flat[$key]:$default;
     }
 
@@ -96,13 +148,26 @@ final class Repository implements ConfigInterface {
     }
 
     /**
-     * 取全部配置
+     * 取全部配置(**生效值**)
+     *
+     * - 覆盖只写回**已存在的路径**, 且**绝不新建节点** —— 所以这份结果里不会出现"只活在 `.env` 里的配置项"
+     * - 想拿"纯文件树"请用 `file()` 逐项读, 或直接看 `config/*.php`
      *
      * @access public
      * @return array<string,mixed>
      */
     public function all(): array {
-        return $this->configs;
+        if($this->env===null)
+            return $this->configs;
+        $out=$this->configs;
+        foreach($this->env->all() as $key=>$raw) {
+            $key=(string)$key;
+            // 只覆盖已存在的标量路径(中间节点/数组/不存在的路径一律跳过)
+            if(!isset($this->flat[$key])||is_array($this->flat[$key]))
+                continue;
+            $this->applyOverride($out,explode('.',$key),$this->castOverride($raw,$this->flat[$key]));
+        }
+        return $out;
     }
 
     /**
@@ -113,6 +178,55 @@ final class Repository implements ConfigInterface {
      */
     public function diagnostics(): array {
         return $this->diagnostics;
+    }
+
+    /**
+     * 把覆盖值按路径写回(仅沿已存在的路径走, 因此不会新建节点)
+     *
+     * @access private
+     * @param array<string,mixed> $tree 目标树(引用传递)
+     * @param array<string> $segments 路径段
+     * @param mixed $value 覆盖值
+     * @return void
+     */
+    private function applyOverride(array &$tree,array $segments,mixed $value): void {
+        $node=&$tree;
+        $last=count($segments)-1;
+        for($i=0;$i<$last;$i++) {
+            $segment=$segments[$i];
+            if(!isset($node[$segment])||!is_array($node[$segment]))
+                return;
+            $node=&$node[$segment];
+        }
+        $leaf=$segments[$last];
+        if(!isset($node[$leaf]))
+            return;
+        $node[$leaf]=$value;
+    }
+
+    /**
+     * 按"配置文件里那个值的类型"转换覆盖值
+     *
+     * - 转不了就原样给出(不猜、不抛): 例如文件里是 `int` 而 `.env` 写了个非数字串
+     *
+     * @access private
+     * @param mixed $raw `.env` 里的值(已被 `Env` 转过 bool/null)
+     * @param mixed $file 配置文件里的值
+     * @return mixed
+     */
+    private function castOverride(mixed $raw,mixed $file): mixed {
+        if(is_bool($file)) {
+            if(is_bool($raw)||$raw===null)
+                return (bool)$raw;
+            return !in_array(strtolower((string)$raw),array('false','null','0',''),true);
+        }
+        if(is_int($file))
+            return is_numeric($raw)?(int)$raw:$raw;
+        if(is_float($file))
+            return is_numeric($raw)?(float)$raw:$raw;
+        if(is_string($file))
+            return $raw===null?'':(is_string($raw)?$raw:(string)$raw);
+        return $raw;
     }
 
     /**

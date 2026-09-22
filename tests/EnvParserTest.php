@@ -282,22 +282,34 @@ class EnvParserTest extends TestCase {
     }
 
     /**
-     * 测试: `env()` 的"必需键"语义 —— **不传默认值就表示必需, 缺失即抛**
+     * 测试: `env()` 缺失时**返回默认值, 不抛异常**(也没有"必需键"这个概念)
      *
-     * - 这是主流做法里最能治"静默失效"的一条: `.env` 里键名写错时, 引用它的配置**启动就报错**,
-     *   而不是悄悄拿到 null 或默认值(线上那次事故正是后者)
-     * - 传了第二个参数就是可缺省, 缺失时回落默认值
+     * - 框架只管"有值就用、没有就回落", 不替使用者判断"这个键该不该有"
+     *   (2026-09-23 定; 早先按 Symfony 试过"不传默认值 = 必需键, 缺失即抛", 已撤销 ——
+     *   它既违背纲领"运行期取值缺失 → 返回默认值", 也让框架替用户做起了检查)
+     * - 不传默认值时默认就是 `null`
      *
      * @return void
      */
-    public function testGlobalEnvHelperRequiresKeysWithoutDefault(): void {
+    public function testGlobalEnvHelperFallsBackToDefault(): void {
         $this->assertSame('fallback',env('DEFINITELY_NOT_IN_ENV','fallback'),'给了默认值就回落');
-        try {
-            env('DEFINITELY_NOT_IN_ENV');
-            $this->fail('缺省必需键时应当抛 ConfigException');
-        } catch(\AdminService\exception\ConfigException $e) {
-            $this->assertStringContainsString('DEFINITELY_NOT_IN_ENV',$e->getMessage());
-        }
+        $this->assertNull(env('DEFINITELY_NOT_IN_ENV'),'不传默认值就是 null, 不抛');
+        $this->assertSame('',env('DEFINITELY_NOT_IN_ENV',''),'空串默认值同样有效');
+    }
+
+    /**
+     * 测试: `.env` 的语法错误**不抛异常**, 只记进 `errors()`(框架不替使用者做检查)
+     *
+     * - 要不要当回事交给部署前的 `tools/config_lint.php` 与调试日志(`app.debug` 时 `Main` 会落一次)
+     *
+     * @return void
+     */
+    public function testBrokenEnvDoesNotThrow(): void {
+        $env=new Env("NOT_A_PAIR\nOK=1");
+        $this->assertCount(1,$env->errors());
+        $this->assertSame('1',$env->get('OK'),'能解析的行照常解析');
+        // 全局助手的快照是真实 `.env`, 这里只断言"它不会因为文件有错就抛"
+        $this->assertIsObject(env_snapshot());
     }
 
     /**

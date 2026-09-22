@@ -2,6 +2,7 @@
 
 namespace base;
 
+use base\Exception\DependencyException;
 use ReflectionException;
 
 use function is_array;
@@ -36,15 +37,24 @@ abstract class Controller {
 
     /**
      * 容器契约(按契约依赖, 不引用实现层)
+     *
+     * - **基类内部管道**: 仅供本类取路由上下文用
+     * - 声明为 `private` 是刻意的: 子类可以自由使用同名属性(`$config` / `$container` 这类名字很常见),
+     *   私有成员互不冲突;若声明为 `protected`, 子类的同名 `private` 属性会触发
+     *   "Access level ... must be protected or weaker", 且同名属性会被两者共用(注入值会顶掉契约对象)
+     *
      * @var Container|null
      */
-    protected ?Container $container;
+    private ?Container $container;
 
     /**
      * 配置契约(视图路径推断用)
+     *
+     * - 同 `$container`, 属基类内部管道, **请勿在子类中以同名属性替代**
+     *
      * @var ConfigInterface|null
      */
-    protected ?ConfigInterface $config;
+    private ?ConfigInterface $config;
 
     /**
      * 构造方法
@@ -70,7 +80,7 @@ abstract class Controller {
     ) {
         if($container===null) {
             if($request===null||$response===null||$view===null)
-                throw new Exception('控制器须由容器构建(或同时传入请求/响应/视图): 请使用 App::make(控制器类)');
+                throw new DependencyException('控制器须由容器构建(或同时传入请求/响应/视图): 请使用 App::make(控制器类)');
         } else {
             $request??=$container->get(Request::class);
             $response??=$container->get(Response::class);
@@ -209,7 +219,7 @@ abstract class Controller {
             $template=null;
         }
         if($this->config===null)
-            throw new Exception('无法推断视图路径: 未注入配置契约(请让容器构建控制器)');
+            throw new DependencyException('无法推断视图路径: 未注入配置契约(请让容器构建控制器)');
         // 路由上下文(应用名 / 控制器名 / 方法名)属请求级对象, 未分发时为 null
         $context=$this->routeContext();
         if($template===null)

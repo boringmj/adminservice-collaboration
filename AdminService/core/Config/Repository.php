@@ -2,6 +2,7 @@
 
 namespace AdminService\Config;
 
+use AdminService\exception\ConfigException;
 use base\ConfigInterface;
 
 use function count;
@@ -23,7 +24,12 @@ use function strtolower;
  * - 依赖方向: 只依赖契约 `base\ConfigInterface`(实现它)与 `.env` 快照, 不依赖容器、不依赖 `AdminService\Config`
  * - 与 `Loader` 的分工: `Loader` 负责"读配置文件", 本类只负责"读取 + 生效值计算"
  *
- * ## 生效值 = `.env` 的路径键(覆盖) > 配置文件里的值 > 默认值
+ * ## 生效值 = 运行时写入(临时值) > `.env` 的路径键(覆盖) > 配置文件里的值 > 默认值
+ *
+ *  **运行时写入**(`put()` / 门面的 `Config::setValue()`): 优先级**最高**, 谁都盖不掉 ——
+ *  用来"临时改一项"而不必重写整份配置, 也不会牵动 `.env` 的覆盖层。
+ *  ⚠ 它活在**本实例**上: 应用级仓储是进程级对象, 常驻模式下临时值会跨请求保留 ✗ ——
+ *  需要请求级隔离时请 `fork()` 一个请求级容器并在其仓储上写(或干脆别用运行期写)。
  *
  *  `.env` 里的**小写点分路径键**(如 `database.connections.default.host=...`)**会覆盖**同名配置项。
  *  用意(2026-09-23 定): 下游项目**不必改框架的配置文件**就能覆盖任何一项 ——
@@ -75,10 +81,16 @@ final class Repository implements ConfigInterface {
     private array $flat=array();
 
     /**
-     * `.env` 快照(用于"路径键覆盖"; 没有则为 null —— 此时 `get()` 只读配置文件)
+     * `.env` 快照(用于"路径键覆盖"; 没有则为 null —— 此时 `get()` 不套 `.env` 覆盖)
      * @var Env|null
      */
     private ?Env $env=null;
+
+    /**
+     * 运行时写入的临时值(扁平点分键表, **优先级最高**)
+     * @var array<string,mixed>
+     */
+    private array $runtime=array();
 
     /**
      * 装配期诊断(来自 `Loader`)
@@ -114,6 +126,9 @@ final class Repository implements ConfigInterface {
      * @return mixed
      */
     public function get(string $key,mixed $default=null): mixed {
+        // ① 运行时写入的临时值(最高优先级)
+        if(array_key_exists($key,$this->runtime))
+            return $this->runtime[$key];
         if(!isset($this->flat[$key]))
             return $default;
         $file=$this->flat[$key];
@@ -144,7 +159,7 @@ final class Repository implements ConfigInterface {
      * @return bool
      */
     public function has(string $key): bool {
-        return isset($this->flat[$key]);
+        return array_key_exists($key,$this->runtime)||isset($this->flat[$key]);
     }
 
     /**
@@ -167,7 +182,68 @@ final class Repository implements ConfigInterface {
                 continue;
             $this->applyOverride($out,explode('.',$key),$this->castOverride($raw,$this->flat[$key]));
         }
+        // 临时值最后写回 —— 优先级最高
+        foreach($this->runtime as $key=>$value)
+            $this->applyOverride($out,explode('.',(string)$key),$value);
         return $out;
+    }
+
+    /**
+     * 写入一个**运行时临时值**(优先级最高, 谁都盖不掉)
+     *
+     * - 只允许写在**已存在的路径**上: 不存在的路径属代码写错(不是配置数据的问题), 直接抛 ——
+     *   既不让它变成"只活在代码里的配置项", 也不让它静默失效
+     *
+     * @access public
+     * @param string $key 点分键
+     * @param mixed $value 值
+     * @return void
+     * @throws ConfigException 路径在配置里不存在
+     */
+    public function put(string $key,mixed $value): void {
+        if(!isset($this->flat[$key]))
+            throw new ConfigException('配置项 "'.$key.'" 不存在, 不能写入临时值(只允许覆盖已存在的配置项)',100905);
+        $this->runtime[$key]=$value;
+    }
+
+    /**
+     * 把一棵配置树里**已存在的标量叶子**一次性写进临时层
+     *
+     * - 供 `Config::set()` 用: 让"刚 set 进去的值"赢过 `.env` 的覆盖
+     *   (否则会出现"我明明 set 了却被部署侧的 `.env` 改掉")
+     *
+     * @access public
+     * @param array<string,mixed> $configs 配置树
+     * @return void
+     */
+    public function putAll(array $configs): void {
+        $flat=array();
+        $this->collectScalars($configs,'',$flat);
+        foreach($flat as $key=>$value)
+            if(isset($this->flat[$key]))
+                $this->runtime[$key]=$value;
+    }
+
+    /**
+     * 把树里"不含点的标量叶子"收集成扁平表(供 `putAll()` 用)
+     *
+     * @access private
+     * @param array<string,mixed> $data 当前层
+     * @param string $prefix 前缀
+     * @param array<string,mixed> $out 收集结果(引用传递)
+     * @return void
+     */
+    private function collectScalars(array $data,string $prefix,array &$out): void {
+        foreach($data as $key=>$value) {
+            $key=(string)$key;
+            if(str_contains($key,'.'))
+                continue;
+            $path=$prefix===''?$key:$prefix.'.'.$key;
+            if(is_array($value))
+                $this->collectScalars($value,$path,$out);
+            else
+                $out[$path]=$value;
+        }
     }
 
     /**

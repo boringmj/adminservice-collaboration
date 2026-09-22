@@ -2,8 +2,10 @@
 
 namespace AdminService;
 
+use AdminService\Config\Repository;
 use base\AbstractSession;
 use base\Container as ContainerContract;
+use base\ConfigInterface;
 use base\Request;
 use base\Response;
 
@@ -38,25 +40,36 @@ final class Application {
     private ?ContainerContract $request_container=null;
 
     /**
+     * 配置仓储(装配与请求期都要读它; 构造期定下, 之后不再变)
+     * @var Repository
+     */
+    private Repository $config;
+
+    /**
      * 构造方法
      *
      * @access public
      * @param ContainerContract|null $container 容器实例
      *  - 未传入时:**复用门面当前已安装的容器**(同一进程内通常只有一个应用级容器),
      *    门面没有实例时才新建 —— 避免"新建一个空应用"把已装配好的容器顶掉
+     * @param Repository|null $config 配置仓储
+     *  - 未传入时取门面当前装配的那一份; 若连门面都还没装配(如只调 `App::init()` 的测试), 退化为**空配置**
      */
-    public function __construct(?ContainerContract $container=null) {
+    public function __construct(?ContainerContract $container=null,?Repository $config=null) {
         if($container!==null)
             $this->container=$container;
         elseif(App::hasInstance())
             $this->container=App::getInstance();
         else
             $this->container=new Container();
+        $this->config=$config??Config::repository()??new Repository();
     }
 
     /**
      * 初始化(引导)
      *
+     * - **先把配置实例登记进容器**: 契约名与实现类名都能取到, 组件(含内核的参数解析器)因此按契约拿配置,
+     *   不需要静态门面
      * - 按配置装配绑定表与别名: `app.classes`(数值键为"绑定自身", 字符串键为别名)与 `app.alias`
      * - 应用 `app.param_cast` 开关
      * - 安装容器到门面(重复调用不会重建已安装的容器, 语义幂等)
@@ -67,11 +80,15 @@ final class Application {
      * @throws Exception
      */
     public function init(array $classes=array()): static {
+        // 登记配置实例(按契约名 + 实现类名): 这是"依赖倒置"的落点 —— 使用者注入 `base\ConfigInterface`,
+        // 拿到的是真配置, 而不是转发到全局静态的替身
+        $this->container->instance(ConfigInterface::class,$this->config);
+        $this->container->instance(Repository::class,$this->config);
         // 获取配置文件中的别名(与绑定分表: 别名只描述"名字 → 名字")
-        $aliases=Config::get('app.alias',array());
+        $aliases=$this->config->get('app.alias',array());
         // 获取配置文件中需要直接绑定到容器中的类(数值键为"绑定自身", 字符串键为"别名 → 类")
         $binds=array();
-        $classes=array_merge($classes,Config::get('app.classes',array()));
+        $classes=array_merge($classes,$this->config->get('app.classes',array()));
         foreach($classes as $alias=>$class) {
             if(is_int($alias))
                 $binds[$class]=$class;
@@ -83,7 +100,7 @@ final class Application {
             if(!class_exists($class)&&!interface_exists($class))
                 throw new Exception('Class "'.$class.'" not found.');
         // 设置是否允许标量参数静默转换(可在 config/app.php 中配置 app.param_cast)
-        $this->container->setParamCast(Config::get('app.param_cast',true));
+        $this->container->setParamCast($this->config->get('app.param_cast',true));
         // 写入绑定表: 自身映射无意义(解析时原样返回), 直接跳过, 其余走 bind(含循环检测)
         foreach($binds as $name=>$class) {
             if($name===$class)
@@ -109,6 +126,16 @@ final class Application {
      */
     public function container(): ContainerContract {
         return $this->container;
+    }
+
+    /**
+     * 获取配置仓储(框架内部取配置走这里, 不经静态门面)
+     *
+     * @access public
+     * @return Repository
+     */
+    public function config(): Repository {
+        return $this->config;
     }
 
     /**
@@ -172,8 +199,8 @@ final class Application {
             $container->instance(Response::class,$container->build(Response::class));
         if(!$container->hasInstance(AbstractSession::class)) {
             /** @var AbstractSession $session */
-            $session=$container->build(Config::get('session.class',ArraySession::class));
-            if(Config::get('session.start',false))
+            $session=$container->build($this->config->get('session.class',ArraySession::class));
+            if($this->config->get('session.start',false))
                 $session->init();
             $container->instance(AbstractSession::class,$session);
         }

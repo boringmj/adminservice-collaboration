@@ -50,13 +50,25 @@ final class Repository implements ConfigInterface {
     private array $flat=array();
 
     /**
+     * 装配期诊断(来自 `Loader`)
+     *
+     * - 为什么放在这里: 引导期日志子系统还没就绪(`log.path` 本身就来自配置), `Loader` 只能先把诊断**收集**起来;
+     *   而门面只允许有"一个静态"(`Repository` 指针), 没地方挂第二份状态 —— 于是让"装配结果"连同"装配过程的告警"
+     *   一起走。上层(如 `Main::init()`)在日志就绪后再统一记录一次
+     * @var array<string>
+     */
+    private array $diagnostics=array();
+
+    /**
      * 构造方法
      *
      * @access public
      * @param array<string,mixed> $configs 配置树
+     * @param array<string> $diagnostics 装配期诊断
      */
-    public function __construct(array $configs=array()) {
+    public function __construct(array $configs=array(),array $diagnostics=array()) {
         $this->configs=$configs;
+        $this->diagnostics=$diagnostics;
         $this->flatten($configs,'');
     }
 
@@ -91,6 +103,16 @@ final class Repository implements ConfigInterface {
      */
     public function all(): array {
         return $this->configs;
+    }
+
+    /**
+     * 取装配期诊断(空数组表示一切正常)
+     *
+     * @access public
+     * @return array<string>
+     */
+    public function diagnostics(): array {
+        return $this->diagnostics;
     }
 
     /**

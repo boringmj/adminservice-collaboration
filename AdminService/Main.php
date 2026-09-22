@@ -2,6 +2,7 @@
 
 namespace AdminService;
 
+use AdminService\Config\Repository;
 use base\Database\Db as BaseDb;
 use base\Request;
 use base\Response;
@@ -9,6 +10,8 @@ use base\Route;
 use AdminService\Database\DatabaseConfig;
 use ReflectionException;
 
+use function count;
+use function implode;
 use function is_array;
 
 final class Main {
@@ -54,12 +57,15 @@ final class Main {
             $response->prepare($container->get(Request::class));
             $response->send();
         },false);
-        // 加载配置文件
+        // 加载配置文件(装配出配置仓储并安装到门面)
         Config::load();
+        $config=Config::repository()??new Repository();
         // 加载函数库
-        $this->loadFunction();
-        // App初始化(建应用级容器并按配置装配, 同时安装到门面)
+        $this->loadFunction($config);
+        // App初始化(建应用级容器并按配置装配 —— 同时把配置实例登记进容器 —— 并安装到门面)
         $this->application=(new Application())->init();
+        // 装配期诊断(配置文件名字不合规 / `.env` 里的可疑键等)在日志子系统就绪后统一记一次
+        $this->reportConfigDiagnostics($config);
         // 安装数据库配置提供者: 数据库层(契约层)不读全局配置, 由应用层把配置能力交给它
         BaseDb::setConfig(new DatabaseConfig());
         // 注入容器到错误处理器: 错误 / 异常路径不再经静态门面(容器不可用时走内置兜底)
@@ -74,11 +80,12 @@ final class Main {
      * 加载函数库
      *
      * @access private
+     * @param Repository $config 配置仓储(引导期运行在容器建立之前, 故由调用方直接传入)
      * @return void
      */
-    private function loadFunction(): void {
-        $function_path=Config::get('function.path');
-        $function_loader=Config::get('function.loader');
+    private function loadFunction(Repository $config): void {
+        $function_path=$config->get('function.path');
+        $function_loader=$config->get('function.loader');
         if(is_array($function_loader)) {
             foreach($function_loader as $function) {
                 $function_file=$function_path.'/'.$function.'.php';
@@ -86,6 +93,27 @@ final class Main {
                     include_once $function_file;
             }
         }
+    }
+
+    /**
+     * 记录配置装配期诊断
+     *
+     * - 只在调试模式记录: 生产环境每请求都会重跑引导, 而诊断内容与请求无关, 无条件写会变成日志噪音
+     * - 诊断来自配置仓储(`Loader` 在装配期收集): 配置文件名字不合规、`.env` 里的可疑键与畸形行等
+     *
+     * @access private
+     * @param Repository $config 配置仓储
+     * @return void
+     * @throws Exception|ReflectionException
+     */
+    private function reportConfigDiagnostics(Repository $config): void {
+        $diagnostics=$config->diagnostics();
+        if($diagnostics===array()||!$config->get('app.debug',false))
+            return;
+        $this->application->container()->get(Log::class)->write(
+            '配置装配期诊断({count} 条): {diagnostics}',
+            array('count'=>count($diagnostics),'diagnostics'=>implode(' | ',$diagnostics))
+        );
     }
 
     /**
@@ -102,7 +130,7 @@ final class Main {
     public function run(): void {
         // 由应用承载请求处理: 每请求一个请求级容器(fork/reset 与门面指针切换都在 Application::handle() 内)
         $this->application()->handle(function(): void {
-            $middlewares=Pipeline::order(Pipeline::normalize(Config::get('middlewares.request',array())));
+            $middlewares=Pipeline::order(Pipeline::normalize($this->application()->config()->get('middlewares.request',array())));
             (new Pipeline($middlewares,App::get(Request::class)))->then(function(): void {
                 App::fresh(Route::class)->run();
             });

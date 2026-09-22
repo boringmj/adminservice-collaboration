@@ -4,6 +4,7 @@ require __DIR__.'/../vendor/autoload.php';
 
 use AdminService\App;
 use AdminService\Config;
+use AdminService\Config\Repository;
 use AdminService\Container;
 use AdminService\Database\DatabaseConfig;
 use base\Database\Db as BaseDb;
@@ -59,6 +60,11 @@ load_test_functions();
 function boot_test_container(): void {
     if(!App::hasInstance())
         App::setInstance(new Container());
+    // 登记配置实例: 容器内核的参数解析器按 `base\ConfigInterface` 取配置(不再经静态门面),
+    // 因此测试容器也要有这一份, 否则 `#[Config]` 一类的注入会静默拿到默认值
+    $container=App::getInstance();
+    if(!$container->hasInstance(\base\ConfigInterface::class))
+        $container->instance(\base\ConfigInterface::class,Config::repository()??new Repository());
     BaseDb::setConfig(new DatabaseConfig());
 }
 

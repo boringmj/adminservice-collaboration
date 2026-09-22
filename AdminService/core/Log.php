@@ -47,7 +47,8 @@ class Log {
      * @access public
      * @param string|null $log_name 日志文件名称(不含文件扩展名,不含目录名)
      * @throws Exception
-     */
+          * @param ConfigInterface|null $config 配置契约实例(未注入时回落门面当前那份)
+*/
     public function __construct(?string $log_name=null,?ConfigInterface $config=null) {
         $this->config=$config;
         // 获取用于存储日志的目录

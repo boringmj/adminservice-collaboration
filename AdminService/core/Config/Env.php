@@ -13,7 +13,6 @@ use function rtrim;
 use function str_replace;
 use function str_starts_with;
 use function strlen;
-use function strpbrk;
 use function strpos;
 use function strtolower;
 use function substr;
@@ -22,12 +21,41 @@ use function trim;
 /**
  * `.env` 解析器(实例化, 不持有进程状态)
  *
- * - 职责: 把 `.env` **文本**解析成"键 => 值"的平坦表, 并记录无法解析的行
+ * - 职责: 把 `.env` **文本**解析成"键 => 值"的表, 并记录无法解析的行
  * - 依赖方向: 不依赖容器、不依赖 `AdminService\Config`, 可单独 new 出来用;
  *   文件读取只由 `fromFile()` 负责, 解析本身与文件系统无关
  * - 目录归属: `core/Config/` 与 `core/Database/`、`core/Router/` 同级同形;
  *   注意同名类 `AdminService\Config`(门面)与命名空间 `AdminService\Config\*` 并存,
  *   这是 PSR-4 下"类名与命名空间同名"的既定取舍, 两侧互不影响
+ *
+ * ## 口径按主流来(2026-09-23 定)
+ *
+ * 参照 Laravel/Symfony 那一套(`.env` 只提供值、不参与结构):
+ *
+ *  1. **键名大小写敏感**: `env('DB_HOST')` 只认 `DB_HOST`;`db_host` 是另一个键。
+ *     点号**没有路径语义**, 就是普通字符(旧实现把点当层级下钻, 那条合并通道已删除)
+ *  2. **只做 bool / null 的类型转换**(`true`/`false`/`null`, 大小写不敏感);
+ *     **数字一律保持字符串** —— 躲开前导 `0`(`0755`)被当八进制、以及位数超 int 范围被静默截断这类惊喜。
+ *     要数字请在配置里显式转换: `(int)env('DB_PORT', 3306)`
+ *  3. **引号形式永远是字符串**(`"true"` 就是字符串), 这是"我就要字符串"的逃生口
+ *  4. 无法解析的行**不抛异常**, 只记进 `errors()`: 本类只管解析, 由上层决定怎么呈现
+ *     (框架的 `env()` 助手会在解析出错时抛 `AdminService\exception\ConfigException`; 部署前
+ *     体检 `tools/config_lint.php` 也会把它们报出来)
+ *
+ * ## 关于"虚空节点"的历史约定(留档, 2026-09-23)
+ *
+ *  本框架早期的约定是 **不允许虚空节点** —— 所有配置项都必须**显式出现在 `config/*.php`** 里,
+ *  `.env` **只做覆盖、不做新增**。理由是避免过度依赖 `.env`: 若某个配置项只活在 `.env` 里,
+ *  普通用户翻配置文件时既找不到它、也读不到它的说明, 会造成困惑。
+ *
+ *  —— 而旧 `Config::load()` 里那句 `if(!isset($config[$n])) $config[$n]=array();` **恰恰违背了这条约定**:
+ *  它把不认识的键静默建成"虚空节点"。这是评估报告 A5 的由来, 也是线上"`.env` 键名写错却静默失效
+ *  (最终表现为 `Database connection failed.`)"的根因。**旁证**: 仓库自带的 `.env.example` 里就曾躺着
+ *  两个从来没被读过、配置里也早已不存在的键(`request.default.type`、`route.default.app`)。
+ *
+ *  —— 2026-09-23(计划 S8)合并通道已删除, 这条约定于是**结构性成立**: `.env` 只提供值, 结构一律由
+ *  `config/*.php` 里的 `env('KEY')` 显式声明 —— 也就是主流做法。本节留档, 供日后回看它是怎么被违背、
+ *  又是怎么被恢复的。
  *
  * ## 值语法
  *
@@ -41,51 +69,17 @@ use function trim;
  *  6. 整行注释(`#` 开头)与**行尾注释**(`#` 前必须有空白, 且只作用于非引号值)
  *  7. 空行、行首尾空白、CRLF
  *
- * ## 类型推断(仅非引号值)
- *
- *  `true`/`false`(大小写不敏感)→ bool; `null` → null; 可直接还原的十进制整数 → int
- *  (前导 0 与超出 int 范围的数字**保留字符串**, 不静默截断); 浮点/科学计数法 → float;
- *  其余一律字符串。引号形式**永远**是字符串(`K="true"` 就是字符串 `true`)。
- *
- * ## 与旧实现(`Config::load()` 内联 30 行)的三条兼容口径
- *
- *  1. **键名大小写不敏感**: 后写的覆盖先写的, 保留后写的写法(旧的 `strtolower()` 等价于此)
- *  2. **后写覆盖前写**(同名键)
- *  3. **点分键是普通键**: `a.b=1` 的键名就是 `a.b`(旧的"建嵌套节点"属于合并策略, 由 `Loader` 决定)
- *
- * ## 无法解析的行
- *
- *  缺 `=`、键为空、引号未闭合、引号闭合后还有多余内容 —— 一律记进 `errors()`,
- *  **本类不决定策略**(是忽略、告警还是 fail-fast, 留给上层的合并器; 见计划 D4)。
- *  能抢救的值仍会保留(如引号未闭合时按普通字符串处理)。
- *
  * @access public
  * @package AdminService\Config
- * @version 1.0.0
+ * @version 2.0.0
  */
 final class Env {
 
     /**
-     * 生效的键值表(键按写法保留; 同名键只留最后一个)
+     * 键值表(键按写法保留, 大小写敏感; 完全同名的键后写覆盖前写)
      * @var array<string,mixed>
      */
     private array $values=array();
-
-    /**
-     * 小写键 => 实际键(大小写不敏感查找用)
-     * @var array<string,string>
-     */
-    private array $index=array();
-
-    /**
-     * 与 `all()` 同键的**原文**值(未做类型推断)
-     *
-     * - 存在的理由只有一条: 旧的 `.env` 合并行为是"值一律按**字符串**写进配置树, 仅当目标节点原本是布尔时才换算"
-     *   —— 过渡期(计划 S3–S7)要原样保留这个行为, 就必须拿得到原文。S8 把 `.env` 语义迁到 `env()` 之后,
-     *   合并路径消失, 本方法即可删除
-     * @var array<string,string>
-     */
-    private array $raw=array();
 
     /**
      * 无法解析的行(形如 `第 3 行 缺少 "=": ...`)
@@ -139,17 +133,7 @@ final class Env {
     }
 
     /**
-     * 取全部键值(与 `all()` 同键, 值为未做类型推断的原文)
-     *
-     * @access public
-     * @return array<string,string>
-     */
-    public function raw(): array {
-        return $this->raw;
-    }
-
-    /**
-     * 取无法解析的行
+     * 取无法解析的行(空数组表示一切正常)
      *
      * @access public
      * @return array<string>
@@ -172,37 +156,37 @@ final class Env {
      * 判断键是否存在(键不存在与"值为 null"是两回事)
      *
      * @access public
-     * @param string $key 键(大小写不敏感)
+     * @param string $key 键(**大小写敏感**)
      * @return bool
      */
     public function has(string $key): bool {
-        return isset($this->index[strtolower($key)]);
+        return array_key_exists($key,$this->values);
     }
 
     /**
-     * 读取键值(大小写不敏感; 键不存在时返回默认值)
+     * 读取键值(键不存在时返回默认值)
      *
      * @access public
-     * @param string $key 键
+     * @param string $key 键(**大小写敏感**)
      * @param mixed $default 默认值
      * @return mixed
      */
     public function get(string $key,mixed $default=null): mixed {
-        $real=$this->index[strtolower($key)]??null;
-        return $real===null?$default:$this->values[$real];
+        return array_key_exists($key,$this->values)?$this->values[$key]:$default;
     }
 
     /**
      * 逐行解析
+     *
+     * - 按 `\n` 切行(不用 `preg_split('/\R/')`): `\R` 在没有 `u` 修饰时把 `\x85`(NEL)
+     *   也当换行, 而 `\x85` 会出现在中文的 UTF-8 字节里 —— 实测 `关` = `E5 85 B3` 被腰斩。
+     *   `\r\n` 先归一成 `\n`, 残余的 `\r` 由下面每行的 trim 收拾
      *
      * @access private
      * @param string $content `.env` 文本
      * @return void
      */
     private function parse(string $content): void {
-        // 按 `\n` 切行(不用 `preg_split('/\R/')`): `\R` 在没有 `u` 修饰时把 `\x85`(NEL)
-        // 也当换行, 而 `\x85` 会出现在中文的 UTF-8 字节里 —— 实测 `关` = `E5 85 B3` 被腰斩。
-        // `\r\n` 先归一成 `\n`, 残余的 `\r` 由下面每行的 trim 收拾。
         $lines=explode("\n",str_replace("\r\n","\n",$content));
         $no=0;
         foreach($lines as $line) {
@@ -237,8 +221,7 @@ final class Env {
             $this->errors[]='第 '.$no.' 行为空键: '.$line;
             return;
         }
-        $parsed=$this->parseValue(substr($line,$pos+1),$key,$no);
-        $this->set($key,$parsed[0],$parsed[1]);
+        $this->values[$key]=$this->parseValue(substr($line,$pos+1),$key,$no);
     }
 
     /**
@@ -248,10 +231,10 @@ final class Env {
      * @param string $raw 右侧原文(行首尾空白已去)
      * @param string $key 键(报错用)
      * @param int $no 行号(报错用)
-     * @return array{0:mixed,1:string} `[类型推断后的值, 原文]`
+     * @return mixed
      */
-    private function parseValue(string $raw,string $key,int $no): array {
-        // 引号形式: 原样保留, 不做类型推断(原文 = 引号内的内容)
+    private function parseValue(string $raw,string $key,int $no): mixed {
+        // 引号形式: 原样保留, 不做类型推断
         if($raw!==''&&($raw[0]==='"'||$raw[0]==="'")) {
             $quote=$raw[0];
             $end=$this->closingQuote($raw,$quote);
@@ -262,14 +245,13 @@ final class Env {
                 if($rest!==''&&!str_starts_with($rest,'#'))
                     $this->errors[]='第 '.$no.' 行引号闭合后仍有多余内容('.$key.'), 已忽略: '.$rest;
                 $inner=substr($raw,1,$end-1);
-                $value=$quote==='"'?$this->unescape($inner):$inner;
-                return array($value,$value);
+                return $quote==='"'?$this->unescape($inner):$inner;
             }
         }
         // 行尾注释: 只在 `#` 前有空白时生效(`va#lue` 里的 `#` 是值的一部分)
         if(preg_match('/\s#/',$raw)===1)
             $raw=rtrim((string)preg_replace('/\s#.*$/s','',$raw));
-        return array($this->cast($raw),$raw);
+        return $this->cast($raw);
     }
 
     /**
@@ -309,9 +291,10 @@ final class Env {
     }
 
     /**
-     * 类型推断(仅非引号值)
+     * 类型推断(仅非引号值): **只转 bool 与 null, 数字一律保持字符串**
      *
-     * - 整数只在"能直接还原"时才转: 前导 `0` 与超出 int 范围的一律保留字符串, 不静默截断
+     * - 这是主流口径(Laravel / phpdotenv): 数字转类型会带来前导 `0` 被当八进制、
+     *   超 int 范围被静默截断之类的惊喜, 而收益很小 —— 要数字在配置里显式 `(int)` 转换即可
      *
      * @access private
      * @param string $value 原值
@@ -325,34 +308,7 @@ final class Env {
             return false;
         if($lower==='null')
             return null;
-        if(preg_match('/^-?\d+$/',$value)===1) {
-            $int=(int)$value;
-            return (string)$int===$value?$int:$value;
-        }
-        if(preg_match('/^-?(\d+\.\d*|\.\d+|\d+)([eE][+-]?\d+)?$/',$value)===1&&strpbrk($value,'.eE')!==false)
-            return (float)$value;
         return $value;
-    }
-
-    /**
-     * 写入一个键值(同名键按大小写不敏感覆盖, 保留后写的写法)
-     *
-     * @access private
-     * @param string $key 键
-     * @param mixed $value 值(已做类型推断)
-     * @param string $raw 原文(未做类型推断; 引号值取引号内的内容)
-     * @return void
-     */
-    private function set(string $key,mixed $value,string $raw): void {
-        $lower=strtolower($key);
-        $prev=$this->index[$lower]??null;
-        if($prev!==null&&$prev!==$key) {
-            unset($this->values[$prev]);
-            unset($this->raw[$prev]);
-        }
-        $this->values[$key]=$value;
-        $this->raw[$key]=$raw;
-        $this->index[$lower]=$key;
     }
 
 }

@@ -50,19 +50,17 @@ final class Config {
     }
 
     /**
-     * 加载配置(读 `config/*.php`, 有 `.env` 则合并)并安装为当前仓储
+     * 加载配置(读 `config/*.php`)并安装为当前仓储
      *
      * - 与旧版同语义: 整体替换当前配置; 重复调用会重新读盘
-     * - `.env` 不存在时不合并(也不记诊断) —— 与旧版一致, 空 `.env` 是正常情况
+     * - **不再处理 `.env`**: `.env` 的值由配置文件里的 `env('KEY', $default)` 自己取
+     *   (主流口径: `.env` 只提供值, 结构由配置文件声明), 故本方法只负责 `config/*.php`
      *
      * @access public
      * @return void
      */
     public static function load(): void {
         $loader=new Loader(__DIR__.'/../config');
-        $env_file=__DIR__.'/../../.env';
-        if(is_file($env_file))
-            $loader->setEnvFile($env_file);
         self::$repository=new Repository($loader->load(),$loader->diagnostics());
     }
 

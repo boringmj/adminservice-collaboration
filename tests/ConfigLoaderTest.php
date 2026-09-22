@@ -130,7 +130,7 @@ class ConfigLoaderTest extends TestCase {
      * @return void
      */
     public function testEmptyRepositoryAndContract(): void {
-        $repo=new Repository();
+        $repo=new Repository(array());
         $this->assertSame(array(),$repo->all());
         $this->assertSame('dflt',$repo->get('anything','dflt'));
         $this->assertInstanceOf(ConfigInterface::class,$repo);

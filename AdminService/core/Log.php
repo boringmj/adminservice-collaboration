@@ -2,6 +2,9 @@
 
 namespace AdminService;
 
+use AdminService\Config\Repository;
+use base\ConfigInterface;
+
 use Exception;
 
 use function array_keys;
@@ -11,6 +14,26 @@ use function preg_match;
 use function str_replace;
 
 class Log {
+
+    /**
+     * 配置(构造期可注入; 未注入时回落门面当前那份 —— 手工构造 / 测试用)
+     * @var ConfigInterface|null
+     */
+    private ?ConfigInterface $config=null;
+
+    /**
+     * 取配置契约实例
+     *
+     * - 容器构建本对象时由构造参数注入(即 `Application::init()` 登记进容器的那一份)
+     * - 手工 `new` 时没有注入 → **每次**回落门面当前那份(**不缓存**), 与重构前行为一致;
+     *   注入过的那份则保持不变(这就是"配置是快照"的语义)
+     *
+     * @access private
+     * @return ConfigInterface
+     */
+    private function config(): ConfigInterface {
+        return $this->config??Config::repository()??new Repository(array());
+    }
 
     /**
     * 日志文件路径
@@ -25,22 +48,23 @@ class Log {
      * @param string|null $log_name 日志文件名称(不含文件扩展名,不含目录名)
      * @throws Exception
      */
-    public function __construct(?string $log_name=null) {
+    public function __construct(?string $log_name=null,?ConfigInterface $config=null) {
+        $this->config=$config;
         // 获取用于存储日志的目录
-        $log_path=Config::get('log.path');
+        $log_path=$this->config()->get('log.path');
         // 如果目录不存在,则创建目录
         if(!is_dir($log_path))
-            mkdir($log_path,Config::get('log.dir_mode'),true);
+            mkdir($log_path,$this->config()->get('log.dir_mode'),true);
         // 如果日志名称为空,则使用默认日志名称
         if(empty($log_name))
-            $log_name=$this->bind(Config::get('log.default_file'),array(
+            $log_name=$this->bind($this->config()->get('log.default_file'),array(
                 'date'=>date('Y-m-d',time())
             ));
         // 判断日志名称是否合法
-        if(!preg_match(Config::get('log.rule.file'),$log_name))
+        if(!preg_match($this->config()->get('log.rule.file'),$log_name))
             throw new Exception('日志名称不合法'.$log_name);
         // 拼接上日志文件路径
-        $log_path.='/'.$log_name.Config::get('log.ext_name');
+        $log_path.='/'.$log_name.$this->config()->get('log.ext_name');
         $this->log_path=$log_path;
         $this->check();
     }
@@ -56,7 +80,7 @@ class Log {
      */
     public function write(string $content,array $vars=array()):void {
         // 获取日志格式
-        $format=Config::get('log.row');
+        $format=$this->config()->get('log.row');
         // 检查日志文件是否存在,可写和大小是否超过最大值
         $this->check();
         // 如果日志格式为空,则直接写入日志
@@ -88,7 +112,7 @@ class Log {
         if(!is_file($this->log_path))
             file_put_contents($this->log_path,'');
         // 判断日志文件大小是否超过最大值
-        if(filesize($this->log_path)>Config::get('log.max_size',104857600)) {
+        if(filesize($this->log_path)>$this->config()->get('log.max_size',104857600)) {
             $log_path_info=pathinfo($this->log_path);
             $log_path=$log_path_info['dirname'].'/'.$log_path_info['filename'];
             $log_ext_name=$log_path_info['extension'];

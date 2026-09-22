@@ -1,6 +1,9 @@
 <?php
 
 namespace AdminService;
+use AdminService\Config\Repository;
+use base\Attribute\AutowireProperty;
+use base\ConfigInterface;
 
 use base\Response;
 use base\Route as BaseRoute;
@@ -32,6 +35,23 @@ use function usort;
  * - 路由表在首次请求时装配, 之后复用同一实例
  */
 final class Route extends BaseRoute {
+    /**
+     * 配置(由容器装配时注入; 直接 new 时为 null → 每次回落门面当前那份)
+     * @var ConfigInterface|null
+     */
+    #[AutowireProperty(ConfigInterface::class)]
+    private ?ConfigInterface $config=null;
+
+    /**
+     * 取配置契约实例
+     *
+     * @access private
+     * @return ConfigInterface
+     */
+    private function config(): ConfigInterface {
+        return $this->config??Config::repository()??new Repository(array());
+    }
+
 
     /**
      * 显式路由表
@@ -114,12 +134,12 @@ final class Route extends BaseRoute {
         if($this->router!==null)
             return $this->router;
         $this->router=new Router();
-        foreach((array)Config::get('route.files',array()) as $path)
+        foreach((array)$this->config()->get('route.files',array()) as $path)
             $this->loadRoutes($path);
         // 属性路由: 自动扫描 + 手工登记
-        $attributes=Config::get('route.attributes',array());
+        $attributes=$this->config()->get('route.attributes',array());
         if(!empty($attributes['scan']))
-            $this->router->registerAttributes((new AttributeScanner())->scan((string)Config::get('app.path')));
+            $this->router->registerAttributes((new AttributeScanner())->scan((string)$this->config()->get('app.path')));
         if(!empty($attributes['classes']))
             $this->router->registerAttributes($attributes['classes']);
         // 装配完成后校验路由名唯一, 让重名尽早暴露
@@ -192,7 +212,7 @@ final class Route extends BaseRoute {
      * @return array<string|object>
      */
     private function controllerMiddlewares(mixed $handler): array {
-        $entries=Pipeline::normalize(Config::get('middlewares.controller',array()));
+        $entries=Pipeline::normalize($this->config()->get('middlewares.controller',array()));
         if(is_array($handler)&&count($handler)===2&&is_string($handler[0])&&class_exists($handler[0])) {
             $reflection=new ReflectionClass($handler[0]);
             $entries=array_merge($entries,self::middlewareEntries($reflection->getAttributes(Middleware::class)));

@@ -2,6 +2,9 @@
 
 namespace AdminService;
 
+use AdminService\Config\Repository;
+use base\ConfigInterface;
+
 use base\AbstractUploadFile;
 use base\UploadStorageInterface;
 use AdminService\exception\UploadStorageException;
@@ -11,6 +14,36 @@ use function is_dir;
 use function mkdir;
 
 final class UploadStorage implements UploadStorageInterface {
+
+
+    /**
+     * 配置(构造期可注入; 未注入时回落门面当前那份 —— 手工构造 / 测试用)
+     * @var ConfigInterface|null
+     */
+    private ?ConfigInterface $config=null;
+
+    /**
+     * 取配置契约实例
+     *
+     * - 容器构建本对象时由构造参数注入(即 `Application::init()` 登记进容器的那一份)
+     * - 手工 `new` 时没有注入 → **每次**回落门面当前那份(**不缓存**), 与重构前行为一致;
+     *   注入过的那份则保持不变(这就是"配置是快照"的语义)
+     *
+     * @access private
+     * @return ConfigInterface
+     */
+    private function config(): ConfigInterface {
+        return $this->config??Config::repository()??new Repository(array());
+    }
+    /**
+     * 构造方法
+     *
+     * @access public
+     * @param ConfigInterface|null $config 配置契约实例(未注入时回落门面当前那份)
+     */
+    public function __construct(?ConfigInterface $config=null) {
+        $this->config=$config;
+    }
 
     /**
      * 最后一次最终保存路径
@@ -76,7 +109,7 @@ final class UploadStorage implements UploadStorageInterface {
      */
     protected function prepareDir(string $dir): void {
         if(is_dir($dir)) return;
-        $dir_mode=Config::get('request.default.upload.save.mode',0755);
+        $dir_mode=$this->config()->get('request.default.upload.save.mode',0755);
         if(!@mkdir($dir,$dir_mode,true)&&!is_dir($dir))
             throw new UploadStorageException('创建上传目录失败');
     }

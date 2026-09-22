@@ -2,6 +2,9 @@
 
 namespace AdminService;
 
+use AdminService\Config\Repository;
+use base\ConfigInterface;
+
 use base\Request;
 use base\AbstractInputProcessor;
 use base\Container as ContainerContract;
@@ -33,6 +36,26 @@ use function ucwords;
  * - 上传表单惰性构建: 未访问上传接口时既不读配置也不触碰上传目录
  */
 final class HttpRequest extends Request {
+
+    /**
+     * 配置(构造期可注入; 未注入时回落门面当前那份 —— 手工构造 / 测试用)
+     * @var ConfigInterface|null
+     */
+    private ?ConfigInterface $config=null;
+
+    /**
+     * 取配置契约实例
+     *
+     * - 容器构建本对象时由构造参数注入(即 `Application::init()` 登记进容器的那一份)
+     * - 手工 `new` 时没有注入 → **每次**回落门面当前那份(**不缓存**), 与重构前行为一致;
+     *   注入过的那份则保持不变(这就是"配置是快照"的语义)
+     *
+     * @access private
+     * @return ConfigInterface
+     */
+    private function config(): ConfigInterface {
+        return $this->config??Config::repository()??new Repository(array());
+    }
 
     /**
      * 容器契约(由容器构建本对象时注入; 直接 new 时为 null)
@@ -117,7 +140,8 @@ final class HttpRequest extends Request {
      * @param array<string,mixed> $sources 输入源
      * @param ContainerContract|null $container 容器契约
      */
-    public function __construct(array $sources=array(),?ContainerContract $container=null) {
+    public function __construct(array $sources=array(),?ContainerContract $container=null,?ConfigInterface $config=null) {
+        $this->config=$config;
         // 容器由容器构建时注入(输入处理器因此可依赖注入);直接 new 时为 null
         $this->container=$container;
         $this->headers=(new Data(self::parseHeaders($sources)))
@@ -133,7 +157,7 @@ final class HttpRequest extends Request {
         $this->input=new Data();
         $this->parseInput();
         // 获取参数处理顺序
-        $this->order=Config::get('request.default.param.order','CGP');
+        $this->order=$this->config()->get('request.default.param.order','CGP');
     }
 
     /**
@@ -182,7 +206,7 @@ final class HttpRequest extends Request {
         $content_type_header=$this->headers->get('content-type','');
         $content_type=strtolower(trim(explode(';',$content_type_header)[0]));
         /** @var array<string, string> $input_list */
-        $input_list=Config::get('request.default.input',[]);
+        $input_list=$this->config()->get('request.default.input',[]);
         if(!array_key_exists($content_type,$input_list))
             return;
         // 验证是否属于 AbstractInputProcessor
@@ -194,7 +218,7 @@ final class HttpRequest extends Request {
         $parser=($this->container===null?new $parser_class():$this->container->build($parser_class))->parse($this->raw_input);
         $this->input->init($parser->toArray());
         // 判断是否需要将input参数与其他参数合并
-        $input=Config::get('request.default.param.input',0);
+        $input=$this->config()->get('request.default.param.input',0);
         switch($input) {
             case self::GET_PARAM:
                 $this->query->batchSet($this->input->all());
@@ -216,7 +240,7 @@ final class HttpRequest extends Request {
      */
     private function fileForm(): UploadFilesForm {
         if($this->file_form===null) {
-            $save_dir=(string)Config::get(
+            $save_dir=(string)$this->config()->get(
                 'request.default.upload.save.dir',
                 __DIR__.'/../uploads'
             );

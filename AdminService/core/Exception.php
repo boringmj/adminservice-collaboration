@@ -22,7 +22,7 @@ class Exception extends BaseException {
      */
     final public function __construct(string $message,int $error_code=0,array $data=array()) {
         parent::__construct($message,$error_code,$data);
-        if(!Config::get('app.debug',false))
+        if(!Error::isDebug())
             return;
         // 容器未就绪(引导期异常 / 容器不可用)时不写日志: 与生产环境一致, 避免引导期刷日志
         $container=Error::container();

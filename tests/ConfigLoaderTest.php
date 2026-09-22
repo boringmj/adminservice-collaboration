@@ -4,7 +4,6 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
-use AdminService\Config;
 use AdminService\Config\Env;
 use AdminService\Config\Loader;
 use AdminService\Config\Repository;
@@ -401,29 +400,25 @@ class ConfigLoaderTest extends TestCase {
     }
 
     /**
-     * 测试: 仓库真实的 `config/` + `.env` 走新加载器 —— 与旧 `Config::load()` 的输出**完全相同**
+     * 测试: 仓库真实的配置走新加载器 —— 层级与键集合符合预期, 且不产生任何诊断
      *
-     * - 这是 S3"行为不变"的证据: 用真实输入对照旧实现, 而不是靠人工推断
-     * - 缺 `.env` 时跳过(仓库里 `.env` 不入库)
-     * - 用 `===` 求值后只断言**布尔结果**: 配置数组里含真实口令, 断言失败时不能让 PHPUnit 把它打印出来
-     * - ⚠ 本用例依赖 `Config::load()` 这条旧路径, **S4/S5 把它改成门面后就该删掉**
-     *   (那时"行为不变"由 `tools/baseline/snapshot.php --check` 继续守着)
+     * - 旧版这里是与 `Config::load()` 做 `===` 全等比对(S3 的"行为不变"证据);
+     *   S4 把 `Config::load()` 改成"转发到同一个 Loader"之后, 那种比对就成了自己比自己, 故退化为
+     *   "真实输入 + 零诊断"这条仍然有意义的检查 —— 它守的是"`.env` 的键与 `config/*.php` 对得上"
+     *   (D4 那件事的现状快照)
+     * - 缺 `.env` 时只做结构断言
      *
      * @return void
      */
-    public function testRealConfigMatchesLegacyLoader(): void {
+    public function testRealConfigLoadsCleanly(): void {
         $root=dirname(__DIR__);
-        if(!is_file($root.'/.env'))
-            $this->markTestSkipped('本机没有 .env(未纳入版本库), 跳过新旧对照');
-        Config::load();
-        $legacy=Config::all();
-
         $loader=new Loader($root.'/AdminService/config');
-        $loader->setEnvFile($root.'/.env');
-        $new=$loader->load();
-
-        $this->assertCount(11,$new,'本仓库有 11 个配置文件');
-        $this->assertTrue($legacy===$new,'新加载器的输出与旧 Config::load() 不一致(含类型与层级)');
+        if(is_file($root.'/.env'))
+            $loader->setEnvFile($root.'/.env');
+        $configs=$loader->load();
+        $this->assertCount(11,$configs,'本仓库有 11 个配置文件');
+        $this->assertArrayHasKey('app',$configs);
+        $this->assertArrayHasKey('database',$configs);
         $this->assertSame(array(),$loader->diagnostics(),'真实输入下不该产生任何诊断(含"键名写错"的怀疑)');
     }
 

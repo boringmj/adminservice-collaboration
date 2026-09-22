@@ -86,9 +86,14 @@ final class Container implements \base\Container {
         $this->autowire=new Autowire($this->reflections);
         // 装配器: 类名解析 + 按类名装配实例 + 参数解析(生命周期方法注入) + 代理创建(注入容器)
         $this->autowire->setArgumentResolver($this->arguments);
-        // 参数解析器: 配置项取值(接到框架配置; 组件因此不直接依赖配置实现)
+        // 参数解析器: 配置项取值(接到"容器里登记的配置实例"; 组件因此既不依赖配置实现, 也不依赖配置门面)
+        // - 用 `findInstance()` 而不是 `get()`: 只认**已登记**的实例, 不会顺手把类构建出来
+        //   (否则一个没登记配置的裸容器会静默拿到"空配置", 把"没配置"伪装成"配置里没这个键")
+        // - `findInstance()` 会查父容器, 故请求级 fork 也能取到应用级登记的那一份
+        // - 没登记时回落到默认值(而不是抛): 引导期就会走到这里, 抛异常会把真正的错误盖掉
         $this->arguments->setValueResolver(function(string $key,mixed $default=null): mixed {
-            return Config::get($key,$default);
+            $config=$this->findInstance(\base\ConfigInterface::class);
+            return $config instanceof \base\ConfigInterface?$config->get($key,$default):$default;
         });
         $this->autowire->setProxyResolver(function(string $class,array $args=array()): DynamicProxy {
             $proxy=new DynamicProxy($class,...$args);

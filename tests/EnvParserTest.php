@@ -322,12 +322,12 @@ class EnvParserTest extends TestCase {
             '',
             '# 关闭调试模式',
             'app.debug=false',
-            'database.connections.default.password=fW44=KD=01',
+            'database.connections.default.password=secret=with=equals',
         )));
         $this->assertSame('json',$env->get('request.default.type'),'点分键就是普通键');
         $this->assertSame('app',$env->get('route.default.app'));
         $this->assertFalse($env->get('app.debug'));
-        $this->assertSame('fW44=KD=01',$env->get('database.connections.default.password'),'口令里的 `=` 不再被截断');
+        $this->assertSame('secret=with=equals',$env->get('database.connections.default.password'),'口令里的 `=` 不再被截断');
         $this->assertSame(array(),$env->errors());
     }
 

@@ -63,10 +63,10 @@ final class Repository implements ConfigInterface {
      * 构造方法
      *
      * @access public
-     * @param array<string,mixed> $configs 配置树
+     * @param array<string,mixed> $configs 配置树(**必填**: 见构造方法注释)
      * @param array<string> $diagnostics 装配期诊断
      */
-    public function __construct(array $configs=array(),array $diagnostics=array()) {
+    public function __construct(array $configs,array $diagnostics=array()) {
         $this->configs=$configs;
         $this->diagnostics=$diagnostics;
         $this->flatten($configs,'');

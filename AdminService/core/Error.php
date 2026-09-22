@@ -1,6 +1,7 @@
 <?php
 
 namespace AdminService;
+use base\ConfigInterface;
 
 use base\Error as BaseError;
 use base\Container as ContainerContract;
@@ -29,6 +30,32 @@ use function call_user_func;
  * 用于收集和处理PHP错误，包括致命错误和非致命错误。
  */
 final class Error extends BaseError {
+    /**
+     * 取配置(错误 / 异常路径专用)
+     *
+     * - 容器可用时读容器里登记的配置实例; 容器不可用(引导未完成 / 容器自身出错)时回落门面
+     * - 这条路径**不能**靠构造注入: 异常是 `new` 出来的, 且错误处理可能发生在容器就绪之前
+     *
+     * @access private
+     * @return ConfigInterface|null
+     */
+    private static function config(): ?ConfigInterface {
+        $container=self::$container;
+        if($container!==null&&$container->hasInstance(ConfigInterface::class))
+            return $container->get(ConfigInterface::class);
+        return Config::repository();
+    }
+
+    /**
+     * 是否调试模式(错误 / 异常路径共用)
+     *
+     * @access public
+     * @return bool
+     */
+    public static function isDebug(): bool {
+        return (bool)(self::config()?->get('app.debug',false)??false);
+    }
+
 
     /**
      * 框架容器(引导期由 `Main::init()` 一次性注入)
@@ -318,7 +345,7 @@ final class Error extends BaseError {
      * @return string
      */
     private static function renderErrors(): string {
-        $debug_mode=Config::get('app.debug',false);
+        $debug_mode=self::isDebug();
         // 预处理错误数据
         $processed_errors=[];
         foreach(self::$errors as $index=>$error) {
@@ -380,7 +407,7 @@ final class Error extends BaseError {
             if($view===null)
                 return self::renderMinimalErrors($processed_errors);
             // 设置模板路径
-            $template_path=Config::get('app.error_template',null);
+            $template_path=self::config()?->get('app.error_template');
             if($template_path==null||!is_file($template_path))
                 $view->initWithContent(self::getDefaultErrorTemplate(),$template_data);
             else

@@ -2,6 +2,9 @@
 
 namespace AdminService;
 
+use AdminService\Config\Repository;
+use base\ConfigInterface;
+
 use Throwable;
 
 use function AdminService\common\uuid;
@@ -11,6 +14,26 @@ use function file_get_contents;
 use function preg_match;
 
 final class File {
+
+    /**
+     * 配置(构造期可注入; 未注入时回落门面当前那份 —— 手工构造 / 测试用)
+     * @var ConfigInterface|null
+     */
+    private ?ConfigInterface $config=null;
+
+    /**
+     * 取配置契约实例
+     *
+     * - 容器构建本对象时由构造参数注入(即 `Application::init()` 登记进容器的那一份)
+     * - 手工 `new` 时没有注入 → **每次**回落门面当前那份(**不缓存**), 与重构前行为一致;
+     *   注入过的那份则保持不变(这就是"配置是快照"的语义)
+     *
+     * @access private
+     * @return ConfigInterface
+     */
+    private function config(): ConfigInterface {
+        return $this->config??Config::repository()??new Repository(array());
+    }
 
     /**
      * 文件绝对路径
@@ -31,7 +54,8 @@ final class File {
      * @param string|null $file_name 文件名称(不含扩展名和多余的路径)
      * @throws \AdminService\Exception
      */
-    public function __construct(?string $file_name=null) {
+    public function __construct(?string $file_name=null,?ConfigInterface $config=null) {
+        $this->config=$config;
         $this->init($file_name);
     }
 
@@ -45,7 +69,7 @@ final class File {
      */
     public function init(?string $file_name=null): void {
         if($file_name===null) {
-            $file_name_cycle=Config::get("data.name_cycle");
+            $file_name_cycle=$this->config()->get("data.name_cycle");
             if($file_name_cycle>0)
                 $file_name='cache_'.floor(time()/$file_name_cycle);
             else
@@ -53,11 +77,11 @@ final class File {
         }
         if(!preg_match('/^[a-zA-Z0-9_-]+$/',$file_name))
             throw new Exception('File name is invalid',-1);
-        $this->file_path=Config::get("data.path").'/'.$file_name.Config::get("data.ext_name");
+        $this->file_path=$this->config()->get("data.path").'/'.$file_name.$this->config()->get("data.ext_name");
         // 补全目录
         $dir=dirname($this->file_path);
         if(!is_dir($dir))
-            mkdir($dir,Config::get("data.dir_mode"),true);
+            mkdir($dir,$this->config()->get("data.dir_mode"),true);
         // 读取数据
         $this->read();
     }

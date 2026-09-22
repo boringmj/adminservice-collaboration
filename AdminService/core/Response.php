@@ -2,6 +2,9 @@
 
 namespace AdminService;
 
+use AdminService\Config\Repository;
+use base\ConfigInterface;
+
 use base\Cookie;
 use base\Request;
 use base\Response as BaseResponse;
@@ -26,6 +29,26 @@ use function is_string;
 final class Response extends BaseResponse {
 
     /**
+     * 配置(构造期可注入; 未注入时回落门面当前那份 —— 手工构造 / 测试用)
+     * @var ConfigInterface|null
+     */
+    private ?ConfigInterface $config=null;
+
+    /**
+     * 取配置契约实例
+     *
+     * - 容器构建本对象时由构造参数注入(即 `Application::init()` 登记进容器的那一份)
+     * - 手工 `new` 时没有注入 → **每次**回落门面当前那份(**不缓存**), 与重构前行为一致;
+     *   注入过的那份则保持不变(这就是"配置是快照"的语义)
+     *
+     * @access private
+     * @return ConfigInterface
+     */
+    private function config(): ConfigInterface {
+        return $this->config??Config::repository()??new Repository(array());
+    }
+
+    /**
      * 待发送Header(值为字符串数组, 支持同名多值)
      * @var Data
      */
@@ -48,7 +71,8 @@ final class Response extends BaseResponse {
      *
      * @access public
      */
-    public function __construct() {
+    public function __construct(?ConfigInterface $config=null) {
+        $this->config=$config;
         $this->headers=new Data();
         $this->cookies=new Data();
     }
@@ -64,7 +88,7 @@ final class Response extends BaseResponse {
         ?string $type=null
     ): string {
         $type=$type??$this->contentType;
-        $type_list=array_keys(Config::get('response.default.type',[]));
+        $type_list=array_keys($this->config()->get('response.default.type',[]));
         // 判断当前类型是否存在
         if(in_array($type,$type_list))
             return $type;
@@ -83,7 +107,7 @@ final class Response extends BaseResponse {
         if($this->contentType==='*/*') {
             $type=Negotiator::best(
                 Negotiator::parse($request->header('accept')),
-                array_keys(Config::get('response.default.type',array()))
+                array_keys($this->config()->get('response.default.type',array()))
             );
             if($type!==null)
                 $this->contentType($type);
@@ -230,7 +254,7 @@ final class Response extends BaseResponse {
         if($this->return_content!==null) return $this->return_content;
         // 未登记的内容类型回落到登记表的第一个
         $type=$this->getStandardContentType();
-        $config=Config::get('response.default.type.'.$type,[]);
+        $config=$this->config()->get('response.default.type.'.$type,[]);
         $class=$config['class']??Http::class;
         // 处理器需要写入本实例: 显式传入, 不依赖容器中的同名单例
         App::new($class,response:$this,config:$config)->handle();

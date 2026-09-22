@@ -64,7 +64,9 @@ function boot_test_container(): void {
     // 因此测试容器也要有这一份, 否则 `#[Config]` 一类的注入会静默拿到默认值
     $container=App::getInstance();
     if(!$container->hasInstance(\base\ConfigInterface::class))
-        $container->instance(\base\ConfigInterface::class,Config::repository()??new Repository());
+        $container->instance(\base\ConfigInterface::class,Config::repository()??new Repository(array()));
+    // 注意: **不**给 DatabaseConfig 注入配置实例 —— 测试靠 `Config::set()` 反复换配置来构造场景,
+    // 注入会把配置定格成快照, 换配置就影响不到它(见 ConfigFacadeTest 的 set() 同步用例)
     BaseDb::setConfig(new DatabaseConfig());
 }
 

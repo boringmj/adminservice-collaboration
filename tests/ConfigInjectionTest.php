@@ -5,9 +5,14 @@ namespace Tests;
 use PHPUnit\Framework\TestCase;
 
 use Tests\Fixtures\ConfigConsumer;
+use Tests\Fixtures\ConfigOnPropertyConflict;
+use Tests\Fixtures\ConfigOnSetterConflict;
+use Tests\Fixtures\ConfigOnSetterParamConflict;
+use Tests\Fixtures\ConfigOnMethodConflict;
 use AdminService\App;
 use AdminService\ArgumentResolver;
 use AdminService\Config;
+use AdminService\exception\AutowireException;
 use base\Attribute\Config as ConfigAttribute;
 
 /**
@@ -46,7 +51,11 @@ class ConfigInjectionTest extends TestCase {
     public function testDefaults(): void {
         /** @var ConfigConsumer $consumer */
         $consumer=App::make(ConfigConsumer::class);
+        // 注解 default:
         $this->assertSame('fallback',$consumer->fallback);
+        // 属性自身默认值(非空类型也不会因 null 而 TypeError)
+        $this->assertSame('property-default',$consumer->from_property_default);
+        // 两者都没有 → null(目标类型须可空)
         $this->assertNull($consumer->missing);
     }
 
@@ -71,13 +80,30 @@ class ConfigInjectionTest extends TestCase {
     }
 
     /**
-     * 测试控制器方法形参不注入配置
+     * 测试方法形参: 框架解析实参时配置注入生效, 且**显式实参优先**
      * @return void
      */
-    public function testMethodParamNotInjected(): void {
+    public function testMethodParamInjected(): void {
         /** @var ConfigConsumer $consumer */
         $consumer=App::make(ConfigConsumer::class);
-        $this->assertSame('untouched',App::exec_class_function($consumer,'methodParamNotInjected',array()));
+        // 无实参 → 配置值
+        $this->assertSame(Config::get('data.ext_name').'|none',App::exec_class_function($consumer,'methodParamInjected',array()));
+        // 有同名实参 → 实参优先, 配置注入不覆盖
+        $this->assertSame('explicit-wins|none',App::exec_class_function($consumer,'methodParamInjected',array('ext'=>'explicit-wins')));
+        // 顺位实参按位置从左往右填充(这里占用第一个形参, 因此同样覆盖配置注入)
+        $this->assertSame('by-position|none',App::exec_class_function($consumer,'methodParamInjected',array('by-position')));
+    }
+
+    /**
+     * 测试 `exec_function`: 闭包形参上的 `#[Config]` 同样生效
+     * @return void
+     */
+    public function testFunctionParamInjected(): void {
+        $result=App::exec_function(
+            fn(#[ConfigAttribute('data.ext_name')] string $ext='untouched'): string => $ext,
+            array()
+        );
+        $this->assertSame(Config::get('data.ext_name'),$result);
     }
 
     /**
@@ -89,6 +115,31 @@ class ConfigInjectionTest extends TestCase {
         $this->assertSame('fallback',$resolver->configValue(new ConfigAttribute('not.exist.key',default:'fallback')));
         // 标量转换不依赖取值回调
         $this->assertSame('1',$resolver->configValue(new ConfigAttribute('any.key',default:true),array('string')));
+    }
+
+    /**
+     * 测试自相矛盾的标注直接报错(fail-fast, 不再静默忽略)
+     *
+     * - `#[Config]` 与 `#[AutowireProperty]` / `#[AutowireSetter]` / `#[AutowireMethod]` 同挂一处
+     * - 此前: 前两者静默忽略 Autowire*, 第三者会把方法**调用两次**
+     *
+     * @return void
+     */
+    public function testContradictoryAnnotationsAreRejected(): void {
+        foreach(array(
+            ConfigOnPropertyConflict::class,
+            ConfigOnSetterConflict::class,
+            ConfigOnSetterParamConflict::class,
+            ConfigOnMethodConflict::class,
+        ) as $class) {
+            try {
+                App::make($class);
+                $this->fail($class.' 应当抛出 AutowireException');
+            } catch(AutowireException $e) {
+                // 四种矛盾的信息措辞不同, 但都必须点明是 #[Config] 的用法冲突
+                $this->assertStringContainsString('#[Config]',$e->getMessage());
+            }
+        }
     }
 
 }

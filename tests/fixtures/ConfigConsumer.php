@@ -26,11 +26,18 @@ class ConfigConsumer {
     public string $fallback='';
 
     /**
-     * 属性注入(无默认值; 键不存在时为 null)
+     * 属性注入(键缺失时的兜底: 注解 default: > **属性自身默认值** > null)
+     * @var string
+     */
+    #[Config('not.exist.key')]
+    public string $from_property_default='property-default';
+
+    /**
+     * 属性注入(既无注解默认值、属性也没有默认值 → null)
      * @var string|null
      */
     #[Config('not.exist.key')]
-    public ?string $missing='sentinel';
+    public ?string $missing;
 
     /**
      * 标量转换: 配置里是 int, 目标类型是 string
@@ -74,13 +81,16 @@ class ConfigConsumer {
     }
 
     /**
-     * 反例: **控制器方法形参不注入配置**(控制器形参只注入路由参数)
+     * 普通方法形参: 由框架解析实参时(`exec_class_function` / `exec_function`)同样生效
      *
-     * @param string $ext 扩展名
+     * - 校验点: ①配置注入生效 ②**显式实参优先于配置注入**(同名实参时不看配置)
+     *
+     * @param string $ext 扩展名(由配置注入)
+     * @param string $explicit 显式实参
      * @return string
      */
-    public function methodParamNotInjected(#[Config('data.ext_name')] string $ext='untouched'): string {
-        return $ext;
+    public function methodParamInjected(#[Config('data.ext_name')] string $ext='untouched',string $explicit='none'): string {
+        return $ext.'|'.$explicit;
     }
 
 }

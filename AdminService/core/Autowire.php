@@ -291,9 +291,17 @@ final class Autowire implements AutowireInterface {
             // 配置项注入: #[Config('键')] 标在属性上
             $config=$this->arguments?->configAttribute($property);
             if($config!==null) {
+                // 同一属性再标 #[AutowireProperty] 属自相矛盾(一个属性不能既是配置值又是注入的服务对象)
+                if($property->getAttributes(AutowireProperty::class)!==array())
+                    throw new AutowireException(
+                        'Property "'.$property->getName().'" of class "'.$ref->getName().
+                        '" cannot be annotated with both #[Config] and #[AutowireProperty].',
+                    );
                 $types=$this->arguments->getStandardTypes($this->reflectionTypeToArray($property->getType(),false));
+                // 键缺失时的兜底顺序: 注解 default: > 属性自身默认值 > null
+                $fallback=$property->hasDefaultValue()?$property->getDefaultValue():null;
                 $property->setAccessible(true);
-                $property->setValue($instance,$this->arguments->configValue($config,$types));
+                $property->setValue($instance,$this->arguments->configValue($config,$types,$fallback));
                 continue;
             }
             // 获取属性是否有 AutowireProperty 标签
@@ -340,6 +348,15 @@ final class Autowire implements AutowireInterface {
                 // 配置项注入: #[Config('键')] 标在 Setter 方法上, 方法唯一的形参收到配置值
                 $config=$this->arguments?->configAttribute($method);
                 if($config!==null) {
+                    // 一个方法上不能同时挂 #[Config] 与 #[AutowireSetter]/#[AutowireMethod]:
+                    // 前者是"注入配置值的 setter", 后者是"注入服务对象的 setter / 生命周期钩子", 语义冲突
+                    // (此前是静默忽略 Autowire*; 若为 #[AutowireMethod] 还会被调用两次)
+                    foreach(array(AutowireSetter::class=>'#[AutowireSetter]',AutowireMethod::class=>'#[AutowireMethod]') as $other=>$other_name)
+                        if($method->getAttributes($other)!==array())
+                            throw new AutowireException(
+                                'Method "'.$method->getName().'" of class "'.$ref->getName().
+                                '" cannot be annotated with both #[Config] and '.$other_name.'.',
+                            );
                     $params=$method->getParameters();
                     if(count($params)!==1)
                         throw new AutowireException(
@@ -360,6 +377,12 @@ final class Autowire implements AutowireInterface {
                 $attributes=$method->getAttributes(AutowireSetter::class);
                 if(empty($attributes))
                     continue;
+                // 同一方法既当 Setter 又当生命周期钩子会被调用两次, 属自相矛盾, 直接报错
+                if($method->getAttributes(AutowireMethod::class)!==array())
+                    throw new AutowireException(
+                        'Method "'.$method->getName().'" of class "'.$ref->getName().
+                        '" cannot be annotated with both #[AutowireSetter] and #[AutowireMethod].',
+                    );
                 // 判断参数是否为一个类名或接口名
                 $params=$method->getParameters();
                 if(count($params)!==1)
@@ -368,6 +391,12 @@ final class Autowire implements AutowireInterface {
                         '" must have exactly one parameter.',
                     );
                 $param=$params[0];
+                // 形参上的 #[Config] 在"AutowireSetter 注入服务对象"这条路径不会被应用(静默失效), 直接报错
+                if($this->arguments?->configAttribute($param)!==null)
+                    throw new AutowireException(
+                        'Parameter "'.$param->getName().'" of method "'.$method->getName().'" of class "'.$ref->getName().
+                        '" is annotated with #[Config], which is not applied here: annotate the method itself with #[Config] to inject a config value.',
+                    );
                 // 获取 AutowireSetter 实例
                 $autowire_attr=$attributes[0]->newInstance();
                 // 获取需要注入的对象

@@ -12,9 +12,9 @@ use function func_num_args;
  * - 把**配置项的值**(而不是配置对象)注入到属性 / Setter 形参 / 构造函数形参
  * - 键为点分路径(如 `app.path`、`data.path`), 可给默认值;标量按容器既有规则静默转换
  * - 三种写法:
- *   ① 属性: `#[Config('app.path')] private string $path;`
- *   ② Setter 方法: `#[Config('log.path')] public function setLogPath(string $path): void {}`(方法唯一的形参收到该值)
- *   ③ 构造函数形参: `public function __construct(#[Config('data.path')] string $path='') {}`
+ *   - 属性: `#[Config('app.path')] private string $path;`
+ *   - Setter 方法: `#[Config('log.path')] public function setLogPath(string $path): void {}`(方法唯一的形参收到该值)
+ *   - 构造函数形参: `public function __construct(#[Config('data.path')] string $path='') {}`
  * - **不支持控制器方法形参**(控制器形参只注入路由参数, 见路由模块约定)
  * - 未提供 `default` 且配置缺失时, 值为 `null`(形参有默认值时以形参默认值兜底)
  *

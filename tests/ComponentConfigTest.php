@@ -12,6 +12,7 @@ use AdminService\Database\DatabaseConfig;
 use AdminService\Error;
 use AdminService\HttpRequest;
 use AdminService\Log;
+use base\Attribute\Config as ConfigAttribute;
 use base\ConfigInterface;
 
 use ReflectionProperty;
@@ -24,8 +25,10 @@ use ReflectionProperty;
  *  2. **未注入才回落门面**, 且**每次实取**(不缓存): 手工构造 / 测试的既有写法照旧可用
  *  3. **不给配置就别想静默拿到"空配置"**: 容器里没登记配置实例时, 构建吃配置的组件必须**当场报错**
  *
- * 外加一条回归: 请求级容器在 `fork()` 时取"门面当前那份"配置 ——
- * 只靠父容器那份会让请求内的组件读到过期值(实测踩过: 路由读到的 `route.files` 是上一轮的值)
+ * 外加两条:
+ *  - 回归: 请求级容器在 `fork()` 时取"门面当前那份"配置 ——
+ *    只靠父容器那份会让请求内的组件读到过期值(实测踩过: 路由读到的 `route.files` 是上一轮的值)
+ *  - `.env` 的路径键覆盖经契约的 `get()` 自动作用于 `#[Config]` 注入(不必改调用点)
  */
 class ComponentConfigTest extends TestCase {
 
@@ -152,6 +155,27 @@ class ComponentConfigTest extends TestCase {
             if($instance!==null)
                 App::setInstance($instance);
         }
+    }
+
+    /**
+     * 测试: `.env` 的路径键覆盖**也作用于 `#[Config]` 注入**(不必改任何调用点)
+     *
+     * - 注入走的是契约的 `get()`, 所以覆盖自动生效 —— 这条把"自动"钉住, 免得日后有人在
+     *   参数解析器里另开一条读配置的路(那条路就享受不到覆盖了)
+     *
+     * @return void
+     */
+    public function testAttributeInjectionSeesEnvOverride(): void {
+        $repository=new Repository(
+            array('k'=>'from-file'),
+            array(),
+            new \AdminService\Config\Env('k=from-env')
+        );
+        $container=new Container();
+        $container->instance(ConfigInterface::class,$repository);
+        $this->assertSame('from-env',$container->exec_function(function(#[ConfigAttribute('k')] string $v=''): string {
+            return $v;
+        }));
     }
 
 }

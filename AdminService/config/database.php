@@ -11,9 +11,10 @@ return array(
     // 多个命名连接, 通过 Db::fromConfig('连接名') 切换
     'connections'=>array(
         'default'=>array(
-            // 下面几项取自 `.env`(键名大小写敏感);给了默认值 = 可缺省, 不给 = 必需
+            // 下面几项取自 `.env` 的大写键(键名大小写敏感);缺失就用这里的默认值
             // 注意 `port` 显式转了 `(int)`: `.env` 的值**只转 bool/null, 数字保持字符串**(主流口径),
             // 要数字就在这里转, 别指望解析器替你猜
+            // 另: `.env` 里写点分路径 `database.connections.default.host=…` 也能覆盖对应项(见 `Config\Repository`)
             'type'=>env('DB_TYPE','mysql'), // default: mysql (仅用于构建 PDO DSN, 方言/编译器由下面两个类决定)
             'host'=>env('DB_HOST','localhost'), // 数据库地址 default: localhost
             'port'=>(int)env('DB_PORT',3306), // 数据库端口 default: 3306

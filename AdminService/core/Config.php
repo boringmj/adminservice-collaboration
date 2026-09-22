@@ -53,7 +53,7 @@ final class Config {
      *
      * - 与旧版同语义: 整体替换当前配置; 重复调用会重新读盘
      * - **不再处理 `.env`**: `.env` 的值由配置文件里的 `env('KEY', $default)` 自己取
-     *   (主流口径: `.env` 只提供值, 结构由配置文件声明), 故本方法只负责 `config/*.php`
+     *   (结构由配置文件声明;`.env` 的值由 `env()` 与路径键覆盖两条通道提供), 故本方法只负责 `config/*.php`
      *
      * @access public
      * @return void
@@ -68,6 +68,8 @@ final class Config {
      * 设置配置(整体替换当前仓储)
      *
      * - 引导期与测试用: 传进来的数组成为**全部**配置, 不做深合并(与旧版语义一致)
+     * - **不受 `.env` 路径键覆盖影响**: `set()` 的语义是"我就要这份配置"(引导期/测试),
+     *   若还让部署侧的 `.env` 把它盖掉, 就会出现"明明 set 了却被改掉"的困惑
      * - 若当前已安装容器且容器里登记着配置实例, 会**同步换掉**容器里那一份 ——
      *   否则会出现"门面是新的、容器还是旧的"这种最难查的不一致
      *
@@ -76,7 +78,9 @@ final class Config {
      * @return void
      */
     public static function set(array $configs): void {
-        self::$repository=new Repository($configs,array(),env_snapshot());
+        // 注意: **不带 `.env` 快照** —— `set()` 的语义是"我就要这份配置"(引导期/测试),
+        // 若还让它被 `.env` 的路径键覆盖, 就会出现"我明明 set 了却被别处改掉"的困惑
+        self::$repository=new Repository($configs);
         if(App::hasInstance())
             App::getInstance()->instance(\base\ConfigInterface::class,self::$repository);
     }

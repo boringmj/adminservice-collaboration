@@ -215,6 +215,10 @@ final class Repository implements ConfigInterface {
      * @return mixed
      */
     private function castOverride(mixed $raw,mixed $file): mixed {
+        // `.env` 里写 `null` 表示"这一项没有值": bool 项 → false;其余类型**忽略这次覆盖**(保留文件值)
+        //  —— 因为 null 表达不了字符串/数字, 硬转只会给出 '' 或 0 这类假值(空串与 0 都是"真值", 更危险)
+        if($raw===null&&!is_bool($file))
+            return $file;
         if(is_bool($file)) {
             if(is_bool($raw)||$raw===null)
                 return (bool)$raw;

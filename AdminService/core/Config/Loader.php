@@ -8,13 +8,13 @@ use function basename;
 use function count;
 use function explode;
 use function gettype;
-use function glob;
 use function implode;
 use function in_array;
 use function is_array;
 use function is_bool;
 use function is_file;
 use function preg_match;
+use function scandir;
 use function sort;
 use function str_ends_with;
 use function strtolower;
@@ -29,7 +29,7 @@ use function strtolower;
  *
  * ## 两份来源
  *
- *  1. **配置文件**: 目录扫描(`glob`)或**显式清单**。后者供编译缓存(S6)使用 —— 不再每次扫目录。
+ *  1. **配置文件**: 目录扫描(`scandir` + 过滤扩展名; 不用 `glob`, 见 `sourceFiles()` 的实测口径)或**显式清单**。
  *     两种方式都按文件名的 `basename` 作为键(`app.php` → `app`), 且都要求名字只含字母/数字/下划线
  *     (旧实现同样跳过不合规的名字, 但**不告诉任何人**; 本类会记一条诊断)
  *  2. **`.env`**: 可选。合并口径见下
@@ -224,8 +224,13 @@ final class Loader {
     /**
      * 列出待加载的文件
      *
-     * - 显式清单走这条路时**不扫目录**(S6 的编译缓存需要它)
-     * - 目录扫描的结果显式排序: 旧实现靠 `glob` 自身的排序, 这里写下来免得平台差异
+     * - 显式清单走这条路时**不扫目录**(清单来自上层, 见 `__construct()`)
+     * - 目录扫描用 **`scandir` + 过滤扩展名**, 而不是 `glob('*.php')`:
+     *   两者都会自动发现新配置文件, 但 `glob` 要对每个条目做一次模式匹配, 在本机实测
+     *   `glob` 3.16 ms vs `scandir` 1.38 ms(FPM 新进程口径; 命中系统缓存时 2.29 vs 0.28),
+     *   见 `tools/baseline/config-load.md` 与计划 S6 —— **这是 S6 在"opcache 开"下唯一还稳吃的收益**
+     *   (编译已被 opcache 免掉, 而"dump 成文件 + mtime 校验"的校验成本会把 glob 省下的吃回去)
+     * - 结果显式排序: 旧实现靠 `glob` 自身的排序, `scandir` 虽也排序, 但这里写下来免得依赖平台行为
      *
      * @access private
      * @return array<string>
@@ -243,10 +248,17 @@ final class Loader {
             }
             return $out;
         }
-        $found=glob($this->dir.'/*.php');
-        if($found===false) {
+        $entries=scandir($this->dir);
+        if($entries===false) {
             $this->diagnostics[]='无法扫描配置目录: '.$this->dir;
             return array();
+        }
+        $found=array();
+        foreach($entries as $entry) {
+            // `.` 与 `..` 不以 .php 结尾, 自然被排除; 名字是否合规由 `load()` 统一判定(它会记诊断)
+            if(!str_ends_with($entry,'.php'))
+                continue;
+            $found[]=$this->dir.'/'.$entry;
         }
         sort($found);
         return $found;

@@ -138,4 +138,24 @@ class ConfigOverrideTest extends TestCase {
         $this->assertSame('not-a-number',$repo->get('database.connections.default.port'),'文件里是 int 但值不是数字 → 原样给出');
     }
 
+    /**
+     * 测试: `.env` 里写 `null` 的处理(各类型一致, 不留"假值")
+     *
+     * - bool 项: `null` → `false`(与布尔折算一致)
+     * - 其余类型: **忽略这次覆盖、保留文件值** —— 因为 null 表达不了字符串/数字,
+     *   硬转只会给出 `''` 或 `0` 这类假值(`''` 与 `0` 都在 `isset` 意义上是"有值", 更危险)
+     *
+     * @return void
+     */
+    public function testNullOverrideHandling(): void {
+        $repo=new Repository($this->configs(),array(),$this->env(implode("\n",array(
+            'app.debug=null',
+            'app.name=null',
+            'database.connections.default.port=null',
+        ))));
+        $this->assertFalse($repo->get('app.debug'),'bool 项: null → false');
+        $this->assertSame('demo',$repo->get('app.name'),'字符串项: 忽略覆盖, 保留文件值(不给空串)');
+        $this->assertSame(3306,$repo->get('database.connections.default.port'),'int 项: 忽略覆盖, 保留文件值(不给 null/0)');
+    }
+
 }

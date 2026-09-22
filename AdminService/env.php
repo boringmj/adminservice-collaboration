@@ -14,7 +14,8 @@ use AdminService\Config\Env;
  *
  * ## 口径(按主流来, 2026-09-23 定)
  *
- *  1. **键名大小写敏感**、点号是普通字符 —— 见 `Env`
+ *  1. **键名大小写敏感**: 不含点的键(约定的全大写蛇形, 如 `DB_HOST`)是"值来源";含点的键是"路径键",
+ *     由 `Config\Repository` 按路径覆盖同名配置项 —— 解析口径见 `Env`
  *  2. **缺失就返回默认值**(默认 `null`), **不抛异常**。框架只管"有值就用、没有就回落",
  *     不替使用者判断"这个键该不该有" —— 也就是说**没有"必需键"这个概念**
  *  3. 与之配套: `.env` 的**语法错误也不抛**, 只记进 `Env::errors()`(由 `Env` 承担),
@@ -23,7 +24,7 @@ use AdminService\Config\Env;
  *  5. 进程级缓存: 首次调用解析一次并留在函数内 `static`(见 `env_snapshot()`)。`env()` 会在容器建立
  *     **之前**被调用, 没有别的可取之处; 这是本函数唯一的状态, 且只缓存"不可变快照"
  *
- * @param string $key 键(**大小写敏感**; 点号是普通字符, 如 `DB_HOST` / `app.debug`)
+ * @param string $key 键(**大小写敏感**; 如 `DB_HOST` / `app.debug`)
  * @param mixed $default 默认值(键缺失时返回它)
  * @return mixed
  */

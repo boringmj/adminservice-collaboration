@@ -126,9 +126,10 @@ final class Config {
     final public static function get(string $key,mixed $default=null): mixed {
         $keys=explode(".",$key);
         $configs=self::$configs;
-        foreach($keys as $key) {
-            if(isset($configs[$key]))
-                $configs=$configs[$key];
+        // 逐段下钻(循环变量不与形参同名, 避免遮蔽)
+        foreach($keys as $segment) {
+            if(isset($configs[$segment]))
+                $configs=$configs[$segment];
             else
                 return $default;
         }

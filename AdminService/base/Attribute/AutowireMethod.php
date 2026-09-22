@@ -12,7 +12,7 @@ use Attribute;
  * - 指定 name: 方法必须只有单个参数, 注入该显式依赖(支持 proxy), 与 Setter 注入一致
  * - 无类型且无默认值的参数会抛 AutowireException
  *
- * @see \base\Container::autowireMethod()
+ * - 装配实现在 `AdminService\Autowire`(见 `autowireMethod()`), 契约层不引用实现层, 故此处只作说明
  */
 #[Attribute(Attribute::TARGET_METHOD)]
 class AutowireMethod extends Autowire {

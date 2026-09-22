@@ -27,7 +27,7 @@ use ReflectionProperty;
  *
  * 外加两条:
  *  - 回归: 请求级容器在 `fork()` 时取"门面当前那份"配置 ——
- *    只靠父容器那份会让请求内的组件读到过期值(实测踩过: 路由读到的 `route.files` 是上一轮的值)
+ *    只靠父容器那份会让请求内的组件读到过期值
  *  - `.env` 的路径键覆盖经契约的 `get()` 自动作用于 `#[Config]` 注入(不必改调用点)
  */
 class ComponentConfigTest extends TestCase {

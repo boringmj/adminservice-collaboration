@@ -203,7 +203,7 @@ final class Container implements \base\Container {
      *
      * - **这是容器边界上"类是否存在"的唯一判定口**: 不再逐个方法写 `class_exists` / `interface_exists` 预检查
      *   —— 那几个预检查只是"友好报错", 而"取反射"这一步本来就会触发自动加载(该加载的躲不掉),
-     *   预检查等于把同一件事做两遍, 还多出几个需要跟 PHP 语义保持同步的地方(见计划 S7)
+     *   预检查等于把同一件事做两遍, 还多出几处需要跟 PHP 语义保持同步的地方
      * - 语义与旧写法一致: 不存在的名字 → `Class "X" not found.`;接口/抽象类取得到反射, 由调用方判 `isInstantiable()`
      *
      * @access private

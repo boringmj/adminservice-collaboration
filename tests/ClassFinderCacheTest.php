@@ -14,16 +14,12 @@ use function is_a;
 /**
  * `ClassFinder` 子类查找缓存的用例
  *
- * 为什么要有它: `findDirectSubClassRecursive` 每次都 `get_declared_classes()` 取全量已声明类, 再对
- * **每个**类做 `get_parent_class()` / `class_implements(...,true)`(每个都是 O(接口数)), 且原本没有任何缓存。
- * 实测它**单请求 0 次调用**(评估 C7), 所以这条是**规模化防御**(代价随已声明类数增长), 不是性能收益 ——
+ * 为什么要有它: `findDirectSubClassRecursive` 会 `get_declared_classes()` 取全量已声明类, 再对**每个**类做
+ * `get_parent_class()` / `class_implements(...,true)`(每个都是 O(接口数))—— 代价随已声明类数增长。
  * 用例要证明的是"第二次不再扫", 而不是"快了多少"。
  *
- * ⚠ 另外把一条**既有脆弱性**写在这里(不是本次引入的): 查找只在**已声明类**里进行, 所以某个子类的文件
- * 还没被加载时找不到它 —— 也就是说结果取决于"进程里恰好加载了哪些类"。实测复现:
- * `vendor/bin/phpunit --filter 'AppTest|ContainerBindingTest|ScopeTest|AutowireCycleTest'`
- * 会因为 `Tests\Fixtures\UserStatus` 没被顺带加载而报 `AbstractStatus is not instantiable`
- * (改动前的代码同样失败)。缓存为此带"已声明类数"版本号, 保证新声明了类之后一定重扫。
+ * ⚠ 已知限制(缓存设计正是被它逼出来的): 查找只在**已声明类**里进行, 所以某个子类的文件还没被加载时
+ * 找不到它 —— 结果取决于"进程里恰好加载了哪些类"。因此**否定结果不入缓存**, 免得把这种临时答案固化。
  */
 class ClassFinderCacheTest extends TestCase {
 

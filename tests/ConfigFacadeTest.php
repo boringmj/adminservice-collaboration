@@ -21,10 +21,10 @@ use ReflectionProperty;
  * (见 `withRestoredGlobals()`), 否则会污染后面整个进程的用例。
  *
  * 覆盖三条主张:
- *  1. 未装配时 `get/all/has` **安全回落到默认值**, 不再抛"未初始化静态属性"(旧版 A1)
- *  2. `new Config($configs)` **不可用**(私有构造): 旧版那个写法会顺手改全局, 语义意外(旧版 B4)
+ *  1. 未装配时 `get/all/has` **安全回落到默认值**(不会抛"未初始化静态属性")
+ *  2. `new Config($configs)` **不可用**(私有构造): 那个写法会顺手改掉全局配置, 语义意外
  *  3. 配置实例是**唯一的一份**: 门面与容器指向同一对象; `set()` 之后两边同步换新,
- *     且按 `base\ConfigInterface` 注入拿到的就是它 —— 不再是"转发到全局静态的替身"(旧版 B2)
+ *     且按 `base\ConfigInterface` 注入拿到的就是它(不是"转发到全局静态的替身")
  */
 class ConfigFacadeTest extends TestCase {
 
@@ -61,7 +61,7 @@ class ConfigFacadeTest extends TestCase {
     }
 
     /**
-     * 测试: 未装配时门面安全回落(旧版 A1: 未初始化的静态属性会直接抛 Error)
+     * 测试: 未装配时门面安全回落(未初始化的静态属性会直接抛 Error)
      * @return void
      */
     public function testUnloadedFacadeIsSafe(): void {
@@ -77,7 +77,7 @@ class ConfigFacadeTest extends TestCase {
     }
 
     /**
-     * 测试: 门面不可实例化(旧版 `new Config([...])` 会改全局配置)
+     * 测试: 门面不可实例化(`new Config([...])` 那个写法会改全局配置)
      * @return void
      */
     public function testFacadeIsNotInstantiable(): void {
@@ -86,7 +86,7 @@ class ConfigFacadeTest extends TestCase {
     }
 
     /**
-     * 测试: `set()` 整体替换并立即可读(签名与旧版一致)
+     * 测试: `set()` 整体替换并立即可读
      * @return void
      */
     public function testSetInstallsRepository(): void {
@@ -132,7 +132,7 @@ class ConfigFacadeTest extends TestCase {
             $container=new Container();
             $probe=fn(#[ConfigAttribute('k')] string $value='dflt'): string => $value;
             // 反证口径: 门面里**有** k, 但容器没登记 —— 必须仍是默认值。
-            // 若内核偷偷读全局门面, 这一步就会变成 'from-facade'(旧版 B3 正是如此)
+            // 若内核偷偷读全局门面, 这一步就会变成 'from-facade'
             Config::set(array('k'=>'from-facade'));
             $this->assertSame('dflt',$container->exec_function($probe),'内核不得改读全局门面');
             $container->instance(ConfigInterface::class,new Repository(array('k'=>'v')));
@@ -141,7 +141,7 @@ class ConfigFacadeTest extends TestCase {
     }
 
     /**
-     * 测试: 按契约注入拿到的是**同一份**配置实例(旧版是转发到全局静态的替身 = 假解耦)
+     * 测试: 按契约注入拿到的是**同一份**配置实例(而不是"转发到全局静态的替身")
      * @return void
      */
     public function testContractInjectionReturnsTheSameInstance(): void {

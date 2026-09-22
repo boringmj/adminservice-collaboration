@@ -74,10 +74,8 @@ final class ClassFinder {
      * - 缓存口径(挂在 `ReflectionCache`, 故请求级容器与父容器共享同一份):
      *   **只缓存顶层查询里"找到了"的结果**。递归内部不缓存(结果依赖"防环标识");
      *   否定结果也不缓存(见 `ReflectionCache::$sub_classes` 的说明)
-     * - ⚠ 已知限制: 本方法只在**已声明类**里找子类, 因此某个子类的文件还没被加载时找不到它 ——
-     *   也就是说结果受"进程里恰好加载了哪些类"影响(实测: `phpunit --filter 'AppTest|ContainerBindingTest|…'`
-     *   会因 `Tests\Fixtures\UserStatus` 没被顺带加载而报 `AbstractStatus is not instantiable`,
-     *   改动前的代码同样如此)。正因如此, 否定结果**不缓存** —— 免得把这种临时答案固化。
+     * - ⚠ 已知限制: 只在**已声明类**里找子类, 因此某个子类的文件还没被加载时找不到它 ——
+     *   结果受"进程里恰好加载了哪些类"影响。正因如此, 否定结果**不缓存**(免得把临时答案固化)。
      *
      * @access public
      * @param string $class 类名

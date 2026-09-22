@@ -43,6 +43,45 @@ final class ReflectionCache {
     private array $functions=array();
 
     /**
+     * "可实例化子类"查找结果缓存: 键 => 找到的实现类名
+     *
+     * - **只缓存"找到了"的结果, 否定结果永不入缓存**。理由(实测得出): 查找是在**已声明类**里扫的,
+     *   "此刻没找到"随时可能因为某个子类刚被加载而变成"找得到" —— 缓存否定结果就会把临时答案固化成错的。
+     *   曾经试过"用已声明类数当版本号"来失效: 太敏感, 实测两次调用之间光是 PHPUnit 内部的懒加载
+     *   就让声明类数从 470 跳到 478, 缓存直接全废。
+     *   反过来, "找到一个可实例化的实现类"这个结论在进程内**稳定不变**(它已经是那个接口的实现且可实例化),
+     *   所以肯定结果可以放心缓存。
+     * - 只缓存**顶层**查询(见 `ClassFinder::findDirectSubClassRecursive`): 递归内部的中间结果
+     *   依赖"防环标识", 缓存它们会把一次带环的探索结果固化下来
+     *
+     * @var array<string,string>
+     */
+    private array $sub_classes=array();
+
+    /**
+     * 取"可实例化子类"的缓存结果(null = 没有缓存)
+     *
+     * @access public
+     * @param string $name 已解析的类名
+     * @return string|null
+     */
+    public function getSubClass(string $name): ?string {
+        return $this->sub_classes[$name]??null;
+    }
+
+    /**
+     * 写入"可实例化子类"的查找结果(**只写找到了的**)
+     *
+     * @access public
+     * @param string $name 已解析的类名
+     * @param string $value 找到的可实例化实现类名
+     * @return void
+     */
+    public function setSubClass(string $name,string $value): void {
+        $this->sub_classes[$name]=$value;
+    }
+
+    /**
      * 获取反射类对象(会缓存结果)
      *
      * @access public

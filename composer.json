@@ -18,7 +18,8 @@
             "app\\": "AdminService/app/"
         },
         "files": [
-            "AdminService/Main.php"
+            "AdminService/Main.php",
+            "AdminService/env.php"
         ]
     },
 

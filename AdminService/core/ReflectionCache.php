@@ -6,6 +6,7 @@ use ReflectionClass;
 use ReflectionMethod;
 use ReflectionFunction;
 use ReflectionException;
+use Closure;
 
 use function explode;
 use function str_contains;
@@ -103,17 +104,21 @@ final class ReflectionCache {
     }
 
     /**
-     * 获取反射函数对象(会缓存结果)
+     * 获取反射函数对象(函数名会缓存; 闭包**不缓存**)
+     *
+     * - 闭包以对象 id 缓存不安全(id 会被复用), 而 `new ReflectionFunction($closure)` 本身很便宜
      *
      * @access public
-     * @param string $name 函数名
+     * @param string|Closure $function 函数名或闭包
      * @return ReflectionFunction
      * @throws ReflectionException
      */
-    public function getFunction(string $name): ReflectionFunction {
-        if(!isset($this->functions[$name]))
-            $this->functions[$name]=new ReflectionFunction($name);
-        return $this->functions[$name];
+    public function getFunction(string|Closure $function): ReflectionFunction {
+        if($function instanceof Closure)
+            return new ReflectionFunction($function);
+        if(!isset($this->functions[$function]))
+            $this->functions[$function]=new ReflectionFunction($function);
+        return $this->functions[$function];
     }
 
     /**

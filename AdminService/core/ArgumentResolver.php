@@ -365,7 +365,8 @@ final class ArgumentResolver implements ArgumentResolverInterface {
     public function call(object $object,string $method,array $args=array()): mixed {
         $ref=$this->reflections->getMethodByObject($object,$method);
         $params=$ref->getParameters();
-        return $ref->invokeArgs($object,$this->merge($params,$args));
+        // 框架在解析实参 → 显式标注的 #[Config] 一并生效(实参优先级更高)
+        return $ref->invokeArgs($object,$this->merge($params,$args,true));
     }
 
     /**
@@ -379,9 +380,14 @@ final class ArgumentResolver implements ArgumentResolverInterface {
      * @throws ReflectionException
      */
     public function callFunction(string|callable $function,array $args=array()): mixed {
+        // 非字符串、非闭包的 callable(可调用对象 / array(对象, 方法))统一转成闭包;
+        // 此前直接交给 ReflectionFunction 会因类型不符抛 TypeError, 而文档一直写着"支持闭包"
+        if(!is_string($function)&&!$function instanceof Closure)
+            $function=Closure::fromCallable($function);
         $ref=$this->reflections->getFunction($function);
         $params=$ref->getParameters();
-        return $ref->invokeArgs($this->merge($params,$args));
+        // 同 call(): 框架解析实参时, 显式标注的 #[Config] 生效
+        return $ref->invokeArgs($this->merge($params,$args,true));
     }
 
     /**

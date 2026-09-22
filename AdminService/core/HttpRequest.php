@@ -111,9 +111,11 @@ final class HttpRequest extends Request {
      *
      * - `$sources` 为可选输入源, 缺省读超全局; 测试可注入以避免触碰 `$_GET` 等
      * - 支持的键: `headers` / `query` / `post` / `cookie` / `server` / `rawInput` / `files`
+     * - `$container` 由容器构建本对象时注入(输入处理器因此可依赖注入);直接 `new` 时为 null
      *
      * @access public
      * @param array<string,mixed> $sources 输入源
+     * @param ContainerContract|null $container 容器契约
      */
     public function __construct(array $sources=array(),?ContainerContract $container=null) {
         // 容器由容器构建时注入(输入处理器因此可依赖注入);直接 new 时为 null

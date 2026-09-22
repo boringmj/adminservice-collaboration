@@ -17,7 +17,6 @@ use function count;
 use function explode;
 use function implode;
 use function in_array;
-use function is_array;
 use function is_callable;
 use function is_file;
 use function is_string;

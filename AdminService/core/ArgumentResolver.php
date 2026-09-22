@@ -110,9 +110,14 @@ final class ArgumentResolver implements ArgumentResolverInterface {
     /**
      * 整理和合并参数
      *
+     * - 合并顺序: 具名实参 → 顺位实参 → `#[Config]` 配置项(仅 `$allow_config` 为真)→ 按类型注入 → 形参默认值 → null
+     * - `$allow_config` 仅"框架构建对象"的场景为真(容器构造对象、生命周期方法调用);
+     *   控制器方法的形参调用保持为假, 因此**控制器形参只注入路由参数**
+     *
      * @access public
      * @param ReflectionParameter[] $params 参数
      * @param array<mixed> $args 参数
+     * @param bool $allow_config 是否允许 `#[Config]` 配置项注入
      * @return array
      * @throws Exception
      * @throws ReflectionException

@@ -2,7 +2,6 @@
 
 namespace AdminService;
 
-use base\AbstractSession;
 use base\Database\Db as BaseDb;
 use base\Request;
 use base\Response;

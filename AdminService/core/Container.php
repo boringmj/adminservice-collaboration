@@ -5,7 +5,6 @@ namespace AdminService;
 use ReflectionClass;
 
 use function class_exists;
-use function explode;
 use function in_array;
 use function interface_exists;
 use function is_string;
@@ -447,16 +446,15 @@ final class Container implements \base\Container {
 
 
     /**
-     * 通过自动依赖注入实例化一个对象
+     * 获取对象(**复用**已登记实例; 未登记则实例化并做完整装配)
      *
-     * 注意: 依赖简单支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
-     * 这种情况请先使用App::instance(Class::class,new Class())添加到容器中
+     * - 解析结果按真实类名登记, 因此同一实现只构建一次;要每次新建请用 `fresh()`
+     * - 依赖简单支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
+     *   这种情况请先使用 App::instance(Class::class,new Class()) 添加到容器中
      *
      * @access public
      * @template T of object
-     * @param class-string<T> $name 对象名
-     * @param bool $is_force 是否强制实例化(仅对当前对象有效,不会影响依赖)
-     * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
+     * @param class-string<T>|string $name 对象名(类名 / 接口名 / 别名)
      * @return T|object
      * @throws Exception|ReflectionException
      */

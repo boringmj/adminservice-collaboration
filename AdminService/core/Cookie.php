@@ -13,7 +13,7 @@ use function is_array;
  * - **为什么这里仍按进程级配置取值**: 契约 `base\Cookie` 的方法都是 `abstract static`,
  *   本类只能实现成静态方法 —— 静态 API 没有实例, 也就无法用构造注入拿配置实例。
  *   容器可用时读容器里登记的那一份, 否则回落门面(同一进程内两者指向同一实例, 见 `Config::set()` 的同步)。
- *   这是"无法注入"的**结构性**原因, 不是漏改。
+ *   这是"无法注入"的**结构性**原因。
  */
 final class Cookie extends BaseCookie {
 

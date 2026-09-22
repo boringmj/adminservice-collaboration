@@ -159,7 +159,7 @@ final class Application {
         $container=$this->container->fork();
         $this->request_container=$container;
         // 请求开始时把**门面当前那份**配置登记进请求容器: 父容器里那份可能已被 `Config::load()/set()` 换掉,
-        // 只靠父容器会让请求内的组件拿到过期配置(实测踩过: 路由读到的 `route.files` 是上一轮的值)
+        // 只靠父容器会让请求内的组件拿到过期配置
         $repository=Config::repository();
         if($repository!==null) {
             $container->instance(ConfigInterface::class,$repository);

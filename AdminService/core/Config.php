@@ -10,19 +10,18 @@ use AdminService\exception\ConfigException;
 /**
  * 配置门面
  *
- * - **门面**: 所有方法转发到"当前配置仓储实例"(`AdminService\Config\Repository`), 调用写法与旧版一致
+ * - **门面**: 所有方法转发到"当前配置仓储实例"(`AdminService\Config\Repository`)
  * - **无状态**: 唯一全局静态是指向当前仓储的指针(`set()` / `repository()`), 与 `App` 门面同构
  * - 实际装配(读 `config/*.php` + 合并 `.env`)在 `AdminService\Config\Loader`, 读取口径在 `Repository`;
  *   本类不再自己解析任何东西
  *
- * ## 与旧版(`AdminService\Config` 全静态实现)的行为对照
+ * ## 对外接口
  *
  *  - `load()` / `set()` / `get()` / `all()` 的**签名与语义不变**, 调用点无需改动
- *  - `get()` / `all()` 在"尚未 load"时返回**默认值 / 空数组**, 不再抛
- *    `Error: Typed static property ... must not be accessed before initialization`(旧版 A1 缺陷, 结构性消除)
- *  - `new Config($configs)` **不再可用**(构造方法已私有): 旧版那个写法会顺手改掉全局配置, 语义意外(旧版 B4 缺陷);
- *    要整体替换配置请用 `set()`
- *  - `has()` 为新增(契约 `base\ConfigInterface` 同步补上)—— 口径与 `get()` 一致: 值为 `null` 视为不存在
+ *  - `get()` / `all()` 在"尚未 load"时返回**默认值 / 空数组**(不抛)
+ *  - `new Config($configs)` **不可用**(构造方法私有): 它会顺手改掉全局配置, 语义意外;要整体替换请用 `set()`
+ *  - `has()` / `file()` / `setValue()` 见各自的方法注释
+ *  - 生效值的层级见 `AdminService\Config\Repository`
  *
  * ## 为什么 `get()` 在未装配时返回默认值而不是抛异常
  *
@@ -52,7 +51,7 @@ final class Config {
     /**
      * 加载配置(读 `config/*.php`)并安装为当前仓储
      *
-     * - 与旧版同语义: 整体替换当前配置; 重复调用会重新读盘
+     * - 整体替换当前配置; 重复调用会重新读盘
      * - **不再处理 `.env`**: `.env` 的值由配置文件里的 `env('KEY', $default)` 自己取
      *   (结构由配置文件声明;`.env` 的值由 `env()` 与路径键覆盖两条通道提供), 故本方法只负责 `config/*.php`
      *
@@ -68,7 +67,7 @@ final class Config {
     /**
      * 设置配置(整体替换当前仓储)
      *
-     * - 引导期与测试用: 传进来的数组成为**全部**配置, 不做深合并(与旧版语义一致)
+     * - 引导期与测试用: 传进来的数组成为**全部**配置, 不做深合并
      * - **这批值会被钉到"临时层"**(优先级最高): 于是"我刚 set 的值"不会被 `.env` 的路径键盖掉;
      *   而**其它键**的 `.env` 覆盖照旧生效(不是把整层 `.env` 拆掉, 只加一层)
      * - 若当前已安装容器且容器里登记着配置实例, 会**同步换掉**容器里那一份 ——

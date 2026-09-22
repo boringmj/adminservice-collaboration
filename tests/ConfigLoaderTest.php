@@ -26,11 +26,6 @@ use function unlink;
  *     并实现 `base\ConfigInterface`
  *  2. `Loader` 的**文件来源**: 目录扫描的顺序、名字规范过滤、**显式清单不扫目录**
  *
- * ⚠ S8 之前这里还有一整段"`.env` 合并"的用例(点分键覆盖/新建、值按字符串写入、布尔节点的旧换算、
- * 未知键的三种策略、路径冲突保护)。**S8 把那条合并通道整体删掉了**(`.env` 只提供值, 结构由
- * `config/*.php` 里的 `env('KEY')` 声明), 那些用例连功能一起消失 —— 对应行为现在由
- * `EnvParserTest`(`.env` 解析口径)与 `tools/config_lint.php`(键的对照体检)覆盖。
- *
  * 用例全部用临时目录造样例, 不依赖仓库里的真实配置(唯一的例外是最后那条集成用例)。
  */
 class ConfigLoaderTest extends TestCase {
@@ -205,7 +200,7 @@ class ConfigLoaderTest extends TestCase {
     /**
      * 测试: 仓库真实的 `config/` 走加载器 —— 11 个文件、零诊断、`env()` 已在配置文件里生效
      *
-     * - 守的是"配置文件本身没毛病";`.env` 与配置键的对照由 `tools/config_lint.php` 负责
+     * - 守的是"配置文件本身没毛病";`.env` 与配置键的对账请在部署前自行核对
      *   (S8 之后运行期不再合并 `.env`: 键写错的表现是 `env()` 取到默认值, 或"必需键"直接报错)
      *
      * @return void

@@ -179,7 +179,7 @@ class DynamicProxy {
      */
     protected function __setTarget(string $__target): void {
         // 判断目标"类或接口"是否存在: 取反射一步即可判定(取不到就抛), 不必先 class_exists / interface_exists
-        // 再取一次反射 —— 那是把同一件事做两遍(见计划 S7 的"边界统一")
+        // 再取一次反射 —— 那是把同一件事做两遍
         // trait 要挡掉: 它同样能取到反射, 但没法被代理(旧写法也是拒绝的, 这里保持行为一致)
         try {
             $ref=new ReflectionClass($__target);

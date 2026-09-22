@@ -90,11 +90,9 @@ final class Main {
         $function_loader=$config->get('function.loader');
         if(is_array($function_loader)) {
             foreach($function_loader as $function) {
-                // 直接 include, **不再**为每个条目做 `is_file`:
-                //  `config/function.php` 的 loader 是**静态清单**(写死的 6 个文件名), 每请求为它做 6 次 stat
-                //  实测约 1.1 ms(见 tools/baseline/config-load.md) —— 清单对不对属"开发期就该保证"的事。
-                //  清单写错由**部署前的 `tools/config_lint.php`** 兜住; 运行期真缺文件时 PHP 会报 include 警告
-                //  (生产 `error_reporting(0)` 下不可见, 所以务必把 lint 挂进部署流程)
+                // 直接 include, 不为每个条目做 `is_file`: `function.loader` 是**静态清单**,
+                // 每请求为它做 6 次 stat 不划算;清单本身对不对属"开发期就该保证"的事。
+                // 真缺文件时 PHP 会报 include 警告(生产 `error_reporting(0)` 下不可见)
                 include_once $function_path.'/'.$function.'.php';
             }
         }

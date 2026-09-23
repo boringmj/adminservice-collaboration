@@ -20,7 +20,7 @@ use base\Database\Db as BaseDb;
  */
 function load_framework_config(): void {
     $loader=new Loader(dirname(__DIR__).'/AdminService/config');
-    Config::setRepository(new Repository($loader->load(),$loader->diagnostics(),env_snapshot()));
+    Config::setRepository(new Repository($loader->load(),$loader->diagnostics(),\AdminService\env_snapshot()));
 }
 
 /**

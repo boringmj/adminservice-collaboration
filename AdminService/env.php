@@ -1,13 +1,13 @@
 <?php
 
+namespace AdminService;
+
 use AdminService\Config\Env;
 
 /**
- * 读取 `.env` 配置项(全局函数)
+ * 读取 `.env` 配置项
  *
- * - 定位: 供 `config/*.php` **在配置装配期**取值用, 因此必须能在任意命名空间里裸调 `env('KEY')`
- *   —— 所以本文件**不声明 namespace**(与 `common/` 下那批函数不同: 那批在 `AdminService\common`,
- *   调用方需要 `use function`; 而配置文件里到处写 `use function` 既啰嗦又容易漏)
+ * - 定位: 供 `config/*.php` **在配置装配期**取值用(那些文件里 `use function AdminService\env;` 后即可裸调)
  * - 与 `Config::get()` 的分工: `Config::get()` 读的是**生效配置**(会被 `.env` 的路径键覆盖);
  *   `env()` 读的是 `.env` 文件**本身**, 因此可以在配置文件里用
  * - 只认 `.env` 文件, **不读进程环境变量**: 刻意保持单一、可预测的来源(要放开再议)

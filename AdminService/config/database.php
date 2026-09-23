@@ -6,6 +6,8 @@ use PDO;
 use base\Database\Sql\Compiler\MysqlCompiler;
 use base\Database\Sql\Dialect\MysqlDialect;
 
+use function AdminService\env;
+
 // database 相关配置
 return array(
     // 多个命名连接, 通过 Db::fromConfig('连接名') 切换

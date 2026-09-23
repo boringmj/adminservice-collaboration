@@ -6,6 +6,9 @@ use PHPUnit\Framework\TestCase;
 
 use AdminService\Config\Env;
 
+use function AdminService\env;
+use function AdminService\env_snapshot;
+
 use function count;
 use function dirname;
 use function file_put_contents;

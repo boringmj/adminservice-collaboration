@@ -141,6 +141,8 @@ class Demo {
 
 ```php
 // AdminService/config/app.php
+use function AdminService\env;                 // 取值入口在 `AdminService\env`
+
 return array(
     'debug'=>env('APP_DEBUG',false),           // 缺失就用默认值(框架不替使用者判断"该不该有这个键")
     'port'=>(int)env('DB_PORT',3306),           // 数字要自己转:`.env` 的值只转 bool/null
@@ -153,7 +155,7 @@ return array(
 - `.env` 缺失是正常的(它不入库),此时全部配置项用配置文件里的值
 - **生效值的优先级**:运行时写入 → `.env` 路径键 → 配置文件 → 默认值
 - **运行时临时值**:代码里 `Config::setValue('log.path','/tmp/x')` 可临时改一项(不必重写整份配置),它优先级最高、`.env` 也盖不掉;只允许写在**已存在的配置项**上(写错路径直接报错)
-- 排查"这个值到底来自哪":`Config::get()` 给**生效值**,`Config::file()` 给**配置文件里的原值**,`Config::env()` 给**当前配置的 `.env` 层**里的原值(全局 `env()` 则读进程级 `.env`,与门面里是哪份配置无关)—— 后两者各看一层,不受覆盖影响
+- 排查"这个值到底来自哪":`Config::get()` 给**生效值**,`Config::file()` 给**配置文件里的原值**,`Config::env()` 给**当前配置的 `.env` 层**里的原值(`AdminService\env()` 则直接读进程级 `.env`,与门面里是哪份配置无关)—— 后两者各看一层,不受覆盖影响
 - **装配在哪里**:引导期 `Main::init()` 读取 `AdminService/config/*.php` 装配出一份配置,再调用 `Config::setRepository()` 把它设为当前配置(同时替换容器里按实现类名登记的那份实例)—— 门面不决定读哪个目录;自定义入口要指向别的目录,自行 `new Loader($dir)` + `new Repository(...)` 再 `Config::setRepository()`
 - 覆盖的类型跟着配置文件里那个值走:文件里是 `int` 就把 `.env` 的字符串转成 `int`(否则 `port` 会变成字符串),`bool` 按"false/null/0/空 → false,其余 → true"判定
 - **部署前建议核对一遍**:路径键是否写全、`.env` 有没有语法错、要写的目录是否可写。这些是**事实**检查,不涉及"猜你的意图"(例如不该去查"某个大写键有没有被引用" —— `env()` 也会在代码里用、键还可能动态构造,那种静态推断必然误报)

@@ -74,11 +74,14 @@ load_test_functions();
 function boot_test_container(): void {
     if(!App::hasInstance())
         App::setInstance(new Container());
-    // 登记配置实例: 容器内核的参数解析器按 `base\ConfigInterface` 取配置(不再经静态门面),
-    // 因此测试容器也要有这一份, 否则 `#[Config]` 一类的注入会静默拿到默认值
+    // 按**真实容器的布置**装配置: 实例只登记在实现类名下, "契约名 → 实现类"走别名(同 `config/app.php`),
+    // 内核的参数解析器按契约名取配置时靠这条别名解析过去(不再经静态门面)
     $container=App::getInstance();
-    if(!$container->hasInstance(\base\ConfigInterface::class))
-        $container->instance(\base\ConfigInterface::class,Config::repository()??new Repository(array()));
+    if(!$container->hasInstance(Repository::class))
+        $container->instance(Repository::class,Config::repository()??new Repository(array()));
+    foreach((array)Config::get('app.alias',array()) as $alias=>$abstract)
+        if(!is_int($alias))
+            $container->alias((string)$alias,(string)$abstract);
     // 注意: **不**给 DatabaseConfig 注入配置实例 —— 测试靠 `Config::set()` 反复换配置来构造场景,
     // 注入会把配置定格成快照, 换配置就影响不到它(见 ConfigFacadeTest 的 set() 同步用例)
     BaseDb::setConfig(new DatabaseConfig());

@@ -105,12 +105,16 @@ class ConfigFacadeTest extends TestCase {
 
     /**
      * 测试: `set()` 之后**容器里那一份也要换新**(否则出现"门面新、容器旧"的最难查的不一致)
+     *
+     * - 场地按真实容器布置: 只登记**实现类名**, "契约名 → 实现类"由别名承担(同 `config/app.php` 的 `app.alias`)
+     *
      * @return void
      */
     public function testSetKeepsContainerInSync(): void {
         $this->withRestoredGlobals(function(): void {
             $container=new Container();
             App::setInstance($container);
+            $container->alias(ConfigInterface::class,Repository::class);
             Config::set(array('k'=>'v1'));
             $first=$container->get(ConfigInterface::class);
             $this->assertSame('v1',$first->get('k'));
@@ -141,10 +145,10 @@ class ConfigFacadeTest extends TestCase {
     }
 
     /**
-     * 测试: `setRepository()` 之后**容器里那两条登记都要换新**(契约名 + 实现类名)
+     * 测试: `setRepository()` 之后, 按实现类名与按契约名取到的**是同一份新实例**
      *
-     * - 引导期 `Application::init()` 与请求期 `handle()` 都是**契约名与实现类名各登记一条**;
-     *   若这里只换契约名那条, 两条就会指向不同的配置(契约名 → 新的, 实现类名 → 旧的)
+     * - 场地按真实容器布置: 实例只登记在实现类名下, 契约名靠别名解析过去
+     * - 反证口径: 若这里只换契约名那条登记(旧模型), 按实现类名取到的会是上一次那份
      *
      * @return void
      */
@@ -152,18 +156,48 @@ class ConfigFacadeTest extends TestCase {
         $this->withRestoredGlobals(function(): void {
             $container=new Container();
             App::setInstance($container);
+            $container->alias(ConfigInterface::class,Repository::class);
             $stale=new Repository(array('k'=>'stale'));
-            $container->instance(ConfigInterface::class,$stale);
             $container->instance(Repository::class,$stale);
             Config::setRepository(new Repository(array('k'=>'v1')));
             $first=$container->get(ConfigInterface::class);
             $this->assertSame('v1',$first->get('k'));
-            $this->assertSame($first,$container->get(Repository::class),'两个名字必须指向同一个实例');
+            $this->assertSame($first,$container->get(Repository::class),'契约名与实现类名必须指向同一个实例');
             Config::setRepository(new Repository(array('k'=>'v2')));
             $second=$container->get(ConfigInterface::class);
             $this->assertNotSame($first,$second,'容器必须换成新实例');
             $this->assertSame('v2',$second->get('k'));
-            $this->assertSame($second,$container->get(Repository::class),'实现类名那条也要换成新实例');
+            $this->assertSame($second,$container->get(Repository::class));
+        });
+    }
+
+    /**
+     * 测试: "契约名 → 实现类"由**别名**承担, 不是把实例登记在契约名下
+     *
+     * - `get()` / `hasInstance()` 只有"按名字查"这一步, **没有**"替你找可实例化的实现类" ——
+     *   所以只登记实现类名、不给别名时, 按契约名取会抛 `Class "base\ConfigInterface" is not instantiable.`
+     * - 加上别名(同 `config/app.php` 的 `app.alias`)后, 契约名解析到实现类名, 取到的就是那份实例
+     * - 注: 构造 / 属性注入另有兜底(找不到已登记实例时"找可实例化的实现类再 `make`", 而 `make` 会命中
+     *   实现类名下的登记), 因此不依赖别名; `#[Config]` 取值走的是本用例这条路径, 别名是它生效的前提
+     *
+     * @return void
+     */
+    public function testContractNameResolvesThroughAlias(): void {
+        $this->withRestoredGlobals(function(): void {
+            $container=new Container();
+            App::setInstance($container);
+            $repository=new Repository(array('k'=>'v'));
+            $container->instance(Repository::class,$repository);
+            $this->assertFalse($container->hasInstance(ConfigInterface::class),'没有别名时, 契约名下没有实例');
+            try {
+                $container->get(ConfigInterface::class);
+                $this->fail('没有别名 + 契约是接口时, 取不到实例(应当抛)');
+            } catch(\AdminService\Exception $e) {
+                $this->assertStringContainsString('base\\ConfigInterface',$e->getMessage());
+            }
+            $container->alias(ConfigInterface::class,Repository::class);
+            $this->assertSame($repository,$container->get(ConfigInterface::class),'有了别名, 契约名解析到实现类名下的实例');
+            $this->assertTrue($container->hasInstance(ConfigInterface::class));
         });
     }
 
@@ -198,10 +232,14 @@ class ConfigFacadeTest extends TestCase {
             $container=new Container();
             App::setInstance($container);
             Config::set(array('k'=>'from-facade'));
-            $injected=new Repository(array('k'=>'from-injected'));
+            // 传给应用的这份配置里带上"契约 → 实现类"的别名(同真实 `config/app.php`)
+            $injected=new Repository(array('k'=>'from-injected','app'=>array('alias'=>array(
+                ConfigInterface::class=>Repository::class,
+            ))));
             (new \AdminService\Application($container,$injected))->init();
             $this->assertSame($injected,Config::repository(),'门面里必须是应用手里那份');
-            $this->assertSame($injected,$container->get(ConfigInterface::class),'容器里那份也是同一个实例');
+            $this->assertSame($injected,$container->get(Repository::class),'实例登记在实现类名下');
+            $this->assertSame($injected,$container->get(ConfigInterface::class),'按契约名取到的也是同一个实例(经别名)');
         });
     }
 

@@ -40,11 +40,9 @@ final class Config {
      */
     public static function setRepository(Repository $repository): void {
         self::$repository=$repository;
-        if(App::hasInstance()) {
-            $container=App::getInstance();
-            $container->instance(\base\ConfigInterface::class,self::$repository);
-            $container->instance(Repository::class,self::$repository);
-        }
+        // 只按实现类名登记
+        if(App::hasInstance())
+            App::getInstance()->instance(Repository::class,self::$repository);
     }
 
     /**

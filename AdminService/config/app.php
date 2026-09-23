@@ -8,6 +8,7 @@ use AdminService\Route;
 use AdminService\Cookie;
 use AdminService\Response;
 use AdminService\HttpRequest;
+use AdminService\Config\Repository;
 
 // app 相关配置
 return array(
@@ -27,8 +28,6 @@ return array(
         \base\Cookie::class=>Cookie::class,
         \base\Response::class=>Response::class,
         \base\Request::class=>HttpRequest::class,
-        // 注意: `\base\ConfigInterface` 不在这里做别名 —— 它由引导期**登记实例**
-        // (`Application::init()` 把配置仓储登记为契约实例), 这样按契约注入得到的是"真正那份配置",
-        // 而不是一个转发到全局静态的替身
+        \base\ConfigInterface::class=>Repository::class,
     )
 );

@@ -69,8 +69,8 @@ final class Application {
     /**
      * 初始化(引导)
      *
-     * - **先把配置实例登记进容器**: 契约名与实现类名都能取到, 组件(含内核的参数解析器)因此按契约拿配置,
-     *   不需要静态门面
+     * - **先把配置实例登记进容器**(只按实现类名): "契约名 → 实现类"的映射交给下面的 `app.alias`,
+     *   组件(含内核的参数解析器)因此按契约拿配置, 不需要静态门面
      * - 按配置装配绑定表与别名: `app.classes`(数值键为"绑定自身", 字符串键为别名)与 `app.alias`
      * - 应用 `app.param_cast` 开关
      * - 安装容器到门面(重复调用不会重建已安装的容器, 语义幂等)
@@ -81,9 +81,8 @@ final class Application {
      * @throws Exception
      */
     public function init(array $classes=array()): static {
-        // 登记配置实例(按契约名 + 实现类名): 这是"依赖倒置"的落点 —— 使用者注入 `base\ConfigInterface`,
-        // 拿到的是真配置, 而不是转发到全局静态的替身
-        $this->container->instance(ConfigInterface::class,$this->config);
+        // 登记配置实例(**只按实现类名**): "依赖倒置"的落点是"使用者按契约注入 -> 容器把契约解析成实现类 ->
+        // 找到这份实例"; 契约名到实现类的映射由 `app.alias` 承担(`config/app.php`), 不拿具体实例去占契约名
         $this->container->instance(Repository::class,$this->config);
         // 获取配置文件中的别名(与绑定分表: 别名只描述"名字 → 名字")
         $aliases=$this->config->get('app.alias',array());
@@ -116,9 +115,8 @@ final class Application {
         }
         // 安装到门面(使用者入口)
         App::setInstance($this->container);
-        // 让门面的当前配置也是这一份: 门面的静态指针与容器里按 `base\ConfigInterface` 登记的实例
-        // 必须指向同一个对象, 否则 `Config::get()` 与按契约注入拿到的会是两份不同的配置;
-        // 必须排在 `App::setInstance()` 之后 —— `setRepository()` 替换的是"当前容器"里的登记
+        // 同时把这份配置设为门面的当前配置(替换容器里按实现类名登记的那份);
+        // 必须排在 `App::setInstance()` 之后 —— `setRepository()` 换的是"当前容器"里的登记
         Config::setRepository($this->config);
         return $this;
     }
@@ -163,13 +161,11 @@ final class Application {
         // 请求级 scope: 实例与全局数据独立, 绑定/别名/单例与反射缓存共享
         $container=$this->container->fork();
         $this->request_container=$container;
-        // 请求开始时把 `Config::repository()` 当前返回的配置登记进请求容器(契约名与实现类名各一条):
+        // 请求开始时把 `Config::repository()` 当前返回的配置登记进请求容器(按实现类名, 与 `Application::init()` 一致):
         // 应用级容器里登记的可能已经被 `Config::setRepository()/set()` 换成新的了, 只靠父容器会让请求内的组件读到旧配置
         $repository=Config::repository();
-        if($repository!==null) {
-            $container->instance(ConfigInterface::class,$repository);
+        if($repository!==null)
             $container->instance(Repository::class,$repository);
-        }
         App::setInstance($container);
         try {
             $this->bootRequest($container);

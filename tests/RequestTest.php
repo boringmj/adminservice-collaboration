@@ -58,7 +58,7 @@ class RequestTest extends TestCase {
                 $node=&$node[$key];
             $node=$value;
         }
-        Config::set($configs);
+        set_config($configs);
     }
 
     /**

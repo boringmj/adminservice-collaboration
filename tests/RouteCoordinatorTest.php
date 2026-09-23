@@ -135,7 +135,7 @@ class RouteCoordinatorTest extends TestCase {
         }
         $configs=Config::all();
         $configs['route']['files']=$this->routesFiles;
-        Config::set($configs);
+        set_config($configs);
     }
 
     /**
@@ -152,7 +152,7 @@ class RouteCoordinatorTest extends TestCase {
             file_put_contents($this->routesDir.'/'.$name.'.php',self::routeFileSource($body));
         $configs=Config::all();
         $configs['route']['files']=array($this->routesDir);
-        Config::set($configs);
+        set_config($configs);
     }
 
     /**
@@ -376,7 +376,7 @@ class RouteCoordinatorTest extends TestCase {
         $configs=Config::all();
         $configs['middlewares']['request']=array(new LabelMiddleware('request'));
         $configs['middlewares']['controller']=array(new LabelMiddleware('controller'));
-        Config::set($configs);
+        set_config($configs);
         $this->useRoutes(<<<'PHP'
 $router->group(array('middleware'=>array(new \Tests\Fixtures\LabelMiddleware('group'))),function($router): void {
     $router->any('/t/mw',array(\app\demo\controller\Index::class,'index'))
@@ -402,7 +402,7 @@ PHP
         MiddlewareLog::clear();
         $configs=Config::all();
         $configs['middlewares']['request']=array(new LabelMiddleware('request'));
-        Config::set($configs);
+        set_config($configs);
         $this->useRoutes('// 未注册任何路由');
         $this->dispatch('/nope');
         $this->assertSame(404,$this->response()->status());
@@ -417,7 +417,7 @@ PHP
         MiddlewareLog::clear();
         $configs=Config::all();
         $configs['middlewares']['request']=array(new LabelMiddleware('request'));
-        Config::set($configs);
+        set_config($configs);
         $this->useRoutes("\$router->get('/t/r',array(\\app\\demo\\controller\\Index::class,'index'))->middleware(new \\Tests\\Fixtures\\BlockingMiddleware());");
         $this->dispatch('/t/r');
         // 请求中间件进入路由, 路由中间件中断: 控制器未执行
@@ -440,7 +440,7 @@ PHP
             array('middleware'=>new LabelMiddleware('low'),'priority'=>1),
             array('middleware'=>new LabelMiddleware('high'),'priority'=>9)
         );
-        Config::set($configs);
+        set_config($configs);
         $this->useRoutes("\$router->get('/t/p',array(\\app\\demo\\controller\\Index::class,'index'));");
         $this->assertSame('Hello World!',$this->dispatch('/t/p'));
         $this->assertSame(array('high','low','low:after','high:after'),MiddlewareLog::$calls);
@@ -459,7 +459,7 @@ PHP
         $configs['middlewares']['request']=array(
             array('middleware'=>new LabelMiddleware('request'),'priority'=>1)
         );
-        Config::set($configs);
+        set_config($configs);
         $this->useRoutes(<<<'PHP'
 $router->group(array('middleware'=>array(
     array('middleware'=>new \Tests\Fixtures\LabelMiddleware('group'),'priority'=>100)
@@ -490,7 +490,7 @@ PHP
         MiddlewareLog::clear();
         $configs=Config::all();
         $configs['middlewares']['controller']=array(new LabelMiddleware('config'));
-        Config::set($configs);
+        set_config($configs);
         $this->useRoutes("\$router->get('/mw/attr',array(\\Tests\\Fixtures\\MiddlewaredController::class,'handle'));");
         $this->assertSame('mw-handled',$this->dispatch('/mw/attr'));
         $this->assertSame(array(

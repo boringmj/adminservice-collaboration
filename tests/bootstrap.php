@@ -20,7 +20,19 @@ use base\Database\Db as BaseDb;
  */
 function load_framework_config(): void {
     $loader=new Loader(dirname(__DIR__).'/AdminService/config');
-    Config::setRepository(new Repository($loader->load(),$loader->diagnostics(),\AdminService\env_snapshot()));
+    Config::setRepository(new Repository($loader->load(),\AdminService\env_snapshot()));
+}
+
+/**
+ * 用一份代码里的配置树安装当前配置(`Config::new()` 只构建, 安装是显式的一步)
+ *
+ * @param array<string,mixed> $configs 配置树
+ * @return Repository 安装上去的实例
+ */
+function set_config(array $configs): Repository {
+    $repository=Config::new($configs);
+    Config::setRepository($repository);
+    return $repository;
 }
 
 /**
@@ -35,7 +47,7 @@ function load_test_config(): void {
     load_framework_config();
     $configs=Config::all();
     $configs['app']['debug']=false;
-    Config::set($configs);
+    set_config($configs);
 }
 
 /**
@@ -82,7 +94,7 @@ function boot_test_container(): void {
     foreach((array)Config::get('app.alias',array()) as $alias=>$abstract)
         if(!is_int($alias))
             $container->alias((string)$alias,(string)$abstract);
-    // 注意: **不**给 DatabaseConfig 注入配置实例 —— 测试靠 `Config::set()` 反复换配置来构造场景,
+    // 注意: **不**给 DatabaseConfig 注入配置实例 —— 测试靠 `Config::new()` 反复换配置来构造场景,
     // 注入会把配置定格成快照, 换配置就影响不到它(见 ConfigFacadeTest 的 set() 同步用例)
     BaseDb::setConfig(new DatabaseConfig());
 }

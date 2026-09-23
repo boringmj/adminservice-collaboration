@@ -122,7 +122,7 @@ class Demo {
 - **生效条件**:凡是由框架解析实参的地方都会生效 —— 构造函数、`#[AutowireMethod]` 方法,以及经 `App::exec_class_function()` / `exec_function()` 调用的方法与函数(控制器由框架经前者调用,所以控制器方法形参上的标注同样生效);框架不参与解析时(你自己直接调方法)自然不生效
 - **实参优先**:具名实参 / 顺位实参 > `#[Config]` > 按类型注入 —— 路由参数与配置键同名时路由参数优先,因此"控制器形参只注入路由参数"的既有语义不变(**未标注**的形参不会拿到配置值)
 - **不能与 `#[AutowireProperty]` / `#[AutowireSetter]` / `#[AutowireMethod]` 同挂一处**:语义冲突, 会抛 `AutowireException`;`#[AutowireSetter]` 方法的**形参上**标 `#[Config]` 同样报错(那条路径按类型注入服务对象)
-- 配置对象本身可按契约注入:依赖 `base\ConfigInterface` 即可 —— 引导期会把**当前配置实例**登记进应用级容器,见 `AdminService\Config\Repository`
+- 配置对象本身可按契约注入:依赖 `base\ConfigInterface` 即可 —— 引导期把**当前配置实例按实现类名**(`AdminService\Config\Repository`)登记进应用级容器,再由 `config/app.php` 的 `app.alias` 把契约名指向它(实例不占契约名,换实现只改那条别名)
 
 ## 配置与 `.env`
 
@@ -154,7 +154,7 @@ return array(
 - **生效值的优先级**:运行时写入 → `.env` 路径键 → 配置文件 → 默认值
 - **运行时临时值**:代码里 `Config::setValue('log.path','/tmp/x')` 可临时改一项(不必重写整份配置),它优先级最高、`.env` 也盖不掉;只允许写在**已存在的配置项**上(写错路径直接报错)
 - 排查"这个值到底来自哪":`Config::get()` 给**生效值**,`Config::file()` 给**配置文件里的原值**,`Config::env()` 给**当前配置的 `.env` 层**里的原值(全局 `env()` 则读进程级 `.env`,与门面里是哪份配置无关)—— 后两者各看一层,不受覆盖影响
-- **装配在哪里**:引导期 `Main::init()` 读取 `AdminService/config/*.php` 装配出一份配置,再调用 `Config::setRepository()` 把它设为当前配置(同时替换容器里按 `base\ConfigInterface` 登记的实例)—— 门面不决定读哪个目录;自定义入口要指向别的目录,自行 `new Loader($dir)` + `new Repository(...)` 再 `Config::setRepository()`
+- **装配在哪里**:引导期 `Main::init()` 读取 `AdminService/config/*.php` 装配出一份配置,再调用 `Config::setRepository()` 把它设为当前配置(同时替换容器里按实现类名登记的那份实例)—— 门面不决定读哪个目录;自定义入口要指向别的目录,自行 `new Loader($dir)` + `new Repository(...)` 再 `Config::setRepository()`
 - 覆盖的类型跟着配置文件里那个值走:文件里是 `int` 就把 `.env` 的字符串转成 `int`(否则 `port` 会变成字符串),`bool` 按"false/null/0/空 → false,其余 → true"判定
 - **部署前建议核对一遍**:路径键是否写全、`.env` 有没有语法错、要写的目录是否可写。这些是**事实**检查,不涉及"猜你的意图"(例如不该去查"某个大写键有没有被引用" —— `env()` 也会在代码里用、键还可能动态构造,那种静态推断必然误报)
 
@@ -181,4 +181,4 @@ return array(
 1. 2026/09/22: 请求与响应重构 (由AI生成重构计划,并由agent执行)
 1. 2026/09/22: 容器(DI Container)重构 —— 内核实例化与职责拆分、base 层契约化、请求级 scope、配置项注入 `#[Config]` (由AI生成重构计划,并由agent执行)
 1. 2026/09/23: 配置模块重构 (由AI生成评估/纲领/计划, 经逐条核对与实测后由agent执行) —— 抽出 `.env` 解析器 / 配置仓储 / 加载器, `Config` 降级为无状态门面(配置实例由引导期登记进容器), 组件改为按契约注入;`.env` 的键分两类(含点的路径键覆盖同名配置项 / 不含点的大写键由配置文件里的 `env()` 读取), 键名大小写敏感、数字保持字符串;生效值分四层(运行时写入 `Config::setValue()` → `.env` 路径键 → 配置文件 → 默认值)
-1. 2026/09/23: 配置装配上移到引导点, 门面补齐两层入口 —— 装配改由 `Main::init()` 完成(目录在装配点给出)并把实例**直接传给应用**, 门面新增 `Config::setRepository()`(设置当前配置, 并把容器里按 `base\ConfigInterface` 登记的实例替换成同一个对象)、`load()` 降为"读框架自带目录"的便捷写法;新增 `Config::env()`(读当前配置的 `.env` 层;与 `Config::get()` 的生效值分属两个通道, 与 `Config::file()` 对称) (由AI生成计划, 经逐条核对后由agent执行)
+1. 2026/09/23: 配置装配上移到引导点, 门面接口收敛为"设置 + 转发" —— 装配改由 `Main::init()` 完成(目录在装配点给出)并把实例**直接传给应用**;门面新增 `Config::setRepository()`(设置当前配置, 并把容器里按实现类名登记的实例替换成同一个对象), **`Config::load()` 已删除**(装配决策归引导点);`app.alias` 新增"配置契约 → 实现类"一条(`config/app.php`), 实例只登记在实现类名下;新增 `Config::env()`(读当前配置的 `.env` 层;与 `Config::get()` 的生效值分属两个通道, 与 `Config::file()` 对称) (由AI生成计划, 经逐条核对后由agent执行)

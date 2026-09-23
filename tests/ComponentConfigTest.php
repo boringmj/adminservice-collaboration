@@ -191,12 +191,12 @@ class ComponentConfigTest extends TestCase {
      */
     public function testAttributeInjectionSeesEnvOverride(): void {
         $repository=new Repository(
-            array('k'=>'from-file'),
-            new \AdminService\Config\Env('k=from-env')
+            array('k'=>array('v'=>'from-file')),
+            new \AdminService\Config\Env('k.v=from-env')
         );
         $container=new Container();
         $container->instance(ConfigInterface::class,$repository);
-        $this->assertSame('from-env',$container->exec_function(function(#[ConfigAttribute('k')] string $v=''): string {
+        $this->assertSame('from-env',$container->exec_function(function(#[ConfigAttribute('k.v')] string $v=''): string {
             return $v;
         }));
     }

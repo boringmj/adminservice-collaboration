@@ -12,15 +12,17 @@ use function implode;
 use function is_array;
 
 /**
- * `.env` 路径键覆盖的用例(`Repository::get/all/file`)
+ * env 路径键覆盖的用例(`Repository::get/all/config_raw`)
  *
- * 机制(2026-09-23 定):`.env` 里的**小写点分路径键**覆盖同名配置项 ——
+ * 机制: env 里**含点的键**是路径键, 覆盖同名配置项 ——
  * 用意是下游项目**不必改框架的配置文件**就能覆盖任何一项, 于是上游更新配置不会与下游冲突。
  *
- * 三条边界必须钉住(它们都是刻意的):
- *  1. **只覆盖已存在的路径**, 且**绝不新建节点**(配置树的结构只由 `config/*.php` 决定)
- *  2. **只覆盖标量叶子**(路径指向数组时忽略覆盖)
- *  3. **类型跟着配置文件里那个值的类型走**(文件里是 int 就转 int, 否则 `port` 会变成字符串)
+ * 四条边界必须钉住(它们都是刻意的):
+ *  1. **只覆盖已存在的路径**, 且**绝不新建节点**(配置树的结构只由 `config/*.php` 决定);
+ *     路径不存在、指向数组节点都会抛 `ConfigException`
+ *  2. **只覆盖标量叶子**
+ *  3. **类型跟着配置文件里那个值的类型走**(文件里是 int 就转 int, 否则 `port` 会变成字符串); 类型不符同样抛异常
+ *  4. **不含点的键**是值来源(由配置文件里的 `env()` 读取), 不参与覆盖
  */
 class ConfigOverrideTest extends TestCase {
 
@@ -68,34 +70,55 @@ class ConfigOverrideTest extends TestCase {
     }
 
     /**
-     * 测试: **路径不存在时忽略覆盖**, 且不会在配置树里新建节点
+     * 测试: 路径不存在时抛异常(不静默跳过)
+     *
+     * - 同时钉住"绝不新建节点": 因为抛了, 所以配置树里不会多出节点
+     *
      * @return void
      */
-    public function testOverrideIgnoresUnknownPathAndNeverCreatesNodes(): void {
-        $repo=new Repository($this->configs(),$this->env(implode("\n",array(
-            'database.default.host=typo.example.com',
-            'APP_DEBUG=true',
-            'brand.new.key=1',
-        ))));
-        $this->assertNull($repo->get('brand'),'不存在的路径不许被造出来(虚空节点)');
-        $this->assertFalse($repo->has('brand'));
-        $this->assertNull($repo->get('database.default'),'少写一层同样不许被造出来');
-        $this->assertSame('localhost',$repo->get('database.connections.default.host'),'因此原值不变');
-        $this->assertSame('demo',$repo->get('app.name'));
-        $this->assertArrayNotHasKey('brand',$repo->all());
-        $this->assertArrayNotHasKey('default',$repo->all()['database'],'`all()` 也不许出现新节点');
-        // 大写键(如 APP_DEBUG)在配置树里没有同名路径 → 天然不会被当成覆盖
-        $this->assertFalse($repo->get('app.debug'));
+    public function testUnknownPathThrows(): void {
+        foreach(array('database.default.host=typo.example.com','brand.new.key=1','app.nope=1') as $line) {
+            try {
+                new Repository($this->configs(),$this->env($line));
+                $this->fail('路径不存在应当抛 ConfigException: '.$line);
+            } catch(ConfigException $e) {
+                $this->assertStringContainsString(explode('=',$line)[0],$e->getMessage());
+            }
+        }
+        $repo=new Repository($this->configs(),$this->env('app.name=from-env'));
+        $this->assertArrayNotHasKey('brand',$repo->all(),'不存在的路径不许被造出来(虚空节点)');
+        $this->assertArrayNotHasKey('default',$repo->all()['database'],'少写一层同样不许被造出来');
     }
 
     /**
-     * 测试: 路径指向数组时忽略覆盖(只覆盖标量叶子)
+     * 测试: 不含点的键是值来源, 不参与覆盖(不按路径解析, 也不报错)
      * @return void
      */
-    public function testOverrideIgnoresArrayPath(): void {
-        $repo=new Repository($this->configs(),$this->env('route.files=/nope'));
-        $this->assertSame(array('/routes'),$repo->get('route.files'),'数组路径不会被字符串覆盖');
-        $this->assertSame(array('/routes'),$repo->all()['route']['files']);
+    public function testKeyWithoutDotIsNotAPath(): void {
+        $repo=new Repository($this->configs(),$this->env(implode("\n",array(
+            'brand=1',
+            'APP_DEBUG=true',
+            'app=1',
+        ))));
+        $this->assertFalse($repo->has('brand'),'不含点的键不覆盖任何配置项');
+        $this->assertArrayNotHasKey('brand',$repo->all());
+        $this->assertFalse($repo->get('app.debug'),'APP_DEBUG 是值来源, 不是路径键');
+        $this->assertSame('demo',$repo->get('app')['name'],'`app` 仍是配置里的数组节点');
+    }
+
+    /**
+     * 测试: 路径指向数组节点时抛异常(覆盖值只能是标量)
+     * @return void
+     */
+    public function testArrayNodeOverrideThrows(): void {
+        foreach(array('route.files=/nope','database.connections.default=1') as $line) {
+            try {
+                new Repository($this->configs(),$this->env($line));
+                $this->fail('覆盖数组节点应当抛 ConfigException: '.$line);
+            } catch(ConfigException $e) {
+                $this->assertStringContainsString(explode('=',$line)[0],$e->getMessage());
+            }
+        }
     }
 
     /**

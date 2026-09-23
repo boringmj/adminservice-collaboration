@@ -27,7 +27,7 @@ return array(
             'application/x-www-form-urlencoded'=>FormInput::class // 表单请求体(PHP不为PUT/PATCH等填充$_POST)
         ),
         'param'=>array(
-            'input'=>Request::POST_PARAM, // 将input参数合并到何处,`0`为不合并,默认为`0`
+            'input'=>Request::POST_PARAM, // 把 input 参数合并进哪个输入区: `0` 不合并, 取 Request::*_PARAM;这里默认合并进 POST
             'order'=>'CGP' // 参数处理顺序,默认为CGP,即Cookie<Get<Post,目前仅支持Cookie,Get,Post
         )
     )

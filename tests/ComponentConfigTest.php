@@ -80,6 +80,31 @@ class ComponentConfigTest extends TestCase {
     }
 
     /**
+     * 测试: `.env` 的路径键覆盖**要作用到读"整块配置"的组件**(数据库层就是这种读法)
+     *
+     * - `DatabaseConfig::connection()` 读的是 `database.connections.<name>` 这个**数组节点**,
+     *   所以只有"数组节点也合并子项覆盖"时, `.env` 里覆盖连接字段才真的有效
+     *   —— 反证: 若数组节点返回文件原值, 这个断言会拿到文件里的 host/port
+     *
+     * @return void
+     */
+    public function testDatabaseSeesChildOverrides(): void {
+        $repository=new Repository(
+            array('database'=>array('connections'=>array('default'=>array(
+                'type'=>'mysql','host'=>'file-host','port'=>3306,'dbname'=>'file-db',
+            )))),
+            array(),
+            new \AdminService\Config\Env("database.connections.default.host=env-host\ndatabase.connections.default.port=9999")
+        );
+        $config=new DatabaseConfig($repository);
+        $connection=$config->connection('default');
+        $this->assertSame('env-host',$connection['host'],'连接字段的 `.env` 覆盖必须生效');
+        $this->assertSame(9999,$connection['port'],'类型跟着文件里的值(int)');
+        $this->assertSame('mysql',$connection['type'],'没被覆盖的字段照旧');
+        $this->assertSame('file-db',$connection['dbname']);
+    }
+
+    /**
      * 测试: `HttpRequest` 的参数来源顺序按注入的配置来
      * @return void
      */

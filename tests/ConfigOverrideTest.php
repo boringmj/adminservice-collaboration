@@ -198,6 +198,70 @@ class ConfigOverrideTest extends TestCase {
     }
 
     /**
+     * 测试: 读**数组节点**时, 它下面的路径键覆盖要合并进去(否则"读整块配置"的消费方看不到覆盖)
+     *
+     * - 反证口径: `get('database.connections.default')` 与 `get('database.connections.default.host')`
+     *   必须是同一个答案 —— 数据库层正是读前者(`DatabaseConfig::connection()`), 两者不一致时
+     *   `.env` 里覆盖连接字段等于没覆盖
+     *
+     * @return void
+     */
+    public function testArrayNodeMergesChildOverrides(): void {
+        $repo=new Repository($this->configs(),array(),$this->env(implode("\n",array(
+            'database.connections.default.host=db.example.com',
+            'database.connections.default.port=13306',
+        ))));
+        $node=$repo->get('database.connections.default');
+        $this->assertSame('db.example.com',$node['host'],'数组节点里要体现 `.env` 的覆盖');
+        $this->assertSame(13306,$node['port'],'类型同样跟着配置文件里的值(与叶子口径一致)');
+        $this->assertSame(array('host'=>'db.example.com','port'=>13306,'password'=>''),$node);
+        $this->assertSame($repo->all()['database']['connections']['default'],$node,'与 all() 里那份也一致');
+        $this->assertSame('db.example.com',$repo->get('database.connections.default.host'),'叶子读法同样一致');
+        $this->assertSame('demo',$repo->get('app.name'),'没被覆盖的部分照旧');
+    }
+
+    /**
+     * 测试: 数组节点也要合并**临时值**, 且临时值仍然赢过 `.env`
+     * @return void
+     */
+    public function testArrayNodeMergesRuntimeValues(): void {
+        $repo=new Repository($this->configs(),array(),$this->env('database.connections.default.host=from-env'));
+        $repo->put('database.connections.default.port',2222);
+        $node=$repo->get('database.connections.default');
+        $this->assertSame(2222,$node['port'],'临时值要进数组节点');
+        $this->assertSame('from-env',$node['host'],'同层的 `.env` 覆盖照旧生效');
+        $repo->put('database.connections.default.host','from-runtime');
+        $this->assertSame('from-runtime',$repo->get('database.connections.default')['host'],'同一项上临时值赢过 `.env`');
+    }
+
+    /**
+     * 测试: 该路径下**没有任何覆盖/临时值**时, 数组节点原样返回(不物化)
+     *
+     * - 注: 数组是值类型, "有没有复制一份"在外部不可观测;这里断言的是语义(与文件树一致),
+     *   零开销那一层由实现里的 `$coveredParents` 保证
+     *
+     * @return void
+     */
+    public function testArrayNodeWithoutOverridesStaysFileTree(): void {
+        $repo=new Repository($this->configs(),array(),$this->env('app.name=from-env'));
+        $this->assertSame($this->configs()['database'],$repo->get('database'),'未涉及的数组节点与文件树一致');
+        $this->assertSame($this->configs()['database'],$repo->file('database'));
+    }
+
+    /**
+     * 测试: **没有 `.env` 快照**时, `all()` 也必须体现临时值(原来会整层丢掉)
+     * @return void
+     */
+    public function testAllReflectsRuntimeWithoutEnvSnapshot(): void {
+        $repo=new Repository($this->configs());
+        $repo->put('database.connections.default.port',2222);
+        $this->assertSame(2222,$repo->get('database.connections.default.port'));
+        $this->assertSame(2222,$repo->all()['database']['connections']['default']['port'],'all() 与 get() 必须一致');
+        $this->assertSame(2222,$repo->get('database.connections.default')['port'],'数组节点读法同样一致');
+        $this->assertSame('demo',$repo->all()['app']['name'],'其余部分照旧');
+    }
+
+    /**
      * 测试: `putAll()`(供 `Config::set()` 用)把树里的标量叶子钉到临时层
      *
      * - 于是"刚 set 的值"赢过 `.env` 的路径键(否则会出现"我明明 set 了却被改掉")

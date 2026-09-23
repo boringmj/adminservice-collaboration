@@ -4,21 +4,35 @@ require __DIR__.'/../vendor/autoload.php';
 
 use AdminService\App;
 use AdminService\Config;
+use AdminService\Config\Loader;
 use AdminService\Config\Repository;
 use AdminService\Container;
 use AdminService\Database\DatabaseConfig;
 use base\Database\Db as BaseDb;
 
 /**
+ * 装配框架自带目录(`AdminService/config`)的配置,并设为当前配置
+ *
+ * - 复刻 `Main::init()` 的装配步骤(那边用 `__DIR__.'/config'`, 这里从 `tests/` 上溯)
+ * - 用例的 setUp / tearDown 用它把配置重置回真实配置
+ *
+ * @return void
+ */
+function load_framework_config(): void {
+    $loader=new Loader(dirname(__DIR__).'/AdminService/config');
+    Config::setRepository(new Repository($loader->load(),$loader->diagnostics(),env_snapshot()));
+}
+
+/**
  * 测试环境配置加载
  *
- * - 加载真实配置后强制关闭 app.debug: 负向用例抛出的预期异常不再于构造时写日志
+ * - 装配真实配置后强制关闭 app.debug: 负向用例抛出的预期异常不再于构造时写日志
  * - 生产/开发环境依赖全局兜底(Error::renderAndExit)记录未捕获异常
  *
  * @return void
  */
 function load_test_config(): void {
-    Config::load();
+    load_framework_config();
     $configs=Config::all();
     $configs['app']['debug']=false;
     Config::set($configs);

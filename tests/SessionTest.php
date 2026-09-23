@@ -33,7 +33,7 @@ class SessionTest extends TestCase {
      */
     protected function tearDown(): void {
         $_SESSION=array();
-        Config::load();
+        load_framework_config();
     }
 
     /**

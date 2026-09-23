@@ -56,7 +56,7 @@ class UploadTest extends TestCase {
             if(is_file($file))
                 unlink($file);
         $this->tempFiles=array();
-        Config::load();
+        load_framework_config();
     }
 
     /**

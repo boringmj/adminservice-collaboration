@@ -25,7 +25,7 @@ class DbConfigTest extends TestCase {
      * @return void
      */
     protected function setUp(): void {
-        Config::load();
+        load_framework_config();
     }
 
     /**
@@ -33,7 +33,7 @@ class DbConfigTest extends TestCase {
      * @return void
      */
     protected function tearDown(): void {
-        Config::load();
+        load_framework_config();
     }
 
     /**

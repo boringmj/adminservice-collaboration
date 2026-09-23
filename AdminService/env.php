@@ -35,7 +35,7 @@ function env(string $key,mixed $default=null): mixed {
 /**
  * 取本次进程的 `.env` 快照(与 `env()` 用的是**同一份**, 不会二次解析)
  *
- * - 为什么需要它: `Config\Repository` 做"路径键覆盖"时要能一次拿到整份 `.env`(按路径查表),
+ * - 为什么需要它: `Config\Repository` 在**装载期**套"路径键覆盖"时要能一次拿到整份 `.env`,
  *   而 `env()` 的缓存只藏在它自己的函数静态里, 外面拿不到 —— 于是把它暴露成一个只读入口
  * - 返回的 `Env` 是**不可变快照**: 想绕开缓存请直接用 `Env::fromFile()` / `new Env()`
  *

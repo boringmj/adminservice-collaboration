@@ -161,7 +161,7 @@ class ConfigOverrideTest extends TestCase {
 
 
     /**
-     * 测试: **运行时临时值优先级最高** —— 盖得过 `.env` 的路径键, 也盖得过配置文件
+     * 测试: **运行时写入优先于一切** —— 盖得过 `.env` 的路径键, 也盖得过配置文件
      *
      * - 用途: 临时改一项而不必重写整份配置;而且**其它键的 `.env` 覆盖照旧生效**(只加一层, 不拆原有那层)
      *
@@ -176,9 +176,9 @@ class ConfigOverrideTest extends TestCase {
         ))));
         $repo->put('app.name','from-runtime');
         $repo->put('database.connections.default.port',2222);
-        $this->assertSame('from-runtime',$repo->get('app.name'),'临时值盖过 .env 的路径键');
-        $this->assertSame(2222,$repo->get('database.connections.default.port'),'临时值原样给出(不做类型转换 —— 它是代码写的, 不是解析来的)');
-        // 关键对照: 同一份仓储里, **没被临时值碰过**的键, `.env` 覆盖照旧生效(证明是"加一层", 不是拆了 `.env` 那层)
+        $this->assertSame('from-runtime',$repo->get('app.name'),'运行时写入盖过 .env 的路径键');
+        $this->assertSame(2222,$repo->get('database.connections.default.port'),'运行时写入原样给出(不做类型转换 —— 它是代码写的, 不是解析来的)');
+        // 关键对照: 同一份仓储里, **没被运行时写入碰过**的键, `.env` 覆盖照旧生效(证明是"加一层", 不是拆了 `.env` 那层)
         $this->assertSame('from-env-host',$repo->get('database.connections.default.host'));
         $this->assertSame('from-env-pwd',$repo->get('database.connections.default.password'));
     }
@@ -194,6 +194,66 @@ class ConfigOverrideTest extends TestCase {
             $this->fail('不存在的路径应当抛 ConfigException');
         } catch(\AdminService\exception\ConfigException $e) {
             $this->assertStringContainsString('brand.new.key',$e->getMessage());
+        }
+    }
+
+    /**
+     * 测试: 覆盖要体现在**任意层级的父路径**上(不只是最靠近叶子的那一层)
+     * @return void
+     */
+    public function testAnyAncestorReflectsChildOverride(): void {
+        $repo=new Repository($this->configs(),array(),$this->env('database.connections.default.host=db.example.com'));
+        $this->assertSame('db.example.com',$repo->get('database')['connections']['default']['host'],'顶层子树里也要体现');
+        $this->assertSame('db.example.com',$repo->get('database.connections')['default']['host'],'中间层同样');
+        $this->assertSame('db.example.com',$repo->all()['database']['connections']['default']['host']);
+        $this->assertSame('demo',$repo->get('app')['name'],'没被覆盖的部分照旧');
+    }
+
+    /**
+     * 测试: `file()` 那层**冻结** —— `.env` 覆盖与运行时写入都碰不到它
+     * @return void
+     */
+    public function testFileLayerStaysFrozen(): void {
+        $repo=new Repository($this->configs(),array(),$this->env('database.connections.default.host=from-env'));
+        $repo->put('database.connections.default.port',2222);
+        $this->assertSame('from-env',$repo->get('database.connections.default.host'));
+        $this->assertSame('localhost',$repo->file('database.connections.default.host'),'`.env` 覆盖不影响文件层');
+        $this->assertSame(3306,$repo->file('database.connections.default.port'),'运行时写入不影响文件层');
+        $this->assertSame('localhost',$repo->file('database.connections.default')['host'],'整段读也一样');
+        $this->assertSame(3306,$repo->file('database.connections.default')['port']);
+    }
+
+    /**
+     * 测试: `env()` 那层也不受影响 —— `get()` / `file()` / `env()` 是三条独立通道
+     * @return void
+     */
+    public function testEnvLayerUnaffectedByOthers(): void {
+        $repo=new Repository($this->configs(),array(),$this->env("database.connections.default.port=13306\nRAW=raw-value"));
+        $repo->put('database.connections.default.port',2222);
+        $this->assertSame(2222,$repo->get('database.connections.default.port'),'生效值: 运行时写入');
+        $this->assertSame(3306,$repo->file('database.connections.default.port'),'文件层: 原值');
+        $this->assertSame('13306',$repo->env('database.connections.default.port'),'`.env` 层: 原样字符串(不折算)');
+        $this->assertSame('raw-value',$repo->env('RAW'));
+    }
+
+    /**
+     * 测试: 值为 `null` 的配置项算"不存在" —— `.env` 覆盖与 `put()` 都不该碰它
+     *
+     * - 口径来自旧实现(`isset` 语义), 这里把它钉住: null 项不进覆盖判定, 但仍原样留在树里
+     *
+     * @return void
+     */
+    public function testNullValuedItemCountsAsMissing(): void {
+        $repo=new Repository(array('a'=>array('b'=>null,'c'=>1)),array(),$this->env("a.b=from-env\na.c=2"));
+        $this->assertFalse($repo->has('a.b'),'值为 null 的项视为不存在');
+        $this->assertSame('dflt',$repo->get('a.b','dflt'),'取不到 → 回落默认值');
+        $this->assertNull($repo->all()['a']['b'],'它仍原样留在树里(只是取不到)');
+        $this->assertSame(2,$repo->get('a.c'),'同一层的非 null 项正常吃到覆盖');
+        try {
+            $repo->put('a.b',1);
+            $this->fail('对"不存在的项"做运行时写入应当抛 ConfigException');
+        } catch(\AdminService\exception\ConfigException $e) {
+            $this->assertStringContainsString('a.b',$e->getMessage());
         }
     }
 
@@ -221,21 +281,21 @@ class ConfigOverrideTest extends TestCase {
     }
 
     /**
-     * 测试: 数组节点也要合并**临时值**, 且临时值仍然赢过 `.env`
+     * 测试: 数组节点也要合并**运行时写入**, 且它仍然赢过 `.env`
      * @return void
      */
     public function testArrayNodeMergesRuntimeValues(): void {
         $repo=new Repository($this->configs(),array(),$this->env('database.connections.default.host=from-env'));
         $repo->put('database.connections.default.port',2222);
         $node=$repo->get('database.connections.default');
-        $this->assertSame(2222,$node['port'],'临时值要进数组节点');
+        $this->assertSame(2222,$node['port'],'运行时写入要进数组节点');
         $this->assertSame('from-env',$node['host'],'同层的 `.env` 覆盖照旧生效');
         $repo->put('database.connections.default.host','from-runtime');
-        $this->assertSame('from-runtime',$repo->get('database.connections.default')['host'],'同一项上临时值赢过 `.env`');
+        $this->assertSame('from-runtime',$repo->get('database.connections.default')['host'],'同一项上运行时写入赢过 `.env`');
     }
 
     /**
-     * 测试: 该路径下**没有任何覆盖/临时值**时, 数组节点原样返回(不物化)
+     * 测试: 该路径下**没有任何覆盖/运行时写入**时, 数组节点原样返回(不物化)
      *
      * - 注: 数组是值类型, "有没有复制一份"在外部不可观测;这里断言的是语义(与文件树一致),
      *   零开销那一层由实现里的 `$coveredParents` 保证
@@ -249,7 +309,7 @@ class ConfigOverrideTest extends TestCase {
     }
 
     /**
-     * 测试: **没有 `.env` 快照**时, `all()` 也必须体现临时值(原来会整层丢掉)
+     * 测试: **没有 `.env` 快照**时, `all()` 也必须体现运行时写入
      * @return void
      */
     public function testAllReflectsRuntimeWithoutEnvSnapshot(): void {
@@ -262,7 +322,7 @@ class ConfigOverrideTest extends TestCase {
     }
 
     /**
-     * 测试: `putAll()`(供 `Config::set()` 用)把树里的标量叶子钉到临时层
+     * 测试: `putAll()`(供 `Config::set()` 用)把树里的标量叶子就地写进生效值
      *
      * - 于是"刚 set 的值"赢过 `.env` 的路径键(否则会出现"我明明 set 了却被改掉")
      *
@@ -277,7 +337,7 @@ class ConfigOverrideTest extends TestCase {
     }
 
     /**
-     * 测试: `all()` 也体现临时值, 且只写回已存在的路径
+     * 测试: `all()` 也体现运行时写入, 且只写回已存在的路径
      * @return void
      */
     public function testAllIncludesRuntimeValues(): void {

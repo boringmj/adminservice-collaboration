@@ -2,6 +2,8 @@
 
 namespace AdminService\Config;
 
+use AdminService\exception\ConfigException;
+
 use function basename;
 use function gettype;
 use function is_array;
@@ -18,8 +20,9 @@ use function str_ends_with;
  * - 职责: 读 `config/*.php`, 产出**尚未包进 `Repository` 的配置树**
  * - 依赖方向: 不依赖容器、不依赖 `AdminService\Config`, **也不碰 `.env`**
  *   (`.env` 的取值与覆盖见 `Env` 与 `Repository`)
- * - 诊断不落日志: 引导期日志子系统还没就绪(`log.path` 本身就来自配置), 故只**收集**诊断,
- *   由上层决定怎么呈现(见 `diagnostics()`)
+ * - 装载期发现的问题直接抛 `ConfigException`: 配置文件名不合规、配置文件没有返回数组、
+ *   清单里的文件不存在、配置目录无法扫描 —— 引导期日志子系统尚未就绪(`log.path` 本身就来自配置),
+ *   报错不该等日志
  *
  * ## 文件来源
  *
@@ -27,7 +30,6 @@ use function str_ends_with;
  *  2. **显式清单**: 由上层传入(测试与可控调用方走这条路), 此时**不扫目录**
  *
  *  两种方式都按文件名的 `basename` 作为键(`app.php` → `app`), 且都要求名字只含字母/数字/下划线
- *  (不合规的名字会被跳过, 并记一条诊断 —— 不静默)
  *
  * @access public
  * @package AdminService\Config
@@ -46,12 +48,6 @@ final class Loader {
      * @var array<string>|null
      */
     private ?array $files=null;
-
-    /**
-     * 诊断信息(引导期不落日志, 只收集)
-     * @var array<string>
-     */
-    private array $diagnostics=array();
 
     /**
      * 本次实际加载的配置文件
@@ -74,22 +70,22 @@ final class Loader {
     /**
      * 加载配置
      *
+     * - 配置项的第一层就是文件名: `app.php` 里的配置项前缀是 `app.`(如 `app.debug`)
+     *
      * @access public
      * @return array<string,mixed> 配置树
+     * @throws ConfigException 文件名不合规, 或文件没有返回数组
      */
     public function load(): array {
-        $this->diagnostics=array();
         $this->loaded=array();
         $configs=array();
         foreach($this->sourceFiles() as $file) {
             $name=basename($file,'.php');
-            if(preg_match('/^[a-zA-Z0-9_]+$/',$name)!==1) {
-                $this->diagnostics[]='配置文件 '.basename($file).' 的名字不符合规范(仅字母/数字/下划线), 本次未加载';
-                continue;
-            }
+            if(preg_match('/^[a-zA-Z0-9_]+$/',$name)!==1)
+                throw new ConfigException('配置文件 "'.$file.'" 的名字不符合规范: 只允许字母、数字、下划线',100910);
             $value=include $file;
             if(!is_array($value))
-                $this->diagnostics[]='配置文件 '.basename($file).' 没有返回数组(实际 '.gettype($value).'), 值被原样收下';
+                throw new ConfigException('配置文件 "'.$file.'" 没有返回数组(实际 '.gettype($value).')',100911);
             $configs[$name]=$value;
             $this->loaded[]=$file;
         }
@@ -107,16 +103,6 @@ final class Loader {
     }
 
     /**
-     * 取诊断信息
-     *
-     * @access public
-     * @return array<string>
-     */
-    public function diagnostics(): array {
-        return $this->diagnostics;
-    }
-
-    /**
      * 列出待加载的文件
      *
      * - 显式清单走这条路时**不扫目录**(清单来自上层, 见 `__construct()`)
@@ -124,28 +110,25 @@ final class Loader {
      *
      * @access private
      * @return array<string>
+     * @throws ConfigException 清单里的文件不存在, 或配置目录无法扫描
      */
     private function sourceFiles(): array {
         if($this->files!==null) {
             $out=array();
             foreach($this->files as $file) {
                 $path=$this->dir.'/'.(str_ends_with($file,'.php')?$file:$file.'.php');
-                if(!is_file($path)) {
-                    $this->diagnostics[]='清单里的配置文件不存在: '.$path;
-                    continue;
-                }
+                if(!is_file($path))
+                    throw new ConfigException('清单里的配置文件不存在: '.$path,100912);
                 $out[]=$path;
             }
             return $out;
         }
         $entries=scandir($this->dir);
-        if($entries===false) {
-            $this->diagnostics[]='无法扫描配置目录: '.$this->dir;
-            return array();
-        }
+        if($entries===false)
+            throw new ConfigException('无法扫描配置目录: '.$this->dir,100913);
         $found=array();
         foreach($entries as $entry) {
-            // `.` 与 `..` 不以 .php 结尾, 自然被排除; 名字是否合规由 `load()` 统一判定(它会记诊断)
+            // `.` 与 `..` 不以 .php 结尾, 自然被排除; 名字是否合规由 `load()` 统一判定(它会抛异常)
             if(!str_ends_with($entry,'.php'))
                 continue;
             $found[]=$this->dir.'/'.$entry;

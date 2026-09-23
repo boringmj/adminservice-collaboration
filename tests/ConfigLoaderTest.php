@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 
 use AdminService\Config\Loader;
 use AdminService\Config\Repository;
+use AdminService\exception\ConfigException;
 use base\ConfigInterface;
 
 use function array_keys;
@@ -26,7 +27,8 @@ use function unlink;
  * 两段覆盖:
  *  1. `Repository`: 点分键口径(子树、列表下标、子空数组、`null` 也是一个值、字面含 `.` 的键取不到),
  *     并实现 `base\ConfigInterface`
- *  2. `Loader` 的**文件来源**: 目录扫描的顺序、名字规范过滤、**显式清单不扫目录**
+ *  2. `Loader` 的**文件来源**: 目录扫描的顺序、名字规范、**显式清单不扫目录**;
+ *     名字不合规 / 没有返回数组 / 清单里的文件不存在 / 目录无法扫描都抛 `ConfigException`
  *
  * 用例全部用临时目录造样例, 不依赖仓库里的真实配置(唯一的例外是最后那条集成用例)。
  */
@@ -137,49 +139,49 @@ class ConfigLoaderTest extends TestCase {
             $this->assertSame(array('app','log'),array_keys($configs),'按文件名字典序(显式 sort)');
             $this->assertSame('/log',$configs['log']['path']);
             $this->assertSame(array($dir.'/app.php',$dir.'/log.php'),$loader->files());
-            $this->assertSame(array(),$loader->diagnostics());
         } finally {
             $this->removeDir($dir);
         }
     }
 
     /**
-     * 测试: 名字不合规的配置文件被跳过, 并且**留下诊断**(旧实现默默跳过)
+     * 测试: 名字不合规的配置文件抛异常(它没法作为配置项的第一层)
+     *
+     * - 带 `.` 的名字(如 `app.local.php`)按点分键取不到, 因此不允许
+     *
      * @return void
      */
-    public function testNonConformingNameIsSkippedWithDiagnostic(): void {
+    public function testNonConformingNameThrows(): void {
         $dir=$this->makeDir(array(
             'app.php'=>"<?php return array('ok'=>1);",
             'my-config.php'=>"<?php return array('nope'=>1);",
         ));
         try {
-            $loader=new Loader($dir);
-            $configs=$loader->load();
-            $this->assertSame(array('app'),array_keys($configs));
-            $this->assertCount(1,$loader->diagnostics());
-            $this->assertStringContainsString('my-config.php',$loader->diagnostics()[0]);
+            $this->expectException(ConfigException::class);
+            $this->expectExceptionMessageMatches('/my-config\.php/');
+            (new Loader($dir))->load();
         } finally {
             $this->removeDir($dir);
         }
     }
 
     /**
-     * 测试: 配置文件没有返回数组时收下值并留诊断(不静默)
+     * 测试: 配置文件没有返回数组时抛异常(收下非数组值会让第一层不是数组)
      * @return void
      */
-    public function testNonArrayReturnIsDiagnosed(): void {
+    public function testNonArrayReturnThrows(): void {
         $dir=$this->makeDir(array('weird.php'=>"<?php return 'oops';"));
         try {
-            $loader=new Loader($dir);
-            $this->assertSame(array('weird'=>'oops'),$loader->load());
-            $this->assertStringContainsString('没有返回数组',$loader->diagnostics()[0]);
+            $this->expectException(ConfigException::class);
+            $this->expectExceptionMessageMatches('/没有返回数组.*string/');
+            (new Loader($dir))->load();
         } finally {
             $this->removeDir($dir);
         }
     }
 
     /**
-     * 测试: 显式清单只加载清单里的文件(不扫目录), 清单缺失条目要留诊断
+     * 测试: 显式清单只加载清单里的文件(不扫目录); 清单里的文件不存在则抛异常
      * @return void
      */
     public function testExplicitFileListSkipsDirectoryScan(): void {
@@ -192,21 +194,25 @@ class ConfigLoaderTest extends TestCase {
             $loader=new Loader($dir,array('app','log'));
             $configs=$loader->load();
             $this->assertSame(array('app','log'),array_keys($configs),'stray.php 不在清单里, 就不该被加载');
-            $this->assertSame(array(),$loader->diagnostics());
+            $this->assertSame(array($dir.'/app.php',$dir.'/log.php'),$loader->files(),'不带 .php 后缀也认');
+        } finally {
+            $this->removeDir($dir);
+        }
 
-            $loader=new Loader($dir,array('app.php','missing'));
-            $this->assertSame(array('app'),array_keys($loader->load()),'带 .php 后缀也认');
-            $this->assertStringContainsString('清单里的配置文件不存在',$loader->diagnostics()[0]);
+        $dir=$this->makeDir(array('app.php'=>"<?php return array('a'=>1);"));
+        try {
+            $this->expectException(ConfigException::class);
+            $this->expectExceptionMessageMatches('/清单里的配置文件不存在/');
+            (new Loader($dir,array('app.php','missing')))->load();
         } finally {
             $this->removeDir($dir);
         }
     }
 
     /**
-     * 测试: 仓库真实的 `config/` 走加载器 —— 11 个文件、零诊断、`env()` 已在配置文件里生效
+     * 测试: 仓库真实的 `config/` 走加载器 —— 11 个文件、第一层是文件名、`env()` 已在配置文件里生效
      *
-     * - 守的是"配置文件本身没毛病";`.env` 与配置键的对账请在部署前自行核对
-     *   (S8 之后运行期不再合并 `.env`: 键写错的表现是 `env()` 取到默认值, 或"必需键"直接报错)
+     * - 守的是"配置文件本身没毛病": 名字合规、每个都返回数组, 否则 `load()` 会抛异常
      *
      * @return void
      */
@@ -215,7 +221,7 @@ class ConfigLoaderTest extends TestCase {
         $loader=new Loader($root.'/AdminService/config');
         $configs=$loader->load();
         $this->assertCount(11,$configs,'本仓库有 11 个配置文件');
-        $this->assertSame(array(),$loader->diagnostics());
+        $this->assertSame(array('app','cookie','data','database','function','log','middlewares','request','response','route','session'),array_keys($configs),'第一层就是配置文件名');
         // 这里**直接**走 Loader, 不经 tests/bootstrap.php 的 load_test_config(),
         // 因此 `app.debug` 反映的是本机真实 `.env` 的 `APP_DEBUG` —— 只断言"类型对"(bool),
         // 不断言具体值, 免得用例依赖某台机器的 `.env`

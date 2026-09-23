@@ -6,6 +6,8 @@ use AdminService\exception\ConfigException;
 use base\ConfigInterface;
 
 use function array_key_exists;
+use function array_keys;
+use function array_pop;
 use function count;
 use function explode;
 use function in_array;
@@ -16,37 +18,13 @@ use function is_int;
 use function is_numeric;
 use function is_string;
 use function str_contains;
+use function str_starts_with;
+use function strlen;
 use function strtolower;
+use function substr;
 
 /**
- * 配置仓储(实例化)
- *
- * - 职责: 持有装配好的配置**数组树**, 提供点分键读取; 应用级容器持有一个实例
- * - 依赖方向: 只依赖契约 `base\ConfigInterface`(实现它)与 `.env` 快照, 不依赖容器、不依赖 `AdminService\Config`
- * - 与 `Loader` 的分工: `Loader` 负责"读配置文件", 本类负责"读取 + 生效值计算"
- *
- * ## 生效值 = 运行时写入 > `.env` 路径键 > 配置文件 > 默认值
- *
- *  - **运行时写入**(`put()` / `Config::setValue()`): 优先级**最高**, 用来临时改一项而不必重写整份配置。
- *    ⚠ 它活在**本实例**上: 应用级仓储是进程级对象, 常驻模式下临时值会跨请求保留;
- *    需要请求级隔离请 `fork()` 一个请求级容器并在其仓储上写
- *  - **`.env` 的路径键**(小写点分, 如 `database.connections.default.host=…`)覆盖同名配置项 ——
- *    用意是下游**不必改配置文件**就能覆盖任何一项
- *  - 三条边界: ①只覆盖**已存在**的路径, **绝不新建节点**(配置树的结构只由 `config/*.php` 决定 ——
- *    即"不允许虚空节点"那条约定) ②只覆盖标量叶子 ③**类型跟着配置文件里那个值走**:
- *    文件里是 `int` 就把 `.env` 的字符串转成 `int`, `bool` 按"false/null/0/空 → false, 其余 → true"判定, 转不了就原样给出
- *
- * ## 点分键口径
- *
- *  - 内部预先算一张**平坦表**(`'log.path' => 值`, 中间节点与叶子都入表), 故 `get()` 是一次查表
- *  - 表里含中间节点, 所以 `get('log')`(整棵子树)与 `get('log.path')` 都成立;列表下标也是键(`route.files.0`)
- *  - **字面含 `.` 的键不入表**: 按 `.` 逐段下钻取不到它们
- *  - `null` 视为"不存在"(值缺失), `get()` 回落默认值
- *
- * ## 其它
- *
- *  - 没有"整体替换"式的写入: 那由上层重建一个新实例来表达(`Config::set()`)
- *  - 平坦表是**代码整洁性**改进, 不是性能手段 —— 别把它当性能亮点汇报
+ * 配置仓储
  *
  * @access public
  * @package AdminService\Config
@@ -55,7 +33,7 @@ use function strtolower;
 final class Repository implements ConfigInterface {
 
     /**
-     * 配置树(纯配置文件的结果, 不含 `.env` 覆盖)
+     * 配置树
      * @var array<string,mixed>
      */
     private array $configs=array();
@@ -67,7 +45,7 @@ final class Repository implements ConfigInterface {
     private array $flat=array();
 
     /**
-     * `.env` 快照(用于"路径键覆盖"; 没有则为 null —— 此时 `get()` 不套 `.env` 覆盖)
+     * `.env` 实例
      * @var Env|null
      */
     private ?Env $env=null;
@@ -77,6 +55,15 @@ final class Repository implements ConfigInterface {
      * @var array<string,mixed>
      */
     private array $runtime=array();
+
+    /**
+     * "有覆盖/临时值的路径"的**祖先前缀**集合(键 => true)
+     *
+     * - 用来回答"这个数组节点下有没有覆盖": `get()` 命中它才去合并一份子树, 否则原样返回
+     *   —— 于是没有子项覆盖的数组读(绝大多数)零开销
+     * @var array<string,true>
+     */
+    private array $coveredParents=array();
 
     /**
      * 装配期诊断(来自 `Loader`)
@@ -101,6 +88,10 @@ final class Repository implements ConfigInterface {
         $this->diagnostics=$diagnostics;
         $this->env=$env;
         $this->flatten($configs,'');
+        // 记下 `.env` 路径键的祖先前缀: `get()` 靠它判断数组节点要不要合并子项覆盖
+        if($env!==null)
+            foreach(array_keys($env->all()) as $key)
+                $this->noteCoveredParents((string)$key);
     }
 
     /**
@@ -113,12 +104,19 @@ final class Repository implements ConfigInterface {
      */
     public function get(string $key,mixed $default=null): mixed {
         // ① 运行时写入的临时值(最高优先级)
-        if(array_key_exists($key,$this->runtime))
-            return $this->runtime[$key];
+        if(array_key_exists($key,$this->runtime)) {
+            $value=$this->runtime[$key];
+            // 临时值本身是数组时, 它下面更深的覆盖还要盖在上面(且不再套 `.env` —— 运行时优先级更高)
+            return is_array($value)&&isset($this->coveredParents[$key])?$this->materialize($key,$value,false):$value;
+        }
         if(!isset($this->flat[$key]))
             return $default;
         $file=$this->flat[$key];
-        if($this->env!==null&&!is_array($file)&&$this->env->has($key))
+        // ② 数组节点: 该路径下若有覆盖/临时值, 返回"合并后的副本";没有则原样返回(零开销)
+        if(is_array($file))
+            return isset($this->coveredParents[$key])?$this->materialize($key,$file,true):$file;
+        // ③ 标量叶子: `.env` 的路径键覆盖
+        if($this->env!==null&&$this->env->has($key))
             return $this->castOverride($this->env->get($key),$file);
         return $file;
     }
@@ -177,16 +175,18 @@ final class Repository implements ConfigInterface {
      * @return array<string,mixed>
      */
     public function all(): array {
-        if($this->env===null)
+        // 既没有 `.env` 快照也没有临时值时, 直接给文件树(常见情况, 不复制)
+        if($this->env===null&&$this->runtime===array())
             return $this->configs;
         $out=$this->configs;
-        foreach($this->env->all() as $key=>$raw) {
-            $key=(string)$key;
-            // 只覆盖已存在的标量路径(中间节点/数组/不存在的路径一律跳过)
-            if(!isset($this->flat[$key])||is_array($this->flat[$key]))
-                continue;
-            $this->applyOverride($out,explode('.',$key),$this->castOverride($raw,$this->flat[$key]));
-        }
+        if($this->env!==null)
+            foreach($this->env->all() as $key=>$raw) {
+                $key=(string)$key;
+                // 只覆盖已存在的标量路径(中间节点/数组/不存在的路径一律跳过)
+                if(!isset($this->flat[$key])||is_array($this->flat[$key]))
+                    continue;
+                $this->applyOverride($out,explode('.',$key),$this->castOverride($raw,$this->flat[$key]));
+            }
         // 临时值最后写回 —— 优先级最高
         foreach($this->runtime as $key=>$value)
             $this->applyOverride($out,explode('.',(string)$key),$value);
@@ -209,6 +209,7 @@ final class Repository implements ConfigInterface {
         if(!isset($this->flat[$key]))
             throw new ConfigException('配置项 "'.$key.'" 不存在, 不能写入临时值(只允许覆盖已存在的配置项)',100905);
         $this->runtime[$key]=$value;
+        $this->noteCoveredParents($key);
     }
 
     /**
@@ -225,8 +226,10 @@ final class Repository implements ConfigInterface {
         $flat=array();
         $this->collectScalars($configs,'',$flat);
         foreach($flat as $key=>$value)
-            if(isset($this->flat[$key]))
+            if(isset($this->flat[$key])) {
                 $this->runtime[$key]=$value;
+                $this->noteCoveredParents((string)$key);
+            }
     }
 
     /**
@@ -259,6 +262,56 @@ final class Repository implements ConfigInterface {
      */
     public function diagnostics(): array {
         return $this->diagnostics;
+    }
+
+    /**
+     * 记下"这条覆盖/临时值"的**所有祖先前缀**(供 `get()` 判断数组节点是否需要合并)
+     *
+     * @access private
+     * @param string $key 被覆盖的点分键
+     * @return void
+     */
+    private function noteCoveredParents(string $key): void {
+        $segments=explode('.',$key);
+        array_pop($segments);
+        $prefix='';
+        foreach($segments as $segment) {
+            $prefix=$prefix===''?$segment:$prefix.'.'.$segment;
+            $this->coveredParents[$prefix]=true;
+        }
+    }
+
+    /**
+     * 把 `$key` 之下的覆盖/临时值合并进 `$base` 的一份副本
+     *
+     * - 只在"确有子项覆盖"时才被调用(`get()` 靠 `$coveredParents` 判断), 所以这里不做省事优化
+     * - `$applyEnv` 为 false 表示基准值来自运行时写入 —— 那种情况 `.env` 不该再盖上去(运行时优先级更高)
+     *
+     * @access private
+     * @param string $key 数组节点的点分键
+     * @param array<string,mixed> $base 基准值(文件树里的那份, 或运行时写入的那份)
+     * @param bool $applyEnv 是否套 `.env` 的路径键覆盖
+     * @return array<string,mixed>
+     */
+    private function materialize(string $key,array $base,bool $applyEnv): array {
+        $out=$base;
+        $prefix=$key.'.';
+        $length=strlen($prefix);
+        if($applyEnv&&$this->env!==null)
+            foreach($this->env->all() as $env_key=>$raw) {
+                $env_key=(string)$env_key;
+                // 只覆盖已存在的标量叶子(与 `all()` 同一口径)
+                if(!str_starts_with($env_key,$prefix)||!isset($this->flat[$env_key])||is_array($this->flat[$env_key]))
+                    continue;
+                $this->applyOverride($out,explode('.',substr($env_key,$length)),$this->castOverride($raw,$this->flat[$env_key]));
+            }
+        foreach($this->runtime as $runtime_key=>$value) {
+            $runtime_key=(string)$runtime_key;
+            if(!str_starts_with($runtime_key,$prefix))
+                continue;
+            $this->applyOverride($out,explode('.',substr($runtime_key,$length)),$value);
+        }
+        return $out;
     }
 
     /**

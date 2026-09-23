@@ -48,7 +48,7 @@ final class Config {
     /**
      * 设置配置(替换当前配置仓储实例)
      *
-     * - 构建新的配置仓储实例(配置项会被额外写入临时层)
+     * - 构建新的配置仓储实例, 并把刚 set 的这批值就地写进生效值
      * - 如果容器已经就绪,该方法会同步登记配置仓储实例到容器
      *
      * @access public
@@ -58,7 +58,7 @@ final class Config {
     public static function set(array $configs): void {
         // 创建新的配置仓储
         $repository=new Repository($configs,array(),env_snapshot());
-        // 为其额外写入临时层
+        // 就地写进生效值(优先于 `.env` 覆盖)
         $repository->putAll($configs);
         self::setRepository($repository);
     }
@@ -108,7 +108,7 @@ final class Config {
     }
 
     /**
-     * 设置临时值
+     * 在生效值上就地改一项
      *
      * @access public
      * @param string $key 配置键(点分键)
@@ -118,7 +118,7 @@ final class Config {
      */
     public static function setValue(string $key,mixed $value): void {
         if(self::$repository===null)
-            throw new ConfigException('配置仓储尚未就绪, 无法写入临时值',100906);
+            throw new ConfigException('配置仓储尚未就绪, 无法就地改配置项',100906);
         self::$repository->put($key,$value);
     }
 

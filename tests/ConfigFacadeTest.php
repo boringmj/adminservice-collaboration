@@ -312,7 +312,7 @@ class ConfigFacadeTest extends TestCase {
 
 
     /**
-     * 测试: `setValue()` 的临时值优先级最高(盖过 `.env` 与配置文件), 且不牵动其它层
+     * 测试: `setValue()` 的运行时写入盖过 `.env` 与配置文件, 且只动这一项
      * @return void
      */
     public function testSetValueWinsOverEverything(): void {

@@ -5,6 +5,7 @@ namespace Tests;
 use PHPUnit\Framework\TestCase;
 
 use AdminService\Config\Env;
+use AdminService\exception\ConfigException;
 
 use function AdminService\env;
 use function AdminService\env_snapshot;
@@ -27,7 +28,7 @@ use function unlink;
  *  2. **类型推断(主流口径)**: 只转 `true`/`false`/`null`;**数字一律保持字符串**
  *     (躲开前导 `0` 被当八进制、超 int 范围被静默截断这类惊喜)
  *  3. **键口径(主流口径)**: 大小写敏感(点号在本类里只是普通字符, 键的含义由上层解释);
- *     无法解析的行进 `errors()` 而不抛异常
+ *     无法解析的行(缺 `=`、空键、引号未闭合、引号后多余内容)抛 `ConfigException`
  */
 class EnvParserTest extends TestCase {
 
@@ -187,23 +188,24 @@ class EnvParserTest extends TestCase {
     }
 
     /**
-     * 测试: 无法解析的行进 `errors()`(不抛异常), 能抢救的值仍保留
+     * 测试: 无法解析的行抛 `ConfigException`, 报错带来源路径与行号
+     *
+     * - 四类: 缺 `=`、空键、引号未闭合、引号闭合后仍有多余内容
+     *
      * @return void
      */
-    public function testMalformedLinesAreCollected(): void {
-        $env=$this->env(implode("\n",array(
-            'OK=1',
-            'NOEQUALS',
-            '=bad',
-            'UNCLOSED="abc',
-            'EXTRA="abc" junk',
-        )));
-        $this->assertSame('1',$env->get('OK'),'合法行不受影响');
-        $this->assertSame('"abc',$env->get('UNCLOSED'),'引号未闭合时按普通字符串保留');
-        $this->assertSame('abc',$env->get('EXTRA'),'引号闭合, 其后的多余内容被忽略');
-        $this->assertCount(4,$env->errors());
-        foreach($env->errors() as $error)
-            $this->assertStringContainsString('行',$error,'报错信息要带行号便于定位');
+    public function testMalformedLinesThrow(): void {
+        foreach(array('NOEQUALS','=bad','UNCLOSED="abc','EXTRA="abc" junk') as $line) {
+            try {
+                $this->env("OK=1\n".$line);
+                $this->fail('畸形行应当抛 ConfigException: '.$line);
+            } catch(ConfigException $e) {
+                $this->assertStringContainsString('第 2 行',$e->getMessage(),'报错信息要带行号便于定位');
+            }
+        }
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessageMatches('/my\.env/');
+        new Env("NOT_A_PAIR",'my.env');
     }
 
     /**
@@ -223,7 +225,6 @@ class EnvParserTest extends TestCase {
         )));
         $this->assertSame('你好, 世界',$env->get('GREETING'));
         $this->assertSame('键=值',$env->get('CN_WITH_EQUALS'),'多字节值同样只在第一个 `=` 处切分');
-        $this->assertSame(array(),$env->errors(),'中文注释行不该被当成畸形行');
     }
 
     /**
@@ -252,13 +253,12 @@ class EnvParserTest extends TestCase {
             $this->assertSame('1',$env->get('A'));
             $this->assertSame('x y',$env->get('B'));
             $this->assertSame($file,$env->path());
-            $this->assertSame(array(),$env->errors());
         } finally {
             unlink($file);
         }
         $missing=Env::fromFile($file.'-not-exist');
         $this->assertSame(array(),$missing->all(),'文件不存在时按空配置处理, 不抛异常');
-        $this->assertCount(1,$missing->errors());
+        $this->assertSame($file.'-not-exist',$missing->path());
     }
 
     /**
@@ -300,18 +300,13 @@ class EnvParserTest extends TestCase {
     }
 
     /**
-     * 测试: `.env` 的语法错误**不抛异常**, 只记进 `errors()`(框架不替使用者做检查)
-     *
-     * - 要不要当回事请自行检查(`app.debug` 时 `Main` 会把它落一次日志)
-     *
+     * 测试: `.env` 写坏时**抛异常**(内容正确性由框架检查, 不静默生效)
      * @return void
      */
-    public function testBrokenEnvDoesNotThrow(): void {
-        $env=new Env("NOT_A_PAIR\nOK=1");
-        $this->assertCount(1,$env->errors());
-        $this->assertSame('1',$env->get('OK'),'能解析的行照常解析');
-        // 全局助手的快照是真实 `.env`, 这里只断言"它不会因为文件有错就抛"
-        $this->assertIsObject(env_snapshot());
+    public function testBrokenEnvThrows(): void {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessageMatches('/第 1 行.*缺少 "="/');
+        new Env("NOT_A_PAIR\nOK=1");
     }
 
     /**
@@ -335,7 +330,6 @@ class EnvParserTest extends TestCase {
         $this->assertSame('app',$env->get('route.default.app'));
         $this->assertFalse($env->get('app.debug'));
         $this->assertSame('secret=with=equals',$env->get('database.connections.default.password'),'口令里的 `=` 不再被截断');
-        $this->assertSame(array(),$env->errors());
     }
 
 }

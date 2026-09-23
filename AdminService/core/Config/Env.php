@@ -2,6 +2,8 @@
 
 namespace AdminService\Config;
 
+use AdminService\exception\ConfigException;
+
 use function array_key_exists;
 use function explode;
 use function file_get_contents;
@@ -22,7 +24,7 @@ use function trim;
 /**
  * `.env` 解析器(实例化, 不持有进程状态)
  *
- * - 职责: 把 `.env` **文本**解析成"键 => 值"的表, 并记录无法解析的行
+ * - 职责: 把 `.env` **文本**解析成"键 => 值"的表; 无法解析的行抛 `ConfigException`
  * - 依赖方向: 不依赖容器、不依赖 `AdminService\Config`, 可单独 new 出来用;
  *   文件读取只由 `fromFile()` 负责, 解析本身与文件系统无关
  * - 目录归属: `core/Config/` 与 `core/Database/`、`core/Router/` 同级同形;
@@ -40,8 +42,8 @@ use function trim;
  *     **数字一律保持字符串** —— 躲开前导 `0`(`0755`)被当八进制、以及位数超 int 范围被静默截断这类惊喜。
  *     要数字请在配置里显式转换: `(int)env('DB_PORT', 3306)`
  *  3. **引号形式永远是字符串**(`"true"` 就是字符串), 这是"我就要字符串"的逃生口
- *  4. 无法解析的行**不抛异常**, 只记进 `errors()`: 本类只管解析, 由上层决定怎么呈现
- *     (框架侧只把它们并进引导期诊断, `app.debug` 时落一次日志)
+ *  4. 无法解析的行**抛 `ConfigException`**(缺 `=` / 空键 / 引号未闭合 / 引号闭合后仍有多余内容):
+ *     这是内容正确性检查, 写坏的 `.env` 不该静默生效。**键缺失**是另一回事, 仍然只回落默认值
  *
  * ## 关于"虚空节点"
  *
@@ -76,12 +78,6 @@ final class Env {
     private array $values=array();
 
     /**
-     * 无法解析的行(形如 `第 3 行 缺少 "=": ...`)
-     * @var array<string>
-     */
-    private array $errors=array();
-
-    /**
      * 来源文件路径(仅记录, 便于报错时定位; 解析本身不读文件)
      * @var string
      */
@@ -101,18 +97,16 @@ final class Env {
     }
 
     /**
-     * 从文件构造(文件不存在时返回空实例并记一条错误, 不抛异常)
+     * 从文件构造(文件不存在时返回空实例 —— 缺失是正常情况)
      *
      * @access public
      * @param string $path `.env` 路径
      * @return self
+     * @throws ConfigException 文件里有无法解析的行
      */
     public static function fromFile(string $path): self {
-        if(!is_file($path)) {
-            $env=new self('',$path);
-            $env->errors[]=$path.' 不存在, 按空配置处理';
-            return $env;
-        }
+        if(!is_file($path))
+            return new self('',$path);
         return new self((string)file_get_contents($path),$path);
     }
 
@@ -124,16 +118,6 @@ final class Env {
      */
     public function all(): array {
         return $this->values;
-    }
-
-    /**
-     * 取无法解析的行(空数组表示一切正常)
-     *
-     * @access public
-     * @return array<string>
-     */
-    public function errors(): array {
-        return $this->errors;
     }
 
     /**
@@ -205,17 +189,14 @@ final class Env {
         // `export KEY=VALUE` 前缀
         if(preg_match('/^export\s+/i',$line)===1)
             $line=trim((string)preg_replace('/^export\s+/i','',$line,1));
+        $where=($this->path!==''?$this->path.' ':'').'第 '.$no.' 行';
         $pos=strpos($line,'=');
-        if($pos===false) {
-            $this->errors[]='第 '.$no.' 行缺少 "=": '.$line;
-            return;
-        }
+        if($pos===false)
+            throw new ConfigException('env 解析失败: '.$where.'缺少 "=", 应为 KEY=VALUE',100920);
         $key=trim(substr($line,0,$pos));
-        if($key==='') {
-            $this->errors[]='第 '.$no.' 行为空键: '.$line;
-            return;
-        }
-        $this->values[$key]=$this->parseValue(substr($line,$pos+1),$key,$no);
+        if($key==='')
+            throw new ConfigException('env 解析失败: '.$where.'是空键',100921);
+        $this->values[$key]=$this->parseValue(substr($line,$pos+1),$key,$where);
     }
 
     /**
@@ -224,23 +205,22 @@ final class Env {
      * @access private
      * @param string $raw 右侧原文(行首尾空白已去)
      * @param string $key 键(报错用)
-     * @param int $no 行号(报错用)
+     * @param string $where 出错定位(来源路径 + 行号, 报错用)
      * @return mixed
+     * @throws ConfigException 引号未闭合, 或引号闭合后仍有多余内容
      */
-    private function parseValue(string $raw,string $key,int $no): mixed {
+    private function parseValue(string $raw,string $key,string $where): mixed {
         // 引号形式: 原样保留, 不做类型推断
         if($raw!==''&&($raw[0]==='"'||$raw[0]==="'")) {
             $quote=$raw[0];
             $end=$this->closingQuote($raw,$quote);
-            if($end<0) {
-                $this->errors[]='第 '.$no.' 行引号未闭合('.$key.'), 已按普通值处理';
-            } else {
-                $rest=trim(substr($raw,$end+1));
-                if($rest!==''&&!str_starts_with($rest,'#'))
-                    $this->errors[]='第 '.$no.' 行引号闭合后仍有多余内容('.$key.'), 已忽略: '.$rest;
-                $inner=substr($raw,1,$end-1);
-                return $quote==='"'?$this->unescape($inner):$inner;
-            }
+            if($end<0)
+                throw new ConfigException('env 解析失败: '.$where.'引号未闭合: '.$key,100922);
+            $rest=trim(substr($raw,$end+1));
+            if($rest!==''&&!str_starts_with($rest,'#'))
+                throw new ConfigException('env 解析失败: '.$where.'引号闭合后仍有多余内容: '.$key,100923);
+            $inner=substr($raw,1,$end-1);
+            return $quote==='"'?$this->unescape($inner):$inner;
         }
         // 行尾注释: 只在 `#` 前有空白时生效(`va#lue` 里的 `#` 是值的一部分)
         if(preg_match('/\s#/',$raw)===1)

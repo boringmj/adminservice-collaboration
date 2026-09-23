@@ -27,7 +27,7 @@ interface ConfigInterface {
     public function get(string $key,mixed $default=null): mixed;
 
     /**
-     * 判断配置项是否存在(口径与 `get()` 一致: 值为 `null` 视为不存在)
+     * 判断配置项是否存在(键存在即为 true;值为 `null` 也算存在)
      *
      * @access public
      * @param string $key 配置键(如 `app.path`)

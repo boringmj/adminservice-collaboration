@@ -51,7 +51,7 @@ class ComponentConfigTest extends TestCase {
     public function testInjectedConfigIsTheOnlySource(): void {
         $repository=Config::repository();
         try {
-            Config::set(array('database'=>array('connections'=>array('facade_only'=>array('type'=>'mysql')))));
+            set_config(array('database'=>array('connections'=>array('facade_only'=>array('type'=>'mysql')))));
             $scoped=new DatabaseConfig(new Repository(array('database'=>array('connections'=>array(
                 'scoped'=>array('type'=>'mysql','dbname'=>'from-scoped'),
             )))));
@@ -70,9 +70,9 @@ class ComponentConfigTest extends TestCase {
         $repository=Config::repository();
         try {
             $config=new DatabaseConfig();
-            Config::set(array('database'=>array('connections'=>array('a'=>array('type'=>'mysql')))));
+            set_config(array('database'=>array('connections'=>array('a'=>array('type'=>'mysql')))));
             $this->assertSame('mysql',$config->connection('a')['type'],'第一次取值应看到新配置');
-            Config::set(array('database'=>array('connections'=>array('b'=>array('type'=>'mysql')))));
+            set_config(array('database'=>array('connections'=>array('b'=>array('type'=>'mysql')))));
             $this->assertSame('mysql',$config->connection('b')['type'],'再次换配置也应立刻可见(回落值不缓存)');
         } finally {
             $this->setFacadeRepository($repository);
@@ -93,7 +93,6 @@ class ComponentConfigTest extends TestCase {
             array('database'=>array('connections'=>array('default'=>array(
                 'type'=>'mysql','host'=>'file-host','port'=>3306,'dbname'=>'file-db',
             )))),
-            array(),
             new \AdminService\Config\Env("database.connections.default.host=env-host\ndatabase.connections.default.port=9999")
         );
         $config=new DatabaseConfig($repository);
@@ -144,11 +143,11 @@ class ComponentConfigTest extends TestCase {
     public function testErrorIsDebugFollowsConfig(): void {
         $repository=Config::repository();
         try {
-            Config::set(array('app'=>array('debug'=>true)));
+            set_config(array('app'=>array('debug'=>true)));
             $this->assertTrue(Error::isDebug());
-            Config::set(array('app'=>array('debug'=>false)));
+            set_config(array('app'=>array('debug'=>false)));
             $this->assertFalse(Error::isDebug());
-            Config::set(array());
+            set_config(array());
             $this->assertFalse(Error::isDebug(),'缺键时按非调试处理');
         } finally {
             $this->setFacadeRepository($repository);
@@ -158,7 +157,7 @@ class ComponentConfigTest extends TestCase {
     /**
      * 测试(回归): 请求级容器在 `fork()` 时取**门面当前那份**配置
      *
-     * - 造法: 直接换门面指针(**绕过 `Config::set()` 的容器同步**), 于是父容器里那份就是"过期"的;
+     * - 造法: 直接换门面指针(**绕过安装时的容器同步**), 于是父容器里那份就是"过期"的;
      *   此时跑一次请求, 请求内按契约取到的必须是新那份 —— 否则请求内的组件会读到过期配置
      *
      * @return void
@@ -193,7 +192,6 @@ class ComponentConfigTest extends TestCase {
     public function testAttributeInjectionSeesEnvOverride(): void {
         $repository=new Repository(
             array('k'=>'from-file'),
-            array(),
             new \AdminService\Config\Env('k=from-env')
         );
         $container=new Container();

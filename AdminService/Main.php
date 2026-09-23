@@ -64,14 +64,14 @@ final class Main {
         },false);
         // 加载配置加载器 
         $loader=new Loader(__DIR__.'/config');
-        $config=new Repository($loader->load(),$loader->diagnostics(),env_snapshot());
+        $config=new Repository($loader->load(),env_snapshot());
         Config::setRepository($config);
         // 加载函数库
         $this->loadFunction($config);
         // App初始化(建应用级容器并按配置装配,同时把这份配置登记进容器,并安装到门面)
         $this->application=(new Application(null,$config))->init();
-        // 装配期诊断(配置文件名字不合规 / `.env` 里的可疑键等)在日志子系统就绪后统一记一次
-        $this->reportConfigDiagnostics($config);
+        // 装载期诊断(配置文件名字不合规 / env 里的可疑键等)在日志子系统就绪后统一记一次
+        $this->reportConfigDiagnostics($config,$loader->diagnostics());
         // 安装数据库配置提供者: 数据库层(契约层)不读全局配置, 由应用层把配置能力交给它
         // 直接注入配置实例(而非让它回落门面): 引导期已定下这份配置, 之后只读
         BaseDb::setConfig(new DatabaseConfig($config));
@@ -102,23 +102,24 @@ final class Main {
     }
 
     /**
-     * 记录配置装配期诊断
+     * 记录配置装载期诊断
      *
-     * - 只在调试模式记录: 生产环境每请求都会重跑引导, 而诊断内容与请求无关, 无条件写会变成日志噪音
-     * - 诊断来自配置仓储(`Loader` 在装配期收集): 配置文件名字不合规、`.env` 里的可疑键与畸形行等
+     * - 仅在调试模式记录: 引导每请求都会重跑, 诊断内容与请求无关, 否则每请求都会重复写入相同内容
+     * - 诊断来自 `Loader`(配置文件名字不合规等)与 `Env`(env 里的可疑键与畸形行)
      *
      * @access private
      * @param Repository $config 配置仓储
+     * @param array<string> $diagnostics 装载期诊断
      * @return void
      * @throws Exception|ReflectionException
      */
-    private function reportConfigDiagnostics(Repository $config): void {
-        // 装配期诊断 + `.env` 自身的解析错误(`Env` 只记录不抛, 由这里在 debug 下落一次日志)
-        $diagnostics=array_merge($config->diagnostics(),env_snapshot()->errors());
+    private function reportConfigDiagnostics(Repository $config,array $diagnostics): void {
+        // `Env` 只记录不抛, 解析错误在这里合并后统一落一次日志
+        $diagnostics=array_merge($diagnostics,env_snapshot()->errors());
         if($diagnostics===array()||!$config->get('app.debug',false))
             return;
         $this->application->container()->get(Log::class)->write(
-            '配置装配期诊断({count} 条): {diagnostics}',
+            '配置装载期诊断({count} 条): {diagnostics}',
             array('count'=>count($diagnostics),'diagnostics'=>implode(' | ',$diagnostics))
         );
     }

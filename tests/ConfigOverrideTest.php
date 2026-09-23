@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 
 use AdminService\Config\Env;
 use AdminService\Config\Repository;
+use AdminService\exception\ConfigException;
 
 use function implode;
 use function is_array;
@@ -55,7 +56,7 @@ class ConfigOverrideTest extends TestCase {
      * @return void
      */
     public function testOverrideKeepsFileType(): void {
-        $repo=new Repository($this->configs(),array(),$this->env(implode("\n",array(
+        $repo=new Repository($this->configs(),$this->env(implode("\n",array(
             'database.connections.default.host=db.example.com',
             'database.connections.default.port=13306',
             'app.debug=true',
@@ -71,7 +72,7 @@ class ConfigOverrideTest extends TestCase {
      * @return void
      */
     public function testOverrideIgnoresUnknownPathAndNeverCreatesNodes(): void {
-        $repo=new Repository($this->configs(),array(),$this->env(implode("\n",array(
+        $repo=new Repository($this->configs(),$this->env(implode("\n",array(
             'database.default.host=typo.example.com',
             'APP_DEBUG=true',
             'brand.new.key=1',
@@ -92,7 +93,7 @@ class ConfigOverrideTest extends TestCase {
      * @return void
      */
     public function testOverrideIgnoresArrayPath(): void {
-        $repo=new Repository($this->configs(),array(),$this->env('route.files=/nope'));
+        $repo=new Repository($this->configs(),$this->env('route.files=/nope'));
         $this->assertSame(array('/routes'),$repo->get('route.files'),'数组路径不会被字符串覆盖');
         $this->assertSame(array('/routes'),$repo->all()['route']['files']);
     }
@@ -102,7 +103,7 @@ class ConfigOverrideTest extends TestCase {
      * @return void
      */
     public function testAllReturnsEffectiveValues(): void {
-        $repo=new Repository($this->configs(),array(),$this->env('app.name=overridden'));
+        $repo=new Repository($this->configs(),$this->env('app.name=overridden'));
         $all=$repo->all();
         $this->assertSame('overridden',$all['app']['name']);
         $this->assertSame('localhost',$all['database']['connections']['default']['host']);
@@ -110,14 +111,14 @@ class ConfigOverrideTest extends TestCase {
     }
 
     /**
-     * 测试: `file()` 只看配置文件(与被覆盖后的 `get()` 对照)
+     * 测试: `config_raw()` 只看配置文件(与被覆盖后的 `get()` 对照)
      * @return void
      */
     public function testFileBypassesOverride(): void {
-        $repo=new Repository($this->configs(),array(),$this->env('app.name=overridden'));
+        $repo=new Repository($this->configs(),$this->env('app.name=overridden'));
         $this->assertSame('overridden',$repo->get('app.name'));
-        $this->assertSame('demo',$repo->file('app.name'),'`file()` 给的是配置文件里的原值');
-        $this->assertSame('dflt',$repo->file('nope','dflt'));
+        $this->assertSame('demo',$repo->config_raw('app.name'),'`config_raw()` 给的是配置文件里的原值');
+        $this->assertSame('dflt',$repo->config_raw('nope','dflt'));
     }
 
     /**
@@ -131,12 +132,23 @@ class ConfigOverrideTest extends TestCase {
     }
 
     /**
-     * 测试: 类型转不了就原样给出(不猜、不抛)
+     * 测试: 覆盖值与配置文件里的值类型不符时抛异常(不静默保留文件值)
+     *
+     * - int / float 项: 覆盖值不是数字
+     * - string 项: 覆盖值是 bool(只有 `true`/`false`/`null` 会被 `Env` 转成非字符串)
+     *
      * @return void
      */
-    public function testUncastableOverrideIsReturnedAsIs(): void {
-        $repo=new Repository($this->configs(),array(),$this->env('database.connections.default.port=not-a-number'));
-        $this->assertSame('not-a-number',$repo->get('database.connections.default.port'),'文件里是 int 但值不是数字 → 原样给出');
+    public function testUncastableOverrideThrows(): void {
+        foreach(array('database.connections.default.port'=>'not-a-number','app.name'=>'true') as $path=>$value) {
+            try {
+                new Repository($this->configs(),$this->env($path.'='.$value));
+                $this->fail('类型不符应当抛 ConfigException: '.$path.'='.$value);
+            } catch(ConfigException $e) {
+                $this->assertStringContainsString($path,$e->getMessage());
+                $this->assertStringContainsString($value,$e->getMessage());
+            }
+        }
     }
 
     /**
@@ -149,7 +161,7 @@ class ConfigOverrideTest extends TestCase {
      * @return void
      */
     public function testNullOverrideHandling(): void {
-        $repo=new Repository($this->configs(),array(),$this->env(implode("\n",array(
+        $repo=new Repository($this->configs(),$this->env(implode("\n",array(
             'app.debug=null',
             'app.name=null',
             'database.connections.default.port=null',
@@ -168,7 +180,7 @@ class ConfigOverrideTest extends TestCase {
      * @return void
      */
     public function testRuntimeValueWinsOverEverything(): void {
-        $repo=new Repository($this->configs(),array(),$this->env(implode("\n",array(
+        $repo=new Repository($this->configs(),$this->env(implode("\n",array(
             'app.name=from-env',
             'database.connections.default.port=13306',
             'database.connections.default.host=from-env-host',
@@ -202,7 +214,7 @@ class ConfigOverrideTest extends TestCase {
      * @return void
      */
     public function testAnyAncestorReflectsChildOverride(): void {
-        $repo=new Repository($this->configs(),array(),$this->env('database.connections.default.host=db.example.com'));
+        $repo=new Repository($this->configs(),$this->env('database.connections.default.host=db.example.com'));
         $this->assertSame('db.example.com',$repo->get('database')['connections']['default']['host'],'顶层子树里也要体现');
         $this->assertSame('db.example.com',$repo->get('database.connections')['default']['host'],'中间层同样');
         $this->assertSame('db.example.com',$repo->all()['database']['connections']['default']['host']);
@@ -210,51 +222,57 @@ class ConfigOverrideTest extends TestCase {
     }
 
     /**
-     * 测试: `file()` 那层**冻结** —— `.env` 覆盖与运行时写入都碰不到它
+     * 测试: `config_raw()` 那层**冻结** —— `.env` 覆盖与运行时写入都碰不到它
      * @return void
      */
     public function testFileLayerStaysFrozen(): void {
-        $repo=new Repository($this->configs(),array(),$this->env('database.connections.default.host=from-env'));
+        $repo=new Repository($this->configs(),$this->env('database.connections.default.host=from-env'));
         $repo->put('database.connections.default.port',2222);
         $this->assertSame('from-env',$repo->get('database.connections.default.host'));
-        $this->assertSame('localhost',$repo->file('database.connections.default.host'),'`.env` 覆盖不影响文件层');
-        $this->assertSame(3306,$repo->file('database.connections.default.port'),'运行时写入不影响文件层');
-        $this->assertSame('localhost',$repo->file('database.connections.default')['host'],'整段读也一样');
-        $this->assertSame(3306,$repo->file('database.connections.default')['port']);
+        $this->assertSame('localhost',$repo->config_raw('database.connections.default.host'),'`.env` 覆盖不影响文件层');
+        $this->assertSame(3306,$repo->config_raw('database.connections.default.port'),'运行时写入不影响文件层');
+        $this->assertSame('localhost',$repo->config_raw('database.connections.default')['host'],'整段读也一样');
+        $this->assertSame(3306,$repo->config_raw('database.connections.default')['port']);
     }
 
     /**
-     * 测试: `env()` 那层也不受影响 —— `get()` / `file()` / `env()` 是三条独立通道
+     * 测试: `env()` 那层也不受影响 —— `get()` / `config_raw()` / `env()` 是三条独立通道
      * @return void
      */
     public function testEnvLayerUnaffectedByOthers(): void {
-        $repo=new Repository($this->configs(),array(),$this->env("database.connections.default.port=13306\nRAW=raw-value"));
+        $repo=new Repository($this->configs(),$this->env("database.connections.default.port=13306\nRAW=raw-value"));
         $repo->put('database.connections.default.port',2222);
         $this->assertSame(2222,$repo->get('database.connections.default.port'),'生效值: 运行时写入');
-        $this->assertSame(3306,$repo->file('database.connections.default.port'),'文件层: 原值');
+        $this->assertSame(3306,$repo->config_raw('database.connections.default.port'),'文件层: 原值');
         $this->assertSame('13306',$repo->env('database.connections.default.port'),'`.env` 层: 原样字符串(不折算)');
         $this->assertSame('raw-value',$repo->env('RAW'));
     }
 
     /**
-     * 测试: 值为 `null` 的配置项算"不存在" —— `.env` 覆盖与 `put()` 都不该碰它
+     * 测试: 值为 `null` 的配置项**也是一个值**(不是"不存在")
      *
-     * - 口径来自旧实现(`isset` 语义), 这里把它钉住: null 项不进覆盖判定, 但仍原样留在树里
+     * - `has()` 为 true、`get()` 给 `null` 而不回落默认值(与 PHP 的 `array_key_exists` 口径一致;
+     *   旧实现用 `isset`, 会把 null 项当成"不存在")
+     * - 因此它还能被 `.env` 路径键覆盖、能被 `put()` 就地改 —— 这些都建立在"键存在"之上
      *
      * @return void
      */
-    public function testNullValuedItemCountsAsMissing(): void {
-        $repo=new Repository(array('a'=>array('b'=>null,'c'=>1)),array(),$this->env("a.b=from-env\na.c=2"));
-        $this->assertFalse($repo->has('a.b'),'值为 null 的项视为不存在');
-        $this->assertSame('dflt',$repo->get('a.b','dflt'),'取不到 → 回落默认值');
-        $this->assertNull($repo->all()['a']['b'],'它仍原样留在树里(只是取不到)');
-        $this->assertSame(2,$repo->get('a.c'),'同一层的非 null 项正常吃到覆盖');
-        try {
-            $repo->put('a.b',1);
-            $this->fail('对"不存在的项"做运行时写入应当抛 ConfigException');
-        } catch(\AdminService\exception\ConfigException $e) {
-            $this->assertStringContainsString('a.b',$e->getMessage());
-        }
+    public function testNullValuedItemCountsAsPresent(): void {
+        $repo=new Repository(array('a'=>array('b'=>null,'c'=>1)));
+        $this->assertTrue($repo->has('a.b'),'键存在, 值为 null');
+        $this->assertNull($repo->get('a.b'),'给 null, 不是默认值');
+        $this->assertNull($repo->get('a.b','DFLT'),'显式声明的 null 不该被默认值顶掉');
+        $this->assertNull($repo->config_raw('a.b'),'文件层同样是 null');
+        $this->assertNull($repo->all()['a']['b']);
+        // 能就地改(旧口径会抛"不存在")
+        $repo->put('a.b','from-runtime');
+        $this->assertSame('from-runtime',$repo->get('a.b'));
+        // 也能被 `.env` 路径键覆盖;文件值是 null 时类型无从跟随 → 原样给出
+        $repo_with_env=new Repository(array('a'=>array('b'=>null)),$this->env('a.b=from-env'));
+        $this->assertSame('from-env',$repo_with_env->get('a.b'));
+        // 对照: `.env` 里写 null 是"这一项没有值"(那是 `Env` 层的语义), 不覆盖文件里的值
+        $repo_env_null=new Repository(array('a'=>array('b'=>'x')),$this->env('a.b=null'));
+        $this->assertSame('x',$repo_env_null->get('a.b'));
     }
 
     /**
@@ -267,7 +285,7 @@ class ConfigOverrideTest extends TestCase {
      * @return void
      */
     public function testArrayNodeMergesChildOverrides(): void {
-        $repo=new Repository($this->configs(),array(),$this->env(implode("\n",array(
+        $repo=new Repository($this->configs(),$this->env(implode("\n",array(
             'database.connections.default.host=db.example.com',
             'database.connections.default.port=13306',
         ))));
@@ -285,7 +303,7 @@ class ConfigOverrideTest extends TestCase {
      * @return void
      */
     public function testArrayNodeMergesRuntimeValues(): void {
-        $repo=new Repository($this->configs(),array(),$this->env('database.connections.default.host=from-env'));
+        $repo=new Repository($this->configs(),$this->env('database.connections.default.host=from-env'));
         $repo->put('database.connections.default.port',2222);
         $node=$repo->get('database.connections.default');
         $this->assertSame(2222,$node['port'],'运行时写入要进数组节点');
@@ -303,9 +321,9 @@ class ConfigOverrideTest extends TestCase {
      * @return void
      */
     public function testArrayNodeWithoutOverridesStaysFileTree(): void {
-        $repo=new Repository($this->configs(),array(),$this->env('app.name=from-env'));
+        $repo=new Repository($this->configs(),$this->env('app.name=from-env'));
         $this->assertSame($this->configs()['database'],$repo->get('database'),'未涉及的数组节点与文件树一致');
-        $this->assertSame($this->configs()['database'],$repo->file('database'));
+        $this->assertSame($this->configs()['database'],$repo->config_raw('database'));
     }
 
     /**
@@ -322,26 +340,11 @@ class ConfigOverrideTest extends TestCase {
     }
 
     /**
-     * 测试: `putAll()`(供 `Config::set()` 用)把树里的标量叶子就地写进生效值
-     *
-     * - 于是"刚 set 的值"赢过 `.env` 的路径键(否则会出现"我明明 set 了却被改掉")
-     *
-     * @return void
-     */
-    public function testPutAllPinsSetValues(): void {
-        $repo=new Repository($this->configs(),array(),$this->env('app.name=from-env'));
-        $this->assertSame('from-env',$repo->get('app.name'),'先确认 `.env` 覆盖是生效的');
-        $repo->putAll(array('app'=>array('name'=>'from-set')));
-        $this->assertSame('from-set',$repo->get('app.name'),'钉过之后 set 的值胜出');
-        $this->assertSame('demo',$repo->file('app.name'),'`file()` 仍然只看配置文件, 不受影响');
-    }
-
-    /**
      * 测试: `all()` 也体现运行时写入, 且只写回已存在的路径
      * @return void
      */
     public function testAllIncludesRuntimeValues(): void {
-        $repo=new Repository($this->configs(),array(),$this->env('app.name=from-env'));
+        $repo=new Repository($this->configs(),$this->env('app.name=from-env'));
         $repo->put('app.name','from-runtime');
         $all=$repo->all();
         $this->assertSame('from-runtime',$all['app']['name']);
@@ -349,7 +352,7 @@ class ConfigOverrideTest extends TestCase {
     }
 
     /**
-     * 测试: `env()` 读**本仓储那份 `.env` 层**的原值(与 `file()` 对称)
+     * 测试: `env()` 读**本仓储那份 `.env` 层**的原值(与 `config_raw()` 对称)
      *
      * - 原值不折算: 同一个 `.env` 键, 覆盖后 `get()` 给 int、`env()` 仍给字符串
      * - 没带快照的仓储: `.env` 层视为空, 回落默认值(与 `get()` / `all()` 不套覆盖同一口径)
@@ -357,7 +360,7 @@ class ConfigOverrideTest extends TestCase {
      * @return void
      */
     public function testEnvReadsItsOwnLayer(): void {
-        $repo=new Repository($this->configs(),array(),$this->env('database.connections.default.port=13306'));
+        $repo=new Repository($this->configs(),$this->env('database.connections.default.port=13306'));
         $this->assertSame(13306,$repo->get('database.connections.default.port'),'生效值: 覆盖并按文件类型折算成 int');
         $this->assertSame('13306',$repo->env('database.connections.default.port'),'`.env` 层: 原样字符串');
         $this->assertSame('dflt',$repo->env('not.in.dot.env','dflt'),'该层里没有的键回落默认值');

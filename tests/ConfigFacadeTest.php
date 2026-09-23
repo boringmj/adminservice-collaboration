@@ -26,7 +26,7 @@ use function is_array;
  * 覆盖三条主张:
  *  1. 未装配时 `get/all/has` **安全回落到默认值**(不会抛"未初始化静态属性")
  *  2. `new Config($configs)` **不可用**(私有构造): 那个写法会顺手改掉全局配置, 语义意外
- *  3. 配置实例是**唯一的一份**: 门面与容器指向同一对象; `set()` 之后两边同步换新,
+ *  3. 配置实例是**唯一的一份**: 门面与容器指向同一对象; 安装之后两边同步换新,
  *     且按 `base\ConfigInterface` 注入拿到的就是它(不是"转发到全局静态的替身")
  */
 class ConfigFacadeTest extends TestCase {
@@ -34,7 +34,7 @@ class ConfigFacadeTest extends TestCase {
     /**
      * 保存并还原门面指针与容器指针
      *
-     * - 直接改私有静态而不是用 `Config::set()` 还原: 要连**实例本身**一起还回去, 不只是内容
+     * - 直接改私有静态而不是用 `set_config()` 还原: 要连**实例本身**一起还回去, 不只是内容
      *
      * @param callable $fn 用例主体
      * @return void
@@ -89,40 +89,65 @@ class ConfigFacadeTest extends TestCase {
     }
 
     /**
-     * 测试: `set()` 整体替换并立即可读
+     * 测试: `new()` 只构建, **不**设置当前配置
      * @return void
      */
-    public function testSetInstallsRepository(): void {
+    public function testNewBuildsWithoutInstalling(): void {
         $this->withRestoredGlobals(function(): void {
-            Config::set(array('a'=>array('b'=>1),'c'=>null));
-            $this->assertTrue(Config::hasRepository());
-            $this->assertSame(1,Config::get('a.b'));
-            $this->assertSame('dflt',Config::get('c','dflt'),'null 视为不存在(与 get 口径一致)');
-            $this->assertFalse(Config::has('c'));
-            $this->assertSame(array('a'=>array('b'=>1),'c'=>null),Config::all());
+            $before=Config::repository();
+            $built=Config::new(array('a'=>array('b'=>1),'c'=>null));
+            $this->assertSame(1,$built->get('a.b'));
+            $this->assertNull($built->get('c','dflt'),'`null` 也是一个值: 不回落默认值');
+            $this->assertTrue($built->has('c'),'键存在, 值为 null');
+            $this->assertSame(array('a'=>array('b'=>1),'c'=>null),$built->all());
+            $this->assertSame($before,Config::repository(),'当前配置不变 —— 安装要显式调 `setRepository()`');
         });
     }
 
     /**
-     * 测试: `set()` 之后**容器里那一份也要换新**(否则出现"门面新、容器旧"的最难查的不一致)
+     * 测试: `set_config()`(测试里安装配置的入口: `new()` + `setRepository()`)会把容器里那份也换新
      *
      * - 场地按真实容器布置: 只登记**实现类名**, "契约名 → 实现类"由别名承担(同 `config/app.php` 的 `app.alias`)
      *
      * @return void
      */
-    public function testSetKeepsContainerInSync(): void {
+    public function testSetConfigKeepsContainerInSync(): void {
         $this->withRestoredGlobals(function(): void {
             $container=new Container();
             App::setInstance($container);
             $container->alias(ConfigInterface::class,Repository::class);
-            Config::set(array('k'=>'v1'));
+            set_config(array('k'=>'v1'));
             $first=$container->get(ConfigInterface::class);
             $this->assertSame('v1',$first->get('k'));
-            Config::set(array('k'=>'v2'));
+            set_config(array('k'=>'v2'));
             $second=$container->get(ConfigInterface::class);
             $this->assertNotSame($first,$second,'容器必须换成新实例');
             $this->assertSame('v2',$second->get('k'));
             $this->assertSame('v2',Config::get('k'));
+        });
+    }
+
+    /**
+     * 测试: `Config::new()` 的 `$merge_env` 由调用方明确表态 —— "树和 `.env` 谁说了算"不必猜
+     *
+     * - `false`(默认): **这份树就是生效值**;`.env` 的路径键不参与合并(只供 `env()` 读取)
+     * - `true`: `.env` 的路径键仍能覆盖树里的标量叶子
+     * - 两种情况下 `config_raw()` / `env()` 两个只读视图都照旧可读
+     *
+     * @return void
+     */
+    public function testNewExposesMergeFlag(): void {
+        $this->withRestoredGlobals(function(): void {
+            $tree=array('a'=>array('b'=>'from-tree'));
+            $env=new \AdminService\Config\Env('a.b=from-env');
+            $no_merge=Config::new($tree,false,$env);
+            $this->assertNotSame($no_merge,Config::repository(),'只构建, 不设置当前配置');
+            $this->assertSame('from-tree',$no_merge->get('a.b'),'不合并: 树胜出');
+            $this->assertSame('from-env',$no_merge->env('a.b'),'`.env` 那层照旧可读');
+            $this->assertSame('from-tree',$no_merge->config_raw('a.b'),'原始值就是这份树');
+            $merge=Config::new($tree,true,$env);
+            $this->assertSame('from-env',$merge->get('a.b'),'合并: `.env` 覆盖树里的标量叶子');
+            $this->assertSame('from-tree',$merge->config_raw('a.b'),'原始值不受覆盖影响');
         });
     }
 
@@ -136,7 +161,7 @@ class ConfigFacadeTest extends TestCase {
      */
     public function testSetRepositoryTakesTheGivenRepository(): void {
         $this->withRestoredGlobals(function(): void {
-            Config::set(array('k'=>'from-set'));
+            set_config(array('k'=>'from-set'));
             $assembled=new Repository(array('k'=>'from-assembled'));
             Config::setRepository($assembled);
             $this->assertSame($assembled,Config::repository(),'设进去的必须是传进去那个实例本身');
@@ -210,7 +235,7 @@ class ConfigFacadeTest extends TestCase {
      */
     public function testApplicationPrefersInjectedConfig(): void {
         $this->withRestoredGlobals(function(): void {
-            Config::set(array('k'=>'from-facade'));
+            set_config(array('k'=>'from-facade'));
             $injected=new Repository(array('k'=>'from-injected'));
             $application=new \AdminService\Application(null,$injected);
             $this->assertSame($injected,$application->config());
@@ -231,7 +256,7 @@ class ConfigFacadeTest extends TestCase {
         $this->withRestoredGlobals(function(): void {
             $container=new Container();
             App::setInstance($container);
-            Config::set(array('k'=>'from-facade'));
+            set_config(array('k'=>'from-facade'));
             // 传给应用的这份配置里带上"契约 → 实现类"的别名(同真实 `config/app.php`)
             $injected=new Repository(array('k'=>'from-injected','app'=>array('alias'=>array(
                 ConfigInterface::class=>Repository::class,
@@ -247,14 +272,14 @@ class ConfigFacadeTest extends TestCase {
      * 测试: `env()` 读的是**当前配置那一层 `.env`** —— 与 `get()` 的生效值是两条通道
      *
      * - 三件事: ①有快照时给原值(不折算、不受路径键覆盖影响) ②没带快照的仓储该层视为空
-     *   ③未设置仓储时同样回落默认值(与 `get()` / `file()` 一致)
+     *   ③未设置仓储时同样回落默认值(与 `get()` / `config_raw()` 一致)
      * - 用**本地快照**构造, 免得断言依赖本机 `.env` 的内容(口令之类不该进断言)
      *
      * @return void
      */
     public function testEnvReadsTheCurrentConfigDotEnvLayer(): void {
         $this->withRestoredGlobals(function(): void {
-            Config::setRepository(new Repository(array('k'=>'v'),array(),new \AdminService\Config\Env("RAW=raw-value\nMISSING=")));
+            Config::setRepository(new Repository(array('k'=>'v'),new \AdminService\Config\Env("RAW=raw-value\nMISSING=")));
             $this->assertSame('raw-value',Config::env('RAW'),'有快照: 给 `.env` 原值');
             $this->assertSame('',Config::env('MISSING'),'键在但值为空串, 照样给空串(不回落默认值)');
             $this->assertSame('dflt',Config::env('NOT_IN_ENV_AT_ALL','dflt'),'缺失即回落默认值');
@@ -262,7 +287,6 @@ class ConfigFacadeTest extends TestCase {
             // 同一个键: 生效值被路径键覆盖并折算, `.env` 那层给原值
             Config::setRepository(new Repository(
                 array('database'=>array('connections'=>array('default'=>array('port'=>3306)))),
-                array(),
                 new \AdminService\Config\Env('database.connections.default.port=3307')
             ));
             $this->assertSame(3307,Config::get('database.connections.default.port'),'生效值: 被路径键覆盖并折算成 int');
@@ -291,7 +315,7 @@ class ConfigFacadeTest extends TestCase {
             $probe=fn(#[ConfigAttribute('k')] string $value='dflt'): string => $value;
             // 反证口径: 门面里**有** k, 但容器没登记 —— 必须仍是默认值。
             // 若内核偷偷读全局门面, 这一步就会变成 'from-facade'
-            Config::set(array('k'=>'from-facade'));
+            set_config(array('k'=>'from-facade'));
             $this->assertSame('dflt',$container->exec_function($probe),'内核不得改读全局门面');
             $container->instance(ConfigInterface::class,new Repository(array('k'=>'v')));
             $this->assertSame('v',$container->exec_function($probe),'登记后按契约取到配置');
@@ -317,10 +341,10 @@ class ConfigFacadeTest extends TestCase {
      */
     public function testSetValueWinsOverEverything(): void {
         $this->withRestoredGlobals(function(): void {
-            Config::set(array('log'=>array('path'=>'from-set')));
+            set_config(array('log'=>array('path'=>'from-set')));
             Config::setValue('log.path','from-runtime');
             $this->assertSame('from-runtime',Config::get('log.path'));
-            $this->assertSame('from-set',Config::file('log.path'),'`file()` 反映的是 set 进去的那棵树');
+            $this->assertSame('from-set',Config::config_raw('log.path'),'`config_raw()` 反映的是 set 进去的那棵树');
             try {
                 Config::setValue('nope.nope',1);
                 $this->fail('配置项不存在时应当抛 ConfigException');

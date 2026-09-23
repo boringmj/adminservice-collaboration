@@ -24,7 +24,7 @@ use function unlink;
  * 配置仓储与加载器用例(`AdminService\Config\Repository` / `Loader`)
  *
  * 两段覆盖:
- *  1. `Repository`: 点分键口径(子树、列表下标、子空数组、`null` 视为不存在、字面含 `.` 的键取不到),
+ *  1. `Repository`: 点分键口径(子树、列表下标、子空数组、`null` 也是一个值、字面含 `.` 的键取不到),
  *     并实现 `base\ConfigInterface`
  *  2. `Loader` 的**文件来源**: 目录扫描的顺序、名字规范过滤、**显式清单不扫目录**
  *
@@ -83,18 +83,21 @@ class ConfigLoaderTest extends TestCase {
     }
 
     /**
-     * 测试: `null` 视为"不存在"(与旧 `Config::get()` 的 `isset` 口径一致), 而 `false`/`0`/`''` 算存在
+     * 测试: `null` 也是一个值 —— `false`/`0`/`''`/`null` 都算"存在", 只有键缺失才回落默认值
      * @return void
      */
-    public function testNullIsTreatedAsMissing(): void {
+    public function testNullIsAValue(): void {
         $repo=new Repository(array('a'=>null,'b'=>false,'c'=>0,'d'=>'','e'=>array('f'=>null)));
-        $this->assertFalse($repo->has('a'));
-        $this->assertSame('dflt',$repo->get('a','dflt'));
-        $this->assertSame('dflt',$repo->get('e.f','dflt'),'路径末端为 null 同样回落默认值');
+        $this->assertTrue($repo->has('a'),'键存在, 值为 null');
+        $this->assertNull($repo->get('a','dflt'),'给 null, 不回落默认值');
+        $this->assertNull($repo->get('e.f','dflt'),'路径末端为 null 同样是"有这个值"');
         $this->assertTrue($repo->has('b'));
         $this->assertFalse($repo->get('b','dflt'),'false 不是"不存在"');
         $this->assertSame(0,$repo->get('c','dflt'));
         $this->assertSame('',$repo->get('d','dflt'));
+        // 键真的缺失时才回落默认值
+        $this->assertSame('dflt',$repo->get('not.there','dflt'));
+        $this->assertFalse($repo->has('not.there'));
     }
 
     /**

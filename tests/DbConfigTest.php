@@ -50,7 +50,7 @@ class DbConfigTest extends TestCase {
      * @return void
      */
     public function testNamedConnection(): void {
-        Config::set(array(
+        set_config(array(
             'database'=>array(
                 'connections'=>array(
                     'default'=>array('type'=>'mysql','dbname'=>'main'),
@@ -67,7 +67,7 @@ class DbConfigTest extends TestCase {
      * @return void
      */
     public function testConfigOverride(): void {
-        Config::set(array(
+        set_config(array(
             'database'=>array(
                 'connections'=>array(
                     'default'=>array('type'=>'mysql','dbname'=>'main'),
@@ -83,7 +83,7 @@ class DbConfigTest extends TestCase {
      * @return void
      */
     public function testMissingConnectionThrows(): void {
-        Config::set(array(
+        set_config(array(
             'database'=>array(
                 'connections'=>array(
                     'default'=>array('type'=>'mysql'),
@@ -100,7 +100,7 @@ class DbConfigTest extends TestCase {
      * @return void
      */
     public function testManualConfig(): void {
-        Config::set(array('database'=>array('connections'=>array())));
+        set_config(array('database'=>array('connections'=>array())));
         $db=Db::fromConfig('custom',array(
             'type'=>'mysql',
             'host'=>'127.0.0.1',
@@ -143,7 +143,7 @@ class DbConfigTest extends TestCase {
      * @return void
      */
     public function testCustomCompilerClass(): void {
-        Config::set(array('database'=>array('connections'=>array('default'=>array('type'=>'mysql')))));
+        set_config(array('database'=>array('connections'=>array('default'=>array('type'=>'mysql')))));
         $db=Db::fromConfig('default',array('compiler'=>MysqlCompiler::class));
         $this->assertInstanceOf(Db::class,$db);
     }
@@ -153,7 +153,7 @@ class DbConfigTest extends TestCase {
      * @return void
      */
     public function testInvalidCompilerClassThrows(): void {
-        Config::set(array('database'=>array('connections'=>array('default'=>array('type'=>'mysql')))));
+        set_config(array('database'=>array('connections'=>array('default'=>array('type'=>'mysql')))));
         $this->expectException(ConfigException::class);
         $this->expectExceptionCode(100803);
         Db::fromConfig('default',array('compiler'=>\stdClass::class));
@@ -164,7 +164,7 @@ class DbConfigTest extends TestCase {
      * @return void
      */
     public function testClassNameMiddlewareResolves(): void {
-        Config::set(array(
+        set_config(array(
             'database'=>array(
                 'connections'=>array('default'=>array('type'=>'mysql')),
                 'middlewares'=>array(QueryLogger::class),
@@ -179,7 +179,7 @@ class DbConfigTest extends TestCase {
      * @return void
      */
     public function testInstanceMiddlewarePassesThrough(): void {
-        Config::set(array(
+        set_config(array(
             'database'=>array(
                 'connections'=>array('default'=>array('type'=>'mysql')),
                 'middlewares'=>array(new QueryLogger()),
@@ -194,7 +194,7 @@ class DbConfigTest extends TestCase {
      * @return void
      */
     public function testInvalidMiddlewareThrows(): void {
-        Config::set(array(
+        set_config(array(
             'database'=>array(
                 'connections'=>array('default'=>array('type'=>'mysql')),
                 'middlewares'=>array(\stdClass::class),
@@ -210,7 +210,7 @@ class DbConfigTest extends TestCase {
      * @return void
      */
     public function testFromConfigCachesSameConfig(): void {
-        Config::set(array(
+        set_config(array(
             'database'=>array(
                 'connections'=>array('default'=>array('type'=>'mysql','dbname'=>'main')),
             ),
@@ -225,7 +225,7 @@ class DbConfigTest extends TestCase {
      * @return void
      */
     public function testFromConfigOverrideNotCached(): void {
-        Config::set(array(
+        set_config(array(
             'database'=>array(
                 'connections'=>array('default'=>array('type'=>'mysql','dbname'=>'main')),
             ),
@@ -240,13 +240,13 @@ class DbConfigTest extends TestCase {
      * @return void
      */
     public function testFromConfigConfigChangeRebuilds(): void {
-        Config::set(array(
+        set_config(array(
             'database'=>array(
                 'connections'=>array('default'=>array('type'=>'mysql','dbname'=>'main')),
             ),
         ));
         $a=Db::fromConfig('default');
-        Config::set(array(
+        set_config(array(
             'database'=>array(
                 'connections'=>array('default'=>array('type'=>'mysql','dbname'=>'changed')),
             ),

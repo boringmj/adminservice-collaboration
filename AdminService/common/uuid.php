@@ -2,8 +2,16 @@
 
 namespace AdminService\common;
 
+use function chr;
+use function dechex;
+use function md5;
+use function mt_rand;
+use function str_pad;
 use function strtolower;
+use function strtoupper;
 use function substr;
+use function time;
+use function uniqid;
 
 /**
  * 生成UUID

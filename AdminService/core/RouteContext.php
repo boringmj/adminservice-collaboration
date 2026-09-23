@@ -4,6 +4,9 @@ namespace AdminService;
 
 use base\RouteContextInterface;
 
+use function is_array;
+use function is_object;
+use function is_string;
 use function lcfirst;
 use function preg_match;
 

@@ -2,6 +2,7 @@
 
 namespace AdminService\Config;
 
+use function array_key_exists;
 use function explode;
 use function file_get_contents;
 use function is_file;

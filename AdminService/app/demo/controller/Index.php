@@ -17,11 +17,12 @@ use app\demo\validator\Test as TestValidator;
 // 公共类
 use AdminService\common\HttpHelper;
 
+use function count;
+use function realpath;
+
 // 控制器助手函数
 use function AdminService\common\view;
 use function AdminService\common\json;
-
-use function count;
 
 class Index extends Controller {
 

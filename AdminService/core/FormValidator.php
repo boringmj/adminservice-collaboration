@@ -6,14 +6,27 @@ use base\SceneValidator;
 
 use function count;
 use function explode;
+use function filter_var;
 use function function_exists;
+use function implode;
 use function in_array;
 use function is_array;
+use function is_bool;
 use function is_null;
+use function is_numeric;
+use function is_scalar;
 use function is_string;
+use function json_decode;
+use function json_last_error;
+use function mb_strlen;
+use function mb_substr;
+use function method_exists;
 use function preg_match;
 use function preg_match_all;
+use function str_repeat;
 use function str_replace;
+use function strpos;
+use function strtotime;
 use function trim;
 use function ucwords;
 

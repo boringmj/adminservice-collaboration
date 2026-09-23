@@ -12,8 +12,11 @@ use ReflectionException;
 
 use function array_merge;
 use function count;
+use function date_default_timezone_set;
+use function error_reporting;
 use function implode;
 use function is_array;
+use function version_compare;
 
 final class Main {
 

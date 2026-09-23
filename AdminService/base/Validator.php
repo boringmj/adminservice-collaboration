@@ -2,6 +2,7 @@
 
 namespace base;
 
+use function array_key_first;
 use function array_map;
 use function array_merge;
 use function explode;

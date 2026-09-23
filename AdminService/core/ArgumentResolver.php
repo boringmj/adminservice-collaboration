@@ -15,6 +15,7 @@ use function array_key_exists;
 use function array_merge;
 use function array_unique;
 use function array_values;
+use function class_exists;
 use function count;
 use function explode;
 use function gettype;

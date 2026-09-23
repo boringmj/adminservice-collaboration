@@ -9,6 +9,7 @@ use base\Database\Sql\Definition\StatementDefinition;
 use base\Database\Sql\Definition\StatementDefinitionInterface;
 use base\Database\Type\StatementType;
 
+use function get_debug_type;
 use function in_array;
 
 /**

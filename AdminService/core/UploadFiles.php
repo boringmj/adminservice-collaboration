@@ -11,6 +11,9 @@ use function array_keys;
 use function array_map;
 use function file_exists;
 use function is_array;
+use function is_uploaded_file;
+use function pathinfo;
+use function preg_replace;
 use function strtolower;
 
 final class UploadFiles extends AbstractUploadFiles {

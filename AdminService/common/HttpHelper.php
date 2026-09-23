@@ -4,7 +4,22 @@ namespace AdminService\common;
 
 use AdminService\App;
 
+use function array_values;
+use function call_user_func;
+use function curl_close;
+use function curl_error;
+use function curl_exec;
+use function curl_getinfo;
+use function curl_init;
+use function curl_setopt;
 use function is_array;
+use function is_numeric;
+use function json_encode;
+use function strlen;
+use function strstr;
+use function strtolower;
+use function strtoupper;
+use function trim;
 
 /**
  * http请求工具类

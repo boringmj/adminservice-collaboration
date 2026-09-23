@@ -4,6 +4,7 @@ namespace base\Database\Sql\Dialect;
 
 use base\Database\Exception\CompilerException;
 
+use function get_debug_type;
 use function is_bool;
 use function is_float;
 use function is_int;

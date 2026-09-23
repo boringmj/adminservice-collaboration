@@ -10,6 +10,7 @@ use AdminService\App;
 use AdminService\Config;
 
 use function is_array;
+use function is_string;
 
 /**
  * 数据库配置(契约 `base\Database\DatabaseConfigInterface` 的框架实现)

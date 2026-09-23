@@ -8,6 +8,8 @@ use AdminService\Config\Loader;
 use AdminService\Config\Repository;
 use base\ConfigInterface;
 
+use function array_keys;
+use function dirname;
 use function file_put_contents;
 use function is_array;
 use function is_dir;

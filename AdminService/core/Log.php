@@ -7,11 +7,24 @@ use base\ConfigInterface;
 
 use Exception;
 
+use function addslashes;
 use function array_keys;
 use function array_values;
+use function date;
+use function dirname;
+use function file_put_contents;
+use function filesize;
+use function is_dir;
+use function is_file;
 use function is_string;
+use function is_writable;
+use function json_encode;
+use function mkdir;
+use function pathinfo;
 use function preg_match;
+use function preg_replace;
 use function str_replace;
+use function time;
 
 class Log {
 

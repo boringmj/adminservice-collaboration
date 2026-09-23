@@ -4,6 +4,10 @@ namespace base;
 
 use AdminService\exception\UploadExceptionInterface;
 
+use function bin2hex;
+use function random_bytes;
+use function uniqid;
+
 /**
  * 上传文件类
  */

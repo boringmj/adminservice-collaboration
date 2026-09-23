@@ -13,6 +13,7 @@ use AdminService\ResponseProcessor\Http;
 use function array_keys;
 use function array_map;
 use function func_num_args;
+use function header;
 use function headers_sent;
 use function http_response_code;
 use function implode;

@@ -22,6 +22,7 @@ use function is_subclass_of;
 use function str_contains;
 use function str_ends_with;
 use function str_replace;
+use function str_split;
 use function str_starts_with;
 use function strtolower;
 use function strtoupper;

@@ -7,6 +7,7 @@ use function gettype;
 use function is_array;
 use function is_file;
 use function preg_match;
+use function rtrim;
 use function scandir;
 use function sort;
 use function str_ends_with;

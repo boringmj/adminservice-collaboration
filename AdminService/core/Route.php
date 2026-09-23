@@ -19,6 +19,7 @@ use function array_merge;
 use function class_exists;
 use function count;
 use function glob;
+use function implode;
 use function is_array;
 use function is_dir;
 use function is_numeric;

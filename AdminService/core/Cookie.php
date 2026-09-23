@@ -6,6 +6,8 @@ use base\Cookie as BaseCookie;
 use base\ConfigInterface;
 
 use function is_array;
+use function setcookie;
+use function time;
 
 /**
  * Cookie 类

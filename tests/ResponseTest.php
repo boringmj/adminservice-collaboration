@@ -10,6 +10,9 @@ use AdminService\HttpRequest;
 use AdminService\Response;
 use AdminService\ResponseProcessor\Json;
 
+use function ob_get_clean;
+use function ob_start;
+
 /**
  * 响应实例测试
  *

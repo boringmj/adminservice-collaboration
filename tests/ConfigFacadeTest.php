@@ -14,6 +14,9 @@ use base\ConfigInterface;
 
 use ReflectionProperty;
 
+use function dirname;
+use function is_array;
+
 /**
  * 配置门面用例(`AdminService\Config`)
  *

@@ -8,6 +8,8 @@ use AdminService\App;
 use AdminService\Exception;
 use ReflectionException;
 
+use function is_string;
+
 /**
  * 显示视图
  *

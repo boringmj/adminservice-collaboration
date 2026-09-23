@@ -5,6 +5,9 @@ namespace Tests\Fixtures;
 use base\AbstractUploadFile;
 use base\UploadStorageInterface;
 
+use function is_file;
+use function unlink;
+
 /**
  * 测试用上传存储
  *

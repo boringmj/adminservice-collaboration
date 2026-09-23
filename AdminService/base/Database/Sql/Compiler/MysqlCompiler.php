@@ -16,6 +16,7 @@ use base\Database\Type\StatementType;
 
 use function array_keys;
 use function count;
+use function get_debug_type;
 use function implode;
 use function is_array;
 use function str_starts_with;

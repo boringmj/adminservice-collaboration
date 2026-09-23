@@ -24,9 +24,11 @@ use base\Database\Type\QueryType;
 
 use function array_merge;
 use function get_class;
+use function get_debug_type;
 use function implode;
 use function is_array;
 use function is_object;
+use function is_string;
 use function preg_match;
 use function serialize;
 use function spl_object_hash;

@@ -2,6 +2,7 @@
 
 namespace AdminService;
 
+use AdminService\Config\Loader;
 use AdminService\Config\Repository;
 use base\Database\Db as BaseDb;
 use base\Request;
@@ -61,13 +62,14 @@ final class Main {
             $response->prepare($container->get(Request::class));
             $response->send();
         },false);
-        // 加载配置文件(装配出配置仓储并安装到门面)
-        Config::load();
-        $config=Config::repository()??new Repository(array());
+        // 加载配置加载器 
+        $loader=new Loader(__DIR__.'/config');
+        $config=new Repository($loader->load(),$loader->diagnostics(),env_snapshot());
+        Config::setRepository($config);
         // 加载函数库
         $this->loadFunction($config);
-        // App初始化(建应用级容器并按配置装配 —— 同时把配置实例登记进容器 —— 并安装到门面)
-        $this->application=(new Application())->init();
+        // App初始化(建应用级容器并按配置装配,同时把这份配置登记进容器,并安装到门面)
+        $this->application=(new Application(null,$config))->init();
         // 装配期诊断(配置文件名字不合规 / `.env` 里的可疑键等)在日志子系统就绪后统一记一次
         $this->reportConfigDiagnostics($config);
         // 安装数据库配置提供者: 数据库层(契约层)不读全局配置, 由应用层把配置能力交给它
@@ -93,9 +95,7 @@ final class Main {
         $function_loader=$config->get('function.loader');
         if(is_array($function_loader)) {
             foreach($function_loader as $function) {
-                // 直接 include, 不为每个条目做 `is_file`: `function.loader` 是**静态清单**,
-                // 每请求为它做 6 次 stat 不划算;清单本身对不对属"开发期就该保证"的事。
-                // 真缺文件时 PHP 会报 include 警告(生产 `error_reporting(0)` 下不可见)
+                // 直接加载(因性能原因不检查文件存在性)
                 include_once $function_path.'/'.$function.'.php';
             }
         }

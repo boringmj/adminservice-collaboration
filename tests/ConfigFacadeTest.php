@@ -123,6 +123,123 @@ class ConfigFacadeTest extends TestCase {
     }
 
     /**
+     * 测试: `setRepository()` 收下**给定**的那份实例(门面不自己造)
+     *
+     * - 反证口径: 设置之前门面里是别的仓储, 设置之后必须**就是**传进去那个对象(不是"内容相同的新对象"),
+     *   否则"引导方装配、门面只装"这条分工就落不了地 —— 引用不同会让已注入的组件继续用旧配置
+     *
+     * @return void
+     */
+    public function testSetRepositoryTakesTheGivenRepository(): void {
+        $this->withRestoredGlobals(function(): void {
+            Config::set(array('k'=>'from-set'));
+            $assembled=new Repository(array('k'=>'from-assembled'));
+            Config::setRepository($assembled);
+            $this->assertSame($assembled,Config::repository(),'设进去的必须是传进去那个实例本身');
+            $this->assertSame('from-assembled',Config::get('k'));
+        });
+    }
+
+    /**
+     * 测试: `setRepository()` 之后**容器里那两条登记都要换新**(契约名 + 实现类名)
+     *
+     * - 引导期 `Application::init()` 与请求期 `handle()` 都是**契约名与实现类名各登记一条**;
+     *   若这里只换契约名那条, 两条就会指向不同的配置(契约名 → 新的, 实现类名 → 旧的)
+     *
+     * @return void
+     */
+    public function testSetRepositoryKeepsContainerInSync(): void {
+        $this->withRestoredGlobals(function(): void {
+            $container=new Container();
+            App::setInstance($container);
+            $stale=new Repository(array('k'=>'stale'));
+            $container->instance(ConfigInterface::class,$stale);
+            $container->instance(Repository::class,$stale);
+            Config::setRepository(new Repository(array('k'=>'v1')));
+            $first=$container->get(ConfigInterface::class);
+            $this->assertSame('v1',$first->get('k'));
+            $this->assertSame($first,$container->get(Repository::class),'两个名字必须指向同一个实例');
+            Config::setRepository(new Repository(array('k'=>'v2')));
+            $second=$container->get(ConfigInterface::class);
+            $this->assertNotSame($first,$second,'容器必须换成新实例');
+            $this->assertSame('v2',$second->get('k'));
+            $this->assertSame($second,$container->get(Repository::class),'实现类名那条也要换成新实例');
+        });
+    }
+
+    /**
+     * 测试: `Application` 收下**传进去**的配置, 不去门面摸
+     *
+     * - 反证口径: 门面里放一份不同的配置, 构造时显式传入的必须胜出
+     *
+     * @return void
+     */
+    public function testApplicationPrefersInjectedConfig(): void {
+        $this->withRestoredGlobals(function(): void {
+            Config::set(array('k'=>'from-facade'));
+            $injected=new Repository(array('k'=>'from-injected'));
+            $application=new \AdminService\Application(null,$injected);
+            $this->assertSame($injected,$application->config());
+            $this->assertSame('from-injected',$application->config()->get('k'));
+        });
+    }
+
+    /**
+     * 测试: `Application::init()` 之后,**门面里就是应用实际在用的那一份**
+     *
+     * - 反证口径: 门面里先摆一份不同的, 引导完必须换成应用手里那份 —— 否则"容器里是新配置、
+     *   门面里是旧的"就是可表示的状态, 那类不一致最难查
+     * - 用**新容器**做场地: 引导会往容器里登记配置, 不能让这份改动留在共享的测试容器里
+     *
+     * @return void
+     */
+    public function testApplicationInitMakesItsConfigCurrent(): void {
+        $this->withRestoredGlobals(function(): void {
+            $container=new Container();
+            App::setInstance($container);
+            Config::set(array('k'=>'from-facade'));
+            $injected=new Repository(array('k'=>'from-injected'));
+            (new \AdminService\Application($container,$injected))->init();
+            $this->assertSame($injected,Config::repository(),'门面里必须是应用手里那份');
+            $this->assertSame($injected,$container->get(ConfigInterface::class),'容器里那份也是同一个实例');
+        });
+    }
+
+    /**
+     * 测试: `env()` 读的是**当前配置那一层 `.env`** —— 与 `get()` 的生效值是两条通道
+     *
+     * - 三件事: ①有快照时给原值(不折算、不受路径键覆盖影响) ②没带快照的仓储该层视为空
+     *   ③未设置仓储时同样回落默认值(与 `get()` / `file()` 一致)
+     * - 用**本地快照**构造, 免得断言依赖本机 `.env` 的内容(口令之类不该进断言)
+     *
+     * @return void
+     */
+    public function testEnvReadsTheCurrentConfigDotEnvLayer(): void {
+        $this->withRestoredGlobals(function(): void {
+            Config::setRepository(new Repository(array('k'=>'v'),array(),new \AdminService\Config\Env("RAW=raw-value\nMISSING=")));
+            $this->assertSame('raw-value',Config::env('RAW'),'有快照: 给 `.env` 原值');
+            $this->assertSame('',Config::env('MISSING'),'键在但值为空串, 照样给空串(不回落默认值)');
+            $this->assertSame('dflt',Config::env('NOT_IN_ENV_AT_ALL','dflt'),'缺失即回落默认值');
+            $this->assertNull(Config::env('NOT_IN_ENV_AT_ALL'),'不传默认值就是 null, 不抛');
+            // 同一个键: 生效值被路径键覆盖并折算, `.env` 那层给原值
+            Config::setRepository(new Repository(
+                array('database'=>array('connections'=>array('default'=>array('port'=>3306)))),
+                array(),
+                new \AdminService\Config\Env('database.connections.default.port=3307')
+            ));
+            $this->assertSame(3307,Config::get('database.connections.default.port'),'生效值: 被路径键覆盖并折算成 int');
+            $this->assertSame('3307',Config::env('database.connections.default.port'),'`.env` 层: 原始字符串(既不折算, 也不体现"覆盖的结果")');
+            // 没带快照的仓储: 该层视为空(与 get/all 在无快照时不套覆盖同一口径)
+            Config::setRepository(new Repository(array('k'=>'v')));
+            $this->assertSame('dflt',Config::env('RAW','dflt'),'没快照: 回落默认值');
+            // 未设置仓储: 同样回落默认值
+            $this->setFacadeRepository(null);
+            $this->assertSame('dflt',Config::env('RAW','dflt'),'未设置仓储: 回落默认值(与 get/file 一致)');
+            $this->assertFalse(Config::has('k'),'对照: 同一状态下配置项不可见(那是另一条通道)');
+        });
+    }
+
+    /**
      * 测试: 容器内核的取值回调读的是"容器里登记的实例", 没登记时回落默认值
      *
      * - 登记前: 一个裸容器不该凭空拿到配置(更不能静默拿到"空配置")

@@ -33,7 +33,7 @@ class ResponseTest extends TestCase {
      * @return void
      */
     protected function setUp(): void {
-        Config::load();
+        load_framework_config();
     }
 
     /**

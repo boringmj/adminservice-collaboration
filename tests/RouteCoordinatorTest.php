@@ -86,7 +86,7 @@ class RouteCoordinatorTest extends TestCase {
                 rmdir($this->routesDir);
             $this->routesDir=null;
         }
-        Config::load();
+        load_framework_config();
     }
 
     /**

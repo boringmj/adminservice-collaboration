@@ -34,7 +34,7 @@ use function strtolower;
  *    用意是下游**不必改配置文件**就能覆盖任何一项
  *  - 三条边界: ①只覆盖**已存在**的路径, **绝不新建节点**(配置树的结构只由 `config/*.php` 决定 ——
  *    即"不允许虚空节点"那条约定) ②只覆盖标量叶子 ③**类型跟着配置文件里那个值走**:
- *    文件里是 `int` 就转 `int`, `bool` 按"false/null/0/空 → false, 其余 → true"折算, 转不了就原样给出
+ *    文件里是 `int` 就把 `.env` 的字符串转成 `int`, `bool` 按"false/null/0/空 → false, 其余 → true"判定, 转不了就原样给出
  *
  * ## 点分键口径
  *
@@ -135,6 +135,25 @@ final class Repository implements ConfigInterface {
      */
     public function file(string $key,mixed $default=null): mixed {
         return isset($this->flat[$key])?$this->flat[$key]:$default;
+    }
+
+    /**
+     * 读取**本仓储的 `.env` 层**(`.env` 里怎么写就怎么给)
+     *
+     * - 只做 `Env` 解析时的那一次转换(`true` / `false` / `null` 三个词成 bool / null, 数字仍是字符串),
+     *   **不**像 `get()` 那样再按配置文件里的类型转(见 `castOverride()`), 也**不**套路径键覆盖
+     *   —— 同一个键: `get('database.connections.default.port')` 给 `13306`(int), 本方法给 `'13306'`(string)
+     * - 读的是构造时传入的那份 `.env` 快照(`__construct()` 的第三个参数);构造时没传则本层为空, 一律回落默认值 ——
+     *   与 `get()` / `all()` 在没有快照时不套 `.env` 覆盖是同一口径
+     * - 与 `file()` 对称: 一个看配置文件那层, 一个看 `.env` 那层;`file()` 也不受覆盖影响
+     *
+     * @access public
+     * @param string $key 键(大小写敏感)
+     * @param mixed $default 默认值
+     * @return mixed
+     */
+    public function env(string $key,mixed $default=null): mixed {
+        return $this->env===null?$default:$this->env->get($key,$default);
     }
 
     /**

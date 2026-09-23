@@ -53,7 +53,8 @@ final class Application {
      *  - 未传入时:**复用门面当前已安装的容器**(同一进程内通常只有一个应用级容器),
      *    门面没有实例时才新建 —— 避免"新建一个空应用"把已装配好的容器顶掉
      * @param Repository|null $config 配置仓储
-     *  - 未传入时取门面当前装配的那一份; 若连门面都还没装配(如只调 `App::init()` 的测试), 退化为**空配置**
+     *  - 引导期由 `Main::init()` **显式传入**(不依赖门面传递); 未传入时取 `Config::repository()`,
+     *    门面里也没有(如只调 `App::init()` 的测试)时, 退化为 `new Repository(array())`(**空配置**)
      */
     public function __construct(?ContainerContract $container=null,?Repository $config=null) {
         if($container!==null)
@@ -115,6 +116,10 @@ final class Application {
         }
         // 安装到门面(使用者入口)
         App::setInstance($this->container);
+        // 让门面的当前配置也是这一份: 门面的静态指针与容器里按 `base\ConfigInterface` 登记的实例
+        // 必须指向同一个对象, 否则 `Config::get()` 与按契约注入拿到的会是两份不同的配置;
+        // 必须排在 `App::setInstance()` 之后 —— `setRepository()` 替换的是"当前容器"里的登记
+        Config::setRepository($this->config);
         return $this;
     }
 
@@ -158,8 +163,8 @@ final class Application {
         // 请求级 scope: 实例与全局数据独立, 绑定/别名/单例与反射缓存共享
         $container=$this->container->fork();
         $this->request_container=$container;
-        // 请求开始时把**门面当前那份**配置登记进请求容器: 父容器里那份可能已被 `Config::load()/set()` 换掉,
-        // 只靠父容器会让请求内的组件拿到过期配置
+        // 请求开始时把 `Config::repository()` 当前返回的配置登记进请求容器(契约名与实现类名各一条):
+        // 应用级容器里登记的可能已经被 `Config::setRepository()/set()` 换成新的了, 只靠父容器会让请求内的组件读到旧配置
         $repository=Config::repository();
         if($repository!==null) {
             $container->instance(ConfigInterface::class,$repository);

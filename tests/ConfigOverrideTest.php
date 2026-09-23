@@ -224,4 +224,21 @@ class ConfigOverrideTest extends TestCase {
         $this->assertSame(3306,$all['database']['connections']['default']['port'],'未涉及项保持文件值');
     }
 
+    /**
+     * 测试: `env()` 读**本仓储那份 `.env` 层**的原值(与 `file()` 对称)
+     *
+     * - 原值不折算: 同一个 `.env` 键, 覆盖后 `get()` 给 int、`env()` 仍给字符串
+     * - 没带快照的仓储: `.env` 层视为空, 回落默认值(与 `get()` / `all()` 不套覆盖同一口径)
+     *
+     * @return void
+     */
+    public function testEnvReadsItsOwnLayer(): void {
+        $repo=new Repository($this->configs(),array(),$this->env('database.connections.default.port=13306'));
+        $this->assertSame(13306,$repo->get('database.connections.default.port'),'生效值: 覆盖并按文件类型折算成 int');
+        $this->assertSame('13306',$repo->env('database.connections.default.port'),'`.env` 层: 原样字符串');
+        $this->assertSame('dflt',$repo->env('not.in.dot.env','dflt'),'该层里没有的键回落默认值');
+        $repo_without_env=new Repository($this->configs());
+        $this->assertSame('dflt',$repo_without_env->env('database.connections.default.port','dflt'),'没带快照: 该层为空');
+    }
+
 }

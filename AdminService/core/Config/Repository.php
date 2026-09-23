@@ -5,6 +5,7 @@ namespace AdminService\Config;
 use AdminService\exception\ConfigException;
 use base\ConfigInterface;
 
+use function array_key_exists;
 use function count;
 use function explode;
 use function in_array;

@@ -8,6 +8,11 @@ use app\demo\model\Order;
 use app\demo\model\User;
 use base\Controller;
 
+use function array_map;
+use function count;
+use function date;
+use function mt_rand;
+
 /**
  * ORM 使用示例控制器
  *

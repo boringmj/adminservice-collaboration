@@ -3,6 +3,9 @@
 namespace AdminService\common;
 
 use function file_get_contents;
+use function http_build_query;
+use function json_encode;
+use function stream_context_create;
 
 /**
  * 发送HTTP POST请求

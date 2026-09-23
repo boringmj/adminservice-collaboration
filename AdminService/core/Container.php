@@ -4,9 +4,11 @@ namespace AdminService;
 
 use ReflectionClass;
 
+use function array_pop;
 use function class_exists;
 use function in_array;
 use function interface_exists;
+use function is_array;
 use function is_string;
 use ReflectionException;
 use AdminService\Exception;

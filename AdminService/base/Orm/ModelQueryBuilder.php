@@ -19,6 +19,7 @@ use function array_map;
 use function array_merge;
 use function array_values;
 use function get_class;
+use function is_string;
 use function max;
 use function method_exists;
 use function strpos;

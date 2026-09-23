@@ -10,6 +10,7 @@ use Throwable;
 
 use function array_key_exists;
 use function basename;
+use function date;
 use function implode;
 use function in_array;
 use function is_a;

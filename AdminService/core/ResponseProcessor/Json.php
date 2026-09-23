@@ -6,6 +6,7 @@ use base\AbstractResponseProcessor;
 
 use function is_array;
 use function is_object;
+use function json_encode;
 
 /**
  * JSON响应处理器

@@ -12,6 +12,8 @@ use AdminService\App;
 use AdminService\Config;
 use AdminService\Exception;
 
+use function get_class;
+
 class AppTest extends TestCase {
 
     /**

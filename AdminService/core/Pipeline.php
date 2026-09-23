@@ -9,6 +9,7 @@ use function array_merge;
 use function array_reverse;
 use function is_array;
 use function is_object;
+use function is_string;
 use function usort;
 
 /**

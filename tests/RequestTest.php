@@ -8,6 +8,9 @@ use AdminService\App;
 use AdminService\Config;
 use AdminService\HttpRequest;
 
+use function count;
+use function explode;
+
 /**
  * 请求实例测试
  *

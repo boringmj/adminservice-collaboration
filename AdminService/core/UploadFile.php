@@ -8,7 +8,12 @@ use AdminService\exception\UploadException;
 use AdminService\exception\UploadStorageException;
 
 use function file_exists;
+use function hash_algos;
+use function hash_file;
 use function in_array;
+use function is_dir;
+use function is_readable;
+use function is_writable;
 
 final class UploadFile extends AbstractUploadFile {
 

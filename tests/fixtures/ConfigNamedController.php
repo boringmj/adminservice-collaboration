@@ -5,6 +5,8 @@ namespace Tests\Fixtures;
 use base\Controller;
 use base\Attribute\Config;
 
+use function is_string;
+
 /**
  * 控制器基类兼容性用例: 子类使用了与基类内部管道**同名**的属性
  *

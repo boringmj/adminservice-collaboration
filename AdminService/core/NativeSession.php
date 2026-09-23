@@ -5,6 +5,10 @@ namespace AdminService;
 use base\AbstractSession;
 
 use function is_array;
+use function session_destroy;
+use function session_id;
+use function session_start;
+use function session_status;
 
 /**
  * 原生会话驱动

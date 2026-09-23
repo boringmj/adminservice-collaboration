@@ -15,6 +15,11 @@ use Tests\Fixtures\MiddlewareLog;
 use Tests\Fixtures\RouteController;
 use Tests\Fixtures\SecondMiddleware;
 
+use function file_put_contents;
+use function sys_get_temp_dir;
+use function tempnam;
+use function unlink;
+
 /**
  * 路由模块测试
  *

@@ -4,6 +4,8 @@ namespace AdminService;
 
 use base\AbstractInputProcessor;
 
+use function json_decode;
+
 class JsonInput extends AbstractInputProcessor {
    
     /**

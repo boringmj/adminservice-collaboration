@@ -4,11 +4,31 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
 use function array_unique;
+use function array_values;
 use function class_exists;
+use function dirname;
+use function explode;
+use function file_get_contents;
+use function function_exists;
+use function implode;
+use function in_array;
 use function interface_exists;
+use function json_decode;
 use function method_exists;
+use function preg_match;
+use function preg_match_all;
+use function preg_replace;
+use function preg_split;
+use function rtrim;
+use function sort;
+use function str_replace;
+use function strlen;
+use function strpos;
+use function substr;
 use function trait_exists;
+use function trim;
 
 /**
  * 文档(注释)与代码一致性用例

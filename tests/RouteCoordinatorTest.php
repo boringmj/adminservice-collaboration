@@ -17,6 +17,17 @@ use AdminService\Router\Router;
 use Tests\Fixtures\LabelMiddleware;
 use Tests\Fixtures\MiddlewareLog;
 
+use function file_put_contents;
+use function glob;
+use function is_dir;
+use function is_file;
+use function mkdir;
+use function rmdir;
+use function sys_get_temp_dir;
+use function tempnam;
+use function uniqid;
+use function unlink;
+
 /**
  * 路由协调器测试
  *

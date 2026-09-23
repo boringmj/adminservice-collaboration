@@ -13,6 +13,18 @@ use AdminService\exception\UploadException;
 use AdminService\exception\UploadStorageException;
 use Tests\Fixtures\FakeUploadStorage;
 
+use function array_keys;
+use function file_put_contents;
+use function is_dir;
+use function is_file;
+use function rmdir;
+use function sha1;
+use function strlen;
+use function sys_get_temp_dir;
+use function tempnam;
+use function uniqid;
+use function unlink;
+
 /**
  * 上传测试
  *

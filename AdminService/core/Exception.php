@@ -5,6 +5,9 @@ namespace AdminService;
 use base\Exception as BaseException;
 use ReflectionException;
 
+use function get_called_class;
+use function json_encode;
+
 class Exception extends BaseException {
 
     /**

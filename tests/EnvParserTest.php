@@ -7,7 +7,11 @@ use PHPUnit\Framework\TestCase;
 use AdminService\Config\Env;
 
 use function count;
+use function dirname;
 use function file_put_contents;
+use function implode;
+use function is_file;
+use function preg_match;
 use function sys_get_temp_dir;
 use function tempnam;
 use function unlink;

@@ -8,21 +8,37 @@ use base\Container as ContainerContract;
 use base\Response;
 use base\View;
 
+use function array_shift;
+use function call_user_func;
 use function count;
+use function debug_backtrace;
+use function error_get_last;
+use function error_log;
 use function explode;
+use function get_class;
+use function htmlspecialchars;
+use function implode;
 use function in_array;
 use function is_array;
+use function is_bool;
+use function is_callable;
+use function is_file;
 use function is_null;
 use function is_object;
-use function is_string;
 use function is_resource;
-use function is_callable;
-use function is_bool;
+use function is_string;
+use function ob_end_clean;
+use function ob_get_level;
 use function preg_match;
+use function register_shutdown_function;
+use function set_error_handler;
+use function set_exception_handler;
+use function sprintf;
 use function str_replace;
+use function strlen;
+use function strpos;
 use function substr;
 use function trim;
-use function call_user_func;
 
 /**
  * 错误处理类

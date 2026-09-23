@@ -8,6 +8,8 @@ use AdminService\App;
 use AdminService\Config;
 use AdminService\Exception;
 
+use function array_sum;
+
 /**
  * 标量参数静默转换目标类
  */

@@ -6,6 +6,9 @@ use base\Container as ContainerContract;
 use ReflectionClass;
 use ReflectionException;
 
+use function method_exists;
+use function property_exists;
+
 /**
  * 动态代理类
  * 

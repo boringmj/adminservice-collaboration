@@ -8,6 +8,14 @@ use AdminService\Config;
 use AdminService\Exception;
 use AdminService\Router\AttributeScanner;
 
+use function file_put_contents;
+use function glob;
+use function mkdir;
+use function rmdir;
+use function sys_get_temp_dir;
+use function uniqid;
+use function unlink;
+
 /**
  * 属性路由扫描器测试
  *

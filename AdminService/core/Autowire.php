@@ -19,9 +19,11 @@ use AdminService\exception\AutowireException;
 use Closure;
 
 use function array_merge;
+use function array_unique;
 use function array_values;
 use function count;
 use function in_array;
+use function is_a;
 
 /**
  * 自动装配器

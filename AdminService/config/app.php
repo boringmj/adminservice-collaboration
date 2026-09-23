@@ -10,10 +10,10 @@ use AdminService\Response;
 use AdminService\HttpRequest;
 use AdminService\Config\Repository;
 
+use function AdminService\env;
+
 // app 相关配置
 return array(
-    // 取自 `.env` 的 APP_DEBUG;缺失就用这里的默认值(框架只取值, 不判断"该不该有这个键")
-    // 另: `.env` 里写点分路径 `app.debug=…` 也能覆盖本项(见 `Config\Repository`)
     'debug'=>env('APP_DEBUG',false), // 是否开启调试模式
     'param_cast'=>true, // 是否允许标量参数静默转换(对齐 PHP 弱类型,反射调用默认为严格类型,关闭后参数类型不匹配将抛出异常)
     'error_template'=>__DIR__.'/../view/error.html', // 错误页面模板路径

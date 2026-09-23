@@ -16,6 +16,7 @@ use function is_float;
 use function is_int;
 use function is_numeric;
 use function is_string;
+use function str_contains;
 use function strtolower;
 use function var_export;
 
@@ -49,10 +50,13 @@ final class Repository implements ConfigInterface {
     /**
      * 构造方法
      *
+     * - 含点的 env 键是路径键: 必须命中已存在的标量项, 否则抛 `ConfigException`(不静默跳过、不新建节点)
+     *
      * @access public
      * @param array<string,mixed> $configs 配置树, 同时作为原始值与生效值的来源
      * @param Env|null $env Env 实例
      * @param bool $merge_env env 的路径键是否参与合并
+     * @throws ConfigException 路径键在配置里不存在, 或指向数组节点
      */
     public function __construct(array $configs,?Env $env=null,bool $merge_env=true) {
         $this->config_raw=$configs;
@@ -62,10 +66,15 @@ final class Repository implements ConfigInterface {
         if($merge_env&&$env!==null)
             foreach($env->all() as $key=>$env_value) {
                 $key=(string)$key;
+                // 不含点的键是值来源(由配置文件里的 `env()` 读取), 不参与覆盖
+                if(!str_contains($key,'.'))
+                    continue;
                 $segments=explode('.',$key);
                 $found=null;
-                if(!$this->lookup($this->effective,$segments,$found)||is_array($found))
-                    continue;
+                if(!$this->lookup($this->effective,$segments,$found))
+                    throw new ConfigException('配置项 "'.$key.'" 不存在, env 的路径键只能覆盖已存在的配置项',100908);
+                if(is_array($found))
+                    throw new ConfigException('配置项 "'.$key.'" 是数组节点, 覆盖值只能是标量',100909);
                 $this->writeNode($this->effective,$segments,$this->castEnvToFileType($key,$env_value,$found));
             }
     }

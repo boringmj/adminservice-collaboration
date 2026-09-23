@@ -11,11 +11,8 @@ use base\Route;
 use AdminService\Database\DatabaseConfig;
 use ReflectionException;
 
-use function array_merge;
-use function count;
 use function date_default_timezone_set;
 use function error_reporting;
-use function implode;
 use function is_array;
 use function version_compare;
 
@@ -70,8 +67,6 @@ final class Main {
         $this->loadFunction($config);
         // App初始化(建应用级容器并按配置装配,同时把这份配置登记进容器,并安装到门面)
         $this->application=(new Application(null,$config))->init();
-        // env 的解析错误(`Env` 只记录不抛)在日志子系统就绪后统一记一次
-        $this->reportEnvErrors($config);
         // 安装数据库配置提供者: 数据库层(契约层)不读全局配置, 由应用层把配置能力交给它
         // 直接注入配置实例(而非让它回落门面): 引导期已定下这份配置, 之后只读
         BaseDb::setConfig(new DatabaseConfig($config));
@@ -99,27 +94,6 @@ final class Main {
                 include_once $function_path.'/'.$function.'.php';
             }
         }
-    }
-
-    /**
-     * 记录 env 的解析错误
-     *
-     * - 仅在调试模式记录: 引导每请求都会重跑, 内容与请求无关, 否则每请求都会重复写入相同内容
-     * - 配置文件的问题(名字、返回值、路径键、类型)在装载时抛异常, 不走这里
-     *
-     * @access private
-     * @param Repository $config 配置存储
-     * @return void
-     * @throws Exception|ReflectionException
-     */
-    private function reportEnvErrors(Repository $config): void {
-        $diagnostics=env_snapshot()->errors();
-        if($diagnostics===array()||!$config->get('app.debug',false))
-            return;
-        $this->application->container()->get(Log::class)->write(
-            'env 解析诊断({count} 条): {diagnostics}',
-            array('count'=>count($diagnostics),'diagnostics'=>implode(' | ',$diagnostics))
-        );
     }
 
     /**

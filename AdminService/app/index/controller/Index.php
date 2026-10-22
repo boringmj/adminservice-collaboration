@@ -5,6 +5,7 @@ namespace app\index\controller;
 use Exception;
 use base\Controller;
 use AdminService\Log;
+use AdminService\DynamicProxy;
 use base\Attribute\AutowireProperty;
 use base\Attribute\Route;
 use base\Attribute\RouteGroup;
@@ -14,7 +15,7 @@ class Index extends Controller {
 
     /**
      * 通过属性注入Log代理对象
-     * @var Log
+     * @var DynamicProxy<Log>
      */
     #[AutowireProperty(Log::class,true)]
     private $log;
@@ -26,7 +27,7 @@ class Index extends Controller {
      *  - 不建议使用除`Route`标记外的其他标记来标记控制器的`public`属性的方法
      *  - 除非你知道其原理和且接受可能的副作用或其他未知风险
      *  - 已知风险: 部分标记可能导致方法被框架自动/重复调用
-     *  - 也可用`#[Route]`属性就近声明路由,框架会自动扫描控制器上的路由属性
+     *  - 可用`#[Route]`属性就近声明路由,框架会自动扫描控制器上的路由属性
      *  - 类上的`#[RouteGroup]`为该控制器下所有路由提供统一前缀与中间件
      * @throws Exception
      */

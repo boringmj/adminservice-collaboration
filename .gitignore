@@ -12,3 +12,4 @@ wiki/
 tools/
 # 本地计划与评估文档(不属于仓库内容, 不入库)
 *-refactor-*.md
+CODE-REVIEW-PLAN.md

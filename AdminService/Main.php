@@ -50,7 +50,7 @@ final class Main {
             exit('无法兼容您的PHP版本('.PHP_VERSION.'),需要PHP8.1.0及以上版本');
         // 调整环境
         error_reporting(0);
-        date_default_timezone_set('PRC');
+        date_default_timezone_set('Asia/Shanghai');
         // 注册错误处理(响应出口: 正常退出时按请求准备好响应再发送)
         // 关停阶段门面已收回应用级容器, 故这里直接向 Application 取请求级容器(框架内部不走门面)
         Error::register(function(): void {

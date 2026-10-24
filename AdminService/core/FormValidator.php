@@ -14,6 +14,7 @@ use function is_array;
 use function is_bool;
 use function is_null;
 use function is_numeric;
+use function is_object;
 use function is_scalar;
 use function is_string;
 use function json_decode;
@@ -55,6 +56,19 @@ class FormValidator extends SceneValidator {
         'hide',
         'replace',
         'hint'
+    ];
+
+    /**
+     * 仅接受标量值的规则
+     *
+     * - 数组/对象进入这些规则时直接产生校验错误
+     * - 避免 strtotime()/preg_match() 的 TypeError、警告或静默通过
+     *
+     * @var array<string>
+     */
+    protected array $scalar_rules=[
+        'email','min','max','min_length','max_length','numeric','integer','url',
+        'regex','in','not_in','date','after','before','between','not_between','ip','phone','json'
     ];
 
     /**
@@ -100,6 +114,8 @@ class FormValidator extends SceneValidator {
     protected function checkRule(string $field,string $rule,mixed $value,mixed $param=null): bool {
         $method='validate'.str_replace(' ','',ucwords(str_replace('_',' ',$rule)));
         if(method_exists($this,$method)) {
+            if(in_array($rule,$this->scalar_rules,true)&&(is_array($value)||is_object($value)))
+                return $this->addError($field,$rule,$param);
             return $this->$method($field,$value,$param);
         }
         // 处理未知规则

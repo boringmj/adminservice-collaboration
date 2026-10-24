@@ -163,7 +163,7 @@ class BelongsToMany extends Relation {
         // 先建相关模型, 再写中间表(两步, 非原子; 需要原子性时请在同一 Db 上包裹事务)
         $model=new ($this->modelClass)();
         $model->fill($data);
-        $model->save();
+        $this->saveRelated($model);
         $this->db->query(
             Query::insert(array(
                 $this->foreignPivotKey=>$parentKey,

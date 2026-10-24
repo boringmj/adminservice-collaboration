@@ -14,6 +14,7 @@ use AdminService\Main;
 use AdminService\Response as HttpResponse;
 use AdminService\Route;
 use AdminService\Router\Router;
+use AdminService\Router\RouterFactory;
 use Tests\Fixtures\LabelMiddleware;
 use Tests\Fixtures\MiddlewareLog;
 
@@ -199,6 +200,38 @@ class RouteCoordinatorTest extends TestCase {
     public function testExplicitRouteMatches(): void {
         $this->useRoutes("\$router->get('/t/hello',array(\\app\\demo\\controller\\Index::class,'index'));");
         $this->assertSame('Hello World!',$this->dispatch('/t/hello'));
+    }
+
+    /**
+     * 测试路由表跨请求复用
+     *
+     * - `Route` 每请求重建, 但 `Router` 由应用级 `RouterFactory` 持有
+     * @return void
+     */
+    public function testRouterTableReusedAcrossRequests(): void {
+        $this->useRoutes("\$router->get('/t/reuse',array(\\app\\demo\\controller\\Index::class,'index'));");
+        $this->assertSame('Hello World!',$this->dispatch('/t/reuse'));
+        $first=$this->main()->application()->requestContainer()->get(Router::class);
+        $this->assertSame('Hello World!',$this->dispatch('/t/reuse'));
+        $second=$this->main()->application()->requestContainer()->get(Router::class);
+        $this->assertSame($first,$second,'同一配置下路由表应跨请求复用');
+    }
+
+    /**
+     * 测试配置对象替换后路由表重建
+     *
+     * - 直接验证应用级提供器的失效语义: 新配置对象必须得到新路由表
+     * - 不经过未初始化的 `Application`(它按约定固定使用构造期配置)
+     * @return void
+     */
+    public function testRouterTableRebuildsWhenConfigReplaced(): void {
+        $this->useRoutes("\$router->get('/t/reuse/a',array(\\app\\demo\\controller\\Index::class,'index'));");
+        $factory=new RouterFactory();
+        $first=$factory->get(Config::repository());
+        $this->useRoutes("\$router->get('/t/reuse/b',array(\\app\\demo\\controller\\Index::class,'index'));");
+        $second=$factory->get(Config::repository());
+        $this->assertNotSame($first,$second,'配置对象替换后应重建路由表');
+        $this->assertNotNull($second->find('GET','/t/reuse/b'),'重建后的路由表应包含新配置的路由');
     }
 
     /**

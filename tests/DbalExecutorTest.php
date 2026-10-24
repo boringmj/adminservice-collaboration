@@ -112,6 +112,59 @@ class DbalExecutorTest extends TestCase {
     }
 
     /**
+     * 测试命名占位符按名称绑定(兼容带/不带冒号的键)
+     * @return void
+     */
+    public function testNamedParamsAreBoundByName(): void {
+        foreach(array(
+            array(':name'=>'b',':id'=>1),
+            array('name'=>'b','id'=>1),
+        ) as $params) {
+            $pdo=new FakePdo();
+            $pdo->affectedRows=1;
+            $executor=new PdoSqlExecutor($pdo);
+            $result=$executor->execute(new CompiledStatement(
+                'UPDATE users SET name = :name WHERE id = :id',
+                $params
+            ));
+            $this->assertTrue($result->isSuccess());
+            $this->assertSame('b',$pdo->bound[':name']);
+            $this->assertSame(1,$pdo->bound[':id']);
+        }
+    }
+
+    /**
+     * 测试命名占位符的 null 参数仍按 PARAM_NULL 绑定
+     * @return void
+     */
+    public function testNamedNullParamBoundAsNullType(): void {
+        $pdo=new FakePdo();
+        $pdo->affectedRows=1;
+        $executor=new PdoSqlExecutor($pdo);
+        $result=$executor->execute(new CompiledStatement(
+            'UPDATE users SET name = :name WHERE id = :id',
+            array(':name'=>null,':id'=>1)
+        ));
+        $this->assertTrue($result->isSuccess());
+        $this->assertSame(PDO::PARAM_NULL,$pdo->boundTypes[':name']);
+    }
+
+    /**
+     * 测试命名与位置参数混用直接返回失败结果
+     * @return void
+     */
+    public function testMixedNamedAndPositionalParamsFail(): void {
+        $pdo=new FakePdo();
+        $executor=new PdoSqlExecutor($pdo);
+        $result=$executor->execute(new CompiledStatement(
+            'UPDATE users SET name = :name WHERE id = ?',
+            array(':name'=>'b',0=>1)
+        ));
+        $this->assertFalse($result->isSuccess());
+        $this->assertStringContainsString('mix',$result->getError());
+    }
+
+    /**
      * 测试带前导注释的 INSERT 仍能捕获自增主键
      * @return void
      */

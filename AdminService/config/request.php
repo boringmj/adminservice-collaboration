@@ -25,6 +25,7 @@ return array(
         'input'=>array( // Input解析器(键名为Content-Type的值,统一小写)
             'application/json'=>JsonInput::class, // JSON格式解析器
             'application/x-www-form-urlencoded'=>FormInput::class // 表单请求体(PHP不为PUT/PATCH等填充$_POST)
+            // 注意: multipart/form-data 未登记; 非 POST 的 multipart 请求 input() 为空, 原始体用 rawInput()
         ),
         'param'=>array(
             'input'=>Request::POST_PARAM, // 把 input 参数合并进哪个输入区: `0` 不合并, 取 Request::*_PARAM;这里默认合并进 POST

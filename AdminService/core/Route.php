@@ -33,7 +33,8 @@ use function usort;
  * 路由协调器
  *
  * - 显式路由由路由文件与控制器 `#[Route]` 属性声明, 未命中即 404
- * - 路由表在首次请求时装配, 之后复用同一实例
+ * - 路由协调器持有请求对象, 是**请求级对象**: 每请求新建, 路由表也随之重新装配;
+ *   同一实例内的首次 `router()` 调用之后复用该实例自己的路由表
  */
 final class Route extends BaseRoute {
     /**
@@ -123,9 +124,10 @@ final class Route extends BaseRoute {
     }
 
     /**
-     * 获取路由表(首次访问时装配)
+     * 获取路由表(当前 Route 实例内首次访问时装配)
      *
-     * - 路由文件与属性声明只解析一次, 后续请求复用同一实例
+     * - 同一 `Route` 实例内路由文件与属性声明只解析一次
+     * - `Route` 是请求级对象(每请求新建), 因此跨请求会重新装配 —— 见 `Main::run()`
      *
      * @access private
      * @return Router

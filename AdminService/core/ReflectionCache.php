@@ -169,6 +169,7 @@ final class ReflectionCache {
         $this->classes=array();
         $this->methods=array();
         $this->functions=array();
+        $this->sub_classes=array();
     }
 
 }

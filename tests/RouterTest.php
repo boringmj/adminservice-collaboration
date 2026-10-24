@@ -150,6 +150,25 @@ class RouterTest extends TestCase {
     }
 
     /**
+     * 测试分组前缀与路径缺失斜杠时仍能正确拼接
+     *
+     * - 旧实现直接 `prefix . path`, `'/api' + 'users'` 会得到 `/apiusers`
+     *
+     * @return void
+     */
+    public function testGroupPrefixJoinsMissingSlash(): void {
+        $router=new Router();
+        $router->group(array('prefix'=>'api/'),function(Router $r): void {
+            $r->get('users',array('C','users'));
+            $r->group(array('prefix'=>'/v1/'),function(Router $r): void {
+                $r->get('list',array('C','list'));
+            });
+        });
+        $this->assertNotNull($router->find('GET','/api/users'));
+        $this->assertNotNull($router->find('GET','/api/v1/list'));
+    }
+
+    /**
      * 测试空路径与 `/` 等价
      *
      * - 归一化后均为分组前缀本身(`/p` + `''` 与 `/p` + `'/'` 同形)
@@ -294,6 +313,8 @@ class RouterTest extends TestCase {
         $router->get('/about',array('C','about'))->name('about');
         $this->assertSame('/user/42',$router->url('user.show',array('id'=>42)));
         $this->assertSame('/about',$router->url('about'));
+        // 路径模板之外的参数附加为查询串, 不再静默丢弃
+        $this->assertSame('/user/42?tab=profile',$router->url('user.show',array('id'=>42,'tab'=>'profile')));
     }
 
     /**
@@ -352,6 +373,28 @@ class RouterTest extends TestCase {
         $this->assertNotNull($router->find('POST','/ping'));
         // 未声明路由的方法不注册
         $this->assertNull($router->find('GET','/ignored'));
+    }
+
+    /**
+     * 测试属性注册遇到不存在的类时直接报错, 不再静默跳过
+     *
+     * @return void
+     */
+    public function testAttributeRegistrationRejectsMissingClass(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $router->registerAttributes(array('Tests\\Fixtures\\NoSuchController'));
+    }
+
+    /**
+     * 测试属性注册遇到非字符串类名时直接报错
+     *
+     * @return void
+     */
+    public function testAttributeRegistrationRejectsNonString(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $router->registerAttributes(array(123));
     }
 
     /**
@@ -683,6 +726,9 @@ class RouterTest extends TestCase {
         $this->assertNull($router->current());
         $router->find('GET','/c');
         $this->assertSame('c',$router->current()->getName());
+        // 未命中时必须复位, 否则调用方会读到上一次命中的路由
+        $router->find('GET','/missing');
+        $this->assertNull($router->current());
     }
 
     /**

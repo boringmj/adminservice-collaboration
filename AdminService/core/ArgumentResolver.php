@@ -112,8 +112,8 @@ final class ArgumentResolver implements ArgumentResolverInterface {
      * 整理和合并参数
      *
      * - 合并顺序: 具名实参 → 顺位实参 → `#[Config]` 配置项(仅 `$allow_config` 为真)→ 按类型注入 → 形参默认值 → null
-     * - `$allow_config` 仅"框架构建对象"的场景为真(容器构造对象、生命周期方法调用);
-     *   控制器方法的形参调用保持为假, 因此**控制器形参只注入路由参数**
+     * - `$allow_config` 在容器构建对象、生命周期方法、控制器/函数调用时为真;
+     *   是否真正注入仍取决于形参上有没有显式 `#[Config]` —— **未标注**的控制器形参不会拿到配置值
      *
      * @access public
      * @param ReflectionParameter[] $params 参数
@@ -168,20 +168,35 @@ final class ArgumentResolver implements ArgumentResolverInterface {
                 break;
             }
             // 先尝试在参数数组通过参数名查找
-            if(array_key_exists($name,$args)&&$this->isValidType($args[$name],$types)) {
-                $params_temp[]=$this->castParam($args[$name],$types);
-                unset($args[$name]);
-                continue;
+            if(array_key_exists($name,$args)) {
+                if($this->isValidType($args[$name],$types)) {
+                    $params_temp[]=$this->castParam($args[$name],$types);
+                    unset($args[$name]);
+                    continue;
+                }
+                // 显式给了值但类型不符: 不能静默改用默认值, 否则调用方永远发现不了传错
+                throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" is not valid.',0,array(
+                    'class'=>$param,
+                    'parameter'=>$param->getName(),
+                    'error'=>'The parameter type is not valid.'
+                ));
             }
             // 判断是否存在顺位参数
-            if(array_key_exists($arg_count,$args)&&$this->isValidType($args[$arg_count],$types)) {
-                $params_temp[]=$this->castParam($args[$arg_count],$types);
-                unset($args[$arg_count]);
-                // 顺位参数自增
-                $arg_count++;
-                continue;
+            if(array_key_exists($arg_count,$args)) {
+                if($this->isValidType($args[$arg_count],$types)) {
+                    $params_temp[]=$this->castParam($args[$arg_count],$types);
+                    unset($args[$arg_count]);
+                    // 顺位参数自增
+                    $arg_count++;
+                    continue;
+                }
+                throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" is not valid.',0,array(
+                    'class'=>$param,
+                    'parameter'=>$param->getName(),
+                    'error'=>'The parameter type is not valid.'
+                ));
             }
-            // 配置项注入(仅构造 / 生命周期等"框架构建"场景; 控制器方法形参不注入配置)
+            // 配置项注入(仅显式标注 #[Config] 的形参; 具名/顺位实参已在上方优先消费)
             if($allow_config) {
                 $config=$this->configAttribute($param);
                 if($config!==null) {
@@ -248,12 +263,13 @@ final class ArgumentResolver implements ArgumentResolverInterface {
             if(in_array('boolean',$types,true)&&(is_int($arg)||is_float($arg)||is_string($arg)))
                 return true;
         }
-        // 如果参数是对象，检查是否符合给定类名
+        // 如果参数是对象，检查是否符合给定类名(接口/抽象类同样适用)
         if($arg_type==='object') {
             foreach($types as $t) {
-                if(class_exists($t) && $arg instanceof $t) {
+                if($t==='object')
                     return true;
-                }
+                if($t!==''&&$arg instanceof $t)
+                    return true;
             }
         }
         return false;
@@ -280,6 +296,9 @@ final class ArgumentResolver implements ArgumentResolverInterface {
     public function castParam(mixed $value,array $types): mixed {
         // 关闭静默转换时原样返回
         if(!$this->enable_param_cast)
+            return $value;
+        // 值本身已经符合某个声明类型时保持原样: 联合类型(int|string)不能把 "5" 强转成 int
+        if(in_array(gettype($value),$types,true))
             return $value;
         // $types 为 getStandardTypes() 标准化后的 gettype() 风格(integer/double/boolean)
         if(is_string($value)) {

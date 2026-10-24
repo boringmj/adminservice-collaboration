@@ -199,6 +199,8 @@ final class HttpRequest extends Request {
      * 解析Input信息
      *
      * - 按Content-Type查找处理器, 解析结果可选合并进query/post/cookie(见配置项`request.default.param.input`)
+     * - `multipart/form-data` 目前**没有**登记结构化解析器(尤其 PUT/PATCH/DELETE; PHP 只自动填充 POST 的 `$_POST`):
+     *   这类请求的 `input()` 为空, 但 `rawInput()` 始终保留原始请求体, 需要字段请自行解析或改用 POST
      *
      * @access private
      * @return void
@@ -305,6 +307,9 @@ final class HttpRequest extends Request {
 
     /**
      * 获取Input参数(不传参数名时返回全部)
+     *
+     * - 只包含已登记 Content-Type 的解析结果; 未登记类型(如非 POST 的 `multipart/form-data`)为空,
+     *   原始体请用 `rawInput()`
      *
      * @access public
      * @param string|null $name 参数名(null时获取全部)

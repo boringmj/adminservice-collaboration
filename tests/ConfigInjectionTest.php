@@ -13,14 +13,17 @@ use AdminService\App;
 use AdminService\ArgumentResolver;
 use AdminService\Config;
 use AdminService\exception\AutowireException;
+use base\ArgumentResolverInterface;
 use base\Attribute\Config as ConfigAttribute;
+
+use ReflectionClass;
 
 /**
  * 配置项注入用例(`#[Config]`)
  *
  * - 覆盖三处 target: 属性 / Setter 方法 / 构造函数形参
  * - 覆盖点分键、注解默认值、形参默认值兜底、标量转换
- * - 覆盖边界: 控制器方法形参**不**注入配置(控制器形参只注入路由参数)
+ * - 覆盖边界: **未标注** `#[Config]` 的控制器形参不会拿到配置值; 显式标注的会注入
  */
 class ConfigInjectionTest extends TestCase {
 
@@ -140,6 +143,22 @@ class ConfigInjectionTest extends TestCase {
                 $this->assertStringContainsString('#[Config]',$e->getMessage());
             }
         }
+    }
+
+    /**
+     * 测试参数解析器契约包含配置注入方法与 `merge()` 第三参
+     *
+     * - 否则实现类靠具体类型被调用, 替换实现时会漏方法
+     *
+     * @return void
+     */
+    public function testArgumentResolverContractIsComplete(): void {
+        $reflection=new ReflectionClass(ArgumentResolverInterface::class);
+        $this->assertTrue($reflection->hasMethod('configAttribute'));
+        $this->assertTrue($reflection->hasMethod('configValue'));
+        $merge=$reflection->getMethod('merge');
+        $this->assertSame(3,$merge->getNumberOfParameters());
+        $this->assertSame(2,$merge->getNumberOfRequiredParameters(),'allow_config 必须有默认值');
     }
 
 }

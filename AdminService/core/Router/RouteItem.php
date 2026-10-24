@@ -6,12 +6,14 @@ use AdminService\Exception;
 use AdminService\Pipeline;
 
 use function array_key_exists;
+use function array_diff_key;
 use function array_merge;
 use function array_pop;
 use function array_reverse;
 use function array_slice;
 use function count;
 use function explode;
+use function http_build_query;
 use function implode;
 use function in_array;
 use function ltrim;
@@ -218,6 +220,7 @@ final class RouteItem {
      */
     public function buildUri(array $params=array()): string {
         $uri='';
+        $used=array();
         $offset=0;
         $matches=array();
         preg_match_all(self::PARAM_PATTERN,$this->path,$matches,PREG_SET_ORDER|PREG_OFFSET_CAPTURE);
@@ -245,9 +248,15 @@ final class RouteItem {
                 break;
             }
             $uri.=$literal.$this->checkValue($name,$params[$name]);
+            $used[$name]=true;
             $offset=$match[0][1]+strlen($match[0][0]);
         }
-        return $uri.substr($this->path,$offset);
+        $path=$uri.substr($this->path,$offset);
+        // 未出现在路径模板里的参数按查询串附加(Laravel 风格), 不再静默丢弃
+        $extra=array_diff_key($params,$used);
+        if($extra!==array())
+            $path.='?'.http_build_query($extra);
+        return $path;
     }
 
     /**

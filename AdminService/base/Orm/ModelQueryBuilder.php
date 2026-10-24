@@ -11,6 +11,7 @@ use base\Database\Sql\Definition\Table;
 use base\Database\Type\Operator;
 use base\Database\Type\OrderDirection;
 use base\Database\Type\StatementType;
+use base\Orm\Exception\OrmException;
 
 use function array_filter;
 use function array_key_exists;
@@ -503,7 +504,11 @@ class ModelQueryBuilder {
         $model=new ($this->modelClass)();
         $model->fill($data);
         // 复用模型的插入逻辑(自动时间戳/主键回填)
-        $model->save();
+        if(!$model->save())
+            throw new OrmException('Model create failed.',100733,array(
+                'model'=>$this->modelClass,
+                'table'=>($this->modelClass)::tableName()
+            ));
         return $model;
     }
 

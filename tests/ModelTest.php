@@ -10,8 +10,10 @@ use base\Database\Connection\PdoConnectionSession;
 use base\Database\Db;
 use base\Database\Exception\QueryException;
 use base\Database\Sql\Dialect\MysqlDialect;
+use base\Orm\Exception\OrmException;
 use base\Orm\ModelCollection;
 use base\Orm\Paginator;
+use Tests\Fixtures\Document;
 use Tests\Fixtures\Post;
 use Tests\Fixtures\SystemInfo;
 use Tests\Fixtures\User;
@@ -35,6 +37,7 @@ class ModelTest extends TestCase {
         User::setDb($this->createDb($this->pdo));
         SystemInfo::setDb($this->createDb($this->pdo));
         Post::setDb($this->createDb($this->pdo));
+        Document::setDb($this->createDb($this->pdo));
     }
 
     /**
@@ -45,6 +48,7 @@ class ModelTest extends TestCase {
         User::setDb(null);
         SystemInfo::setDb(null);
         Post::setDb(null);
+        Document::setDb(null);
     }
 
     /**
@@ -141,6 +145,31 @@ class ModelTest extends TestCase {
             'INSERT INTO `users` (`name`, `age`, `status`, `created_at`, `updated_at`) VALUES (?, ?, ?, ?, ?)',
             $this->pdo->executed[0]
         );
+    }
+
+    /**
+     * 显式主键不能被 lastInsertId 覆盖
+     * @return void
+     */
+    public function testCreateKeepsExplicitPrimaryKey(): void {
+        $this->pdo->affectedRows=1;
+        $document=Document::create(array('uuid'=>'doc-001','title'=>'hello'));
+        $this->assertSame('doc-001',$document->getKey());
+        $this->assertTrue($document->exists());
+        $this->assertSame(
+            'INSERT INTO `documents` (`uuid`, `title`) VALUES (?, ?)',
+            $this->pdo->executed[0]
+        );
+    }
+
+    /**
+     * create() 写入失败时必须抛异常，不能返回未落库模型
+     * @return void
+     */
+    public function testCreateThrowsWhenSaveFails(): void {
+        $this->pdo->error='insert failed';
+        $this->expectException(OrmException::class);
+        User::create(array('name'=>'张三','age'=>20,'status'=>1));
     }
 
     /**

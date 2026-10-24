@@ -196,6 +196,21 @@ class RequestTest extends TestCase {
     }
 
     /**
+     * 测试标量 JSON 不会被当作 Input 数组
+     *
+     * - 合法 JSON 但不是对象/数组时, Input 应为空, 而不是触发返回类型错误
+     *
+     * @return void
+     */
+    public function testScalarJsonBodyIsIgnored(): void {
+        foreach(array('123','"text"','true','null') as $body) {
+            $request=$this->jsonRequest($body);
+            $this->assertSame(array(),$request->input());
+            $this->assertSame($body,$request->rawInput());
+        }
+    }
+
+    /**
      * 测试Input按配置合并进指定来源
      * @return void
      */

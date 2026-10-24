@@ -2,11 +2,13 @@
 
 namespace AdminService\ResponseProcessor;
 
+use AdminService\Exception;
 use base\AbstractResponseProcessor;
 
 use function is_array;
 use function is_object;
 use function json_encode;
+use function json_last_error_msg;
 
 /**
  * JSON响应处理器
@@ -28,6 +30,8 @@ class Json extends AbstractResponseProcessor {
             $temp=[$temp];
         }
         $temp=json_encode($temp,$flag);
+        if($temp===false)
+            throw new Exception('JSON 响应序列化失败: '.json_last_error_msg());
         $this->getResponse()->rendered($temp);
     }
 

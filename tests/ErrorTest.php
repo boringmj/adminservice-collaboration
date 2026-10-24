@@ -9,6 +9,17 @@ use AdminService\Error;
 use ReflectionMethod;
 use ReflectionProperty;
 
+use function fclose;
+use function file_get_contents;
+use function is_file;
+use function is_resource;
+use function proc_close;
+use function proc_open;
+use function stream_get_contents;
+use function sys_get_temp_dir;
+use function tempnam;
+use function unlink;
+
 /**
  * 错误处理用例
  *
@@ -56,6 +67,39 @@ class ErrorTest extends TestCase {
         $html=self::renderErrors();
         $this->assertStringContainsString('发生错误',$html);
         $this->assertStringContainsString('测试错误信息',$html);
+    }
+
+    /**
+     * 测试引导期未完成时的进程级错误出口
+     *
+     * - 独立进程模拟 `Main::init()` 早期抛异常(错误处理器已注册, 容器/配置尚未完成)
+     * - 必须输出内置最小错误页, 并写出 `[AdminService]` 兜底日志
+     * @return void
+     */
+    public function testBootFailureUsesMinimalPageAndFallbackLog(): void {
+        $script=__DIR__.'/fixtures/boot_error.php';
+        $log_file=tempnam(sys_get_temp_dir(),'boot_error_log_');
+        try {
+            $process=proc_open(array(PHP_BINARY,'-d','display_errors=0',$script,$log_file),array(
+                1=>array('pipe','w'),
+                2=>array('pipe','w')
+            ),$pipes);
+            $this->assertTrue(is_resource($process),'无法启动子进程');
+            $stdout=(string)stream_get_contents($pipes[1]);
+            $stderr=(string)stream_get_contents($pipes[2]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            $status=proc_close($process);
+            $log=(string)file_get_contents($log_file);
+            $this->assertSame(0,$status,'错误出口应以正常退出码结束: '.$stderr);
+            $this->assertStringContainsString('发生错误',$stdout);
+            $this->assertStringContainsString('引导前错误',$stdout);
+            $this->assertStringContainsString('[AdminService]',$log);
+            $this->assertStringContainsString('引导前错误',$log);
+        } finally {
+            if(is_file($log_file))
+                unlink($log_file);
+        }
     }
 
     /**

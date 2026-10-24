@@ -19,7 +19,7 @@ return array(
             ),
             'save'=>array(
                 'dir'=>__DIR__.'/../uploads', // 上传目录 (default: ../uploads)
-                'mode'=>0644 // 自动创建的目录权限(Windows下无效)
+                'mode'=>0755 // 自动创建的目录权限(Windows下无效)
             )
         ),
         'input'=>array( // Input解析器(键名为Content-Type的值,统一小写)

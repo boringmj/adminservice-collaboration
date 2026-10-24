@@ -9,13 +9,16 @@ use base\AbstractUploadFile;
 use base\UploadStorageInterface;
 use AdminService\exception\UploadStorageException;
 
+use function basename;
 use function file_exists;
+use function in_array;
 use function is_dir;
 use function is_readable;
 use function is_writable;
 use function mkdir;
 use function move_uploaded_file;
 use function realpath;
+use function str_contains;
 
 final class UploadStorage implements UploadStorageInterface {
 
@@ -126,9 +129,15 @@ final class UploadStorage implements UploadStorageInterface {
      * @return string
      */
     protected function generateSavePath(AbstractUploadFile $file): string {
+        $name=$file->getConfirmName();
+        // 确认名只能是文件名, 不能带目录/路径分隔符, 避免越出上传目录
+        if($name===''||in_array($name,array('.','..'),true)
+            ||basename($name)!==$name
+            ||str_contains($name,'/')||str_contains($name,'\\'))
+            throw new UploadStorageException('文件名不合法');
         $path=$file->getConfirmDir()
             .DIRECTORY_SEPARATOR
-            .$file->getConfirmName();
+            .$name;
         return $path;
     }
 

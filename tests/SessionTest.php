@@ -11,6 +11,14 @@ use AdminService\Config;
 use AdminService\Exception;
 use AdminService\NativeSession;
 
+use function fclose;
+use function is_resource;
+use function proc_close;
+use function proc_open;
+use function session_id;
+use function session_status;
+use function stream_get_contents;
+
 /**
  * 会话服务测试
  *
@@ -107,6 +115,44 @@ class SessionTest extends TestCase {
         $this->expectException(Exception::class);
         $this->expectExceptionMessage('会话未开启');
         $session->set('name','value');
+    }
+
+    /**
+     * 测试 setId 同步到 PHP 原生会话 ID
+     * @return void
+     */
+    public function testNativeSessionSetIdUpdatesPhpSessionId(): void {
+        if(session_status()===PHP_SESSION_ACTIVE)
+            $this->markTestSkipped('原生会话已启动');
+        $old=session_id();
+        try {
+            $session=new NativeSession();
+            $session->setId('nativefixedid123');
+            $this->assertSame('nativefixedid123',$session->getId());
+            $this->assertSame('nativefixedid123',session_id());
+        } finally {
+            session_id($old);
+        }
+    }
+
+    /**
+     * 测试响应头已发送时 init 抛出受控异常
+     * @return void
+     */
+    public function testNativeSessionInitRejectsSentHeaders(): void {
+        $script=__DIR__.'/fixtures/native_session_headers.php';
+        $process=proc_open(array(PHP_BINARY,$script),array(
+            1=>array('pipe','w'),
+            2=>array('pipe','w')
+        ),$pipes);
+        $this->assertTrue(is_resource($process),'无法启动子进程');
+        $stdout=(string)stream_get_contents($pipes[1]);
+        $stderr=(string)stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $status=proc_close($process);
+        $this->assertSame(0,$status,'子进程异常退出: '.$stderr);
+        $this->assertStringContainsString('|CAUGHT',$stdout);
     }
 
     /**

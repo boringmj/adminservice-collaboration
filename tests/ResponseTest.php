@@ -72,6 +72,14 @@ class ResponseTest extends TestCase {
         $this->assertSame('text/plain',$response->getStandardContentType());
         // 未登记的类型回落到默认类型
         $this->assertSame('*/*',$response->getStandardContentType('application/unknown'));
+        // 类型大小写/参数归一, vendor JSON 回落
+        $this->assertSame('application/json',$response->getStandardContentType('Application/JSON'));
+        $this->assertSame('application/json',$response->getStandardContentType('application/vnd.api+json'));
+        // Header 名大小写不敏感
+        $response->header('Content-Type','application/json');
+        $this->assertSame('application/json',$response->header('content-type'));
+        $response->header('content-type','text/plain');
+        $this->assertSame('text/plain',$response->header('Content-Type'));
     }
 
     /**
@@ -88,6 +96,9 @@ class ResponseTest extends TestCase {
         // 批量形式(键名为Cookie名)
         $response->cookies(array('named'=>array('value'=>'v3')));
         $this->assertSame('v3',$response->cookie('named'));
+        // 显式 null 只读, 不应覆盖已有值
+        $this->assertSame('v1',$response->cookie('simple',null));
+        $this->assertSame('v1',$response->cookie('simple'));
         // 未设置的Cookie返回空串
         $this->assertSame('',$response->cookie('missing'));
     }
@@ -269,6 +280,62 @@ class ResponseTest extends TestCase {
         $this->assertSame('',$body);
         // 头部仍然发送, 内容已渲染
         $this->assertSame('sent-body',$response->rendered());
+    }
+
+    /**
+     * 测试协商失败或未注册类型时回退到具体默认类型
+     * @return void
+     */
+    public function testContentTypeFallbackOnRender(): void {
+        $response=new Response();
+        $response->body('body');
+        $response->prepare($this->request('GET','application/unknown'));
+        $this->assertSame('body',$response->render());
+        $this->assertSame('text/html; charset=utf-8',$response->header('Content-Type'));
+    }
+
+    /**
+     * 测试显式类型大小写归一后仍按 JSON 渲染
+     * @return void
+     */
+    public function testContentTypeNormalizedOnRender(): void {
+        $response=new Response();
+        $response->body(array('a'=>1));
+        $response->contentType('Application/JSON');
+        $response->prepare($this->request('GET','text/plain'));
+        $this->assertSame('{"a":1}',$response->render());
+        $this->assertSame('application/json; charset=utf-8',$response->header('Content-Type'));
+    }
+
+    /**
+     * 测试 1xx/204/304 不发送正文
+     * @return void
+     */
+    public function testNoBodyStatusSendsNoBody(): void {
+        foreach(array(204,304) as $status) {
+            $response=new Response();
+            $response->status($status);
+            $response->body('body');
+            $response->prepare($this->request('GET','text/plain'));
+            $this->assertSame('',$response->render());
+            ob_start();
+            $response->send();
+            $body=ob_get_clean();
+            $this->assertSame('',$body);
+        }
+    }
+
+    /**
+     * 测试 JSON 序列化失败时抛出受控异常
+     * @return void
+     */
+    public function testJsonEncodeFailureThrows(): void {
+        $response=new Response();
+        $response->body("\xB1\x31");
+        $processor=App::new(Json::class,response:$response,config:array('flag'=>0));
+        $this->expectException(\AdminService\Exception::class);
+        $this->expectExceptionMessage('JSON');
+        $processor->handle();
     }
 
     /**

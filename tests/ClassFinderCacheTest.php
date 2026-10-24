@@ -106,4 +106,19 @@ class ClassFinderCacheTest extends TestCase {
         $this->assertSame(0,$finder->scanCount(),'类都不存在, 谈不上扫描');
     }
 
+    /**
+     * 测试: clear() 必须一并清掉"可实例化子类"缓存
+     *
+     * - 只清类/方法/函数缓存会留下跨请求的旧实现类名
+     *
+     * @return void
+     */
+    public function testClearDropsSubclassCache(): void {
+        $cache=new ReflectionCache();
+        $cache->setSubClass('Tests\Fixtures\Target','Tests\Fixtures\OldImpl');
+        $this->assertSame('Tests\Fixtures\OldImpl',$cache->getSubClass('Tests\Fixtures\Target'));
+        $cache->clear();
+        $this->assertNull($cache->getSubClass('Tests\Fixtures\Target'));
+    }
+
 }

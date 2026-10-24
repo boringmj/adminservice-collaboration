@@ -20,6 +20,8 @@ use function in_array;
 use function is_callable;
 use function is_file;
 use function is_string;
+use function ltrim;
+use function rtrim;
 use function sort;
 use function str_replace;
 use function trim;
@@ -180,7 +182,7 @@ final class Router {
      * @throws Exception 与已注册路由冲突
      */
     public function add(array $methods,string $path,mixed $handler): RouteItem {
-        $route=new RouteItem($methods,$this->prefix().$path,$handler,$this->groupMiddlewareEntries());
+        $route=new RouteItem($methods,self::joinPath($this->prefix(),$path),$handler,$this->groupMiddlewareEntries());
         $this->assertNoConflict($route);
         $this->routes[]=$route;
         $this->named=null;
@@ -243,7 +245,8 @@ final class Router {
      * @return void
      */
     public function group(array $attributes,callable $callback): void {
-        $this->prefixStack[]=isset($attributes['prefix'])?'/'.trim((string)$attributes['prefix'],'/'):'';
+        $prefix=trim((string)($attributes['prefix']??''),'/');
+        $this->prefixStack[]=$prefix===''?'':'/'.$prefix;
         $this->middlewareStack[]=Pipeline::normalize($attributes['middleware']??array());
         try {
             $callback($this);
@@ -336,8 +339,14 @@ final class Router {
      */
     public function registerAttributes(array $classes): void {
         foreach($classes as $class) {
-            if(!is_string($class)||!class_exists($class))
-                continue;
+            if(!is_string($class))
+                throw new Exception('Route attribute class must be a class-string.',-418,array(
+                    'class'=>$class
+                ));
+            if(!class_exists($class))
+                throw new Exception('Class "'.$class.'" not found.',-418,array(
+                    'class'=>$class
+                ));
             $reflection=new ReflectionClass($class);
             // 类级声明: 路径前缀与分组中间件
             $prefix='';
@@ -372,6 +381,8 @@ final class Router {
      */
     public function find(string $method,string $uri): ?array {
         $uri=self::normalizeUri($uri);
+        // 未命中时 current() 必须回到 null: 否则调用方会读到上一次请求/上一次匹配的路由
+        $this->current=null;
         foreach($this->sortedRoutes() as $route) {
             if(!$route->matchesMethod($method))
                 continue;
@@ -520,6 +531,25 @@ final class Router {
      */
     private function prefix(): string {
         return implode('',$this->prefixStack);
+    }
+
+    /**
+     * 拼接分组前缀与路由路径
+     *
+     * - 两侧都允许带/不带斜杠: `/admin` + `users`、`/admin/` + `/users` 都得到 `/admin/users`
+     * - 前缀为空时原样返回路径; 路径为空时返回前缀
+     *
+     * @access private
+     * @param string $prefix 分组前缀
+     * @param string $path 路由路径
+     * @return string
+     */
+    private static function joinPath(string $prefix,string $path): string {
+        if($prefix===''||$prefix==='/')
+            return $path===''?'/':$path;
+        if($path==='')
+            return $prefix;
+        return rtrim($prefix,'/').'/'.ltrim($path,'/');
     }
 
     /**

@@ -8,6 +8,7 @@ use function array_key_exists;
 use function explode;
 use function file_get_contents;
 use function is_file;
+use function is_readable;
 use function is_string;
 use function preg_match;
 use function preg_replace;
@@ -97,17 +98,25 @@ final class Env {
     }
 
     /**
-     * 从文件构造(文件不存在时返回空实例 —— 缺失是正常情况)
+     * 从文件构造
+     *
+     * - 文件不存在时返回空实例 —— 缺失是正常情况(仓库里不入库 `.env`)
+     * - 文件存在但不可读 / 读取失败时抛 `ConfigException`, 不能静默当成"空配置"
      *
      * @access public
      * @param string $path `.env` 路径
      * @return self
-     * @throws ConfigException 文件里有无法解析的行
+     * @throws ConfigException 文件不可读, 或文件里有无法解析的行
      */
     public static function fromFile(string $path): self {
         if(!is_file($path))
             return new self('',$path);
-        return new self((string)file_get_contents($path),$path);
+        if(!is_readable($path))
+            throw new ConfigException('env 文件不可读: '.$path,100922);
+        $content=@file_get_contents($path);
+        if($content===false)
+            throw new ConfigException('env 文件读取失败: '.$path,100922);
+        return new self($content,$path);
     }
 
     /**
@@ -165,6 +174,10 @@ final class Env {
      * @return void
      */
     private function parse(string $content): void {
+        // UTF-8 BOM 不是键的一部分: Windows 编辑器保存的 .env 常带 BOM,
+        // 不剥离会让首个键变成 "\xEF\xBB\xBFA", 之后所有按 A 取值都查不到
+        if(str_starts_with($content,"\xEF\xBB\xBF"))
+            $content=substr($content,3);
         $lines=explode("\n",str_replace("\r\n","\n",$content));
         $no=0;
         foreach($lines as $line) {

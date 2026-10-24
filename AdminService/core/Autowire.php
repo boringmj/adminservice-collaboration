@@ -237,14 +237,19 @@ final class Autowire implements AutowireInterface {
                         return $this->proxy($explicit_class);
                     }
                 }
-                // 判断是否是当前类的子类
+                // 判断是否是当前类的子类(第一个参数是"待检查的实现类", 第二个才是声明的类型)
                 if(!empty($type_array)&&$proxy===false) {
                     foreach($type_array as $t) {
-                        if(is_a($t,$explicit_class,true)) {
+                        if(is_a($explicit_class,$t,true)) {
                             // 直接注入并跳出循环
                             return $this->resolveInstance($explicit_class,false,$flags);
                         }
                     }
+                    // 显式指定的类与声明类型不兼容: 不能静默改注入另一个实现
+                    throw new AutowireException(
+                        'Explicit class "'.$explicit_class.'" is not compatible with parameter "'.
+                        $parameter->getName().'" of class "'.$ref->getName().'".',
+                    );
                 }
                 // 判断是否兼容当前类
                 if(empty($type_array)&&$proxy===false) {

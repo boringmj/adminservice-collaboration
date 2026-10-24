@@ -3,6 +3,9 @@
 namespace base;
 
 use ReflectionParameter;
+use ReflectionProperty;
+use ReflectionMethod;
+use base\Attribute\Config as ConfigAttribute;
 
 /**
  * 参数解析契约
@@ -23,10 +26,11 @@ interface ArgumentResolverInterface {
      * @access public
      * @param ReflectionParameter[] $params 参数
      * @param array<mixed> $args 参数
+     * @param bool $allow_config 是否允许 `#[Config]` 配置项注入
      * @return array
      * @throws \Exception
      */
-    public function merge(array $params,array $args): array;
+    public function merge(array $params,array $args,bool $allow_config=false): array;
 
     /**
      * 判断参数是否符合预期类型
@@ -65,6 +69,26 @@ interface ArgumentResolverInterface {
      * @return array
      */
     public function getStandardTypes(array $types): array;
+
+    /**
+     * 取目标上的 `#[Config]` 注解
+     *
+     * @access public
+     * @param ReflectionProperty|ReflectionParameter|ReflectionMethod $target 属性、形参或方法
+     * @return ConfigAttribute|null
+     */
+    public function configAttribute(ReflectionProperty|ReflectionParameter|ReflectionMethod $target): ?ConfigAttribute;
+
+    /**
+     * 解析 `#[Config]` 的值
+     *
+     * @access public
+     * @param ConfigAttribute $config 注解实例
+     * @param array<string> $types 目标类型列表(gettype() 风格)
+     * @param mixed $fallback 兜底值
+     * @return mixed
+     */
+    public function configValue(ConfigAttribute $config,array $types=array(),mixed $fallback=null): mixed;
 
     /**
      * 调用对象的方法(参数按签名合并)

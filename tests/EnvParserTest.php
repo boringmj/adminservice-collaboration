@@ -262,6 +262,44 @@ class EnvParserTest extends TestCase {
     }
 
     /**
+     * 测试: UTF-8 BOM 不能进入首个键名
+     *
+     * - Windows 编辑器保存的 `.env` 常带 BOM; 不剥离会让首个键变成 "\xEF\xBB\xBFA"
+     *
+     * @return void
+     */
+    public function testUtf8BomIsStripped(): void {
+        $env=$this->env("\xEF\xBB\xBFA=1\nB=2");
+        $this->assertTrue($env->has('A'),'BOM 不能成为首个键的一部分');
+        $this->assertSame('1',$env->get('A'));
+        $this->assertSame('2',$env->get('B'));
+    }
+
+    /**
+     * 测试: 文件存在但不可读时必须报错, 不能静默当成空配置
+     *
+     * - Windows 下 chmod 无法可靠制造不可读文件, 跳过
+     *
+     * @return void
+     */
+    public function testUnreadableFileThrows(): void {
+        if(DIRECTORY_SEPARATOR==='\\')
+            $this->markTestSkipped('Windows 下 chmod 不能可靠制造不可读文件');
+        $file=(string)tempnam(sys_get_temp_dir(),'env_unreadable_');
+        file_put_contents($file,"A=1");
+        chmod($file,0000);
+        try {
+            if(is_readable($file))
+                $this->markTestSkipped('当前用户仍可读该文件(可能以 root 运行)');
+            $this->expectException(ConfigException::class);
+            Env::fromFile($file);
+        } finally {
+            chmod($file,0600);
+            unlink($file);
+        }
+    }
+
+    /**
      * 测试: 全局 `env()` 助手确实读到了项目的 `.env`
      *
      * - 为什么要有这条: 助手里的路径是硬编码的相对上溯, 写错一层会**静默**全部返回默认值

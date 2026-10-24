@@ -249,6 +249,24 @@ class RequestTest extends TestCase {
     }
 
     /**
+     * 测试非 POST 的 multipart 请求: 不承诺结构化字段, 但原始体不能丢
+     *
+     * - 这是当前明确的行为契约(P2.12): `input()` 为空, `rawInput()` 保留完整边界体
+     *
+     * @return void
+     */
+    public function testMultipartPutKeepsRawBody(): void {
+        $body="--boundary\r\nContent-Disposition: form-data; name=\"name\"\r\n\r\nfrommultipart\r\n--boundary--\r\n";
+        $request=new HttpRequest(array(
+            'headers'=>array('Content-Type'=>'multipart/form-data; boundary=boundary'),
+            'server'=>array('REQUEST_METHOD'=>'PUT'),
+            'rawInput'=>$body
+        ));
+        $this->assertSame(array(),$request->input(),'multipart 非 POST 不做结构化解析');
+        $this->assertSame($body,$request->rawInput(),'原始请求体必须原样保留');
+    }
+
+    /**
      * 测试Accept判定
      *
      * - `accepts` 按 `Accept` 头(含通配)判断; `wantsJson` 只认明确要求JSON

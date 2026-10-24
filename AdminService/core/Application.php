@@ -9,9 +9,11 @@ use base\ConfigInterface;
 use base\Request;
 use base\Response;
 
+use function array_keys;
 use function array_merge;
 use function class_exists;
 use function interface_exists;
+use function in_array;
 use function is_int;
 
 /**
@@ -44,6 +46,15 @@ final class Application {
      * @var Repository
      */
     private Repository $config;
+
+    /**
+     * 是否已执行过 `init()`
+     *
+     * - 未初始化时 `config()` 必须尊重构造期显式传入的那份(测试会用它反证"不摸门面")
+     * - 初始化后门面就是应用的当前配置, `config()` 跟随门面, 这样运行期替换配置不会分裂
+     * @var bool
+     */
+    private bool $initialized=false;
 
     /**
      * 构造方法
@@ -96,8 +107,10 @@ final class Application {
                 $binds[$alias]=$class;
         }
         // 遍历类是否存在
+        // - 别名目标允许是另一个别名/绑定名(链式), 不要求它本身是类
+        $known_names=array_merge(array_keys($binds),array_keys($aliases));
         foreach(array_merge($binds,$aliases) as $class)
-            if(!class_exists($class)&&!interface_exists($class))
+            if(!in_array($class,$known_names,true)&&!class_exists($class)&&!interface_exists($class))
                 throw new Exception('Class "'.$class.'" not found.');
         // 设置是否允许标量参数静默转换(可在 config/app.php 中配置 app.param_cast)
         $this->container->setParamCast($this->config->get('app.param_cast',true));
@@ -118,6 +131,7 @@ final class Application {
         // 同时把这份配置设为门面的当前配置(替换容器里按实现类名登记的那份);
         // 必须排在 `App::setInstance()` 之后 —— `setRepository()` 换的是"当前容器"里的登记
         Config::setRepository($this->config);
+        $this->initialized=true;
         return $this;
     }
 
@@ -134,10 +148,15 @@ final class Application {
     /**
      * 获取配置仓储(框架内部取配置走这里, 不经静态门面)
      *
+     * - 初始化前: 返回构造期传入/捕获的那份(测试可反证"不摸门面")
+     * - 初始化后: 跟随门面当前仓储, 运行期 `Config::setRepository()` 不会造成"应用读旧、请求读新"
+     *
      * @access public
      * @return Repository
      */
     public function config(): Repository {
+        if($this->initialized)
+            return Config::repository()??$this->config;
         return $this->config;
     }
 
@@ -163,7 +182,7 @@ final class Application {
         $this->request_container=$container;
         // 请求开始时把 `Config::repository()` 当前返回的配置登记进请求容器(按实现类名, 与 `Application::init()` 一致):
         // 应用级容器里登记的可能已经被 `Config::setRepository()/set()` 换成新的了, 只靠父容器会让请求内的组件读到旧配置
-        $repository=Config::repository();
+        $repository=$this->config();
         if($repository!==null)
             $container->instance(Repository::class,$repository);
         App::setInstance($container);
@@ -207,8 +226,8 @@ final class Application {
             $container->instance(Response::class,$container->build(Response::class));
         if(!$container->hasInstance(AbstractSession::class)) {
             /** @var AbstractSession $session */
-            $session=$container->build($this->config->get('session.class',ArraySession::class));
-            if($this->config->get('session.start',false))
+            $session=$container->build($this->config()->get('session.class',ArraySession::class));
+            if($this->config()->get('session.start',false))
                 $session->init();
             $container->instance(AbstractSession::class,$session);
         }

@@ -11,6 +11,7 @@ use AdminService\Container;
 use AdminService\exception\ConfigException;
 use base\Attribute\Config as ConfigAttribute;
 use base\ConfigInterface;
+use Tests\Fixtures\ConcreteService;
 
 use ReflectionProperty;
 
@@ -199,11 +200,10 @@ class ConfigFacadeTest extends TestCase {
     /**
      * 测试: "契约名 → 实现类"由**别名**承担, 不是把实例登记在契约名下
      *
-     * - `get()` / `hasInstance()` 只有"按名字查"这一步, **没有**"替你找可实例化的实现类" ——
-     *   所以只登记实现类名、不给别名时, 按契约名取会抛 `Class "base\ConfigInterface" is not instantiable.`
-     * - 加上别名(同 `config/app.php` 的 `app.alias`)后, 契约名解析到实现类名, 取到的就是那份实例
-     * - 注: 构造 / 属性注入另有兜底(找不到已登记实例时"找可实例化的实现类再 `make`", 而 `make` 会命中
-     *   实现类名下的登记), 因此不依赖别名; `#[Config]` 取值走的是本用例这条路径, 别名是它生效的前提
+     * - `get()` 与 `make()` 同口径: 按名字没命中实例时, 会找可实例化的实现类并完整装配 ——
+     *   所以只登记实现类名、不给别名时, 按契约名也能取到那份实例
+     * - `hasInstance()` 仍只做"按名字查": 它回答的是"这个名字下有没有登记实例", 不是"能不能构建"
+     * - 加上别名(同 `config/app.php` 的 `app.alias`)后, 契约名直接解析到实现类名, 取到的仍是同一实例
      *
      * @return void
      */
@@ -214,12 +214,7 @@ class ConfigFacadeTest extends TestCase {
             $repository=new Repository(array('k'=>'v'));
             $container->instance(Repository::class,$repository);
             $this->assertFalse($container->hasInstance(ConfigInterface::class),'没有别名时, 契约名下没有实例');
-            try {
-                $container->get(ConfigInterface::class);
-                $this->fail('没有别名 + 契约是接口时, 取不到实例(应当抛)');
-            } catch(\AdminService\Exception $e) {
-                $this->assertStringContainsString('base\\ConfigInterface',$e->getMessage());
-            }
+            $this->assertSame($repository,$container->get(ConfigInterface::class),'没有别名时, get() 会找可实例化实现类(与 make() 同口径)');
             $container->alias(ConfigInterface::class,Repository::class);
             $this->assertSame($repository,$container->get(ConfigInterface::class),'有了别名, 契约名解析到实现类名下的实例');
             $this->assertTrue($container->hasInstance(ConfigInterface::class));
@@ -265,6 +260,46 @@ class ConfigFacadeTest extends TestCase {
             $this->assertSame($injected,Config::repository(),'门面里必须是应用手里那份');
             $this->assertSame($injected,$container->get(Repository::class),'实例登记在实现类名下');
             $this->assertSame($injected,$container->get(ConfigInterface::class),'按契约名取到的也是同一个实例(经别名)');
+        });
+    }
+
+    /**
+     * 测试: 初始化后运行期替换配置, 应用读取的配置必须跟着门面走
+     *
+     * - 否则会出现"应用读旧仓储、请求容器读新仓储"的双源状态
+     *
+     * @return void
+     */
+    public function testApplicationConfigFollowsFacadeAfterInit(): void {
+        $this->withRestoredGlobals(function(): void {
+            $container=new Container();
+            App::setInstance($container);
+            $application=new \AdminService\Application($container,new Repository(array('k'=>'initial')));
+            $application->init();
+            $replacement=new Repository(array('k'=>'replacement'));
+            Config::setRepository($replacement);
+            $this->assertSame($replacement,$application->config(),'初始化后应用配置应跟随门面当前仓储');
+            $this->assertSame('replacement',$application->config()->get('k'));
+        });
+    }
+
+    /**
+     * 测试: `Application::init()` 允许别名链(目标可以还是别名)
+     *
+     * - 旧校验要求每个别名目标本身是类, 链式别名会在引导期被误判为"类不存在"
+     *
+     * @return void
+     */
+    public function testApplicationInitAllowsAliasChain(): void {
+        $this->withRestoredGlobals(function(): void {
+            $container=new Container();
+            App::setInstance($container);
+            $injected=new Repository(array('app'=>array('alias'=>array(
+                'service.alias'=>'service.impl',
+                'service.impl'=>ConcreteService::class,
+            ))));
+            (new \AdminService\Application($container,$injected))->init();
+            $this->assertInstanceOf(ConcreteService::class,$container->get('service.alias'));
         });
     }
 
@@ -319,6 +354,22 @@ class ConfigFacadeTest extends TestCase {
             $this->assertSame('dflt',$container->exec_function($probe),'内核不得改读全局门面');
             $container->instance(ConfigInterface::class,new Repository(array('k'=>'v')));
             $this->assertSame('v',$container->exec_function($probe),'登记后按契约取到配置');
+        });
+    }
+
+    /**
+     * 测试: 没配别名时, 实现类名下的已登记实例同样能被 `#[Config]` 找到
+     *
+     * - 别名只是快捷方式; `app.alias` 漏配不应让配置注入悄悄退回默认值
+     *
+     * @return void
+     */
+    public function testContainerResolverFindsRegisteredImplementationWithoutAlias(): void {
+        $this->withRestoredGlobals(function(): void {
+            $container=new Container();
+            $container->instance(Repository::class,new Repository(array('k'=>'v')));
+            $probe=fn(#[ConfigAttribute('k')] string $value='dflt'): string => $value;
+            $this->assertSame('v',$container->exec_function($probe),'没有别名时也应按实现类实例取值');
         });
     }
 

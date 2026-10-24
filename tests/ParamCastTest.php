@@ -8,6 +8,9 @@ use AdminService\App;
 use AdminService\Config;
 use AdminService\Exception;
 
+use Tests\Fixtures\ConcreteService;
+use Tests\Fixtures\ServiceInterface;
+
 use function array_sum;
 
 /**
@@ -33,6 +36,18 @@ final class ParamCastTarget {
 
     public function sum(int ...$nums): int {
         return array_sum($nums);
+    }
+
+    public function withDefault(int $x=7): int {
+        return $x;
+    }
+
+    public function union(int|string $x): int|string {
+        return $x;
+    }
+
+    public function takeService(ServiceInterface $service): ServiceInterface {
+        return $service;
     }
 
 }
@@ -234,6 +249,54 @@ class ParamCastTest extends TestCase {
                 $this->assertInstanceOf(Exception::class,$e);
             }
         }
+    }
+
+    /**
+     * 测试对象实参按接口类型校验(接口不是 class_exists 的范畴)
+     *
+     * - 旧实现用 `class_exists()` 过滤类型, 接口永远不匹配, 传入的对象会被忽略后重新注入
+     *
+     * @return void
+     */
+    public function testInterfaceTypedArgumentKeepsProvidedObject(): void {
+        $target=new ParamCastTarget();
+        $service=new ConcreteService();
+        $this->assertSame($service,App::exec_class_function($target,'takeService',array($service)));
+    }
+
+    /**
+     * 测试显式具名实参类型不符时不再静默落默认值
+     *
+     * @return void
+     */
+    public function testInvalidNamedArgumentDoesNotFallBackToDefault(): void {
+        $target=new ParamCastTarget();
+        $this->expectException(Exception::class);
+        App::exec_class_function($target,'withDefault',array('x'=>'not-an-int'));
+    }
+
+    /**
+     * 测试显式顺位实参类型不符时同样直接报错
+     *
+     * @return void
+     */
+    public function testInvalidPositionalArgumentDoesNotFallBackToDefault(): void {
+        $target=new ParamCastTarget();
+        $this->expectException(Exception::class);
+        App::exec_class_function($target,'withDefault',array(0=>'not-an-int'));
+    }
+
+    /**
+     * 测试联合类型保留值原本的类型
+     *
+     * - `int|string` 收到 `"5"` 时它已经是合法的 string, 不能因为 `integer` 也在类型列表里就强转
+     *
+     * @return void
+     */
+    public function testUnionTypeKeepsOriginalValueType(): void {
+        $target=new ParamCastTarget();
+        $this->assertSame('5',App::exec_class_function($target,'union',array('x'=>'5')));
+        $this->assertSame(5,App::exec_class_function($target,'union',array('x'=>5)));
     }
 
 }

@@ -623,4 +623,57 @@ class RelationTest extends TestCase {
         $this->assertCount(1,$this->pdo->executed);
     }
 
+    /**
+     * hasMany 未保存父模型查询必须明确报错
+     * @return void
+     */
+    public function testHasManyQueryOnUnpersistedParentThrows(): void {
+        $this->expectException(OrmException::class);
+        $user=new User();
+        $user->posts();
+    }
+
+    /**
+     * hasOne 未保存父模型查询必须明确报错
+     * @return void
+     */
+    public function testHasOneQueryOnUnpersistedParentThrows(): void {
+        $this->expectException(OrmException::class);
+        $user=new User();
+        $user->profile();
+    }
+
+    /**
+     * hasMany create 写入失败必须抛异常
+     * @return void
+     */
+    public function testRelationWriteHasManyCreateThrowsWhenSaveFails(): void {
+        $this->pdo->error='insert failed';
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $this->expectException(OrmException::class);
+        $user->posts()->create(array('title'=>'p1'));
+    }
+
+    /**
+     * hasOne create 写入失败必须抛异常
+     * @return void
+     */
+    public function testRelationWriteHasOneCreateThrowsWhenSaveFails(): void {
+        $this->pdo->error='insert failed';
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $this->expectException(OrmException::class);
+        $user->profile()->create(array('bio'=>'x'));
+    }
+
+    /**
+     * belongsToMany create 写入失败必须抛异常
+     * @return void
+     */
+    public function testBelongsToManyCreateThrowsWhenSaveFails(): void {
+        $this->pdo->error='insert failed';
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $this->expectException(OrmException::class);
+        $user->roles()->create(array('name'=>'staff','status'=>1));
+    }
+
 }

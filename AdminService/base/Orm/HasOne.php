@@ -19,7 +19,10 @@ class HasOne extends Relation {
      * @return void
      */
     protected function applyConstraint(): void {
-        $this->where($this->foreignKey,$this->parent->getAttribute($this->ownerKey));
+        $parentKey=$this->parent->getAttribute($this->ownerKey);
+        if($parentKey===null)
+            throw new OrmException('Cannot query relation: parent is not persisted.',100721);
+        $this->where($this->foreignKey,$parentKey);
     }
 
     /**
@@ -40,7 +43,7 @@ class HasOne extends Relation {
         $model=new ($this->modelClass)();
         $model->fill($data);
         $model->setAttribute($this->foreignKey,$parentKey);
-        $model->save();
+        $this->saveRelated($model);
         return $model;
     }
 

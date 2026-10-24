@@ -3,6 +3,7 @@
 namespace base\Orm;
 
 use base\Database\Db;
+use base\Orm\Exception\OrmException;
 
 use function array_unique;
 use function array_values;
@@ -82,6 +83,21 @@ abstract class Relation extends ModelQueryBuilder {
      * @return void
      */
     abstract public function eagerLoad(string $name,ModelCollection $parents): void;
+
+    /**
+     * 保存关系模型，失败时抛异常
+     *
+     * @access protected
+     * @param Model $model 待保存模型
+     * @return void
+     * @throws OrmException 写入失败
+     */
+    protected function saveRelated(Model $model): void {
+        if(!$model->save())
+            throw new OrmException('Related record create failed.',100733,array(
+                'model'=>$this->modelClass
+            ));
+    }
 
     /**
      * 收集父模型指定属性的值(去重)

@@ -302,7 +302,8 @@ final class Db {
      * - 事务独占会话就地绑定到本实例: 回调内所有查询(含经本实例的模型写入)
      *   在同一会话上执行, 事务可跨模型覆盖
      * - 支持嵌套, 嵌套事务通过保存点模拟
-     * - 回调抛出任何异常都会回滚并重新抛出
+     * - 回调抛出任何异常, 或直接返回失败 Result 时自动回滚
+     * - 失败 Result 回滚后仍作为返回值, 不额外抛出异常
      * - 结束后恢复原会话(外层手动事务不受影响)
      *
      * @access public
@@ -321,8 +322,13 @@ final class Db {
             try {
                 $result=$callback($this);
                 // 回调内可能已手动提交/回滚, 仅在仍活跃时收尾
-                if($context->isActive())
-                    $tx->commit();
+                if($context->isActive()) {
+                    // 直接返回失败 Result 视为事务失败, 避免部分写入被提交
+                    if($result instanceof ResultInterface&&!$result->isSuccess())
+                        $tx->rollback();
+                    else
+                        $tx->commit();
+                }
                 return $result;
             } catch(Throwable $e) {
                 if($context->isActive()) {

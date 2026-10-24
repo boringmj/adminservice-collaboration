@@ -130,6 +130,59 @@ class DbTest extends TestCase {
     }
 
     /**
+     * 测试事务回调返回失败 Result 时自动回滚
+     * @return void
+     */
+    public function testTransactionRollsBackOnFailedResult(): void {
+        $pdo=new FakePdo();
+        // 第一条写入成功, 第二条写入失败并返回失败 Result
+        $pdo->errorOnExecution=2;
+        $db=$this->createDb($pdo);
+        $result=$db->transaction(function($db) {
+            $db->query(Query::insert(['a'=>1])->from('users'));
+            return $db->raw('UPDATE users SET a = 2');
+        });
+        $this->assertFalse($result->isSuccess());
+        $this->assertStringContainsString('Simulated execution failure.',$result->getError());
+        $this->assertSame(['begin','rollback'],$pdo->transactionCalls);
+        $this->assertCount(1,$pdo->executed);
+    }
+
+    /**
+     * 测试事务回调返回成功 Result 时正常提交
+     * @return void
+     */
+    public function testTransactionCommitsSuccessfulResult(): void {
+        $pdo=new FakePdo();
+        $pdo->affectedRows=1;
+        $db=$this->createDb($pdo);
+        $result=$db->transaction(function($db) {
+            return $db->raw('UPDATE users SET a = 1');
+        });
+        $this->assertTrue($result->isSuccess());
+        $this->assertSame(['begin','commit'],$pdo->transactionCalls);
+    }
+
+    /**
+     * 测试嵌套事务返回失败 Result 时回滚保存点并向外传播
+     * @return void
+     */
+    public function testNestedTransactionRollsBackFailedResult(): void {
+        $pdo=new FakePdo();
+        $pdo->errorOnExecution=2;
+        $db=$this->createDb($pdo);
+        $result=$db->transaction(function($db) {
+            $db->query(Query::insert(['a'=>1])->from('users'));
+            return $db->transaction(function($db) {
+                return $db->raw('UPDATE users SET a = 2');
+            });
+        });
+        $this->assertFalse($result->isSuccess());
+        $this->assertSame(['begin','rollback'],$pdo->transactionCalls);
+        $this->assertSame(['SAVEPOINT sp_1','ROLLBACK TO SAVEPOINT sp_1'],$pdo->execCalls);
+    }
+
+    /**
      * 测试嵌套事务使用保存点
      * @return void
      */

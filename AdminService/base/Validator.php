@@ -6,6 +6,7 @@ use function array_key_first;
 use function array_map;
 use function array_merge;
 use function explode;
+use function func_num_args;
 use function is_array;
 
 abstract class Validator {
@@ -68,13 +69,16 @@ abstract class Validator {
 
     /**
      * 验证数据
-     * 
+     *
+     * - 省略 $data 时沿用当前数据; 显式传入(含空数组)时替换当前数据
+     *
      * @param array<string,mixed> $data 待验证的数据
      * @param array<string,mixed> $rules 外部传入的规则(与默认规则合并,冲突则使用外部规则)
      * @return bool
      */
     public function validate(array $data=[],array $rules=[]): bool {
-        if(!empty($data))
+        // 区分“未传参”和“显式传入空数组”: 后者应按空数据校验, 不能复用旧数据
+        if(func_num_args()>0)
             $this->data=$data;
         $rulesToApply=array_merge($this->rules,$rules);
         return $this->doValidate($this->data,$rulesToApply);

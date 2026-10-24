@@ -2,7 +2,11 @@
 
 namespace base;
 
+use InvalidArgumentException;
+
+use function array_key_exists;
 use function array_merge;
+use function func_num_args;
 
 abstract class SceneValidator extends Validator {
 
@@ -47,11 +51,14 @@ abstract class SceneValidator extends Validator {
      *
      * @param array<string,mixed> $rules 合并后的规则集
      * @return array
+     * @throws InvalidArgumentException 场景不存在
      */
     protected function getSceneRules(array $rules): array {
         if($this->scene===null)
             return $rules;
-        $sceneFields=$this->scenes[$this->scene]??[];
+        if(!array_key_exists($this->scene,$this->scenes))
+            throw new InvalidArgumentException('Unknown validation scene: '.$this->scene);
+        $sceneFields=$this->scenes[$this->scene];
         $sceneRules=[];
         foreach($sceneFields as $field) {
             if(isset($rules[$field])) {
@@ -63,18 +70,27 @@ abstract class SceneValidator extends Validator {
 
     /**
      * 验证数据
-     * 
+     *
+     * - 省略 $data 时沿用当前数据; 显式传入(含空数组)时替换当前数据
+     * - 未知场景抛出异常, 已知空场景仍按空规则通过
+     *
      * @param array<string,mixed> $data 待验证的数据
      * @param array<string,mixed> $rules 外部传入的规则(与默认规则合并,冲突则使用外部规则)
      * @return bool
+     * @throws InvalidArgumentException 场景不存在
      */
     public function validate(array $data=[],array $rules=[]): bool {
-        if(!empty($data))
+        // 区分“未传参”和“显式传入空数组”: 后者应按空数据校验, 不能复用旧数据
+        if(func_num_args()>0)
             $this->data=$data;
         $this->errors=[];
         $mergedRules=array_merge($this->rules,$rules);
-        $rulesToApply=$this->getSceneRules($mergedRules);
-        $this->scene=null;
+        try {
+            $rulesToApply=$this->getSceneRules($mergedRules);
+        } finally {
+            // 无论校验是否因未知场景失败, 都复位场景, 避免污染下一次调用
+            $this->scene=null;
+        }
         return $this->doValidate($this->data,$rulesToApply);
     }
 

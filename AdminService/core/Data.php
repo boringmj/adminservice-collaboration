@@ -6,6 +6,7 @@ use Countable;
 use ArrayIterator;
 use IteratorAggregate;
 
+use function array_key_exists;
 use function array_keys;
 use function array_merge;
 use function count;
@@ -122,7 +123,8 @@ class Data implements IteratorAggregate,Countable {
      * @return mixed
      */
     public function get(string $key,mixed $default=null): mixed {
-        return $this->data[$this->convertKey($key)]??$default;
+        $key=$this->convertKey($key);
+        return array_key_exists($key,$this->data)?$this->data[$key]:$default;
     }
 
     /**
@@ -145,7 +147,7 @@ class Data implements IteratorAggregate,Countable {
      * @return bool
      */
     public function has(string $key): bool {
-        return isset($this->data[$this->convertKey($key)]);
+        return array_key_exists($this->convertKey($key),$this->data);
     }
 
     /**

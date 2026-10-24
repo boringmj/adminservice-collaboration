@@ -233,6 +233,27 @@ class RequestTest extends TestCase {
     }
 
     /**
+     * 显式 null 不能回落到低优先级参数源
+     *
+     * - JSON 请求体 `{"a":null}` 合入 query 后，query 中应保留 null
+     * - 当前 `Data::has()` / `get()` 把 null 当缺失，会落到 post
+     *
+     * @return void
+     */
+    public function testJsonNullDoesNotFallBackToLowerPrioritySource(): void {
+        $this->setConfig(array('request.default.param.input'=>HttpRequest::GET_PARAM));
+        $request=new HttpRequest(array(
+            'query'=>array('a'=>'from-query'),
+            'post'=>array('a'=>'from-post'),
+            'headers'=>array('Content-Type'=>'application/json'),
+            'rawInput'=>'{"a":null}'
+        ));
+        $this->assertNull($request->input('a','DFLT'));
+        $this->assertNull($request->query('a','DFLT'));
+        $this->assertNull($request->param('a',HttpRequest::ALL_PARAM,'DFLT'));
+    }
+
+    /**
      * 测试表单请求体按Content-Type解析
      *
      * - PHP 不会为 PUT/PATCH/DELETE 填充 `$_POST`, 故这类请求体由框架解析

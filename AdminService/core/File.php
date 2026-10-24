@@ -16,6 +16,7 @@ use function is_dir;
 use function is_file;
 use function json_decode;
 use function json_encode;
+use function json_last_error_msg;
 use function mkdir;
 use function preg_match;
 use function time;
@@ -131,6 +132,11 @@ final class File {
      */
     private function write(): void {
         $data=json_encode($this->data);
+        if($data===false)
+            throw new Exception("File encode failed: $this->file_path, please check the file content.",100104,array(
+                'file_path'=>$this->file_path,
+                'json_error'=>json_last_error_msg()
+            ));
         try {
             $result=file_put_contents($this->file_path,$data);
             if($result===false)

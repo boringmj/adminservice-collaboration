@@ -14,6 +14,7 @@ use function count;
 use function debug_backtrace;
 use function error_get_last;
 use function error_log;
+use function error_reporting;
 use function explode;
 use function get_class;
 use function htmlspecialchars;
@@ -178,6 +179,9 @@ final class Error extends BaseError {
      * @return bool
      */
     public static function handleError(int $type,string $message,string $file,int $line): bool {
+        // 尊重 @ 抑制与当前 error_reporting 配置
+        if(!(error_reporting()&$type))
+            return false;
         // 清理错误消息(移除文件路径和行号)
         $message=self::cleanErrorMessage($message);
         // 获取堆栈跟踪(保留参数)

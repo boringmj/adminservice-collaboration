@@ -8,9 +8,9 @@ use base\ConfigInterface;
 use base\Response;
 use base\Route as BaseRoute;
 use base\Attribute\Middleware;
-use AdminService\Router\AttributeScanner;
 use AdminService\Router\RouteItem;
 use AdminService\Router\Router;
+use AdminService\Router\RouterFactory;
 use ReflectionClass;
 use base\RouteContextInterface;
 use ReflectionException;
@@ -18,14 +18,10 @@ use ReflectionException;
 use function array_merge;
 use function class_exists;
 use function count;
-use function glob;
 use function implode;
 use function is_array;
-use function is_dir;
 use function is_numeric;
 use function is_string;
-use function rtrim;
-use function sort;
 use function urldecode;
 use function usort;
 
@@ -33,8 +29,9 @@ use function usort;
  * 路由协调器
  *
  * - 显式路由由路由文件与控制器 `#[Route]` 属性声明, 未命中即 404
- * - 路由协调器持有请求对象, 是**请求级对象**: 每请求新建, 路由表也随之重新装配;
- *   同一实例内的首次 `router()` 调用之后复用该实例自己的路由表
+ * - 路由协调器持有请求对象, 是**请求级对象**: 每请求新建
+ * - 路由表本身由应用级 `RouterFactory` 缓存: 跨请求复用同一 `Router`;
+ *   `Config::setRepository()` 替换配置对象时重建
  */
 final class Route extends BaseRoute {
     /**
@@ -124,10 +121,11 @@ final class Route extends BaseRoute {
     }
 
     /**
-     * 获取路由表(当前 Route 实例内首次访问时装配)
+     * 获取路由表(应用级缓存)
      *
-     * - 同一 `Route` 实例内路由文件与属性声明只解析一次
-     * - `Route` 是请求级对象(每请求新建), 因此跨请求会重新装配 —— 见 `Main::run()`
+     * - 优先复用应用容器里的 `RouterFactory`; 独立使用 `Route`(没有应用容器)时退回局部提供器
+     * - 同一配置对象只装配一次; 配置对象被替换时由 `RouterFactory` 重建
+     * - 仍登记到当前请求容器, 供运行时(控制器/视图)反向生成 URL: App::get(Router::class)->url(...)
      *
      * @access private
      * @return Router
@@ -136,41 +134,12 @@ final class Route extends BaseRoute {
     private function router(): Router {
         if($this->router!==null)
             return $this->router;
-        $this->router=new Router();
-        foreach((array)$this->config()->get('route.files',array()) as $path)
-            $this->loadRoutes($path);
-        // 属性路由: 自动扫描 + 手工登记
-        $attributes=$this->config()->get('route.attributes',array());
-        if(!empty($attributes['scan']))
-            $this->router->registerAttributes((new AttributeScanner())->scan((string)$this->config()->get('app.path')));
-        if(!empty($attributes['classes']))
-            $this->router->registerAttributes($attributes['classes']);
-        // 装配完成后校验路由名唯一, 让重名尽早暴露
-        $this->router->assertNamesUnique();
-        // 登记到容器, 供运行时(控制器/视图)反向生成 URL: App::get(Router::class)->url(...)
+        $factory=App::hasInstance()&&App::getInstance()->hasInstance(RouterFactory::class)
+            ? App::get(RouterFactory::class)
+            : new RouterFactory();
+        $this->router=$factory->get($this->config());
         App::instance(Router::class,$this->router);
         return $this->router;
-    }
-
-    /**
-     * 加载路由文件或目录
-     *
-     * - 目录加载其中全部 `.php`, 按文件名排序保证注册顺序稳定
-     *
-     * @access private
-     * @param string $path 路由文件或目录路径
-     * @return void
-     * @throws Exception 路径不存在
-     */
-    private function loadRoutes(string $path): void {
-        if(is_dir($path)) {
-            $files=glob(rtrim($path,'/\\').'/*.php');
-            sort($files);
-            foreach($files as $file)
-                $this->router->load($file);
-            return;
-        }
-        $this->router->load($path);
     }
 
     /**

@@ -293,31 +293,30 @@ final class Error extends BaseError {
         }
         echo self::renderErrors();
         // 记录所有错误到日志
-        if(self::$initialized) {
-            try {
-                foreach(self::$errors as $error) {
-                    $errorType=self::$errorTypes[$error['type']]??'Unknown';
-                    $logMessage="[{$errorType}] {message} in {file} on line {line}";
-                    if(!empty($error['stack_trace'])) {
-                        $stackTrace=is_array($error['stack_trace'])
-                            ? self::formatStackTraceForLog($error['stack_trace'])
-                            : $error['stack_trace'];
-                        $logMessage.="\nStack Trace:\n".$stackTrace;
-                    }
-                    $context=array(
-                        'message'=>$error['message'],
-                        'file'=>$error['file'],
-                        'line'=>$error['line']
-                    );
-                    if(self::$container===null)
-                        // 容器不可用: 直写 PHP 错误日志(不依赖容器, 也不依赖配置)
-                        self::writeFallbackLog($logMessage,$context);
-                    else
-                        self::$container->exec_class_function(Log::class,'write',array($logMessage,$context));
+        // - 引导完成且容器可用: 走应用的 Log 服务
+        // - 引导未完成 / 容器不可用: 直写 PHP 错误日志(不依赖容器, 也不依赖配置)
+        try {
+            foreach(self::$errors as $error) {
+                $errorType=self::$errorTypes[$error['type']]??'Unknown';
+                $logMessage="[{$errorType}] {message} in {file} on line {line}";
+                if(!empty($error['stack_trace'])) {
+                    $stackTrace=is_array($error['stack_trace'])
+                        ? self::formatStackTraceForLog($error['stack_trace'])
+                        : $error['stack_trace'];
+                    $logMessage.="\nStack Trace:\n".$stackTrace;
                 }
-            } catch(\Throwable $e) {
-                echo "<br>日志记录失败: ".htmlspecialchars($e->getMessage());
+                $context=array(
+                    'message'=>$error['message'],
+                    'file'=>$error['file'],
+                    'line'=>$error['line']
+                );
+                if(!self::$initialized||self::$container===null)
+                    self::writeFallbackLog($logMessage,$context);
+                else
+                    self::$container->exec_class_function(Log::class,'write',array($logMessage,$context));
             }
+        } catch(\Throwable $e) {
+            echo "<br>日志记录失败: ".htmlspecialchars($e->getMessage());
         }
         exit();
     }

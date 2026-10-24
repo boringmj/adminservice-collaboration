@@ -12,6 +12,7 @@ use AdminService\ResponseProcessor\Http;
 
 use function array_keys;
 use function array_map;
+use function explode;
 use function func_num_args;
 use function header;
 use function headers_sent;
@@ -20,6 +21,10 @@ use function implode;
 use function in_array;
 use function is_array;
 use function is_string;
+use function str_contains;
+use function str_ends_with;
+use function strtolower;
+use function trim;
 
 /**
  * Response核心类
@@ -75,7 +80,7 @@ final class Response extends BaseResponse {
 */
     public function __construct(?ConfigInterface $config=null) {
         $this->config=$config;
-        $this->headers=new Data();
+        $this->headers=(new Data())->setCaseSensitive(false)->resetKey();
         $this->cookies=new Data();
     }
 
@@ -89,12 +94,32 @@ final class Response extends BaseResponse {
     public function getStandardContentType(
         ?string $type=null
     ): string {
-        $type=$type??$this->contentType;
+        $type=strtolower(trim(explode(';',$type??$this->contentType,2)[0]));
         $type_list=array_keys($this->config()->get('response.default.type',[]));
         // 判断当前类型是否存在
-        if(in_array($type,$type_list))
+        if($type==='')
+            $type='*/*';
+        // 精确匹配(大小写与参数已归一)
+        if(in_array($type,$type_list,true))
             return $type;
-        return $type_list[0];
+        // vendor JSON 回落到标准 JSON
+        if(str_ends_with($type,'+json')&&in_array('application/json',$type_list,true))
+            return 'application/json';
+        // 未注册类型回落到默认桶
+        return $type_list[0]??'*/*';
+    }
+
+    /**
+     * 获取默认的具体内容类型(跳过通配桶)
+     *
+     * @access private
+     * @return string
+     */
+    private function defaultContentType(): string {
+        foreach(array_keys($this->config()->get('response.default.type',[])) as $type)
+            if(!str_contains($type,'*'))
+                return $type;
+        return '*/*';
     }
 
     /**
@@ -206,7 +231,7 @@ final class Response extends BaseResponse {
         ?bool $secure=null,
         ?bool $httponly=null
     ): string {
-        if(func_num_args()>1) {
+        if(func_num_args()>1&&$value!==null) {
             $this->cookies->set($name,array(
                 'value'=>(string)$value,
                 'expire'=>$expire,
@@ -253,9 +278,14 @@ final class Response extends BaseResponse {
      * @return string
      */
     public function render(): string {
+        // 1xx / 204 / 304 不允许有正文
+        if($this->hasNoBody()) return '';
         if($this->return_content!==null) return $this->return_content;
         // 未登记的内容类型回落到登记表的第一个
         $type=$this->getStandardContentType();
+        // `*/*` 只是分派桶, 实际落盘时回退到第一个具体类型
+        if($type==='*/*')
+            $type=$this->defaultContentType();
         $config=$this->config()->get('response.default.type.'.$type,[]);
         $class=$config['class']??Http::class;
         // 处理器需要写入本实例: 显式传入, 不依赖容器中的同名单例
@@ -299,10 +329,21 @@ final class Response extends BaseResponse {
         // 发送请求头
         $this->sendHeaders();
         // HEAD 只发送头部, 不输出响应体
-        if($this->head_only)
+        if($this->head_only||$this->hasNoBody())
             return;
         // 渲染结果
         echo $content;
+    }
+
+    /**
+     * 判断当前状态码是否禁止响应正文
+     *
+     * @access private
+     * @return bool
+     */
+    private function hasNoBody(): bool {
+        $code=$this->status();
+        return ($code>=100&&$code<200)||$code===204||$code===304;
     }
 
 }

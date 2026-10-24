@@ -4,6 +4,7 @@ namespace AdminService;
 
 use base\AbstractSession;
 
+use function headers_sent;
 use function is_array;
 use function session_destroy;
 use function session_id;
@@ -26,9 +27,25 @@ class NativeSession extends AbstractSession {
      */
     public function init(): void {
         if(session_status()===PHP_SESSION_NONE) {
-            session_start();
-            $this->session_id=session_id();
+            if(headers_sent())
+                throw new Exception('会话无法启动: 响应头已发送');
+            if(!session_start()&&session_status()!==PHP_SESSION_ACTIVE)
+                throw new Exception('会话启动失败');
         }
+        if(session_status()===PHP_SESSION_ACTIVE)
+            $this->session_id=session_id();
+    }
+
+    /**
+     * 设置Session ID(同步到 PHP 原生会话)
+     *
+     * @access public
+     * @param string $session_id Session ID
+     * @return void
+     */
+    public function setId(string $session_id): void {
+        $this->session_id=$session_id;
+        session_id($session_id);
     }
 
     /**
@@ -103,8 +120,9 @@ class NativeSession extends AbstractSession {
      * @return void
      */
     public function destroy(): void {
+        if(session_status()===PHP_SESSION_ACTIVE)
+            session_destroy();
         $_SESSION=[];
-        if(session_id()!=='') session_destroy();
         $this->session_id=null;
     }
 

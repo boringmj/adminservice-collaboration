@@ -7,6 +7,9 @@ use base\ConfigInterface;
 
 use base\AbstractUploadFilesForm;
 
+use function array_key_exists;
+use function is_array;
+
 /**
  * 表单上传文件类
  *
@@ -46,8 +49,70 @@ class UploadFilesForm extends AbstractUploadFilesForm {
         if($files===array()) return;
         $rules=$this->config()->get('request.default.upload',array());
         foreach($files as $name=>$file) {
-            $this->form_files[$name]=App::new(UploadFiles::class,$dir,$file,$rules);
+            if(!is_array($file))
+                continue;
+            if($this->hasNestedFiles($file))
+                $this->parseNested((string)$name,array(),$file,$dir,$rules);
+            else
+                $this->form_files[$name]=App::new(UploadFiles::class,$dir,$file,$rules);
         }
+    }
+
+    /**
+     * 判断上传字段是否包含嵌套数组(name[a][b] / name[a][])
+     *
+     * @access private
+     * @param array<string,mixed> $file 上传字段
+     * @return bool
+     */
+    private function hasNestedFiles(array $file): bool {
+        $names=$file['name']??null;
+        if(!is_array($names))
+            return false;
+        foreach($names as $name)
+            if(is_array($name))
+                return true;
+        return false;
+    }
+
+    /**
+     * 将嵌套上传字段展开为 `name[a][b]` 形式的独立字段
+     *
+     * @access private
+     * @param string $prefix 顶层字段名
+     * @param array<int|string> $path 当前嵌套路径
+     * @param array<string,mixed> $file 当前层上传结构
+     * @param string $dir 上传目录
+     * @param array<string,mixed> $rules 上传规则
+     * @return void
+     */
+    private function parseNested(
+        string $prefix,
+        array $path,
+        array $file,
+        string $dir,
+        array $rules
+    ): void {
+        $names=$file['name']??null;
+        if(is_array($names)) {
+            foreach($names as $key=>$name) {
+                $child=array();
+                foreach(array('name','type','tmp_name','error','size') as $field) {
+                    $value=null;
+                    if(isset($file[$field])&&is_array($file[$field])&&array_key_exists($key,$file[$field]))
+                        $value=$file[$field][$key];
+                    $child[$field]=$value;
+                }
+                $next=$path;
+                $next[]=$key;
+                $this->parseNested($prefix,$next,$child,$dir,$rules);
+            }
+            return;
+        }
+        $field=$prefix;
+        foreach($path as $key)
+            $field.='['.$key.']';
+        $this->form_files[$field]=App::new(UploadFiles::class,$dir,$file,$rules);
     }
 
 }

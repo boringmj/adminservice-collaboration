@@ -4,6 +4,7 @@ namespace AdminService;
 
 use base\AbstractInputProcessor;
 
+use function is_array;
 use function json_decode;
 
 class JsonInput extends AbstractInputProcessor {
@@ -21,7 +22,7 @@ class JsonInput extends AbstractInputProcessor {
             // 解析json数据
             $data=json_decode($data,true);
             // 判断是否解析成功
-            if($data!==null)
+            if(is_array($data))
                 return $data;
         }
         return [];

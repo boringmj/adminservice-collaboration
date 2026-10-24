@@ -8,15 +8,18 @@ use AdminService\App;
 use AdminService\Config;
 use AdminService\UploadFile;
 use AdminService\UploadFiles;
+use AdminService\UploadFilesForm;
 use AdminService\UploadStorage;
 use AdminService\exception\UploadException;
 use AdminService\exception\UploadStorageException;
 use Tests\Fixtures\FakeUploadStorage;
 
 use function array_keys;
+use function count;
 use function file_put_contents;
 use function is_dir;
 use function is_file;
+use function mkdir;
 use function rmdir;
 use function sha1;
 use function strlen;
@@ -166,6 +169,41 @@ class UploadTest extends TestCase {
     }
 
     /**
+     * 测试上传目录默认权限可遍历
+     *
+     * - 目录必须有执行位, 否则 Linux 下即使可写也无法进入/创建文件
+     *
+     * @return void
+     */
+    public function testUploadSaveModeIsTraversable(): void {
+        $mode=Config::get('request.default.upload.save.mode');
+        $this->assertSame(0755,$mode);
+        $this->assertNotSame(0,$mode&0111,'上传目录权限必须包含执行位');
+    }
+
+    /**
+     * 测试嵌套文件字段展开
+     *
+     * - `arr[a][x]` 不应被当成一维文件数组, 也不应触发大小校验异常
+     *
+     * @return void
+     */
+    public function testNestedFileFieldIsFlattened(): void {
+        $form=new UploadFilesForm(sys_get_temp_dir(),array(
+            'arr'=>array(
+                'name'=>array('a'=>array('x'=>'')),
+                'type'=>array('a'=>array('x'=>'application/octet-stream')),
+                'tmp_name'=>array('a'=>array('x'=>'')),
+                'error'=>array('a'=>array('x'=>UPLOAD_ERR_NO_FILE)),
+                'size'=>array('a'=>array('x'=>0))
+            )
+        ));
+        $files=$form->getFilesByField('arr[a][x]');
+        $this->assertInstanceOf(UploadFiles::class,$files);
+        $this->assertSame(0,count($files));
+    }
+
+    /**
      * 测试存储方准备保存目录
      * @return void
      */
@@ -195,6 +233,25 @@ class UploadTest extends TestCase {
         $this->expectException(UploadStorageException::class);
         $this->expectExceptionMessage('文件不存在或不可读');
         $storage->save($file);
+    }
+
+    /**
+     * 测试确认文件名不能越出上传目录
+     * @return void
+     */
+    public function testStorageRejectsPathTraversalName(): void {
+        $dir=sys_get_temp_dir().'/as_storage_'.uniqid();
+        mkdir($dir,0755);
+        $file=$this->makeFile('content',$dir);
+        $file->setConfirmName('../evil.txt');
+        $storage=new UploadStorage();
+        $this->expectException(UploadStorageException::class);
+        $this->expectExceptionMessage('文件名不合法');
+        try {
+            $storage->save($file);
+        } finally {
+            rmdir($dir);
+        }
     }
 
 }

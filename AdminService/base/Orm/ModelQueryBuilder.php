@@ -481,9 +481,9 @@ class ModelQueryBuilder {
                 'per_page'=>$perPage
             ));
         $page=max(1,$page);
-        // 统计总数(克隆当前条件, 避免影响分页查询)
+        // 统计总数(克隆当前条件, 避免影响分页查询; 保留模型表别名)
+        $this->prepareTable();
         $countQuery=clone $this->query;
-        $countQuery->from(($this->modelClass)::tableName());
         $countQuery->type(StatementType::COUNT);
         $this->applySoftDeleteFilter($countQuery);
         $countRows=$this->run($countQuery)->getResults()->toArray();

@@ -825,7 +825,9 @@ abstract class Model {
         );
         if(!$result->isSuccess())
             return false;
-        $this->attributes[static::$primaryKey]=$result->getLastInsertId();
+        $primaryKey=static::$primaryKey;
+        if(!array_key_exists($primaryKey,$this->attributes)||$this->attributes[$primaryKey]===null||$this->attributes[$primaryKey]==='')
+            $this->attributes[$primaryKey]=$result->getLastInsertId();
         $this->exists=true;
         $this->syncOriginal();
         return true;

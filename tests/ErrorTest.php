@@ -93,6 +93,68 @@ class ErrorTest extends TestCase {
     }
 
     /**
+     * 测试正常结束时后续 shutdown 回调仍会执行
+     * @return void
+     */
+    public function testShutdownCallbacksContinueAfterNormalExit(): void {
+        $marker=tempnam(sys_get_temp_dir(),'shutdown_normal_');
+        try {
+            list($status,,$stderr)=$this->runFixture(
+                __DIR__.'/fixtures/shutdown_callbacks.php',
+                array($marker,'normal')
+            );
+            $this->assertSame(0,$status,$stderr);
+            $this->assertSame('ok',(string)file_get_contents($marker));
+        } finally {
+            if(is_file($marker))
+                unlink($marker);
+        }
+    }
+
+    /**
+     * 测试错误出口渲染后后续 shutdown 回调仍会执行
+     * @return void
+     */
+    public function testShutdownCallbacksContinueAfterCollectedError(): void {
+        $marker=tempnam(sys_get_temp_dir(),'shutdown_warning_');
+        try {
+            list($status,,$stderr)=$this->runFixture(
+                __DIR__.'/fixtures/shutdown_callbacks.php',
+                array($marker,'warning')
+            );
+            $this->assertSame(0,$status,$stderr);
+            $this->assertSame('ok',(string)file_get_contents($marker));
+        } finally {
+            if(is_file($marker))
+                unlink($marker);
+        }
+    }
+
+    /**
+     * 运行夹具脚本
+     *
+     * @param string $script 脚本路径
+     * @param array<int,string> $args 脚本参数
+     * @return array{0:int,1:string,2:string} 状态码 / stdout / stderr
+     */
+    private function runFixture(string $script,array $args=array()): array {
+        $command=array(PHP_BINARY,'-d','display_errors=0',$script);
+        foreach($args as $arg)
+            $command[]=$arg;
+        $process=proc_open($command,array(
+            1=>array('pipe','w'),
+            2=>array('pipe','w')
+        ),$pipes);
+        $this->assertTrue(is_resource($process),'无法启动子进程');
+        $stdout=(string)stream_get_contents($pipes[1]);
+        $stderr=(string)stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $status=proc_close($process);
+        return array($status,$stdout,$stderr);
+    }
+
+    /**
      * 测试容器不可用时的兜底错误页(不依赖容器与配置)
      * @return void
      */

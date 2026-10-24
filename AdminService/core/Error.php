@@ -268,7 +268,8 @@ final class Error extends BaseError {
             if(is_callable(self::$normalExitCallback)) {
                 call_user_func(self::$normalExitCallback);
             }
-            exit();
+            // 不在 shutdown 回调里主动 exit(), 否则会跳过后续注册的 shutdown 回调
+            return;
         }
         // 标记已处理
         self::$handled=true;
@@ -277,8 +278,10 @@ final class Error extends BaseError {
     }
 
     /**
-     * 渲染错误信息并退出
-     * 
+     * 渲染错误信息
+     *
+     * - 不主动 exit(): 该方法可能在 shutdown 回调中执行, 主动退出会跳过后续 shutdown 回调
+     *
      * @access private
      * @return void
      */
@@ -322,7 +325,6 @@ final class Error extends BaseError {
         } catch(\Throwable $e) {
             echo "<br>日志记录失败: ".htmlspecialchars($e->getMessage());
         }
-        exit();
     }
 
     /**

@@ -653,6 +653,27 @@ class ModelTest extends TestCase {
     }
 
     /**
+     * 测试分页统计查询保留主表别名
+     * @return void
+     */
+    public function testPaginateCountKeepsTableAlias(): void {
+        $this->pdo->selectRowsQueue=[
+            [['__count'=>1]],
+            [['id'=>1,'name'=>'a']],
+        ];
+        $result=User::query()->alias('u')->where('u.status',1)->paginate(2,1);
+        $this->assertSame(1,$result->total());
+        $this->assertSame(
+            'SELECT COUNT(*) AS `__count` FROM `users` `u` WHERE `u`.`status` = ?',
+            $this->pdo->executed[0]
+        );
+        $this->assertSame(
+            'SELECT * FROM `users` `u` WHERE `u`.`status` = ? LIMIT 2 OFFSET 0',
+            $this->pdo->executed[1]
+        );
+    }
+
+    /**
      * 测试空结果分页
      * @return void
      */

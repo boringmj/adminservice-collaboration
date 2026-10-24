@@ -89,7 +89,7 @@ class Index extends Controller {
         $scene='all'; // 场景,具体查看`TestValidator`中定义的场景
         // 这里演示使用`scene()`方法启用场景支持,如果不使用则不自动使用全部规则验证
         // 场景需要自己定义,具体请查看`TestValidator`类的示例
-        // 如果指定了一个不存在的场景视为不使用规则集验证(默认通过验证)
+        // 如果指定了一个不存在的场景会抛出 InvalidArgumentException
         if($validator->scene($scene)->validate([
             'name'=>$name,
             'pass'=>'Pass',

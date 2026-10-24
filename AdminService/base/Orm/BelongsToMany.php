@@ -164,12 +164,18 @@ class BelongsToMany extends Relation {
         $model=new ($this->modelClass)();
         $model->fill($data);
         $this->saveRelated($model);
-        $this->db->query(
+        $result=$this->db->query(
             Query::insert(array(
                 $this->foreignPivotKey=>$parentKey,
                 $this->relatedPivotKey=>$model->getAttribute($this->relatedKey),
             ))->from($this->pivotTable)
         );
+        if(!$result->isSuccess())
+            throw new OrmException('Related pivot create failed.',100734,array(
+                'model'=>$this->modelClass,
+                'pivot_table'=>$this->pivotTable,
+                'error'=>$result->getError()
+            ));
         return $model;
     }
 

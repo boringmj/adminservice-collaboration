@@ -676,4 +676,22 @@ class RelationTest extends TestCase {
         $user->roles()->create(array('name'=>'staff','status'=>1));
     }
 
+    /**
+     * belongsToMany create 中间表写入失败必须抛异常
+     * @return void
+     */
+    public function testBelongsToManyCreateThrowsWhenPivotInsertFails(): void {
+        $this->pdo->affectedRows=1;
+        $this->pdo->errorOnExecution=2;
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        try {
+            $user->roles()->create(array('name'=>'staff','status'=>1));
+            $this->fail('Expected OrmException.');
+        } catch(OrmException $e) {
+            $this->assertSame(100734,$e->getCode());
+        }
+        // 相关模型已插入，中间表失败不应被吞掉
+        $this->assertCount(1,$this->pdo->executed);
+    }
+
 }

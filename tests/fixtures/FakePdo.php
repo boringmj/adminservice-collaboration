@@ -43,6 +43,18 @@ final class FakePdo extends PDO {
     public ?string $error=null;
 
     /**
+     * 第 N 次执行语句时抛错(从 1 开始计数), null 表示不启用
+     * @var int|null
+     */
+    public ?int $errorOnExecution=null;
+
+    /**
+     * 已执行语句计数
+     * @var int
+     */
+    public int $executionCount=0;
+
+    /**
      * 已执行的 SQL 列表
      * @var array
      */
@@ -116,8 +128,11 @@ final class FakePdo extends PDO {
             }
 
             public function execute(?array $params=null): bool {
+                $this->fake->executionCount++;
                 if($this->fake->error!==null)
                     throw new PDOException($this->fake->error);
+                if($this->fake->errorOnExecution!==null&&$this->fake->executionCount===$this->fake->errorOnExecution)
+                    throw new PDOException('Simulated execution failure.');
                 $this->fake->executed[]=$this->query;
                 // 跨语句合并绑定参数: 位置参数每条语句都从 1 开始,
                 // 用递增键合并, 避免后执行的语句覆盖/丢弃先前语句的参数

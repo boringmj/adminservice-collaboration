@@ -338,42 +338,53 @@ final class View extends BaseView {
         $patterns=[
             // 不转义标签：{{{var}}} 或 {{!var}}
             '/\{\{\{\s*(\$?[\w\.\[\]\'"]+)\s*\}\}\}/'=>function($matches) {
-                $varPath=ltrim($matches[1],'$');
-                $value=$this->getDataByPath($varPath);
-                if(is_scalar($value)) {
-                    return (string)$value;
-                } elseif(is_array($value)||is_object($value)) {
-                    return json_encode($value,JSON_UNESCAPED_UNICODE);
-                }
-                return '';
+                return $this->renderValue(
+                    $this->getDataByPath(ltrim($matches[1],'$')),
+                    false
+                );
             },
             '/\{\{!\s*(\$?[\w\.\[\]\'"]+)\s*\}\}/'=>function($matches) {
-                $varPath=ltrim($matches[1],'$');
-                $value=$this->getDataByPath($varPath);
-                if(is_scalar($value)) {
-                    return (string)$value;
-                } elseif(is_array($value)||is_object($value)) {
-                    return json_encode($value,JSON_UNESCAPED_UNICODE);
-                }
-                return '';
+                return $this->renderValue(
+                    $this->getDataByPath(ltrim($matches[1],'$')),
+                    false
+                );
             },
             // 普通变量标签：{{var}}(默认转义)
             '/\{\{\s*(\$?[\w\.\[\]\'"]+)\s*\}\}/'=>function($matches) {
-                $varPath=ltrim($matches[1],'$');
-                $value=$this->getDataByPath($varPath);
-                if(is_scalar($value)) {
-                    if(is_string($value))
-                        $value=htmlspecialchars($value,ENT_QUOTES,'UTF-8');
-                    return $value;
-                } elseif(is_array($value)||is_object($value)) {
-                    return json_encode($value,JSON_UNESCAPED_UNICODE);
-                }
-                return '';
+                return $this->renderValue(
+                    $this->getDataByPath(ltrim($matches[1],'$')),
+                    true
+                );
             }
         ];
         foreach($patterns as $pattern=>$callback) {
             $this->template_content=preg_replace_callback($pattern,$callback,$this->template_content);
         }
+    }
+
+    /**
+     * 将变量值渲染为模板文本
+     *
+     * - 标量按原逻辑输出
+     * - 数组/对象先 JSON 编码；默认标签再对 JSON 整体做 HTML 转义
+     *
+     * @access protected
+     * @param mixed $value 变量值
+     * @param bool $escape 是否转义 HTML
+     * @return string
+     */
+    protected function renderValue(mixed $value,bool $escape): string {
+        if(is_scalar($value)) {
+            if($escape&&is_string($value))
+                $value=htmlspecialchars($value,ENT_QUOTES,'UTF-8');
+            return (string)$value;
+        }
+        if(!is_array($value)&&!is_object($value))
+            return '';
+        $json=json_encode($value,JSON_UNESCAPED_UNICODE);
+        if($json===false)
+            return '';
+        return $escape?htmlspecialchars($json,ENT_QUOTES,'UTF-8'):$json;
     }
 
     /**
@@ -636,6 +647,6 @@ final class View extends BaseView {
      * @return bool
      */
     protected function containsVariables(): bool {
-        return preg_match('/\{\{\s*(\$?[\w\.\[\]\'"]+)\s*\}\}/',$this->template_content);
+        return preg_match('/\{\{\{?\s*!?\s*(\$?[\w\.\[\]\'"]+)\s*\}?\}\}/',$this->template_content);
     }
 }

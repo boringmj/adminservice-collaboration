@@ -4,6 +4,7 @@ namespace AdminService;
 
 use base\SceneValidator;
 
+use function array_map;
 use function count;
 use function explode;
 use function filter_var;
@@ -196,7 +197,11 @@ class FormValidator extends SceneValidator {
         ];
         // 特殊处理between规则
         if(in_array($rule,['between','not_between'])&&$param!==null) {
-            list($context['min'],$context['max'])=explode(',',$param);
+            $range=explode(',',(string)$param);
+            if(count($range)===2) {
+                $context['min']=trim($range[0]);
+                $context['max']=trim($range[1]);
+            }
         }
         $message=$this->replacePlaceholders($template,$context);
         $this->error($field,[
@@ -353,7 +358,7 @@ class FormValidator extends SceneValidator {
     }
 
     protected function validateInteger(string $field, mixed $value, mixed $_): bool {
-        if(!filter_var($value,FILTER_VALIDATE_INT)) {
+        if(filter_var($value,FILTER_VALIDATE_INT)===false) {
             return $this->addError($field,'integer');
         }
         return true;
@@ -367,23 +372,23 @@ class FormValidator extends SceneValidator {
     }
 
     protected function validateRegex(string $field, mixed $value, mixed $param): bool {
-        if(!preg_match($param,(string)$value)) {
+        if(!is_string($param)||$param===''||@preg_match($param,(string)$value)!==1) {
             return $this->addError($field,'regex',$param);
         }
         return true;
     }
 
     protected function validateIn(string $field, mixed $value, mixed $param): bool {
-        $options=explode(',',$param);
-        if(!in_array($value,$options)) {
+        $options=array_map('trim',explode(',',(string)$param));
+        if(is_bool($value)||!in_array((string)$value,$options,true)) {
             return $this->addError($field,'in',$param);
         }
         return true;
     }
 
     protected function validateNotIn(string $field, mixed $value, mixed $param): bool {
-        $options=explode(',',$param);
-        if(in_array($value,$options)) {
+        $options=array_map('trim',explode(',',(string)$param));
+        if(is_bool($value)||in_array((string)$value,$options,true)) {
             return $this->addError($field,'not_in',$param);
         }
         return true;
@@ -430,8 +435,33 @@ class FormValidator extends SceneValidator {
         return true;
     }
 
+    /**
+     * 解析 between / not_between 的区间参数
+     *
+     * @param mixed $param 规则参数
+     * @return array{0:string,1:string}|null 解析失败返回 null
+     */
+    protected function parseRange(mixed $param): ?array {
+        if(!is_string($param)||$param==='')
+            return null;
+        $parts=explode(',',$param);
+        if(count($parts)!==2)
+            return null;
+        $min=trim($parts[0]);
+        $max=trim($parts[1]);
+        if($min===''||$max===''||!is_numeric($min)||!is_numeric($max))
+            return null;
+        if((float)$min>(float)$max)
+            return null;
+        return array($min,$max);
+    }
+
     protected function validateBetween(string $field, mixed $value, mixed $param): bool {
-        list($min,$max)=explode(',',$param);
+        $range=$this->parseRange($param);
+        if($range===null) {
+            return $this->addError($field,'between',$param,'{field} 的区间参数无效');
+        }
+        list($min,$max)=$range;
         if(is_numeric($value)) {
             if($value<$min||$value>$max) {
                 return $this->addError($field,'between',$param);
@@ -446,7 +476,11 @@ class FormValidator extends SceneValidator {
     }
 
     protected function validateNotBetween(string $field, mixed $value, mixed $param): bool {
-        list($min,$max)=explode(',',$param);
+        $range=$this->parseRange($param);
+        if($range===null) {
+            return $this->addError($field,'not_between',$param,'{field} 的区间参数无效');
+        }
+        list($min,$max)=$range;
         if(is_numeric($value)) {
             if($value>=$min&&$value<=$max) {
                 return $this->addError($field,'not_between',$param);

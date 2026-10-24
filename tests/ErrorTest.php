@@ -15,9 +15,12 @@ use function is_file;
 use function is_resource;
 use function proc_close;
 use function proc_open;
+use function restore_error_handler;
+use function set_error_handler;
 use function stream_get_contents;
 use function sys_get_temp_dir;
 use function tempnam;
+use function trigger_error;
 use function unlink;
 
 /**
@@ -43,6 +46,38 @@ class ErrorTest extends TestCase {
     protected function tearDown(): void {
         self::setErrors(array());
         Error::setContainer(null);
+    }
+
+    /**
+     * @ 抑制的警告不应进入错误收集
+     * @return void
+     */
+    public function testAtSuppressedWarningIsNotCollected(): void {
+        self::setErrors(array());
+        set_error_handler(array(Error::class,'handleError'),E_ALL);
+        try {
+            @trigger_error('suppressed warning',E_USER_WARNING);
+        } finally {
+            restore_error_handler();
+        }
+        $this->assertSame(array(),Error::getErrors());
+    }
+
+    /**
+     * 普通警告仍应被错误处理器收集
+     * @return void
+     */
+    public function testNormalWarningIsCollected(): void {
+        self::setErrors(array());
+        set_error_handler(array(Error::class,'handleError'),E_ALL);
+        try {
+            trigger_error('normal warning',E_USER_WARNING);
+        } finally {
+            restore_error_handler();
+        }
+        $errors=Error::getErrors();
+        $this->assertCount(1,$errors);
+        $this->assertSame('normal warning',$errors[0]['message']);
     }
 
     /**

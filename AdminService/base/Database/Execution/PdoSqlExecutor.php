@@ -4,13 +4,16 @@ namespace base\Database\Execution;
 
 use PDO;
 use PDOException;
+use PDOStatement;
 use base\Database\Result\AbstractCollection;
 use base\Database\Result\Result;
 use base\Database\Result\ResultInterface;
 use base\Database\Sql\Compiler\CompiledStatementInterface;
 
 use function count;
+use function is_int;
 use function preg_match;
+use function str_starts_with;
 use function strcasecmp;
 
 /**
@@ -50,13 +53,7 @@ final class PdoSqlExecutor implements SqlExecutorInterface {
         $params=$statement->getParams();
         try {
             $stmt=$this->connection->prepare($sql);
-            foreach($params as $i=>$value) {
-                // null 值必须用 PARAM_NULL 绑定, 否则原生预处理下会变成空字符串
-                if($value===null)
-                    $stmt->bindValue($i+1,null,PDO::PARAM_NULL);
-                else
-                    $stmt->bindValue($i+1,$value);
-            }
+            $this->bindParameters($stmt,$params);
             $stmt->execute();
             // 以结果集列数判断是否返回数据(比文本前缀准确, 覆盖 CTE 等场景)
             if($stmt->columnCount()>0) {
@@ -73,6 +70,42 @@ final class PdoSqlExecutor implements SqlExecutorInterface {
             return new Result(true,$sql,$params,new AbstractCollection(),'',$affected,$lastInsertId);
         } catch(PDOException $e) {
             return new Result(false,$sql,$params,new AbstractCollection(),$e->getMessage(),0);
+        }
+    }
+
+    /**
+     * 绑定查询参数
+     *
+     * - 位置参数统一转成 1-based
+     * - 命名参数支持 `:name` 和 `name` 两种键
+     * - 不把命名参数和位置参数混在一起绑定, 避免 PDO 静默解析成错误值
+     *
+     * @access private
+     * @param PDOStatement $stmt 预处理语句
+     * @param array<mixed> $params 参数
+     * @return void
+     * @throws PDOException 命名参数与位置参数混用
+     */
+    private function bindParameters(PDOStatement $stmt,array $params): void {
+        $hasNamed=false;
+        $hasPositional=false;
+        foreach($params as $key=>$value) {
+            if(is_int($key))
+                $hasPositional=true;
+            else
+                $hasNamed=true;
+        }
+        if($hasNamed&&$hasPositional)
+            throw new PDOException('Cannot mix named and positional parameters.');
+        foreach($params as $key=>$value) {
+            $param=is_int($key)
+                ? $key+1
+                : (str_starts_with($key,':')?$key:':'.$key);
+            // null 值必须用 PARAM_NULL 绑定, 否则原生预处理下会变成空字符串
+            if($value===null)
+                $stmt->bindValue($param,null,PDO::PARAM_NULL);
+            else
+                $stmt->bindValue($param,$value);
         }
     }
 

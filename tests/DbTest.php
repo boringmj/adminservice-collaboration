@@ -78,6 +78,23 @@ class DbTest extends TestCase {
     }
 
     /**
+     * 测试原生 SQL 使用命名占位符
+     * @return void
+     */
+    public function testRawSqlWithNamedParams(): void {
+        $pdo=new FakePdo();
+        $pdo->selectRows=array(array('id'=>1,'name'=>'a'));
+        $db=$this->createDb($pdo);
+        $result=$db->raw(
+            'SELECT * FROM users WHERE id = :id',
+            array(':id'=>1)
+        );
+        $this->assertTrue($result->isSuccess());
+        $this->assertSame('SELECT * FROM users WHERE id = :id',$pdo->executed[0]);
+        $this->assertSame(1,$pdo->bound[':id']);
+    }
+
+    /**
      * 测试事务作用域
      * @return void
      */

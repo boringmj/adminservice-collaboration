@@ -13,6 +13,7 @@ use AdminService\Router\Router;
 use AdminService\Router\RouterFactory;
 use ReflectionClass;
 use base\RouteContextInterface;
+use base\RoutingInterface;
 use ReflectionException;
 
 use function array_merge;
@@ -126,6 +127,7 @@ final class Route extends BaseRoute {
      * - 优先复用应用容器里的 `RouterFactory`; 独立使用 `Route`(没有应用容器)时退回局部提供器
      * - 同一配置对象只装配一次; 配置对象被替换时由 `RouterFactory` 重建
      * - 仍登记到当前请求容器, 供运行时(控制器/视图)反向生成 URL: App::get(Router::class)->url(...)
+     * - 同时以 `base\RoutingInterface` 暴露同一实例, 控制器只依赖契约
      *
      * @access private
      * @return Router
@@ -139,6 +141,7 @@ final class Route extends BaseRoute {
             : new RouterFactory();
         $this->router=$factory->get($this->config());
         App::instance(Router::class,$this->router);
+        App::instance(RoutingInterface::class,$this->router);
         return $this->router;
     }
 

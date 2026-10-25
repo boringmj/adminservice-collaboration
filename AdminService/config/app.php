@@ -15,6 +15,7 @@ use function AdminService\env;
 // app 相关配置
 return array(
     'debug'=>env('APP_DEBUG',false), // 是否开启调试模式
+    'timezone'=>env('APP_TIMEZONE','Asia/Shanghai'), // 默认时区(CLI/HTTP/测试统一)
     'param_cast'=>true, // 是否允许标量参数静默转换(对齐 PHP 弱类型,反射调用默认为严格类型,关闭后参数类型不匹配将抛出异常)
     'error_template'=>__DIR__.'/../view/error.html', // 错误页面模板路径
     'path'=>__DIR__.'/../app', // app 目录

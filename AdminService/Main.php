@@ -47,8 +47,6 @@ final class Main {
         // 判断PHP版本
         if(version_compare(PHP_VERSION,'8.1.0','<'))
             exit('无法兼容您的PHP版本('.PHP_VERSION.'),需要PHP8.1.0及以上版本');
-        // 调整环境(错误报告级别与显示由 Error::register() 统一接管)
-        date_default_timezone_set('Asia/Shanghai');
         // 注册错误处理(响应出口: 正常退出时按请求准备好响应再发送)
         // 关停阶段门面已收回应用级容器, 故这里直接向 Application 取请求级容器(框架内部不走门面)
         Error::register(function(): void {
@@ -60,6 +58,8 @@ final class Main {
         // 加载配置加载器 
         $loader=new Loader(__DIR__.'/config');
         $config=new Repository($loader->load(),env_snapshot());
+        // 时区由配置统一控制, 避免 CLI / HTTP / 测试环境各用一套
+        date_default_timezone_set((string)$config->get('app.timezone','Asia/Shanghai'));
         Config::setRepository($config);
         // 加载函数库
         $this->loadFunction($config);

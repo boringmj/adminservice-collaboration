@@ -20,7 +20,9 @@ use base\Database\Db as BaseDb;
  */
 function load_framework_config(): void {
     $loader=new Loader(dirname(__DIR__).'/AdminService/config');
-    Config::setRepository(new Repository($loader->load(),\AdminService\env_snapshot()));
+    $config=new Repository($loader->load(),\AdminService\env_snapshot());
+    date_default_timezone_set((string)$config->get('app.timezone','Asia/Shanghai'));
+    Config::setRepository($config);
 }
 
 /**

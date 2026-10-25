@@ -192,6 +192,27 @@ abstract class Controller {
     }
 
     /**
+     * 根据路由名生成 URL
+     *
+     * - 通过容器中的路由契约取实现, 控制器不依赖具体 Router 类
+     * - 未分发或容器未注入路由契约时抛出明确异常
+     *
+     * @access protected
+     * @param string $name 路由名
+     * @param array<string,mixed> $params 路径参数
+     * @return string
+     * @throws DependencyException|\Exception
+     */
+    final protected function url(string $name,array $params=array()): string {
+        if($this->container===null||!$this->container->hasInstance(RoutingInterface::class))
+            throw new DependencyException('无法生成 URL: 未注入路由契约(请让容器构建控制器并完成路由分发)');
+        $routing=$this->container->get(RoutingInterface::class);
+        if(!$routing instanceof RoutingInterface)
+            throw new DependencyException('无法生成 URL: 路由契约实现无效');
+        return $routing->url($name,$params);
+    }
+
+    /**
      * 设置返回内容为html
      * 
      * @access protected

@@ -95,7 +95,7 @@ class Index extends Controller {
             'pass'=>'Pass',
             'int'=>6,
         ])) {
-            return json($name);
+            return json(array('name'=>$name));
         }
         return json($validator->getErrors(false,true));
     }

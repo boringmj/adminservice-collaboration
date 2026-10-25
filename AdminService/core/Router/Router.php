@@ -4,6 +4,7 @@ namespace AdminService\Router;
 
 use base\Attribute\Route;
 use base\Attribute\RouteGroup;
+use base\RoutingInterface;
 use AdminService\Exception;
 use AdminService\Pipeline;
 use ReflectionClass;
@@ -34,7 +35,7 @@ use function usort;
  * - 匹配先静态路径后含参路径, 避免动态路由抢先命中
  * - 匹配与生成均不修改注册表, 同一实例可在多请求间复用
  */
-final class Router {
+final class Router implements RoutingInterface {
 
     /**
      * 已注册路由
@@ -482,6 +483,18 @@ final class Router {
                 'name'=>$name
             ));
         return $index[$name]->buildUri($params);
+    }
+
+    /**
+     * 判断路由名是否已注册
+     *
+     * @access public
+     * @param string $name 路由名
+     * @return bool
+     * @throws Exception 路由名重复
+     */
+    public function has(string $name): bool {
+        return isset($this->nameIndex()[$name]);
     }
 
     /**

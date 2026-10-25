@@ -7,6 +7,7 @@ use PHPUnit\Framework\TestCase;
 use base\Request;
 use base\Response;
 use base\RouteContextInterface;
+use base\RoutingInterface;
 use AdminService\App;
 use AdminService\Config;
 use AdminService\HttpRequest;
@@ -563,6 +564,25 @@ PHP
     }
 
     /**
+     * 测试 demo 校验器的 JSON 响应
+     *
+     * - `json()` 是"响应类型标记", 返回原始数据; 控制器声明 `: array` 时必须返回数组
+     *
+     * @return void
+     */
+    public function testDemoValidatorReturnsJsonObject(): void {
+        // 固定走成功分支: 真实规则中 pass 与 name 的约束互斥, 路由层无法构造成功输入
+        $validator=new class extends \app\demo\validator\Test {
+            public function validate(array $data=[],array $rules=[]): bool {
+                return true;
+            }
+        };
+        /** @var \app\demo\controller\Index $controller */
+        $controller=App::make(\app\demo\controller\Index::class);
+        $this->assertSame(array('name'=>'foo'),$controller->validator($validator,'foo'));
+    }
+
+    /**
      * 测试运行时用路由名反向生成 URL
      *
      * - 路由名注册进容器, 控制器/视图中经 App::get(Router::class) 取用
@@ -572,6 +592,7 @@ PHP
     public function testUrlGenerationAtRuntime(): void {
         $this->dispatch('/index');
         $router=$this->main()->application()->requestContainer()->get(Router::class);
+        $this->assertSame($router,$this->main()->application()->requestContainer()->get(RoutingInterface::class));
         $this->assertSame('/index',$router->url('index.index'));
         $this->assertSame('/index/world',$router->url('index.index',array('name'=>'world')));
     }

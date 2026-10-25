@@ -26,7 +26,9 @@ use function is_float;
 use function is_int;
 use function is_numeric;
 use function is_string;
+use function preg_match;
 use function str_replace;
+use function trim;
 
 /**
  * 参数解析器
@@ -302,10 +304,16 @@ final class ArgumentResolver implements ArgumentResolverInterface {
             return $value;
         // $types 为 getStandardTypes() 标准化后的 gettype() 风格(integer/double/boolean)
         if(is_string($value)) {
-            if(in_array('integer',$types,true)&&is_numeric($value))
-                return (int)$value;
-            if(in_array('double',$types,true)&&is_numeric($value))
-                return (float)$value;
+            if(is_numeric($value)) {
+                $hasInt=in_array('integer',$types,true);
+                $hasFloat=in_array('double',$types,true);
+                if($hasInt&&$hasFloat)
+                    return preg_match('/^[+-]?\d+$/',trim($value))===1?(int)$value:(float)$value;
+                if($hasInt)
+                    return (int)$value;
+                if($hasFloat)
+                    return (float)$value;
+            }
             if(in_array('boolean',$types,true))
                 return (bool)$value;
         }

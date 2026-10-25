@@ -46,6 +46,10 @@ final class ParamCastTarget {
         return $x;
     }
 
+    public function unionIntFloat(int|float $x): int|float {
+        return $x;
+    }
+
     public function takeService(ServiceInterface $service): ServiceInterface {
         return $service;
     }
@@ -122,6 +126,27 @@ class ParamCastTest extends TestCase {
     public function testDigitStringToIntPositional(): void {
         $target=new ParamCastTarget();
         $this->assertSame(2, App::exec_class_function($target,'toInt',array(0=>'2')));
+    }
+
+    /**
+     * 测试 int|float 联合类型优先保持 PHP 弱类型语义
+     *
+     * - 整数字符串应转 int
+     * - 小数字符串应转 float, 不能被先命中的 int 分支截断
+     *
+     * @return void
+     */
+    public function testNumericStringToIntFloatUnion(): void {
+        $target=new ParamCastTarget();
+        $this->assertSame(1.5,App::exec_class_function($target,'unionIntFloat',array(
+            'x'=>'1.5'
+        )));
+        $this->assertSame(1,App::exec_class_function($target,'unionIntFloat',array(
+            'x'=>'1'
+        )));
+        $this->assertSame(1000.0,App::exec_class_function($target,'unionIntFloat',array(
+            'x'=>'1e3'
+        )));
     }
 
     /**

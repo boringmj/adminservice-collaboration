@@ -19,7 +19,7 @@ use function range;
  *
  * - 通过中间表关联两个模型
  * - 例: User belongsToMany Role (role_user 中间表, user_id/role_id)
- * - 因 DBAL 暂不支持关联限定通配/子查询, 采用两步查询: 中间表取关联键 → 相关表 IN 查询
+ * - DBAL 不支持关联限定与子查询, 关联键分两步查: 中间表取键 → 相关表 IN 查询
  */
 class BelongsToMany extends Relation {
 

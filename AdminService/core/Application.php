@@ -185,6 +185,8 @@ final class Application {
         // 请求级 scope: 实例与全局数据独立, 绑定/别名/单例与反射缓存共享
         $container=$this->container->fork();
         $this->request_container=$container;
+        // 错误出口需要当前请求的 Response; 在请求开始时同步给错误处理器
+        Error::setRequestContainer($container);
         // 请求开始时把 `Config::repository()` 当前返回的配置登记进请求容器(按实现类名, 与 `Application::init()` 一致):
         // 应用级容器里登记的可能已经被 `Config::setRepository()/set()` 换成新的了, 只靠父容器会让请求内的组件读到旧配置
         $repository=$this->config();

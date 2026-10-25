@@ -11,6 +11,7 @@ use base\Database\Result\ResultInterface;
 use base\Database\Sql\Compiler\CompiledStatementInterface;
 
 use function count;
+use function is_bool;
 use function is_int;
 use function preg_match;
 use function str_starts_with;
@@ -101,8 +102,11 @@ final class PdoSqlExecutor implements SqlExecutorInterface {
             $param=is_int($key)
                 ? $key+1
                 : (str_starts_with($key,':')?$key:':'.$key);
-            // null 值必须用 PARAM_NULL 绑定, 否则原生预处理下会变成空字符串
-            if($value===null)
+            // 布尔值用 PARAM_BOOL 绑定: 否则按字符串处理, false 会变成空字符串
+            // null 值用 PARAM_NULL 绑定: 原生预处理下 null 会变成空字符串
+            if(is_bool($value))
+                $stmt->bindValue($param,$value,PDO::PARAM_BOOL);
+            elseif($value===null)
                 $stmt->bindValue($param,null,PDO::PARAM_NULL);
             else
                 $stmt->bindValue($param,$value);

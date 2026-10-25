@@ -97,6 +97,22 @@ class DbalExecutorTest extends TestCase {
     }
 
     /**
+     * 测试布尔值按 PARAM_BOOL 类型绑定
+     */
+    public function testBoolParamBoundAsBoolType(): void {
+        foreach(array(
+            array('SELECT ? AS v',array(true),1),
+            array('SELECT :v AS v',array(':v'=>false),':v'),
+        ) as $case) {
+            $pdo=new FakePdo();
+            $executor=new PdoSqlExecutor($pdo);
+            $result=$executor->execute(new CompiledStatement($case[0],$case[1]));
+            $this->assertTrue($result->isSuccess());
+            $this->assertSame(PDO::PARAM_BOOL,$pdo->boundTypes[$case[2]]);
+        }
+    }
+
+    /**
      * 测试 null 值以 PARAM_NULL 类型绑定
      * @return void
      */

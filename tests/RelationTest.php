@@ -694,4 +694,87 @@ class RelationTest extends TestCase {
         $this->assertCount(1,$this->pdo->executed);
     }
 
+    /**
+     * belongsToMany attach 中间表写入失败必须抛异常
+     * @return void
+     */
+    public function testBelongsToManyAttachThrowsWhenPivotInsertFails(): void {
+        $this->pdo->errorOnExecution=1;
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $this->expectException(OrmException::class);
+        $this->expectExceptionCode(100735);
+        $user->roles()->attach(array(1,2));
+    }
+
+    /**
+     * belongsToMany detach 删除失败必须抛异常, 不能返回 0 冒充成功
+     * @return void
+     */
+    public function testBelongsToManyDetachThrowsWhenPivotDeleteFails(): void {
+        $this->pdo->errorOnExecution=1;
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $this->expectException(OrmException::class);
+        $this->expectExceptionCode(100736);
+        $user->roles()->detach(array(1));
+    }
+
+    /**
+     * belongsToMany sync 读取当前关联失败必须抛异常
+     *
+     * - 不能把读取失败当成空集合, 否则会把目标集合全部重复插入
+     *
+     * @return void
+     */
+    public function testBelongsToManySyncThrowsWhenPivotReadFails(): void {
+        $this->pdo->errorOnExecution=1;
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $this->expectException(OrmException::class);
+        $this->expectExceptionCode(100737);
+        $user->roles()->sync(array(1,2));
+    }
+
+    /**
+     * belongsToMany sync 删除多余关联失败必须抛异常
+     * @return void
+     */
+    public function testBelongsToManySyncThrowsWhenPivotDeleteFails(): void {
+        $this->pdo->selectRowsQueue=array(
+            array(array('role_id'=>1)),
+        );
+        $this->pdo->errorOnExecution=2;
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $this->expectException(OrmException::class);
+        $this->expectExceptionCode(100738);
+        $user->roles()->sync(array(2,3));
+    }
+
+    /**
+     * belongsToMany sync 插入缺失关联失败必须抛异常
+     * @return void
+     */
+    public function testBelongsToManySyncThrowsWhenPivotInsertFails(): void {
+        $this->pdo->selectRowsQueue=array(
+            array(array('role_id'=>1)),
+        );
+        $this->pdo->errorOnExecution=2;
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $this->expectException(OrmException::class);
+        $this->expectExceptionCode(100739);
+        $user->roles()->sync(array(1,2));
+    }
+
+    /**
+     * belongsToMany 预加载读取中间表失败必须抛异常
+     * @return void
+     */
+    public function testBelongsToManyEagerLoadThrowsWhenPivotReadFails(): void {
+        $this->pdo->selectRowsQueue=array(
+            array(array('id'=>1,'name'=>'a','age'=>1,'status'=>1)),
+        );
+        $this->pdo->errorOnExecution=2;
+        $this->expectException(OrmException::class);
+        $this->expectExceptionCode(100740);
+        User::query()->with('roles')->get();
+    }
+
 }

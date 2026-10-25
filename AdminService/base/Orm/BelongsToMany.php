@@ -240,7 +240,7 @@ class BelongsToMany extends Relation {
      * @access public
      * @param mixed $ids 相关模型主键(或 [主键=>附加字段] 映射)
      * @return void
-     * @throws OrmException 父模型未持久化
+     * @throws OrmException 父模型未持久化或中间表写入失败
      */
     public function attach(mixed $ids): void {
         $parentKey=$this->parent->getAttribute($this->parentKey);
@@ -249,9 +249,14 @@ class BelongsToMany extends Relation {
         $rows=$this->buildPivotRows($parentKey,$ids);
         if(empty($rows))
             return;
-        $this->db->query(
+        $result=$this->db->query(
             Query::insert($this->padPivotRows($rows))->from($this->pivotTable)
         );
+        if(!$result->isSuccess())
+            throw new OrmException('Related pivot attach failed.',100735,array(
+                'pivot_table'=>$this->pivotTable,
+                'error'=>$result->getError()
+            ));
     }
 
     /**
@@ -263,7 +268,7 @@ class BelongsToMany extends Relation {
      * @access public
      * @param mixed $ids 相关模型主键(或主键数组), 为空则全部
      * @return int 受影响行数
-     * @throws OrmException 父模型未持久化
+     * @throws OrmException 父模型未持久化或中间表删除失败
      */
     public function detach(mixed $ids=null): int {
         $parentKey=$this->parent->getAttribute($this->parentKey);
@@ -274,7 +279,13 @@ class BelongsToMany extends Relation {
             $ids=is_array($ids)?$ids:array($ids);
             $query->whereIn($this->relatedPivotKey,array_values($ids));
         }
-        return $this->db->query($query)->getAffectedRows();
+        $result=$this->db->query($query);
+        if(!$result->isSuccess())
+            throw new OrmException('Related pivot detach failed.',100736,array(
+                'pivot_table'=>$this->pivotTable,
+                'error'=>$result->getError()
+            ));
+        return $result->getAffectedRows();
     }
 
     /**
@@ -288,7 +299,7 @@ class BelongsToMany extends Relation {
      * @param mixed $ids 目标相关主键(或 [主键=>附加字段] 映射)
      * @param bool $detaching 是否删除不在目标集合中的已有关联
      * @return array 同步后的相关主键列表
-     * @throws OrmException 父模型未持久化
+     * @throws OrmException 父模型未持久化或中间表读取/删除/插入失败
      */
     public function sync(mixed $ids,bool $detaching=true): array {
         $parentKey=$this->parent->getAttribute($this->parentKey);
@@ -313,11 +324,16 @@ class BelongsToMany extends Relation {
                 $toDetach[]=$id;
         }
         if($detaching&&!empty($toDetach)) {
-            $this->db->query(
+            $result=$this->db->query(
                 Query::delete()->from($this->pivotTable)
                     ->where($this->foreignPivotKey,$parentKey)
                     ->whereIn($this->relatedPivotKey,$toDetach)
             );
+            if(!$result->isSuccess())
+                throw new OrmException('Related pivot sync delete failed.',100738,array(
+                    'pivot_table'=>$this->pivotTable,
+                    'error'=>$result->getError()
+                ));
         }
         // 待插入: 目标有但当前无
         $toAttach=array();
@@ -325,8 +341,14 @@ class BelongsToMany extends Relation {
             if(!isset($currentSet[(string)$row[$this->relatedPivotKey]]))
                 $toAttach[]=$row;
         }
-        if(!empty($toAttach))
-            $this->db->query(Query::insert($this->padPivotRows($toAttach))->from($this->pivotTable));
+        if(!empty($toAttach)) {
+            $result=$this->db->query(Query::insert($this->padPivotRows($toAttach))->from($this->pivotTable));
+            if(!$result->isSuccess())
+                throw new OrmException('Related pivot sync insert failed.',100739,array(
+                    'pivot_table'=>$this->pivotTable,
+                    'error'=>$result->getError()
+                ));
+        }
         // 按输入顺序返回同步后的主键(保持原始类型)
         return array_values($targetOrder);
     }
@@ -469,6 +491,11 @@ class BelongsToMany extends Relation {
                 ->field($this->relatedPivotKey)
                 ->where($this->foreignPivotKey,$parentKey)
         );
+        if(!$result->isSuccess())
+            throw new OrmException('Related pivot read failed.',100737,array(
+                'pivot_table'=>$this->pivotTable,
+                'error'=>$result->getError()
+            ));
         $keys=array();
         foreach($result->getResults() as $row)
             $keys[]=$row[$this->relatedPivotKey];
@@ -489,6 +516,11 @@ class BelongsToMany extends Relation {
                 ->field(array($this->foreignPivotKey,$this->relatedPivotKey))
                 ->whereIn($this->foreignPivotKey,$parentKeys)
         );
+        if(!$result->isSuccess())
+            throw new OrmException('Related pivot read failed.',100740,array(
+                'pivot_table'=>$this->pivotTable,
+                'error'=>$result->getError()
+            ));
         return $result->getResults()->toArray();
     }
 

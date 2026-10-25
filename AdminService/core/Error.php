@@ -20,6 +20,7 @@ use function get_class;
 use function htmlspecialchars;
 use function implode;
 use function in_array;
+use function ini_set;
 use function is_array;
 use function is_bool;
 use function is_callable;
@@ -181,7 +182,10 @@ final class Error extends BaseError {
 
     /**
      * 注册错误处理器
-     * 
+     *
+     * - 将 `error_reporting` 设为 `E_ALL` 并关闭原生错误显示;
+     *   `@` 抑制仍由 `handleError()` 通过当前错误级别判断
+     *
      * @access public
      * @param callable $normalExitCallback 正常退出时的回调函数
      * @param bool $initialized 标记框架是否初始化完成
@@ -191,6 +195,10 @@ final class Error extends BaseError {
         // 如果已经处理过错误，则不再注册
         if(self::$handled)
             return;
+        // 自定义处理器需要收到所有未被 @ 抑制的错误:
+        // error_reporting 保持 E_ALL, 原生显示关闭, 由错误页统一决定是否输出
+        error_reporting(E_ALL);
+        ini_set('display_errors','0');
         self::$initialized=$initialized;
         self::$normalExitCallback=$normalExitCallback;
         // 注册错误处理器(非致命错误)

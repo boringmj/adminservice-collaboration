@@ -354,13 +354,13 @@ final class Router implements RoutingInterface {
             $group_middlewares=array();
             foreach($reflection->getAttributes(RouteGroup::class) as $attribute) {
                 $group=$attribute->newInstance();
-                $prefix.=$group->getPrefix();
+                $prefix=self::joinPath($prefix,$group->getPrefix());
                 $group_middlewares=array_merge($group_middlewares,$group->getMiddlewares());
             }
             foreach($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
                 foreach($method->getAttributes(Route::class) as $attribute) {
                     $route=$attribute->newInstance();
-                    $item=$this->add(array($route->getMethod()),$prefix.$route->getPath(),array($class,$method->getName()));
+                    $item=$this->add(array($route->getMethod()),self::joinPath($prefix,$route->getPath()),array($class,$method->getName()));
                     // 类级 #[RouteGroup] 的中间件归入分组层, 路由层只放 #[Route] 声明的
                     if($group_middlewares!==array())
                         $item->groupMiddleware($group_middlewares);

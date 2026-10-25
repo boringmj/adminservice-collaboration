@@ -79,7 +79,7 @@ final class Error extends BaseError {
      * 框架容器(引导期由 `Main::init()` 一次性注入)
      *
      * - 错误 / 异常路径**不再经静态门面**, 只在引导期拿一次容器引用
-     * - 为 `null` 时(引导尚未完成或容器不可用)走**不依赖容器的兜底路径**:
+     * - 为 `null` 时(引导尚未完成或容器不可用)走**不依赖容器的错误出口**:
      *   内置最小错误页 + `error_log()` 直写, 从而避免"错误处理要容器、容器出错又要错误处理"的死循环
      *
      * @var ContainerContract|null
@@ -378,7 +378,7 @@ final class Error extends BaseError {
     }
 
     /**
-     * 兜底日志(容器不可用时直写 PHP 错误日志)
+     * 回落日志(容器不可用时直写 PHP 错误日志)
      *
      * @access private
      * @param string $logMessage 日志模板

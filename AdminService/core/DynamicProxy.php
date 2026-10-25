@@ -195,7 +195,7 @@ class DynamicProxy {
     }
 
     /**
-     * 获取目标类实例(主要是让ide能识别代理方法,但实际情况并不严谨,所以默认回返真实对象)
+     * 获取目标类实例(默认返回真实对象; `$return_proxy=true` 时返回代理)
      *
      * @access public
      * @param bool $return_proxy 是否返回代理对象 

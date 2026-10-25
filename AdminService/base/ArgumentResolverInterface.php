@@ -85,7 +85,7 @@ interface ArgumentResolverInterface {
      * @access public
      * @param ConfigAttribute $config 注解实例
      * @param array<string> $types 目标类型列表(gettype() 风格)
-     * @param mixed $fallback 兜底值
+     * @param mixed $fallback 默认值
      * @return mixed
      */
     public function configValue(ConfigAttribute $config,array $types=array(),mixed $fallback=null): mixed;

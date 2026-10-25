@@ -443,7 +443,7 @@ final class ArgumentResolver implements ArgumentResolverInterface {
      * @access public
      * @param Config $config 注解实例
      * @param array<string> $types 目标类型列表(gettype() 风格)
-     * @param mixed $fallback 兜底值(通常是形参默认值)
+     * @param mixed $fallback 默认值(通常是形参默认值)
      * @return mixed
      */
     public function configValue(Config $config,array $types=array(),mixed $fallback=null): mixed {

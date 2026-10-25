@@ -24,7 +24,7 @@ use function func_num_args;
  * - **不能与 `#[AutowireProperty]` / `#[AutowireSetter]` / `#[AutowireMethod]` 同挂一处**:
  *   前者是"注入配置值", 后者是"注入服务对象 / 生命周期钩子", 语义冲突, 同挂会抛 `AutowireException`;
  *   `#[AutowireSetter]` **方法的形参上**标 `#[Config]` 也会报错(那条路径按类型注入服务对象, 不会应用它)
- * - 键缺失时的兜底顺序: 注解 `default:` > **目标自身的默认值**(属性默认值 / 形参默认值) > `null`;
+ * - 键缺失时的取值顺序: 注解 `default:` > **目标自身的默认值**(属性默认值 / 形参默认值) > `null`;
  *   取到 `null` 而目标类型不可空时会抛 `TypeError`, 请显式给 `default:` 或把类型写成可空
  *
  * @access public

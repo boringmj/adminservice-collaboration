@@ -598,7 +598,7 @@ class ModelQueryBuilder {
      * 校验批量写操作必须携带显式条件(防止全表更新/删除)
      *
      * - 必须放在 applySoftDeleteFilter 之前调用, 软删过滤是自动附加的内部条件,
-     *   不能替代用户显式 where, 否则 Post::query()->delete() 会被过滤条件"掩护"成全表操作
+     *   不能替代用户显式 where, 否则软删过滤会成为唯一条件, 批量删除会命中所有未软删记录
      * - 需要全表操作时请显式补条件(如 where('id','>',0))或使用底层 raw SQL
      *
      * @access private

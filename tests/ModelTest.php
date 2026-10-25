@@ -288,7 +288,7 @@ class ModelTest extends TestCase {
      * 测试软删除模型的批量删除仍需显式 where
      *
      * - 软删过滤是自动附加的内部条件, 不能替代用户显式 where
-     * - 否则 Post::query()->delete() 会被 "deleted_at IS NULL" 掩护成全表软删
+     * - 否则软删过滤会成为唯一条件, 批量删除会命中所有未软删记录
      *
      * @return void
      */

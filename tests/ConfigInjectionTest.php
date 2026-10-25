@@ -22,7 +22,7 @@ use ReflectionClass;
  * 配置项注入用例(`#[Config]`)
  *
  * - 覆盖三处 target: 属性 / Setter 方法 / 构造函数形参
- * - 覆盖点分键、注解默认值、形参默认值兜底、标量转换
+ * - 覆盖点分键、注解默认值、形参默认值、标量转换
  * - 覆盖边界: **未标注** `#[Config]` 的控制器形参不会拿到配置值; 显式标注的会注入
  */
 class ConfigInjectionTest extends TestCase {

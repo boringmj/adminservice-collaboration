@@ -168,7 +168,7 @@ class ComponentConfigTest extends TestCase {
      *
      * - 机制: 组件的构造参数按类型 `base\ConfigInterface` 解析 → 找到一个实现类 `Repository` →
      *   而 `Repository` 的构造参数是**必填**的, 于是构建失败
-     * - 这条是刻意的: 静默拿到"空配置"会让所有配置项都退回默认值, 是最难查的一类错
+     * - 静默拿到"空配置"会让所有配置项都退回默认值, 属于最难排查的一类错误
      *
      * @return void
      */

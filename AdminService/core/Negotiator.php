@@ -71,7 +71,7 @@ final class Negotiator {
     /**
      * 选出最优候选类型
      *
-     * - 含通配符的候选(如登记表里的全通配项)不参与选择: 它们是「无偏好」的兜底, 由调用方决定
+     * - 含通配符的候选(如登记表里的全通配项)不参与选择, 由调用方决定
      *
      * @access public
      * @param array<string,float> $accept 解析结果

@@ -409,6 +409,25 @@ abstract class Model {
     }
 
     /**
+     * 判断关系是否由父模型主键约束(hasMany / hasOne)
+     *
+     * @access private
+     * @param string $name 方法名
+     * @return bool
+     */
+    private function isOwnedRelation(string $name): bool {
+        try {
+            $type=(new ReflectionMethod($this,$name))->getReturnType();
+            if(!$type instanceof ReflectionNamedType)
+                return false;
+            $class=$type->getName();
+            return is_a($class,HasMany::class,true)||is_a($class,HasOne::class,true);
+        } catch(Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
      * 设置属性
      *
      * @access public
@@ -428,7 +447,17 @@ abstract class Model {
      * @return bool
      */
     public function __isset(string $name): bool {
-        return $this->__get($name)!==null;
+        if(array_key_exists($name,$this->relations))
+            return $this->relations[$name]!==null;
+        if(array_key_exists($name,$this->attributes))
+            return $this->attributes[$name]!==null;
+        if(method_exists($this,$name)&&$this->isRelationMethod($name)) {
+            // 未持久化的父模型没有 hasMany/hasOne 关联, 不能为了 isset 触发查询
+            if(!$this->exists()&&$this->isOwnedRelation($name))
+                return false;
+            return $this->__get($name)!==null;
+        }
+        return false;
     }
 
     /**

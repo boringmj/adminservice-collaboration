@@ -608,6 +608,20 @@ class RelationTest extends TestCase {
     }
 
     /**
+     * 测试未持久化父模型上的 hasMany/hasOne 关系 isset 不触发查询
+     *
+     * - 未保存主键的关系集合应为空, 不能抛 “parent is not persisted”
+     *
+     * @return void
+     */
+    public function testIssetOnUnpersistedOwnedRelationReturnsFalse(): void {
+        $user=new User();
+        $this->assertFalse(isset($user->posts));
+        $this->assertFalse(isset($user->profile));
+        $this->assertCount(0,$this->pdo->executed);
+    }
+
+    /**
      * 测试 sync 输入 int 主键、DB 返回字符串 id 时不重复插入
      * @return void
      */

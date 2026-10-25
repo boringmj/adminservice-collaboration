@@ -2,6 +2,7 @@
 
 namespace AdminService\ResponseProcessor;
 
+use AdminService\Exception;
 use base\AbstractResponseProcessor;
 
 use function is_array;
@@ -10,6 +11,7 @@ use function is_numeric;
 use function is_object;
 use function is_string;
 use function json_encode;
+use function json_last_error_msg;
 
 /**
  * HTTP响应处理器
@@ -29,7 +31,11 @@ class Http extends AbstractResponseProcessor {
         // 如果是数字型则转为字符串
         if(is_numeric($temp)) $temp=(string)$temp;
         // 如果是数组或对象则转为json字符串
-        if(is_array($temp)||is_object($temp)) $temp=json_encode($temp);
+        if(is_array($temp)||is_object($temp)) {
+            $temp=json_encode($temp);
+            if($temp===false)
+                throw new Exception('HTTP 响应序列化失败: '.json_last_error_msg());
+        }
         // 如果是字符串则直接返回
         if(is_string($temp)) {
             $this->getResponse()->rendered($temp);

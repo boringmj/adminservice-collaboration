@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 
 use AdminService\App;
 use AdminService\Config;
+use AdminService\Exception;
 use AdminService\HttpRequest;
 use AdminService\Response;
 use AdminService\ResponseProcessor\Json;
@@ -144,6 +145,21 @@ class ResponseTest extends TestCase {
         $response=new Response();
         $response->body('body');
         $this->assertSame('body',$response->render());
+    }
+
+    /**
+     * 测试 Http 处理器遇到不能 JSON 编码的数组时抛异常
+     *
+     * - 不能静默返回 200 空正文
+     *
+     * @return void
+     */
+    public function testHttpProcessorThrowsWhenJsonEncodeFails(): void {
+        $response=new Response();
+        $response->body(array('bad'=>"\xB1\x31"));
+        $response->prepare($this->request('GET','text/html'));
+        $this->expectException(Exception::class);
+        $response->render();
     }
 
     /**

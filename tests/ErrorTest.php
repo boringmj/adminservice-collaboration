@@ -40,12 +40,21 @@ class ErrorTest extends TestCase {
     }
 
     /**
+     * 每个用例前复位请求级容器, 避免其它用例的 Application::handle() 残留影响
+     * @return void
+     */
+    protected function setUp(): void {
+        Error::setRequestContainer(null);
+    }
+
+    /**
      * 每个用例后复位错误收集与容器引用, 避免影响其它用例
      * @return void
      */
     protected function tearDown(): void {
         self::setErrors(array());
         Error::setContainer(null);
+        Error::setRequestContainer(null);
     }
 
     /**
@@ -152,6 +161,25 @@ class ErrorTest extends TestCase {
         fclose($pipes[2]);
         $status=proc_close($process);
         return array($status,$stdout,$stderr);
+    }
+
+    /**
+     * 测试错误出口使用请求级响应
+     * @return void
+     */
+    public function testErrorOutletUsesRequestResponse(): void {
+        $marker=tempnam(sys_get_temp_dir(),'error_response_scope_');
+        try {
+            list($status,,$stderr)=$this->runFixture(
+                __DIR__.'/fixtures/error_response_scope.php',
+                array($marker)
+            );
+            $this->assertSame(0,$status,$stderr);
+            $this->assertSame("request\n",(string)file_get_contents($marker));
+        } finally {
+            if(is_file($marker))
+                unlink($marker);
+        }
     }
 
     /**

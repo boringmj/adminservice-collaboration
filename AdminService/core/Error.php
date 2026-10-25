@@ -86,6 +86,16 @@ final class Error extends BaseError {
     private static ?ContainerContract $container=null;
 
     /**
+     * 当前(最近一次)请求级容器
+     *
+     * - 由 `Application::handle()` 在请求开始时注入
+     * - 错误出口优先使用它, 保证取到的是当前请求的 `Response`, 而不是应用级容器里另建的响应
+     *
+     * @var ContainerContract|null
+     */
+    private static ?ContainerContract $request_container=null;
+
+    /**
      * 标记框架是否初始化完成(用于决定是否记录日志)
      * @var bool
      */
@@ -110,6 +120,29 @@ final class Error extends BaseError {
      */
     public static function container(): ?ContainerContract {
         return self::$container;
+    }
+
+    /**
+     * 注入当前请求级容器(请求开始时调用; 传 null 可卸载)
+     *
+     * @access public
+     * @param ContainerContract|null $container 请求级容器契约
+     * @return void
+     */
+    public static function setRequestContainer(?ContainerContract $container): void {
+        self::$request_container=$container;
+    }
+
+    /**
+     * 错误出口使用的容器
+     *
+     * - 优先当前请求级容器; 尚未处理过请求时回退应用级容器
+     *
+     * @access private
+     * @return ContainerContract|null
+     */
+    private static function responseContainer(): ?ContainerContract {
+        return self::$request_container??self::$container;
     }
 
     /**
@@ -290,9 +323,10 @@ final class Error extends BaseError {
         while(ob_get_level()>0) {
             ob_end_clean();
         }
-        // 输出错误信息
-        if(self::$initialized&&self::$container!==null) {
-            $response=self::$container->get(Response::class);
+        // 输出错误信息(优先当前请求的响应实例)
+        $container=self::responseContainer();
+        if(self::$initialized&&$container!==null) {
+            $response=$container->get(Response::class);
             $response->status(500);
             $response->html();
             $response->header('Is-Error','true');
@@ -317,10 +351,11 @@ final class Error extends BaseError {
                     'file'=>$error['file'],
                     'line'=>$error['line']
                 );
-                if(!self::$initialized||self::$container===null)
+                $container=self::responseContainer();
+                if(!self::$initialized||$container===null)
                     self::writeFallbackLog($logMessage,$context);
                 else
-                    self::$container->exec_class_function(Log::class,'write',array($logMessage,$context));
+                    $container->exec_class_function(Log::class,'write',array($logMessage,$context));
             }
         } catch(\Throwable $e) {
             echo "<br>日志记录失败: ".htmlspecialchars($e->getMessage());
@@ -412,9 +447,10 @@ final class Error extends BaseError {
             'debug_mode'=>$debug_mode,
             'output_content'=>null,
         ];
-        // 在调试模式下添加输出内容
-        if($debug_mode&&self::$initialized&&self::$container!==null) {
-            $response=self::$container->get(Response::class);
+        // 在调试模式下添加输出内容(优先当前请求的响应实例)
+        $container=self::responseContainer();
+        if($debug_mode&&self::$initialized&&$container!==null) {
+            $response=$container->get(Response::class);
             $response->render();
             $output_content=$response->rendered();
             if($output_content!==null&&$output_content!=='') {
@@ -424,7 +460,7 @@ final class Error extends BaseError {
         // 使用模板引擎渲染
         try {
             // 容器不可用(引导未完成/容器出错)时走内置最小错误页, 不依赖视图服务
-            $view=self::$container?->get(View::class);
+            $view=self::responseContainer()?->get(View::class);
             if($view===null)
                 return self::renderMinimalErrors($processed_errors);
             // 设置模板路径

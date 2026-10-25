@@ -13,7 +13,9 @@ use Tests\Fixtures\ServiceInterface;
 use AdminService\App;
 use AdminService\Application;
 use AdminService\Container;
+use AdminService\Error;
 use AdminService\RouteContext;
+use ReflectionProperty;
 
 /**
  * 生命周期分层(应用级 / 请求级 scope)用例
@@ -126,6 +128,23 @@ class ScopeTest extends TestCase {
         $this->assertSame($app_container,App::getInstance());
         // 响应出口在关停阶段经 Application 取请求级对象
         $this->assertNotSame($app_container,$application->requestContainer());
+    }
+
+    /**
+     * 测试 Application::handle() 把请求容器交给错误出口
+     * @return void
+     */
+    public function testHandlePointsErrorAtRequestContainer(): void {
+        $application=new Application();
+        try {
+            $application->handle(function() use ($application): void {
+                $property=new ReflectionProperty(Error::class,'request_container');
+                $property->setAccessible(true);
+                $this->assertSame($application->requestContainer(),$property->getValue());
+            });
+        } finally {
+            Error::setRequestContainer(null);
+        }
     }
 
     /**

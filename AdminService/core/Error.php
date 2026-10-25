@@ -331,19 +331,20 @@ final class Error extends BaseError {
         while(ob_get_level()>0) {
             ob_end_clean();
         }
-        // 输出错误信息(优先当前请求的响应实例)
+        // 准备错误信息(优先当前请求的响应实例)
         $container=self::responseContainer();
+        $response=null;
         if(self::$initialized&&$container!==null) {
             $response=$container->get(Response::class);
             $response->status(500);
             $response->html();
             $response->header('Is-Error','true');
-            $response->sendHeaders();
         }
-        echo self::renderErrors();
-        // 记录所有错误到日志
+        $errorPage=self::renderErrors();
+        // 记录所有错误到日志(先于正文输出: 客户端断开后仍应留下日志)
         // - 引导完成且容器可用: 走应用的 Log 服务
         // - 引导未完成 / 容器不可用: 直写 PHP 错误日志(不依赖容器, 也不依赖配置)
+        $logFailure=null;
         try {
             foreach(self::$errors as $error) {
                 $errorType=self::$errorTypes[$error['type']]??'Unknown';
@@ -366,8 +367,14 @@ final class Error extends BaseError {
                     $container->exec_class_function(Log::class,'write',array($logMessage,$context));
             }
         } catch(\Throwable $e) {
-            echo "<br>日志记录失败: ".htmlspecialchars($e->getMessage());
+            $logFailure=$e->getMessage();
         }
+        // 日志写完后统一发送响应头与正文
+        if($response!==null)
+            $response->sendHeaders();
+        echo $errorPage;
+        if($logFailure!==null)
+            echo "<br>日志记录失败: ".htmlspecialchars($logFailure);
     }
 
     /**

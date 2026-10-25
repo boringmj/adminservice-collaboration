@@ -18,6 +18,7 @@ use function proc_open;
 use function restore_error_handler;
 use function set_error_handler;
 use function stream_get_contents;
+use function strpos;
 use function sys_get_temp_dir;
 use function tempnam;
 use function trigger_error;
@@ -137,6 +138,25 @@ class ErrorTest extends TestCase {
             if(is_file($marker))
                 unlink($marker);
         }
+    }
+
+    /**
+     * 测试错误日志先于错误页输出
+     *
+     * - 客户端断连导致输出失败时, 不能把日志写入留到之后
+     *
+     * @return void
+     */
+    public function testErrorLogIsWrittenBeforeOutput(): void {
+        list($status,$stdout,$stderr)=$this->runFixture(
+            __DIR__.'/fixtures/error_log_order.php'
+        );
+        $this->assertSame(0,$status,$stderr);
+        $logPos=strpos($stdout,'|LOG|');
+        $errorPos=strpos($stdout,'|PAGE|');
+        $this->assertNotFalse($logPos,'未调用日志写入');
+        $this->assertNotFalse($errorPos,'错误页未输出');
+        $this->assertLessThan($errorPos,$logPos,'日志必须先于错误页输出');
     }
 
     /**

@@ -96,8 +96,8 @@ final class Application {
         // 登记配置实例(**只按实现类名**): "依赖倒置"的落点是"使用者按契约注入 -> 容器把契约解析成实现类 ->
         // 找到这份实例"; 契约名到实现类的映射由 `app.alias` 承担(`config/app.php`), 不拿具体实例去占契约名
         $this->container->instance(Repository::class,$this->config);
-        // 路由表提供器: 应用级单例, 让请求级 Route 复用同一份路由表;
-        // 重复 init 时保留已有实例, 避免把跨请求缓存冲掉
+        // 路由表提供器: 应用级单例, 让请求级 Route 在同一 Application/进程内复用同一份路由表;
+        // 重复 init 时保留已有实例, 避免把同一应用内的缓存冲掉
         if(!$this->container->hasInstance(RouterFactory::class))
             $this->container->instance(RouterFactory::class,new RouterFactory());
         // 获取配置文件中的别名(与绑定分表: 别名只描述"名字 → 名字")

@@ -31,8 +31,9 @@ use function usort;
  *
  * - 显式路由由路由文件与控制器 `#[Route]` 属性声明, 未命中即 404
  * - 路由协调器持有请求对象, 是**请求级对象**: 每请求新建
- * - 路由表本身由应用级 `RouterFactory` 缓存: 跨请求复用同一 `Router`;
- *   `Config::setRepository()` 替换配置对象时重建
+ * - 路由表本身由应用级 `RouterFactory` 缓存: **同一 Application/进程内**复用同一 `Router`;
+ *   默认 HTTP 入口每请求新建 `Main`, 因此不会跨请求复用; `Config::setRepository()` 替换配置对象时重建
+ * - 处理器与中间件声明必须与请求无关: 优先用类名; 已实例化对象不得持有请求状态; 闭包不得捕获请求对象
  */
 final class Route extends BaseRoute {
     /**

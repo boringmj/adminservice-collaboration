@@ -113,6 +113,8 @@ class FormValidator extends SceneValidator {
      * @return bool
      */
     protected function checkRule(string $field,string $rule,mixed $value,mixed $param=null): bool {
+        // 规则名大小写不敏感; 空白归一为下划线, 保证标量保护与消息模板命中
+        $rule=str_replace(' ','_',strtolower(trim($rule)));
         $method='validate'.str_replace(' ','',ucwords(str_replace('_',' ',$rule)));
         if(method_exists($this,$method)) {
             if(in_array($rule,$this->scalar_rules,true)&&(is_array($value)||is_object($value)))

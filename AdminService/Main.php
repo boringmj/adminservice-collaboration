@@ -68,7 +68,7 @@ final class Main {
         // 安装数据库配置提供者: 数据库层(契约层)不读全局配置, 由应用层把配置能力交给它
         // 直接注入配置实例(而非让它回落门面): 引导期已定下这份配置, 之后只读
         BaseDb::setConfig(new DatabaseConfig($config));
-        // 注入容器到错误处理器: 错误 / 异常路径不再经静态门面(容器不可用时走内置兜底)
+        // 注入容器到错误处理器: 错误 / 异常路径不再经静态门面(容器不可用时走内置错误出口)
         Error::setContainer($this->application->container());
         // 请求 / 响应 / 会话属**请求级**对象: 由 Application::handle() 每请求新建, 不再在引导期注册
         // 初始化完成

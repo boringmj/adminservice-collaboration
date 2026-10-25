@@ -39,7 +39,7 @@ abstract class Controller {
      * 容器契约(按契约依赖, 不引用实现层)
      *
      * - **基类内部管道**: 仅供本类取路由上下文用
-     * - 声明为 `private` 是刻意的: 子类可以自由使用同名属性(`$config` / `$container` 这类名字很常见),
+     * - 声明为 `private`: 子类可以自由使用同名属性(`$config` / `$container` 这类名字很常见),
      *   私有成员互不冲突;若声明为 `protected`, 子类的同名 `private` 属性会触发
      *   "Access level ... must be protected or weaker", 且同名属性会被两者共用(注入值会顶掉契约对象)
      *

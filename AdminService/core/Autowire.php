@@ -305,7 +305,7 @@ final class Autowire implements AutowireInterface {
                         '" cannot be annotated with both #[Config] and #[AutowireProperty].',
                     );
                 $types=$this->arguments->getStandardTypes($this->reflectionTypeToArray($property->getType(),false));
-                // 键缺失时的兜底顺序: 注解 default: > 属性自身默认值 > null
+                // 键缺失时的取值顺序: 注解 default: > 属性自身默认值 > null
                 $fallback=$property->hasDefaultValue()?$property->getDefaultValue():null;
                 $property->setAccessible(true);
                 $property->setValue($instance,$this->arguments->configValue($config,$types,$fallback));

@@ -25,9 +25,9 @@ use function unlink;
  *
  * 覆盖三类:
  *  1. **值语法**: 值含 `=`、`=` 左/右空格、单双引号(含转义)、`export` 前缀、行尾注释、空行、CRLF
- *  2. **类型推断(主流口径)**: 只转 `true`/`false`/`null`;**数字一律保持字符串**
- *     (躲开前导 `0` 被当八进制、超 int 范围被静默截断这类惊喜)
- *  3. **键口径(主流口径)**: 大小写敏感(点号在本类里只是普通字符, 键的含义由上层解释);
+ *  2. **类型推断**: 只转 `true`/`false`/`null`;**数字一律保持字符串**
+ *     (避免前导 `0` 被当八进制、超出 int 范围被静默截断)
+ *  3. **键名规则**: 大小写敏感(点号在本类里只是普通字符, 键的含义由上层解释);
  *     无法解析的行(缺 `=`、空键、引号未闭合、引号后多余内容)抛 `ConfigException`
  */
 class EnvParserTest extends TestCase {
@@ -72,7 +72,7 @@ class EnvParserTest extends TestCase {
      * 测试: 单/双引号
      *
      * - 引号内的 `#` 不是注释、空白不被裁剪
-     * - 引号形式**永远是字符串**(`"true"` 就是字符串, 这是"我要字符串"的逃生口)
+     * - 引号形式**永远是字符串**(`"true"` 就是字符串)
      * - 双引号处理 `\n` `\r` `\t` `\"` `\\`, 单引号内一律原样
      *
      * @return void
@@ -139,10 +139,10 @@ class EnvParserTest extends TestCase {
     }
 
     /**
-     * 测试: 类型推断**只转 bool / null**, 数字一律保持字符串(主流口径)
+     * 测试: 类型推断**只转 bool / null**, 数字一律保持字符串
      *
-     * - 数字不转类型是刻意的(Laravel / phpdotenv 都这样): 躲开前导 `0` 被当八进制、
-     *   位数超 int 范围被静默截断这类惊喜; 要数字请在配置里显式 `(int)env('DB_PORT', 3306)`
+     * - 数字不转类型: 避免前导 `0` 被当八进制、
+     *   超出 int 范围被静默截断; 要数字请在配置里显式 `(int)env('DB_PORT', 3306)`
      * - 引号形式永远是字符串(见 `testQuotes`)
      *
      * @return void
@@ -167,7 +167,7 @@ class EnvParserTest extends TestCase {
     }
 
     /**
-     * 测试: 键名**大小写敏感**、点号是普通字符(主流口径)
+     * 测试: 键名**大小写敏感**、点号是普通字符
      * @return void
      */
     public function testKeyCaseSensitivity(): void {

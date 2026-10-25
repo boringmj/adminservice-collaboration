@@ -28,7 +28,7 @@ use function unlink;
  * 错误处理用例
  *
  * - 覆盖"容器注入"这条新链路: 错误路径不再经静态门面
- * - 重点覆盖**容器不可用时的兜底**: 仍能渲染出内置错误页(不依赖容器与配置)
+ * - 重点覆盖**容器不可用时的错误出口**: 仍能渲染出内置错误页(不依赖容器与配置)
  */
 class ErrorTest extends TestCase {
 
@@ -215,7 +215,7 @@ class ErrorTest extends TestCase {
     }
 
     /**
-     * 测试容器不可用时的兜底错误页(不依赖容器与配置)
+     * 测试容器不可用时的内置错误页(不依赖容器与配置)
      * @return void
      */
     public function testRenderErrorsWithoutContainer(): void {
@@ -230,7 +230,7 @@ class ErrorTest extends TestCase {
      * 测试引导期未完成时的进程级错误出口
      *
      * - 独立进程模拟 `Main::init()` 早期抛异常(错误处理器已注册, 容器/配置尚未完成)
-     * - 必须输出内置最小错误页, 并写出 `[AdminService]` 兜底日志
+     * - 必须输出内置最小错误页, 并写出 `[AdminService]` 回落日志
      * @return void
      */
     public function testBootFailureUsesMinimalPageAndFallbackLog(): void {

@@ -5,7 +5,7 @@
  *
  * - 只加载自动加载器, 不启动测试 bootstrap / 应用容器
  * - 模拟 `Main::init()` 早期: 错误处理器已注册, 但初始化尚未完成
- * - 参数 1: 兜底日志文件路径
+ * - 参数 1: 回落日志文件路径
  */
 
 require dirname(__DIR__,2).'/vendor/autoload.php';

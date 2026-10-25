@@ -26,7 +26,7 @@ class ConfigConsumer {
     public string $fallback='';
 
     /**
-     * 属性注入(键缺失时的兜底: 注解 default: > **属性自身默认值** > null)
+     * 属性注入(键缺失时的取值顺序: 注解 default: > **属性自身默认值** > null)
      * @var string
      */
     #[Config('not.exist.key')]

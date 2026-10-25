@@ -14,7 +14,7 @@ class Exception extends BaseException {
      * 构造方法
      *
      * - 仅调试模式(app.debug=true)在构造时写入日志, 便于排查
-     * - 生产环境依赖全局兜底(Error::renderAndExit)记录未捕获异常, 避免已捕获/流程控制异常刷日志
+     * - 生产环境依赖全局异常出口(Error::renderAndExit)记录未捕获异常, 避免已捕获/流程控制异常刷日志
      *
      * @access public
      * @param string $message

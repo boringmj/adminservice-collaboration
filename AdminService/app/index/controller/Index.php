@@ -33,7 +33,7 @@ class Index extends Controller {
      */
     #[Route('GET','/{name?}',name:'index.index')]
     public function index(string $name="World"): string {
-        // 值得一说,如果你在路由中传入了name参数,那么这里的$name将会被覆盖
+        // 路由传入的 `name` 会覆盖默认值
         $this->log->write($this->log::class.": Hello $name!");
         return "Hello $name!";
     }

@@ -159,7 +159,7 @@ final class File {
      * @return mixed
      */
     public function get(string|int $key,mixed $default=null): mixed {
-        if(!isset($this->data[$key]))
+        if(!array_key_exists($key,$this->data))
             return $default;
         return $this->data[$key];
     }
@@ -190,7 +190,7 @@ final class File {
      * @throws \AdminService\Exception
      */
     public function delete(string|int $key,bool $save=false): void {
-        if(isset($this->data[$key]))
+        if(array_key_exists($key,$this->data))
             unset($this->data[$key]);
         if($save)
             $this->write();

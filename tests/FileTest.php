@@ -109,4 +109,32 @@ class FileTest extends TestCase {
         $this->assertSame($before,file_get_contents($path));
     }
 
+    /**
+     * 显式 null 是有效值, 不能回落默认值
+     * @return void
+     */
+    public function testGetKeepsExplicitNull(): void {
+        $file=new File('explicit_null',$this->config);
+        $file->set('nullable',null,true);
+
+        $this->assertNull($file->get('nullable','fallback'));
+        $this->assertSame('fallback',$file->get('missing','fallback'));
+    }
+
+    /**
+     * 删除显式 null 值必须真正移除键并持久化
+     * @return void
+     */
+    public function testDeleteRemovesExplicitNull(): void {
+        $file=new File('delete_null',$this->config);
+        $file->set('nullable',null,true);
+        $file->delete('nullable',true);
+
+        $this->assertSame('fallback',$file->get('nullable','fallback'));
+        $this->assertSame(array(),$file->all(true));
+        $reloaded=new File('delete_null',$this->config);
+        $this->assertSame('fallback',$reloaded->get('nullable','fallback'));
+        $this->assertSame(array(),$reloaded->all(true));
+    }
+
 }

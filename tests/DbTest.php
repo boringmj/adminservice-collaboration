@@ -231,6 +231,27 @@ class DbTest extends TestCase {
     }
 
     /**
+     * 测试 raw 执行事务控制语句时连接被标记脏并丢弃
+     * @return void
+     */
+    public function testRawTransactionControlDiscardsConnection(): void {
+        foreach(array('BEGIN','COMMIT','ROLLBACK','START TRANSACTION','SAVEPOINT sp_raw','RELEASE SAVEPOINT sp_raw') as $sql) {
+            $pdo=new FakePdo();
+            $factoryCalls=0;
+            $factory=function() use ($pdo,&$factoryCalls) {
+                $factoryCalls++;
+                return new PdoConnectionSession($pdo,new MysqlDialect());
+            };
+            $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
+            $db=new Db($manager);
+            $db->raw($sql);
+            $db->raw('SHOW TABLES');
+            // 事务/保存点状态属于会话状态, 不能把连接归还连接池复用
+            $this->assertSame(2,$factoryCalls,$sql);
+        }
+    }
+
+    /**
      * 测试 raw 执行修改会话状态的 SQL(SET)后连接被标记脏并丢弃
      * @return void
      */

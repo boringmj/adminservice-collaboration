@@ -287,13 +287,18 @@ final class Db {
      * 判断原生 SQL 是否修改会话状态(归还连接池时须丢弃, 避免污染)
      *
      * - SET/USE/LOCK 变更会话变量与当前库; CREATE TEMPORARY 建立会话级临时表
+     * - BEGIN/START TRANSACTION/COMMIT/ROLLBACK/SAVEPOINT/RELEASE 变更事务状态,
+     *   同样不能把连接直接归还连接池复用
      *
      * @access private
      * @param string $sql SQL
      * @return bool
      */
     private static function modifiesSessionState(string $sql): bool {
-        return preg_match('/^\s*(SET|USE|LOCK|UNLOCK|CREATE\s+TEMPORARY)\b/i',$sql)===1;
+        return preg_match(
+            '/^\s*(SET|USE|LOCK|UNLOCK|CREATE\s+TEMPORARY|BEGIN|START\s+TRANSACTION|COMMIT|ROLLBACK|SAVEPOINT|RELEASE\s+SAVEPOINT)\b/i',
+            $sql
+        )===1;
     }
 
     /**

@@ -33,6 +33,32 @@ class FormValidatorTest extends TestCase {
     }
 
     /**
+     * 标量规则名大小写不敏感, 混合大小写也不能绕过数组保护
+     * @return void
+     */
+    public function testMixedCaseDateRuleRejectsArrayValue(): void {
+        $validator=new FormValidator(
+            array('field'=>array('x')),
+            array('field'=>'Date')
+        );
+        $this->assertFalse($validator->validate());
+        $this->assertArrayHasKey('field',$validator->getErrors());
+    }
+
+    /**
+     * 混合大小写的 between 规则同样不能对数组静默通过
+     * @return void
+     */
+    public function testMixedCaseBetweenRuleRejectsArrayValue(): void {
+        $validator=new FormValidator(
+            array('field'=>array('x')),
+            array('field'=>'Between:1,3')
+        );
+        $this->assertFalse($validator->validate());
+        $this->assertArrayHasKey('field',$validator->getErrors());
+    }
+
+    /**
      * regex 规则不能把数组转成字符串后静默通过
      * @return void
      */

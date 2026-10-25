@@ -357,7 +357,6 @@ final class Autowire implements AutowireInterface {
                 if($config!==null) {
                     // 一个方法上不能同时挂 #[Config] 与 #[AutowireSetter]/#[AutowireMethod]:
                     // 前者是"注入配置值的 setter", 后者是"注入服务对象的 setter / 生命周期钩子", 语义冲突
-                    // (此前是静默忽略 Autowire*; 若为 #[AutowireMethod] 还会被调用两次)
                     foreach(array(AutowireSetter::class=>'#[AutowireSetter]',AutowireMethod::class=>'#[AutowireMethod]') as $other=>$other_name)
                         if($method->getAttributes($other)!==array())
                             throw new AutowireException(

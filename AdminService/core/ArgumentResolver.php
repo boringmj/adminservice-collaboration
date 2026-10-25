@@ -408,8 +408,8 @@ final class ArgumentResolver implements ArgumentResolverInterface {
      * @throws ReflectionException
      */
     public function callFunction(string|callable $function,array $args=array()): mixed {
-        // 非字符串、非闭包的 callable(可调用对象 / array(对象, 方法))统一转成闭包;
-        // 此前直接交给 ReflectionFunction 会因类型不符抛 TypeError, 而文档一直写着"支持闭包"
+        // 非字符串、非闭包的 callable(可调用对象 / array(对象, 方法))统一转成闭包,
+        // 否则 ReflectionFunction 会因类型不符抛 TypeError
         if(!is_string($function)&&!$function instanceof Closure)
             $function=Closure::fromCallable($function);
         $ref=$this->reflections->getFunction($function);

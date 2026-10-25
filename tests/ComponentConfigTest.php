@@ -18,6 +18,50 @@ use base\ConfigInterface;
 use ReflectionProperty;
 
 /**
+ * 测试用配置实现(声明顺序在 SecondConfig 之前)
+ */
+final class FirstConfig implements ConfigInterface {
+
+    public function __construct(private array $values=array()) {
+    }
+
+    public function get(string $key,mixed $default=null): mixed {
+        return array_key_exists($key,$this->values)?$this->values[$key]:$default;
+    }
+
+    public function has(string $key): bool {
+        return array_key_exists($key,$this->values);
+    }
+
+    public function all(): array {
+        return $this->values;
+    }
+
+}
+
+/**
+ * 测试用配置实现(实际登记到容器的那一个)
+ */
+final class SecondConfig implements ConfigInterface {
+
+    public function __construct(private array $values=array()) {
+    }
+
+    public function get(string $key,mixed $default=null): mixed {
+        return array_key_exists($key,$this->values)?$this->values[$key]:$default;
+    }
+
+    public function has(string $key): bool {
+        return array_key_exists($key,$this->values);
+    }
+
+    public function all(): array {
+        return $this->values;
+    }
+
+}
+
+/**
  * 组件取配置的用例(`AdminService\core` 各组件按契约取配置)
  *
  * 三条主张:
@@ -179,6 +223,21 @@ class ComponentConfigTest extends TestCase {
             if($instance!==null)
                 App::setInstance($instance);
         }
+    }
+
+    /**
+     * 测试: 存在多个配置实现时, 优先使用容器里已登记的实例
+     *
+     * - 不能只检查"第一个可实例化实现类", 否则已登记的那份会被漏掉
+     *
+     * @return void
+     */
+    public function testConfigFallbackUsesRegisteredImplementation(): void {
+        $container=new Container();
+        $container->instance(SecondConfig::class,new SecondConfig(array('k'=>'registered')));
+        $this->assertSame('registered',$container->exec_function(function(#[ConfigAttribute('k')] string $v='default'): string {
+            return $v;
+        }));
     }
 
     /**

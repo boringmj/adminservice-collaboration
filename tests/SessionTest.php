@@ -136,6 +136,28 @@ class SessionTest extends TestCase {
     }
 
     /**
+     * 测试会话已激活时 setId 拒绝修改, 避免对象属性与原生 ID 分叉
+     * @return void
+     */
+    public function testNativeSessionSetIdRejectsActiveSession(): void {
+        $script=__DIR__.'/fixtures/native_session_set_id_active.php';
+        $process=proc_open(array(PHP_BINARY,$script),array(
+            1=>array('pipe','w'),
+            2=>array('pipe','w')
+        ),$pipes);
+        $this->assertTrue(is_resource($process),'无法启动子进程');
+        $stdout=(string)stream_get_contents($pipes[1]);
+        $stderr=(string)stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $status=proc_close($process);
+        $this->assertSame(0,$status,'子进程异常退出: '.$stderr);
+        $this->assertStringContainsString('|CAUGHT',$stdout);
+        $this->assertStringContainsString('|AFTER=activefixedid123',$stdout);
+        $this->assertStringContainsString('|GET=activefixedid123',$stdout);
+    }
+
+    /**
      * 测试响应头已发送时 init 抛出受控异常
      * @return void
      */

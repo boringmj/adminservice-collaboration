@@ -12,6 +12,7 @@ use AdminService\Router\Router;
 use Tests\Fixtures\FirstMiddleware;
 use Tests\Fixtures\GroupedController;
 use Tests\Fixtures\MiddlewareLog;
+use Tests\Fixtures\NoSlashGroupedController;
 use Tests\Fixtures\RouteController;
 use Tests\Fixtures\SecondMiddleware;
 
@@ -373,6 +374,24 @@ class RouterTest extends TestCase {
         $this->assertNotNull($router->find('POST','/ping'));
         // 未声明路由的方法不注册
         $this->assertNull($router->find('GET','/ignored'));
+    }
+
+    /**
+     * 测试属性路由前缀会将不带前导斜杠的方法路径拼接正确
+     *
+     * - `#[RouteGroup('/admin')]` + `#[Route('GET','users')]` 必须得到 `/admin/users`
+     * - 不能同时产出错误的 `/adminusers`
+     *
+     * @return void
+     */
+    public function testAttributeRegistrationJoinsPrefixWithoutLeadingSlash(): void {
+        $router=new Router();
+        $router->registerAttributes(array(NoSlashGroupedController::class));
+        $found=$router->find('GET','/admin/users');
+        $this->assertNotNull($found);
+        $this->assertSame(array(NoSlashGroupedController::class,'users'),$found[0]->getHandler());
+        $this->assertNull($router->find('GET','/adminusers'));
+        $this->assertSame('/admin/users',$router->url('admin.users'));
     }
 
     /**

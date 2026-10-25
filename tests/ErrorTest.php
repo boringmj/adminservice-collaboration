@@ -164,6 +164,18 @@ class ErrorTest extends TestCase {
     }
 
     /**
+     * 测试注册前 error_reporting 为 0 时普通警告仍会被收集
+     * @return void
+     */
+    public function testRegisterCollectsWarningsWhenReportingWasZero(): void {
+        list($status,$stdout,$stderr)=$this->runFixture(
+            __DIR__.'/fixtures/register_warning.php'
+        );
+        $this->assertSame(0,$status,$stderr);
+        $this->assertStringContainsString('registered warning',$stdout);
+    }
+
+    /**
      * 测试错误出口使用请求级响应
      * @return void
      */

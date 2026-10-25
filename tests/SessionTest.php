@@ -15,7 +15,6 @@ use function fclose;
 use function is_resource;
 use function proc_close;
 use function proc_open;
-use function session_id;
 use function session_status;
 use function stream_get_contents;
 
@@ -124,15 +123,20 @@ class SessionTest extends TestCase {
     public function testNativeSessionSetIdUpdatesPhpSessionId(): void {
         if(session_status()===PHP_SESSION_ACTIVE)
             $this->markTestSkipped('原生会话已启动');
-        $old=session_id();
-        try {
-            $session=new NativeSession();
-            $session->setId('nativefixedid123');
-            $this->assertSame('nativefixedid123',$session->getId());
-            $this->assertSame('nativefixedid123',session_id());
-        } finally {
-            session_id($old);
-        }
+        $script=__DIR__.'/fixtures/native_session_set_id.php';
+        $process=proc_open(array(PHP_BINARY,$script),array(
+            1=>array('pipe','w'),
+            2=>array('pipe','w')
+        ),$pipes);
+        $this->assertTrue(is_resource($process),'无法启动子进程');
+        $stdout=(string)stream_get_contents($pipes[1]);
+        $stderr=(string)stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $status=proc_close($process);
+        $this->assertSame(0,$status,'子进程异常退出: '.$stderr);
+        $this->assertStringContainsString('|GET=nativefixedid123',$stdout);
+        $this->assertStringContainsString('|SID=nativefixedid123',$stdout);
     }
 
     /**

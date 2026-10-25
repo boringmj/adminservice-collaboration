@@ -204,18 +204,19 @@ class RouteCoordinatorTest extends TestCase {
     }
 
     /**
-     * 测试路由表跨请求复用
+     * 测试路由表在同一 Application 内复用
      *
-     * - `Route` 每请求重建, 但 `Router` 由应用级 `RouterFactory` 持有
+     * - `Route` 每次 `run()` 重建, 但 `Router` 由应用级 `RouterFactory` 持有
+     * - 默认 HTTP 入口每请求新建 `Main`, 因此这里验证的是同一应用内的多次分发
      * @return void
      */
-    public function testRouterTableReusedAcrossRequests(): void {
+    public function testRouterTableReusedWithinSameApplication(): void {
         $this->useRoutes("\$router->get('/t/reuse',array(\\app\\demo\\controller\\Index::class,'index'));");
         $this->assertSame('Hello World!',$this->dispatch('/t/reuse'));
         $first=$this->main()->application()->requestContainer()->get(Router::class);
         $this->assertSame('Hello World!',$this->dispatch('/t/reuse'));
         $second=$this->main()->application()->requestContainer()->get(Router::class);
-        $this->assertSame($first,$second,'同一配置下路由表应跨请求复用');
+        $this->assertSame($first,$second,'同一 Application 内路由表应复用');
     }
 
     /**

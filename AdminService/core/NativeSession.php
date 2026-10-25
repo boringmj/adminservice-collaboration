@@ -44,8 +44,11 @@ class NativeSession extends AbstractSession {
      * @return void
      */
     public function setId(string $session_id): void {
+        if(session_status()===PHP_SESSION_ACTIVE)
+            throw new Exception('会话已激活, 无法修改 Session ID');
+        if(session_id($session_id)===false)
+            throw new Exception('设置 Session ID 失败');
         $this->session_id=$session_id;
-        session_id($session_id);
     }
 
     /**

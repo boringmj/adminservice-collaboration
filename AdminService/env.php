@@ -10,9 +10,7 @@ use AdminService\Config\Env;
  * - 定位: 供 `config/*.php` **在配置装配期**取值用(那些文件里 `use function AdminService\env;` 后即可裸调)
  * - 与 `Config::get()` 的分工: `Config::get()` 读的是**生效配置**(会被 `.env` 的路径键覆盖);
  *   `env()` 读的是 `.env` 文件**本身**, 因此可以在配置文件里用
- * - 只认 `.env` 文件, **不读进程环境变量**: 刻意保持单一、可预测的来源(要放开再议)
- *
- * ## 口径(按主流来, 2026-09-23 定)
+ * - 只认 `.env` 文件, **不读进程环境变量**
  *
  *  1. **键名大小写敏感**: 不含点的键(约定的全大写蛇形, 如 `DB_HOST`)是"值来源";含点的键是"路径键",
  *     由 `Config\Repository` 按路径覆盖同名配置项 —— 解析口径见 `Env`
@@ -35,8 +33,8 @@ function env(string $key,mixed $default=null): mixed {
 /**
  * 取本次进程的 `.env` 快照(与 `env()` 用的是**同一份**, 不会二次解析)
  *
- * - 为什么需要它: `Config\Repository` 在**装载期**套"路径键覆盖"时要能一次拿到整份 `.env`,
- *   而 `env()` 的缓存只藏在它自己的函数静态里, 外面拿不到 —— 于是把它暴露成一个只读入口
+ * - 用途: `Config\Repository` 在**装载期**套"路径键覆盖"时要一次拿到整份 `.env`;
+ *   `env()` 的缓存不可见, 因此提供本只读入口
  * - 返回的 `Env` 是**不可变快照**: 想绕开缓存请直接用 `Env::fromFile()` / `new Env()`
  *
  * @return Env

@@ -98,6 +98,8 @@ final class Container implements \base\Container {
         //   裸容器(没有任何配置实例)保持"给默认值"的既有语义。
         $this->arguments->setValueResolver(function(string $key,mixed $default=null): mixed {
             $config=$this->getBoundInstance(array(\base\ConfigInterface::class));
+            if($config===null)
+                $config=$this->findBoundImplementation(\base\ConfigInterface::class);
             if($config===null) {
                 $real_class=$this->classes->getFirstInstantiableClass(array(\base\ConfigInterface::class));
                 if($real_class!==null)
@@ -154,6 +156,26 @@ final class Container implements \base\Container {
             if($bound!==null)
                 return $bound;
         }
+        return null;
+    }
+
+    /**
+     * 查找容器里已登记的、实现指定接口的实例
+     *
+     * - 用于"契约没有别名、但实现类实例已登记"的多实现场景
+     * - 先查自身, 再查父容器; 实例登记顺序决定多份实现时的优先级
+     *
+     * @access private
+     * @param string $interface 接口名
+     * @return object|null
+     */
+    private function findBoundImplementation(string $interface): ?object {
+        foreach($this->container as $object) {
+            if($object instanceof $interface)
+                return $object;
+        }
+        if($this->parent!==null)
+            return $this->parent->findBoundImplementation($interface);
         return null;
     }
 

@@ -204,6 +204,28 @@ class UploadTest extends TestCase {
     }
 
     /**
+     * 测试单层嵌套文件字段展开
+     *
+     * - `arr[a]` 是字符串键、标量叶子, 也应展开为独立字段
+     *
+     * @return void
+     */
+    public function testSingleLevelNestedFileFieldIsFlattened(): void {
+        $form=new UploadFilesForm(sys_get_temp_dir(),array(
+            'arr'=>array(
+                'name'=>array('a'=>''),
+                'type'=>array('a'=>'application/octet-stream'),
+                'tmp_name'=>array('a'=>''),
+                'error'=>array('a'=>UPLOAD_ERR_NO_FILE),
+                'size'=>array('a'=>0)
+            )
+        ));
+        $files=$form->getFilesByField('arr[a]');
+        $this->assertInstanceOf(UploadFiles::class,$files);
+        $this->assertSame(0,count($files));
+    }
+
+    /**
      * 测试存储方准备保存目录
      * @return void
      */

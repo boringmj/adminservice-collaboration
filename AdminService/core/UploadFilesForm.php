@@ -9,6 +9,7 @@ use base\AbstractUploadFilesForm;
 
 use function array_key_exists;
 use function is_array;
+use function is_string;
 
 /**
  * 表单上传文件类
@@ -69,9 +70,12 @@ class UploadFilesForm extends AbstractUploadFilesForm {
         $names=$file['name']??null;
         if(!is_array($names))
             return false;
-        foreach($names as $name)
-            if(is_array($name))
+        foreach($names as $key=>$name) {
+            // 字符串键(name[a])或继续嵌套(name[0][x])才是嵌套字段;
+            // 纯数字键 + 标量叶子(name[])仍按多文件字段处理
+            if(is_string($key)||is_array($name))
                 return true;
+        }
         return false;
     }
 

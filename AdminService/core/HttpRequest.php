@@ -49,7 +49,7 @@ final class HttpRequest extends Request {
      *
      * - 容器构建本对象时由构造参数注入(即 `Application::init()` 登记进容器的那一份)
      * - 手工 `new` 时没有注入 → **每次**回落门面当前那份(**不缓存**);
-     *   注入过的那份则保持不变(这就是"配置是快照"的语义)
+     *   注入过的那份则固定使用(不跟随门面切换; 实例本身仍可被修改, 不是值快照)
      *
      * @access private
      * @return ConfigInterface
@@ -165,7 +165,9 @@ final class HttpRequest extends Request {
     /**
      * 解析请求头
      *
-     * - 显式传入 `headers` 时直接采用; 显式传入 `server` 时由其推导(便于测试注入)
+     * - 构造期一次性解析: 显式传入 `headers` 时直接采用; 未显式传入 `server` 时优先用
+     *   `getallheaders()`; 其余情况从 `server` 的 `HTTP_*` / `CONTENT_*` 推导
+     * - 构造完成后 `setServer()` 不会重新推导 Header
      *
      * @access private
      * @param array<string,mixed> $sources 输入源
@@ -470,6 +472,8 @@ final class HttpRequest extends Request {
     /**
      * 设置Header信息(仅修改本请求实例的Header容器, 不同步到`Response`)
      *
+     * - 不会反向更新 Server 数据区; 构造完成后 Header 与 Server 相互独立
+     *
      * @access public
      * @param string|array $params 参数名或参数组
      * @param string $value Header值($params 参数为数组时此参数无效)
@@ -484,6 +488,11 @@ final class HttpRequest extends Request {
     /**
      * 设置Input参数
      *
+     * - 输入解析只在构造期执行; 本方法只修改 input 数据区
+     * - 不会重新解析请求体, 也不会同步到 query / post / cookie 或 attributes
+     * - `param()` 不直接读取 input 区; 需要参与参数检索时, 请同时调用
+     *   `setQuery()` / `setPost()`, 或在构造前调整 `request.default.param.input`
+     *
      * @access public
      * @param string|array $params 参数名或参数组
      * @param string $value Input值($params 参数为数组时此参数无效)
@@ -497,6 +506,9 @@ final class HttpRequest extends Request {
 
     /**
      * 设置Server参数
+     *
+     * - 仅修改本请求实例的 Server 数据区
+     * - 不会重新推导或更新 Header; Header 只在构造期由 headers / server 生成
      *
      * @access public
      * @param string|array $params 参数名或参数组

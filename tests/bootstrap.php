@@ -97,7 +97,7 @@ function boot_test_container(): void {
         if(!is_int($alias))
             $container->alias((string)$alias,(string)$abstract);
     // 注意: **不**给 DatabaseConfig 注入配置实例 —— 测试靠 `Config::new()` 反复换配置来构造场景,
-    // 注入会把配置定格成快照, 换配置就影响不到它(见 ConfigFacadeTest 的 set() 同步用例)
+    // 注入会固定使用该配置实例, 门面换新实例不影响它; 同一实例的修改仍可见(见 ConfigFacadeTest 的 set() 同步用例)
     BaseDb::setConfig(new DatabaseConfig());
 }
 

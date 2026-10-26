@@ -3,7 +3,7 @@
 ## 该如何开始?
 
 在开始之前,您应该需要注意\
-本项目使用了 `PHP 8.2.0` 的语法结构, 所以您需要保证您的 PHP 版本不低于 `8.2.0`\
+本项目要求 PHP 版本不低于 `8.2.0`\
 如果您在开发中有新增文件, 请确保您已经使用 [composer](https://www.phpcomposer.com/) 更新 `composer update`, 新增的文件如果没有及时更新, 新增的程序将无法通过 autoload 自动加载
 
 您可以简单阅读下面的内容, 或者点击 [我该如何开始?](https://github.com/boringmj/adminservice-collaboration/wiki/准备) 阅读更详细的信息, 并帮助你编写第一个程序!
@@ -90,6 +90,10 @@ public function run(): void {
 ```
 
 如果路由并不适用于您的项目,你可以自由创建一个适用的路由类,并在`AdminService/Main.php`中引入您的类,并实例化
+
+## 响应协商
+
+`prepare()` 依据请求 `Accept` 从 `response.default.type` 选择响应类型；默认 `response.default.negotiation=strict`，有正文的 `2xx` 没有可接受类型时返回 `406 text/plain`，设为 `fallback` 则回落到默认具体类型。vendor 类型 `application/xxx+json` 与 `application/json` 等价，`Accept: application/*+json` 也兼容标准 JSON；无 `Accept` 或空正文的 `2xx` 不触发 `406`。`404` / `405` 固定为 `text/plain`，自动 `OPTIONS` 会列入 `Allow`。详见 Wiki [返回类型](https://github.com/boringmj/adminservice-collaboration/wiki/返回类型)
 
 ## 配置注入
 

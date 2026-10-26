@@ -7,6 +7,7 @@ use PHPUnit\Framework\TestCase;
 use AdminService\App;
 use AdminService\Config;
 use AdminService\Exception;
+use AdminService\HttpError;
 use AdminService\HttpRequest;
 use AdminService\Response;
 use AdminService\ResponseProcessor\Json;
@@ -76,6 +77,9 @@ class ResponseTest extends TestCase {
         // 类型大小写/参数归一, vendor JSON 回落
         $this->assertSame('application/json',$response->getStandardContentType('Application/JSON'));
         $this->assertSame('application/json',$response->getStandardContentType('application/vnd.api+json'));
+        // 非 application 的 `+json` 与通配后缀不按标准 JSON 处理
+        $this->assertSame('*/*',$response->getStandardContentType('text/foo+json'));
+        $this->assertSame('*/*',$response->getStandardContentType('application/*+json'));
         // Header 名大小写不敏感
         $response->header('Content-Type','application/json');
         $this->assertSame('application/json',$response->header('content-type'));
@@ -192,6 +196,14 @@ class ResponseTest extends TestCase {
         $this->assertSame('["body"]',$response->render());
         // 未协商: 不追加 Vary
         $this->assertSame('',$response->header('Vary'));
+        // 客户端完全不接受显式类型时也不改 200
+        $response=new Response();
+        $response->body('body');
+        $response->json();
+        $response->prepare($this->request('GET','application/xml'));
+        $this->assertSame(200,$response->status());
+        $this->assertSame('["body"]',$response->render());
+        $this->assertSame('',$response->header('Vary'));
     }
 
     /**
@@ -218,6 +230,17 @@ class ResponseTest extends TestCase {
         $response->prepare($request);
         $response->prepare($request);
         $this->assertSame('Accept',$response->header('Vary'));
+    }
+
+    /**
+     * 测试 Vary 去重不受大小写影响
+     * @return void
+     */
+    public function testVaryDeduplicationIsCaseInsensitive(): void {
+        $response=new Response();
+        $response->header('Vary','accept');
+        $response->prepare($this->request('GET','application/json'));
+        $this->assertSame('accept',$response->header('Vary'));
     }
 
     /**
@@ -360,6 +383,33 @@ class ResponseTest extends TestCase {
     }
 
     /**
+     * 测试 JSON 后缀协商边界
+     * @return void
+     */
+    public function testJsonSuffixNegotiation(): void {
+        // 常见的 application/*+json 兼容标准 JSON
+        $response=new Response();
+        $response->body('body');
+        $response->prepare($this->request('GET','application/*+json'));
+        $this->assertSame(200,$response->status());
+        $this->assertSame('application/json',$response->contentType());
+        $this->assertSame('["body"]',$response->render());
+        // 非 application 的 +json 不能冒充标准 JSON
+        $response=new Response();
+        $response->body('body');
+        $response->prepare($this->request('GET','text/foo+json'));
+        $this->assertSame(406,$response->status());
+        $this->assertSame('text/plain',$response->contentType());
+        $this->assertSame('406 Not Acceptable',$response->render());
+        // 显式拒绝标准 JSON 时, vendor 权重不能把标准类型复活
+        $response=new Response();
+        $response->body('body');
+        $response->prepare($this->request('GET','application/json;q=0, application/vnd.api+json;q=0.9'));
+        $this->assertSame(406,$response->status());
+        $this->assertSame('text/plain',$response->contentType());
+    }
+
+    /**
      * vendor JSON 按标准 JSON 协商
      * @return void
      */
@@ -373,19 +423,24 @@ class ResponseTest extends TestCase {
     }
 
     /**
-     * 协商失败不能覆盖 404/405 等错误状态
+     * 404/405 固定为纯文本, 不参与内容协商
      * @return void
      */
-    public function testNegotiationFailurePreservesErrorStatus(): void {
+    public function testErrorResponsesDoNotNegotiate(): void {
         foreach(array(404,405) as $status) {
-            $response=new Response();
-            $response->status($status);
-            $response->body($status.' Error');
-            $response->prepare($this->request('GET','application/xml'));
-            $this->assertSame($status,$response->status());
-            $this->assertSame($status.' Error',$response->body());
-            $this->assertSame($status.' Error',$response->render());
-            $this->assertSame('text/html; charset=utf-8',$response->header('Content-Type'));
+            foreach(array('application/xml','application/json') as $accept) {
+                $response=new Response();
+                $body=$status===404?'404 Not Found':'405 Method Not Allowed';
+                $error=$status===404?HttpError::notFound():HttpError::methodNotAllowed(array('POST'));
+                $error->apply($response);
+                $response->prepare($this->request('GET',$accept));
+                $this->assertSame($status,$response->status());
+                $this->assertSame($body,$response->body());
+                $this->assertSame('text/plain',$response->contentType());
+                $this->assertSame($body,$response->render());
+                $this->assertSame('text/plain; charset=utf-8',$response->header('Content-Type'));
+                $this->assertSame('',$response->header('Vary'));
+            }
         }
     }
 
@@ -399,6 +454,18 @@ class ResponseTest extends TestCase {
         $response->prepare($this->request('GET'));
         $this->assertSame(200,$response->status());
         $this->assertSame('body',$response->render());
+        $this->assertSame('text/html; charset=utf-8',$response->header('Content-Type'));
+    }
+
+    /**
+     * 没有正文的 200 不因 Accept 不可用而变成 406
+     * @return void
+     */
+    public function testEmptyBodyDoesNotReturn406(): void {
+        $response=new Response();
+        $response->prepare($this->request('GET','application/xml'));
+        $this->assertSame(200,$response->status());
+        $this->assertSame('',$response->render());
         $this->assertSame('text/html; charset=utf-8',$response->header('Content-Type'));
     }
 
@@ -432,15 +499,44 @@ class ResponseTest extends TestCase {
     }
 
     /**
-     * 测试 1xx/204/304 不发送正文
+     * 测试含点 vendor 媒体类型配置能被渲染读取
+     * @return void
+     */
+    public function testVendorTypeConfigWithDotIsRead(): void {
+        $configs=Config::all();
+        $configs['response']['default']['type']=array(
+            '*/*'=>array('class'=>Json::class),
+            'application/json'=>array(
+                'class'=>Json::class,
+                'headers'=>array('Content-Type'=>'application/json; charset=utf-8')
+            ),
+            'application/vnd.api+json'=>array(
+                'class'=>Json::class,
+                'headers'=>array('Content-Type'=>'application/vnd.api+json; charset=utf-8')
+            )
+        );
+        set_config($configs);
+        $response=new Response();
+        $response->body(array('a'=>1));
+        // 标准 JSON 被显式 q=0 拒绝时, 应选 vendor 候选并读取含点配置键
+        $response->prepare($this->request('GET','application/json;q=0, application/vnd.api+json;q=0.9'));
+        $this->assertSame('application/vnd.api+json',$response->contentType());
+        $this->assertSame('{"a":1}',$response->render());
+        $this->assertSame('application/vnd.api+json; charset=utf-8',$response->header('Content-Type'));
+    }
+
+    /**
+     * 测试 1xx/204/205/304 不发送正文
      * @return void
      */
     public function testNoBodyStatusSendsNoBody(): void {
-        foreach(array(204,304) as $status) {
+        foreach(array(204,205,304) as $status) {
             $response=new Response();
             $response->status($status);
             $response->body('body');
-            $response->prepare($this->request('GET','text/plain'));
+            // 即使 Accept 不可用, 无正文状态也不应被改成 406
+            $response->prepare($this->request('GET','application/xml'));
+            $this->assertSame($status,$response->status());
             $this->assertSame('',$response->render());
             ob_start();
             $response->send();

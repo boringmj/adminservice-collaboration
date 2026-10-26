@@ -21,7 +21,6 @@ use function implode;
 use function in_array;
 use function is_array;
 use function str_contains;
-use function str_ends_with;
 use function strtolower;
 use function trim;
 
@@ -101,8 +100,9 @@ final class Response extends BaseResponse {
         // 精确匹配(大小写与参数已归一)
         if(in_array($type,$type_list,true))
             return $type;
-        // vendor JSON 回落到标准 JSON
-        if(str_ends_with($type,'+json')&&in_array('application/json',$type_list,true))
+        // application vendor JSON 回落到标准 JSON
+        if(Negotiator::normalizeType($type)==='application/json'&&$type!=='application/json'
+            &&in_array('application/json',$type_list,true))
             return 'application/json';
         // 未注册类型回落到默认桶
         return $type_list[0]??'*/*';
@@ -154,13 +154,13 @@ final class Response extends BaseResponse {
             if($type!==null) {
                 $this->contentType($type);
             } elseif($accept!==''&&$this->status()>=200&&$this->status()<300
-                &&!$this->hasNoBody()&&$this->negotiationFailurePolicy()==='strict') {
+                &&$this->hasResponseBody()&&$this->negotiationFailurePolicy()==='strict') {
                 // 客户端明确列出的类型都不可用: 不再静默回落
                 HttpError::notAcceptable()->apply($this);
             }
             // 内容类型随请求头变化: 告知缓存; 重复 prepare 不重复追加
-            $vary=array_map('trim',explode(',',$this->header('Vary')));
-            if(!in_array('Accept',$vary,true)&&!in_array('*',$vary,true))
+            $vary=array_map('strtolower',array_map('trim',explode(',',$this->header('Vary'))));
+            if(!in_array('accept',$vary,true)&&!in_array('*',$vary,true))
                 $this->addHeader('Vary','Accept');
         }
         // HEAD 只发送响应头(HTTP 规范要求)
@@ -300,7 +300,7 @@ final class Response extends BaseResponse {
      * @return string
      */
     public function render(): string {
-        // 1xx / 204 / 304 不允许有正文
+        // 1xx / 204 / 205 / 304 不允许有正文
         if($this->hasNoBody()) return '';
         if($this->return_content!==null) return $this->return_content;
         // 未登记的内容类型回落到登记表的第一个
@@ -308,7 +308,9 @@ final class Response extends BaseResponse {
         // `*/*` 只是分派桶, 实际落盘时回退到第一个具体类型
         if($type==='*/*')
             $type=$this->defaultContentType();
-        $config=$this->config()->get('response.default.type.'.$type,[]);
+        // 先取整棵类型表再按数组键取值: 媒体类型本身可能含点(如 vendor `+json`)
+        $types=$this->config()->get('response.default.type',[]);
+        $config=is_array($types)?($types[$type]??[]):[];
         $class=$config['class']??Http::class;
         // 处理器需要写入本实例: 显式传入, 不依赖容器中的同名单例
         App::new($class,response:$this,config:$config)->handle();
@@ -358,6 +360,25 @@ final class Response extends BaseResponse {
     }
 
     /**
+     * 判断当前响应是否有可协商的内容
+     *
+     * - 已渲染内容或控制器返回值非空时视为有内容
+     * - `null` 与空字符串不算内容; 数组、对象、0、false 仍参与协商
+     *
+     * @access private
+     * @return bool
+     */
+    private function hasResponseBody(): bool {
+        if($this->hasNoBody())
+            return false;
+        $rendered=$this->rendered();
+        if($rendered!==null&&$rendered!=='')
+            return true;
+        $body=$this->body();
+        return $body!==null&&$body!=='';
+    }
+
+    /**
      * 判断当前状态码是否禁止响应正文
      *
      * @access private
@@ -365,7 +386,7 @@ final class Response extends BaseResponse {
      */
     private function hasNoBody(): bool {
         $code=$this->status();
-        return ($code>=100&&$code<200)||$code===204||$code===304;
+        return ($code>=100&&$code<200)||$code===204||$code===205||$code===304;
     }
 
 }

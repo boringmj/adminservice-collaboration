@@ -245,8 +245,9 @@ class RouteCoordinatorTest extends TestCase {
         // 路径存在但方法不符 → 405, 并告知允许的方法
         $this->dispatch('/t/hello');
         $this->assertSame(405,$this->response()->status());
-        $this->assertSame('POST',$this->response()->header('Allow'));
+        $this->assertSame('POST, OPTIONS',$this->response()->header('Allow'));
         $this->assertSame('405 Method Not Allowed',$this->response()->body());
+        $this->assertSame('text/plain',$this->response()->contentType());
     }
 
     /**
@@ -268,7 +269,7 @@ class RouteCoordinatorTest extends TestCase {
         $this->useRoutes("\$router->get('/t/o',array(\\app\\demo\\controller\\Index::class,'index'));");
         $this->dispatch('/t/o','OPTIONS');
         $this->assertSame(204,$this->response()->status());
-        $this->assertSame('GET, HEAD',$this->response()->header('Allow'));
+        $this->assertSame('GET, HEAD, OPTIONS',$this->response()->header('Allow'));
         $this->assertSame('',$this->response()->body());
     }
 
@@ -638,6 +639,7 @@ PHP
         $this->dispatch('/demo/index/index');
         $this->assertSame(404,$this->response()->status());
         $this->assertSame('404 Not Found',$this->response()->body());
+        $this->assertSame('text/plain',$this->response()->contentType());
     }
 
 }

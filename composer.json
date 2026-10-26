@@ -25,11 +25,12 @@
 
     "autoload-dev": {
         "psr-4": {
-            "Tests\\": "tests/"
+            "Tests\\": "tests/",
+            "Tests\\Fixtures\\": "tests/fixtures/"
         }
     },
 
     "require-dev": {
-        "phpunit/phpunit": "10"
+        "phpunit/phpunit": "^10.5"
     }
 }

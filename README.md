@@ -35,6 +35,14 @@
 1. 访问 `localhost:8000`, 至此,您已经可以正常进行开发了\
 如果您需要更多帮助,可以前往 [Wiki](https://github.com/boringmj/adminservice-collaboration/wiki/准备), 在那里有更加详细的教程和文档
 
+## 从旧版升级
+
+- PHP 最低版本为 `8.2.0`; 旧版入口/扩展若直接使用 `Application`, 需自行保证版本检查。
+- 内容协商默认 `response.default.negotiation=strict`: 有正文的 `2xx` 没有可接受类型时返回 `406 text/plain`; 需要旧版回落行为时设为 `fallback`。
+- `404` / `405` 固定返回 `text/plain`, 不再参与内容协商; 自动 `OPTIONS` 会列入 `Allow`。
+- 旧版约定式路由已移除, 改用显式路由或控制器属性路由。
+- 完整破坏性变更与迁移说明见 Wiki [新旧版本调整](https://github.com/boringmj/adminservice-collaboration/wiki/新旧版本调整)。
+
 ## 路由
 
 路由由`AdminService\Route`(继承`base\Route`)实现, 支持两种方式

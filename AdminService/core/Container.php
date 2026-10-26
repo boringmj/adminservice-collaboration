@@ -260,7 +260,7 @@ final class Container implements \base\Container {
      * @access public
      * @template T of object
      * @param class-string<T>|string $name 对象名(类名 / 接口名 / 别名)
-     * @return T|object 返回指定类的实例
+     * @return T 返回指定类的实例
      * @throws Exception
      */
     public function get(string $name): object {
@@ -537,7 +537,7 @@ final class Container implements \base\Container {
      * @access public
      * @template T of object
      * @param class-string<T>|string $name 对象名(类名 / 接口名 / 别名)
-     * @return T|object
+     * @return T
      * @throws Exception|ReflectionException
      */
     public function make(string $name): object {
@@ -552,8 +552,9 @@ final class Container implements \base\Container {
      * - 结果会覆盖登记(与 `make()` 一致), 因此适合"每请求要一个干净实例"的场景
      *
      * @access public
-     * @param string $name 对象名(类名 / 接口名 / 别名)
-     * @return object
+     * @template T of object
+     * @param class-string<T>|string $name 对象名(类名 / 接口名 / 别名)
+     * @return T
      * @throws Exception
      */
     public function fresh(string $name): object {
@@ -638,7 +639,7 @@ final class Container implements \base\Container {
      * @template T of object
      * @param class-string<T>|string $__name 对象名(类名 / 接口名 / 别名)
      * @param mixed ...$args 构造函数参数($args中不允许传入“__name”参数)
-     * @return T|object
+     * @return T
      * @throws Exception|ReflectionException
      */
     public function build(string $__name,...$args): object {

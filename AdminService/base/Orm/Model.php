@@ -727,13 +727,20 @@ abstract class Model {
         if(!$this->exists)
             return false;
         if(static::usesSoftDelete()) {
-            $this->attributes[static::deletedAtField()]=static::freshTimestamp();
+            $field=static::deletedAtField();
+            $previous=$this->attributes[$field]??null;
+            $this->attributes[$field]=static::freshTimestamp();
             $result=static::db()->query(
-                Query::update(array(static::deletedAtField()=>$this->attributes[static::deletedAtField()]))
+                Query::update(array($field=>$this->attributes[$field]))
                     ->from(static::tableName())
                     ->where(static::$primaryKey,$this->getKey())
             );
-            return $result->isSuccess();
+            if(!$result->isSuccess()) {
+                // 写入失败时回滚内存状态, 避免"看似已删除实则未删除"
+                $this->attributes[$field]=$previous;
+                return false;
+            }
+            return true;
         }
         return $this->forceDelete();
     }
@@ -752,8 +759,10 @@ abstract class Model {
                 ->from(static::tableName())
                 ->where(static::$primaryKey,$this->getKey())
         );
+        if(!$result->isSuccess()||$result->getAffectedRows()<1)
+            return false;
         $this->exists=false;
-        return $result->isSuccess()&&$result->getAffectedRows()>0;
+        return true;
     }
 
     /**
@@ -775,13 +784,20 @@ abstract class Model {
     public function restore(): bool {
         if(!static::usesSoftDelete()||!$this->exists)
             return false;
-        $this->attributes[static::deletedAtField()]=null;
+        $field=static::deletedAtField();
+        $previous=$this->attributes[$field]??null;
+        $this->attributes[$field]=null;
         $result=static::db()->query(
-            Query::update(array(static::deletedAtField()=>null))
+            Query::update(array($field=>null))
                 ->from(static::tableName())
                 ->where(static::$primaryKey,$this->getKey())
         );
-        return $result->isSuccess();
+        if(!$result->isSuccess()) {
+            // 写入失败时保持原来的软删除状态
+            $this->attributes[$field]=$previous;
+            return false;
+        }
+        return true;
     }
 
     /**

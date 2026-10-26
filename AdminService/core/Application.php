@@ -6,7 +6,6 @@ use AdminService\Config\Repository;
 use AdminService\Router\RouterFactory;
 use base\AbstractSession;
 use base\Container as ContainerContract;
-use base\ConfigInterface;
 use base\Request;
 use base\Response;
 
@@ -169,8 +168,8 @@ final class Application {
      * 处理一次请求(应用级入口)
      *
      * - **每请求一个干净的请求级容器**: 从应用级容器 `fork()` 派生, 请求结束随引用释放(绑定与反射缓存仍共享)
-     * - 进入请求作用域时把门面指针指向请求级容器;**不收回指针** —— 响应出口在关停阶段仍要经门面取响应对象,
-     *   而下一个请求进来时会重新指向它自己的容器(常驻模式下同样安全)
+     * - 进入请求作用域时把门面指针指向请求级容器; 请求结束收回应用级容器 —— 响应出口在关停阶段
+     *   经 `Application::requestContainer()` 取请求级对象, 不依赖门面指针
      * - 请求级装配: 每请求新建请求 / 响应 / 会话;若容器(含父容器)已有登记则沿用, 便于测试与自定义入口注入
      *
      * @access public

@@ -115,10 +115,10 @@ abstract class Response {
      * 设置返回类型为html
      *
      * @access public
-     * @param array|object|string|int|bool|null $content 返回内容
+     * @param array|object|string|int|float|bool|null $content 返回内容
      * @return mixed
      */
-    public function html(null|string|int|bool $content=null): mixed {
+    public function html(mixed $content=null): mixed {
         $this->contentType('text/html');
         return $content;
     }
@@ -127,10 +127,10 @@ abstract class Response {
      * 设置返回类型为text
      *
      * @access public
-     * @param array|object|string|int|bool|null $content 返回内容
+     * @param array|object|string|int|float|bool|null $content 返回内容
      * @return mixed
      */
-    public function text(null|string|int|bool $content=null): mixed {
+    public function text(mixed $content=null): mixed {
         $this->contentType('text/plain');
         return $content;
     }

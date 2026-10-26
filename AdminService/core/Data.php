@@ -8,7 +8,6 @@ use IteratorAggregate;
 
 use function array_key_exists;
 use function array_keys;
-use function array_merge;
 use function count;
 use function strtolower;
 
@@ -101,7 +100,7 @@ class Data implements IteratorAggregate,Countable {
      * @return void
      */
     public function save(array $data): void {
-        $this->data=array_merge($this->data,$data);
+        $this->batchSet($data);
     }
 
     /**

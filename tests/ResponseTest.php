@@ -119,6 +119,23 @@ class ResponseTest extends TestCase {
     }
 
     /**
+     * 测试 html/text 快捷方法允许数组与对象
+     *
+     * - 文档与控制器入参均声明支持数组/对象, 响应层不能提前抛 TypeError
+     *
+     * @return void
+     */
+    public function testHtmlAndTextShortcutsAcceptArrayAndObject(): void {
+        $response=new Response();
+        $array=array('a'=>1);
+        $object=(object)array('b'=>2);
+        $this->assertSame($array,$response->html($array));
+        $this->assertSame('text/html',$response->contentType());
+        $this->assertSame($object,$response->text($object));
+        $this->assertSame('text/plain',$response->contentType());
+    }
+
+    /**
      * 测试按Accept协商渲染
      *
      * - `prepare()` 负责协商(与请求相关), `render()` 只按已就位的内容类型渲染

@@ -51,4 +51,17 @@ class DataTest extends TestCase {
         $this->assertTrue($data->has('a'));
     }
 
+    /**
+     * 大小写不敏感模式下，save() 写入的键也必须归一
+     *
+     * @return void
+     */
+    public function testSaveNormalizesCaseInsensitiveKeys(): void {
+        $data=(new Data(array('A'=>1)))->setCaseSensitive(false)->resetKey();
+        $data->save(array('B'=>2));
+        $this->assertSame(2,$data->get('b','DFLT'));
+        $this->assertTrue($data->has('b'));
+        $this->assertSame(array('a','b'),array_keys($data->all()));
+    }
+
 }

@@ -122,10 +122,23 @@ final class Response extends BaseResponse {
     }
 
     /**
+     * 是否启用自动内容协商
+     *
+     * - `off`: 不读取 Accept, 不触发 406, 也不自动追加 Vary
+     *
+     * @access private
+     * @return bool
+     */
+    private function negotiationEnabled(): bool {
+        return $this->config()->get('response.default.negotiation','strict')!=='off';
+    }
+
+    /**
      * 协商失败策略
      *
      * - `strict`: 客户端明确给出的 Accept 都无法满足时返回 406
      * - `fallback`: 保持旧行为, 按默认内容类型回落
+     * - `off`: 不进入协商, 由 {@see negotiationEnabled()} 提前短路
      *
      * @access private
      * @return string
@@ -139,13 +152,16 @@ final class Response extends BaseResponse {
     /**
      * 按请求准备响应
      *
+     * - `negotiation=off` 时不读取 Accept, 不触发 406, 也不自动追加 Vary
+     * - 未显式指定内容类型时按 Accept 头协商
+     *
      * @access public
      * @param Request $request 请求对象
      * @return void
      */
     public function prepare(Request $request): void {
-        // 未显式指定内容类型时按 Accept 头协商
-        if($this->contentType==='*/*') {
+        // 未显式指定内容类型且启用自动协商时, 按 Accept 头选择类型
+        if($this->contentType==='*/*'&&$this->negotiationEnabled()) {
             $accept=trim((string)$request->header('accept'));
             $type=Negotiator::best(
                 Negotiator::parse($accept),

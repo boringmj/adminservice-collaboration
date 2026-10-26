@@ -32,7 +32,7 @@ final class HttpError {
      * @return self
      */
     public static function notFound(): self {
-        return new self(404,'404 Not Found');
+        return new self(404,'404 Not Found',array(),'text/plain');
     }
 
     /**
@@ -45,7 +45,7 @@ final class HttpError {
     public static function methodNotAllowed(array $allowed): self {
         return new self(405,'405 Method Not Allowed',array(
             'Allow'=>implode(', ',$allowed)
-        ));
+        ),'text/plain');
     }
 
     /**

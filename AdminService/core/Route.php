@@ -20,6 +20,7 @@ use function array_merge;
 use function class_exists;
 use function count;
 use function implode;
+use function in_array;
 use function is_array;
 use function is_numeric;
 use function is_string;
@@ -77,6 +78,9 @@ final class Route extends BaseRoute {
         // 路径存在但方法不符: 告知允许的方法; OPTIONS 以 204 应答
         $allowed=$this->router()->allowedMethods($uri);
         if($allowed!==array()) {
+            // 自动 OPTIONS 同样属于该路径支持的方法
+            if(!in_array('OPTIONS',$allowed,true))
+                $allowed[]='OPTIONS';
             if($method==='OPTIONS')
                 $this->options($allowed);
             else

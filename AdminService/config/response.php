@@ -9,7 +9,7 @@ use AdminService\ResponseProcessor\Http;
 return array(
     'default'=>array(
         'negotiation'=>'strict', // 协商失败: strict=406, fallback=按默认类型
-        'type'=>array( // 如果不指定返回方式,默认使用第一个
+        'type'=>array( // 内容类型登记表; */* 仅作渲染分派桶, 不参与候选选择
             '*/*'=>array(
                 'class'=>Http::class
             ),

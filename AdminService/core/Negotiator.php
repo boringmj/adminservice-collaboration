@@ -5,6 +5,7 @@ namespace AdminService;
 use function array_key_exists;
 use function array_slice;
 use function explode;
+use function is_numeric;
 use function str_contains;
 use function str_ends_with;
 use function str_starts_with;
@@ -17,7 +18,7 @@ use function trim;
  * 内容协商
  *
  * - 解析 `Accept` 头为「类型 => q」, 支持全通配、子类通配(`type/*`)与 `q=0`(明确拒绝)
- * - vendor JSON(`+json`)按标准 `application/json` 参与协商
+ * - 具体的 vendor JSON(`application/xxx+json`)按标准 `application/json` 参与协商
  * - 选出最优候选: q 高者优先, q 相同者类型更具体者优先, 仍相同则按候选登记顺序
  * - 只做纯计算, 不依赖请求/响应对象, 便于单独测试与复用
  */
@@ -41,19 +42,46 @@ final class Negotiator {
             $q=1.0;
             foreach(array_slice($pieces,1) as $param) {
                 $param=trim($param);
-                if(str_starts_with($param,'q='))
-                    $q=(float)substr($param,2);
+                $pair=explode('=',$param,2);
+                if(!isset($pair[1])||strtolower(trim($pair[0]))!=='q')
+                    continue;
+                $value=trim($pair[1]);
+                if(!is_numeric($value))
+                    continue;
+                $q=(float)$value;
+                if($q<0)
+                    $q=0.0;
+                elseif($q>1)
+                    $q=1.0;
             }
             $accept[$type]=$q;
-            // vendor JSON(`+json`)与标准 JSON 等价: 取所有 JSON 变体中的最高权重
-            if(($type==='application/json'||(str_ends_with($type,'+json')&&!str_contains($type,'*')))
+            // vendor JSON 与标准 JSON 等价; 兼容常见的后缀通配 application/*+json
+            if((self::normalizeType($type)==='application/json'||$type==='application/*+json')
                 &&($json_q===null||$q>$json_q))
                 $json_q=$q;
         }
-        // 只在至少出现过一个 JSON 变体时补标准 JSON; 保留显式 application/json 的位置
-        if($json_q!==null)
+        // vendor 变体只在客户端未显式写 application/json 时补标准 JSON;
+        // 显式 q=0 的拒绝不能被其它 JSON 变体覆盖
+        if($json_q!==null&&!array_key_exists('application/json',$accept))
             $accept['application/json']=$json_q;
         return $accept;
+    }
+
+    /**
+     * 归一内容类型
+     *
+     * - 具体的 `application/xxx+json` 与 `application/json` 等价
+     * - 通配类型(如 `application/*+json`)与非 application 的 `+json` 保持原样
+     *
+     * @access public
+     * @param string $type 类型
+     * @return string 归一后的类型
+     */
+    public static function normalizeType(string $type): string {
+        $type=strtolower(trim($type));
+        if(str_starts_with($type,'application/')&&str_ends_with($type,'+json')&&!str_contains($type,'*'))
+            return 'application/json';
+        return $type;
     }
 
     /**
@@ -67,8 +95,12 @@ final class Negotiator {
      * @return bool
      */
     public static function accepts(array $accept,string $type): bool {
-        $type=strtolower($type);
-        if(array_key_exists($type,$accept))
+        $raw=strtolower(trim($type));
+        // 先按原始类型精确匹配, 再尝试标准 JSON 等价
+        if(array_key_exists($raw,$accept))
+            return $accept[$raw]>0;
+        $type=self::normalizeType($raw);
+        if($type!==$raw&&array_key_exists($type,$accept))
             return $accept[$type]>0;
         $major=self::majorType($type);
         if($major!==null&&array_key_exists($major.'/*',$accept))
@@ -93,12 +125,17 @@ final class Negotiator {
         $best_q=-1.0;
         $best_specificity=0;
         foreach($candidates as $candidate) {
-            $type=strtolower($candidate);
+            $raw=strtolower(trim($candidate));
+            $type=self::normalizeType($raw);
             // 通配候选不参与选择
             if(str_contains($type,'*'))
                 continue;
             $major=self::majorType($type);
-            if(array_key_exists($type,$accept)) {
+            if(array_key_exists($raw,$accept)) {
+                // 原始类型优先, 保留显式 vendor 类型的独立权重
+                $specificity=3;
+                $q=$accept[$raw];
+            } elseif($type!==$raw&&array_key_exists($type,$accept)) {
                 $specificity=3;
                 $q=$accept[$type];
             } elseif($major!==null&&array_key_exists($major.'/*',$accept)) {

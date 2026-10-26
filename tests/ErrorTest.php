@@ -161,6 +161,20 @@ class ErrorTest extends TestCase {
     }
 
     /**
+     * 测试响应头发送失败时错误页仍会输出
+     *
+     * @return void
+     */
+    public function testErrorPageSurvivesSendHeadersFailure(): void {
+        list($status,$stdout,$stderr)=$this->runFixture(
+            __DIR__.'/fixtures/error_send_headers_failure.php'
+        );
+        $this->assertSame(0,$status,$stderr);
+        $this->assertStringContainsString('|PAGE|',$stdout);
+        $this->assertStringContainsString('|END|',$stdout);
+    }
+
+    /**
      * 运行夹具脚本
      *
      * @param string $script 脚本路径

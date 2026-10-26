@@ -375,8 +375,14 @@ final class Error extends BaseError {
             $logFailure=$e->getMessage();
         }
         // 日志写完后统一发送响应头与正文
-        if($response!==null)
-            $response->sendHeaders();
+        if($response!==null) {
+            try {
+                $response->sendHeaders();
+            } catch(\Throwable $e) {
+                // 响应头发送失败不能吞掉错误页正文
+                $logFailure=$logFailure??$e->getMessage();
+            }
+        }
         echo $errorPage;
         if($logFailure!==null)
             echo "<br>日志记录失败: ".htmlspecialchars($logFailure);

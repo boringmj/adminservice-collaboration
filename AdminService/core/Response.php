@@ -137,8 +137,10 @@ final class Response extends BaseResponse {
             );
             if($type!==null)
                 $this->contentType($type);
-            // 内容类型随请求头变化: 告知缓存
-            $this->addHeader('Vary','Accept');
+            // 内容类型随请求头变化: 告知缓存; 重复 prepare 不重复追加
+            $vary=array_map('trim',explode(',',$this->header('Vary')));
+            if(!in_array('Accept',$vary,true)&&!in_array('*',$vary,true))
+                $this->addHeader('Vary','Accept');
         }
         // HEAD 只发送响应头(HTTP 规范要求)
         $this->head_only=$request->method()==='HEAD';

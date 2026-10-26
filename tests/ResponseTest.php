@@ -209,6 +209,18 @@ class ResponseTest extends TestCase {
     }
 
     /**
+     * 重复准备不能重复追加 Vary
+     * @return void
+     */
+    public function testPrepareDoesNotDuplicateVary(): void {
+        $response=new Response();
+        $request=$this->request('GET','application/unknown');
+        $response->prepare($request);
+        $response->prepare($request);
+        $this->assertSame('Accept',$response->header('Vary'));
+    }
+
+    /**
      * 测试协商的通配与q值语义
      * @return void
      */

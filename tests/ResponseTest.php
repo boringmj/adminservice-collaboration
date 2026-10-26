@@ -12,6 +12,7 @@ use AdminService\HttpRequest;
 use AdminService\Response;
 use AdminService\ResponseProcessor\Json;
 
+use function array_replace_recursive;
 use function ob_get_clean;
 use function ob_start;
 
@@ -52,6 +53,20 @@ class ResponseTest extends TestCase {
             'headers'=>$headers,
             'server'=>array('REQUEST_METHOD'=>$method)
         ));
+    }
+
+    /**
+     * 构造带独立配置的响应
+     *
+     * - 覆盖项与配置树同形, 不修改门面当前配置
+     *
+     * @access private
+     * @param array<string,mixed> $overrides 配置覆盖项
+     * @return Response
+     */
+    private function responseWithConfig(array $overrides=array()): Response {
+        $configs=Config::all();
+        return new Response(Config::new(array_replace_recursive($configs,$overrides)));
     }
 
     /**
@@ -476,10 +491,9 @@ class ResponseTest extends TestCase {
      * @return void
      */
     public function testNegotiationFallbackConfig(): void {
-        $configs=Config::all();
-        $configs['response']['default']['negotiation']='fallback';
-        set_config($configs);
-        $response=new Response();
+        $response=$this->responseWithConfig(array(
+            'response'=>array('default'=>array('negotiation'=>'fallback'))
+        ));
         $response->body('body');
         $response->prepare($this->request('GET','application/unknown'));
         $this->assertSame(200,$response->status());
@@ -498,10 +512,8 @@ class ResponseTest extends TestCase {
      * @return void
      */
     public function testNegotiationOffDisablesAcceptAndVary(): void {
-        $configs=Config::all();
-        $configs['response']['default']['negotiation']='off';
-        set_config($configs);
-        $response=new Response();
+        $overrides=array('response'=>array('default'=>array('negotiation'=>'off')));
+        $response=$this->responseWithConfig($overrides);
         $response->body('body');
         $response->prepare($this->request('GET','application/xml'));
         $this->assertSame(200,$response->status());
@@ -509,8 +521,10 @@ class ResponseTest extends TestCase {
         $this->assertSame('',$response->header('Vary'));
         $this->assertSame('body',$response->render());
         $this->assertSame('text/html; charset=utf-8',$response->header('Content-Type'));
+        // 只影响本实例, 门面配置仍是 strict
+        $this->assertSame('strict',Config::get('response.default.negotiation'));
         // 显式类型仍优先, 不受 off 影响
-        $response=new Response();
+        $response=$this->responseWithConfig($overrides);
         $response->body('body');
         $response->json();
         $response->prepare($this->request('GET','text/plain'));
@@ -539,20 +553,19 @@ class ResponseTest extends TestCase {
      * @return void
      */
     public function testVendorTypeConfigWithDotIsRead(): void {
-        $configs=Config::all();
-        $configs['response']['default']['type']=array(
-            '*/*'=>array('class'=>Json::class),
-            'application/json'=>array(
-                'class'=>Json::class,
-                'headers'=>array('Content-Type'=>'application/json; charset=utf-8')
-            ),
-            'application/vnd.api+json'=>array(
-                'class'=>Json::class,
-                'headers'=>array('Content-Type'=>'application/vnd.api+json; charset=utf-8')
-            )
-        );
-        set_config($configs);
-        $response=new Response();
+        $response=$this->responseWithConfig(array(
+            'response'=>array('default'=>array('type'=>array(
+                '*/*'=>array('class'=>Json::class),
+                'application/json'=>array(
+                    'class'=>Json::class,
+                    'headers'=>array('Content-Type'=>'application/json; charset=utf-8')
+                ),
+                'application/vnd.api+json'=>array(
+                    'class'=>Json::class,
+                    'headers'=>array('Content-Type'=>'application/vnd.api+json; charset=utf-8')
+                )
+            )))
+        ));
         $response->body(array('a'=>1));
         // 标准 JSON 被显式 q=0 拒绝时, 应选 vendor 候选并读取含点配置键
         $response->prepare($this->request('GET','application/json;q=0, application/vnd.api+json;q=0.9'));

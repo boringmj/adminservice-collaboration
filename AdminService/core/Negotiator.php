@@ -9,6 +9,7 @@ use function is_numeric;
 use function str_contains;
 use function str_ends_with;
 use function str_starts_with;
+use function strlen;
 use function strtolower;
 use function strpos;
 use function substr;
@@ -18,6 +19,7 @@ use function trim;
  * 内容协商
  *
  * - 解析 `Accept` 头为「类型 => q」, 支持全通配、子类通配(`type/*`)与 `q=0`(明确拒绝)
+ * - 引号内的逗号/分号与反斜杠转义不参与切分; 引号未闭合时退化为按分隔符直接切分
  * - 具体的 vendor JSON(`application/xxx+json`)按标准 `application/json` 参与协商
  * - 选出最优候选: q 高者优先, q 相同者类型更具体者优先, 仍相同则按候选登记顺序
  * - 只做纯计算, 不依赖请求/响应对象, 便于单独测试与复用
@@ -34,8 +36,8 @@ final class Negotiator {
     public static function parse(?string $header): array {
         $accept=array();
         $json_q=null;
-        foreach(explode(',',(string)$header) as $part) {
-            $pieces=explode(';',$part);
+        foreach(self::splitOutsideQuotes((string)$header,',') as $part) {
+            $pieces=self::splitOutsideQuotes($part,';');
             $type=strtolower(trim($pieces[0]));
             if($type==='')
                 continue;
@@ -157,6 +159,53 @@ final class Negotiator {
             }
         }
         return $best;
+    }
+
+    /**
+     * 按分隔符切分, 忽略引号内的分隔符
+     *
+     * - 双引号内的 `\,`/`\;` 不参与切分, 反斜杠可转义引号或反斜杠
+     * - 引号未闭合时退回直接按分隔符切分, 不抛异常
+     *
+     * @access private
+     * @param string $value 待切分字符串
+     * @param string $delimiter 单字符分隔符
+     * @return array<string>
+     */
+    private static function splitOutsideQuotes(string $value,string $delimiter): array {
+        $parts=array();
+        $current='';
+        $quoted=false;
+        $escaped=false;
+        $length=strlen($value);
+        for($i=0;$i<$length;$i++) {
+            $char=$value[$i];
+            if($escaped) {
+                $current.=$char;
+                $escaped=false;
+                continue;
+            }
+            if($quoted&&$char==='\\') {
+                $current.=$char;
+                $escaped=true;
+                continue;
+            }
+            if($char==='"') {
+                $quoted=!$quoted;
+                $current.=$char;
+                continue;
+            }
+            if($char===$delimiter&&!$quoted) {
+                $parts[]=$current;
+                $current='';
+                continue;
+            }
+            $current.=$char;
+        }
+        if($quoted)
+            return explode($delimiter,$value);
+        $parts[]=$current;
+        return $parts;
     }
 
     /**

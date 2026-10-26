@@ -8,7 +8,9 @@ use AdminService\Config\Repository;
 use AdminService\Exception;
 use AdminService\File;
 
+use function chmod;
 use function file_get_contents;
+use function file_put_contents;
 use function glob;
 use function is_dir;
 use function is_file;
@@ -17,7 +19,6 @@ use function rmdir;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
-
 /**
  * File 存储测试
  *
@@ -135,6 +136,42 @@ class FileTest extends TestCase {
         $reloaded=new File('delete_null',$this->config);
         $this->assertSame('fallback',$reloaded->get('nullable','fallback'));
         $this->assertSame(array(),$reloaded->all(true));
+    }
+
+    /**
+     * 删除失败不能假装成功
+     *
+     * - 只在当前平台确实能把只读文件设为不可删除时执行
+     *
+     * @return void
+     */
+    public function testDestroyFailureThrowsException(): void {
+        $file=new File('destroy_failure',$this->config);
+        $file->set('x',1,true);
+        $path=$this->dir.'/destroy_failure.data.json';
+        @chmod($path,0444);
+
+        $probe=$this->dir.'/destroy_probe';
+        file_put_contents($probe,'x');
+        @chmod($probe,0444);
+        $unlinkFails=!@unlink($probe);
+        @chmod($probe,0644);
+        if(is_file($probe))
+            @unlink($probe);
+        if(!$unlinkFails) {
+            @chmod($path,0644);
+            $this->markTestSkipped('当前平台无法通过只读属性模拟删除失败');
+        }
+
+        try {
+            $this->expectException(Exception::class);
+            $this->expectExceptionCode(100106);
+            $file->destroy();
+        } finally {
+            @chmod($path,0644);
+            if(is_file($path))
+                @unlink($path);
+        }
     }
 
 }

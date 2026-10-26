@@ -335,10 +335,15 @@ final class Error extends BaseError {
         $container=self::responseContainer();
         $response=null;
         if(self::$initialized&&$container!==null) {
-            $response=$container->get(Response::class);
-            $response->status(500);
-            $response->html();
-            $response->header('Is-Error','true');
+            try {
+                $response=$container->get(Response::class);
+                $response->status(500);
+                $response->html();
+                $response->header('Is-Error','true');
+            } catch(\Throwable) {
+                // 取不到响应对象时仍要输出错误页
+                $response=null;
+            }
         }
         $errorPage=self::renderErrors();
         // 记录所有错误到日志(先于正文输出: 客户端断开后仍应留下日志)
@@ -465,11 +470,15 @@ final class Error extends BaseError {
         // 在调试模式下添加输出内容(优先当前请求的响应实例)
         $container=self::responseContainer();
         if($debug_mode&&self::$initialized&&$container!==null) {
-            $response=$container->get(Response::class);
-            $response->render();
-            $output_content=$response->rendered();
-            if($output_content!==null&&$output_content!=='') {
-                $template_data['output_content']=$output_content;
+            try {
+                $response=$container->get(Response::class);
+                $response->render();
+                $output_content=$response->rendered();
+                if($output_content!==null&&$output_content!=='') {
+                    $template_data['output_content']=$output_content;
+                }
+            } catch(\Throwable) {
+                // 错误页自身不能因为展示响应内容失败而再次失败
             }
         }
         // 使用模板引擎渲染

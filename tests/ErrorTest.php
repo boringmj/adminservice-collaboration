@@ -4,6 +4,7 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
+use AdminService\Config;
 use AdminService\Container;
 use AdminService\Error;
 use ReflectionMethod;
@@ -271,6 +272,37 @@ class ErrorTest extends TestCase {
     }
 
     /**
+     * 调试模式下响应自身渲染失败时，错误页仍须输出
+     *
+     * @return void
+     */
+    public function testRenderErrorsSurvivesDebugResponseRenderFailure(): void {
+        $configs=Config::all();
+        $configs['app']['debug']=true;
+        set_config($configs);
+        $container=new Container();
+        $container->alias(\base\Response::class,\AdminService\Response::class);
+        $container->alias(\base\View::class,\AdminService\View::class);
+        $response=new \AdminService\Response(new \AdminService\Config\Repository(array(
+            'response'=>array('default'=>array('type'=>array(
+                'text/html'=>array('class'=>FailingResponseProcessor::class)
+            )))
+        )));
+        $response->body('body');
+        $container->instance(\AdminService\Response::class,$response);
+        Error::setContainer($container);
+        Error::setInitialized(true);
+        self::setErrors(array(self::error('响应渲染失败时仍要输出错误页')));
+        try {
+            $html=self::renderErrors();
+        } finally {
+            Error::setInitialized(false);
+            load_test_config();
+        }
+        $this->assertStringContainsString('响应渲染失败时仍要输出错误页',$html);
+    }
+
+    /**
      * 造一条错误记录
      *
      * @param string $message 错误消息
@@ -310,6 +342,20 @@ class ErrorTest extends TestCase {
         $method=new ReflectionMethod(Error::class,'renderErrors');
         $method->setAccessible(true);
         return (string)$method->invoke(null);
+    }
+
+}
+
+/**
+ * 调试错误页用例：响应处理器固定抛错
+ */
+final class FailingResponseProcessor extends \base\AbstractResponseProcessor {
+
+    /**
+     * @return void
+     */
+    public function handle(): void {
+        throw new \RuntimeException('response render failed');
     }
 
 }

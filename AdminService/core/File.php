@@ -48,7 +48,7 @@ final class File {
 
     /**
      * 文件绝对路径
-     * @var string
+     * @var string|null
      */
     private ?string $file_path;
 
@@ -64,8 +64,8 @@ final class File {
      * @access public
      * @param string|null $file_name 文件名称(不含扩展名和多余的路径)
      * @throws \AdminService\Exception
-          * @param ConfigInterface|null $config 配置契约实例(未注入时回落门面当前那份)
-*/
+     * @param ConfigInterface|null $config 配置契约实例(未注入时回落门面当前那份)
+     */
     public function __construct(?string $file_name=null,?ConfigInterface $config=null) {
         $this->config=$config;
         $this->init($file_name);
@@ -235,10 +235,15 @@ final class File {
             throw new Exception("File not destroyed, please use init() to initialize.",100105);
         if(is_file($this->file_path)) {
             try {
-                unlink($this->file_path);
+                if(!@unlink($this->file_path))
+                    throw new Exception("File destroy failed: $this->file_path, please check the file permission.",100106,array(
+                        'file_path'=>$this->file_path
+                    ));
                 $this->file_path=null;
                 $this->data=array();
-            } catch(Throwable) {
+            } catch(Throwable $e) {
+                if($e instanceof Exception)
+                    throw $e;
                 throw new Exception("File destroy failed: $this->file_path, please check the file permission.",100106,array(
                     'file_path'=>$this->file_path
                 ));

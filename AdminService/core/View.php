@@ -62,8 +62,13 @@ final class View extends BaseView {
             throw new Exception('Template file not found.',100301,
                 ['template_path'=>$template_path]
             );
+        $content=@file_get_contents($template_path);
+        if($content===false)
+            throw new Exception('Template file read failed.',100302,
+                ['template_path'=>$template_path]
+            );
         $this->initWithContent(
-            file_get_contents($template_path),
+            $content,
             $data
         );
     }

@@ -6,6 +6,7 @@ use function array_key_exists;
 use function array_slice;
 use function explode;
 use function str_contains;
+use function str_ends_with;
 use function str_starts_with;
 use function strtolower;
 use function strpos;
@@ -16,6 +17,7 @@ use function trim;
  * 内容协商
  *
  * - 解析 `Accept` 头为「类型 => q」, 支持全通配、子类通配(`type/*`)与 `q=0`(明确拒绝)
+ * - vendor JSON(`+json`)按标准 `application/json` 参与协商
  * - 选出最优候选: q 高者优先, q 相同者类型更具体者优先, 仍相同则按候选登记顺序
  * - 只做纯计算, 不依赖请求/响应对象, 便于单独测试与复用
  */
@@ -30,6 +32,7 @@ final class Negotiator {
      */
     public static function parse(?string $header): array {
         $accept=array();
+        $json_q=null;
         foreach(explode(',',(string)$header) as $part) {
             $pieces=explode(';',$part);
             $type=strtolower(trim($pieces[0]));
@@ -42,7 +45,14 @@ final class Negotiator {
                     $q=(float)substr($param,2);
             }
             $accept[$type]=$q;
+            // vendor JSON(`+json`)与标准 JSON 等价: 取所有 JSON 变体中的最高权重
+            if(($type==='application/json'||(str_ends_with($type,'+json')&&!str_contains($type,'*')))
+                &&($json_q===null||$q>$json_q))
+                $json_q=$q;
         }
+        // 只在至少出现过一个 JSON 变体时补标准 JSON; 保留显式 application/json 的位置
+        if($json_q!==null)
+            $accept['application/json']=$json_q;
         return $accept;
     }
 

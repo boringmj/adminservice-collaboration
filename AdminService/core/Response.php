@@ -122,6 +122,21 @@ final class Response extends BaseResponse {
     }
 
     /**
+     * 协商失败策略
+     *
+     * - `strict`: 客户端明确给出的 Accept 都无法满足时返回 406
+     * - `fallback`: 保持旧行为, 按默认内容类型回落
+     *
+     * @access private
+     * @return string
+     */
+    private function negotiationFailurePolicy(): string {
+        return $this->config()->get('response.default.negotiation','strict')==='fallback'
+            ?'fallback'
+            :'strict';
+    }
+
+    /**
      * 按请求准备响应
      *
      * @access public
@@ -131,12 +146,18 @@ final class Response extends BaseResponse {
     public function prepare(Request $request): void {
         // 未显式指定内容类型时按 Accept 头协商
         if($this->contentType==='*/*') {
+            $accept=trim((string)$request->header('accept'));
             $type=Negotiator::best(
-                Negotiator::parse($request->header('accept')),
+                Negotiator::parse($accept),
                 array_keys($this->config()->get('response.default.type',array()))
             );
-            if($type!==null)
+            if($type!==null) {
                 $this->contentType($type);
+            } elseif($accept!==''&&$this->status()>=200&&$this->status()<300
+                &&!$this->hasNoBody()&&$this->negotiationFailurePolicy()==='strict') {
+                // 客户端明确列出的类型都不可用: 不再静默回落
+                HttpError::notAcceptable()->apply($this);
+            }
             // 内容类型随请求头变化: 告知缓存; 重复 prepare 不重复追加
             $vary=array_map('trim',explode(',',$this->header('Vary')));
             if(!in_array('Accept',$vary,true)&&!in_array('*',$vary,true))

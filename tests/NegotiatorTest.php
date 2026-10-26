@@ -59,6 +59,27 @@ class NegotiatorTest extends TestCase {
     }
 
     /**
+     * 测试引号内的逗号/分号不参与切分
+     * @return void
+     */
+    public function testQuotedParametersDoNotSplitHeader(): void {
+        $accept=Negotiator::parse(
+            'text/html;profile="a,b";q=0.5, application/json;foo="x;y";q=0.9'
+        );
+        $this->assertSame(0.5,$accept['text/html']);
+        $this->assertSame(0.9,$accept['application/json']);
+        // 引号内的分号不能拆出伪 q 参数
+        $accept=Negotiator::parse('application/json;foo="x;q=0.5;y"');
+        $this->assertSame(1.0,$accept['application/json']);
+        // 转义引号不结束参数值, 引号内的分号同样保留
+        $accept=Negotiator::parse('application/json;profile="a\\"b;c";q=0.4');
+        $this->assertSame(0.4,$accept['application/json']);
+        // 引号未闭合时退化为逐分隔符切分, 不抛异常
+        $accept=Negotiator::parse('application/json;profile="unterminated;q=0.2');
+        $this->assertSame(0.2,$accept['application/json']);
+    }
+
+    /**
      * 测试是否接受某类型
      * @return void
      */

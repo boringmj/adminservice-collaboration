@@ -626,6 +626,44 @@ class ModelTest extends TestCase {
     }
 
     /**
+     * 测试物理删除失败时不把模型标成已删除
+     * @return void
+     */
+    public function testForceDeleteFailureKeepsModelPersisted(): void {
+        $this->pdo->selectRows=[['id'=>1,'title'=>'标题','deleted_at'=>null]];
+        $post=Post::find(1);
+        $this->pdo->errorOnExecution=2;
+        $this->assertFalse($post->forceDelete());
+        $this->assertTrue($post->exists());
+    }
+
+    /**
+     * 测试软删除失败时不留下已删除状态
+     * @return void
+     */
+    public function testSoftDeleteFailureDoesNotMarkTrashed(): void {
+        $this->pdo->selectRows=[['id'=>1,'title'=>'标题','deleted_at'=>null]];
+        $post=Post::find(1);
+        $this->pdo->errorOnExecution=2;
+        $this->assertFalse($post->delete());
+        $this->assertFalse($post->trashed());
+        $this->assertNull($post->getAttribute('deleted_at'));
+    }
+
+    /**
+     * 测试恢复失败时保持软删除状态
+     * @return void
+     */
+    public function testRestoreFailureKeepsTrashedState(): void {
+        $this->pdo->selectRows=[['id'=>1,'title'=>'标题','deleted_at'=>'2025-01-01 00:00:00']];
+        $post=Post::withTrashed()->find(1);
+        $this->pdo->errorOnExecution=2;
+        $this->assertFalse($post->restore());
+        $this->assertTrue($post->trashed());
+        $this->assertSame('2025-01-01 00:00:00',$post->getAttribute('deleted_at'));
+    }
+
+    /**
      * 测试分页查询
      * @return void
      */

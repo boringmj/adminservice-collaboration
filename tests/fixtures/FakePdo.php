@@ -9,6 +9,7 @@ use PDOStatement;
 use function array_key_exists;
 use function array_shift;
 use function count;
+use function preg_match;
 
 /**
  * 测试用假 PDO
@@ -152,6 +153,9 @@ final class FakePdo extends PDO {
             }
 
             public function columnCount(): int {
+                // 写语句与真实 PDO 一样返回 0; SELECT/SHOW 等查询仍按结果集处理
+                if(preg_match('/^\s*(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|ALTER|DROP|TRUNCATE)\b/i',$this->query)===1)
+                    return 0;
                 // 以第一行列数近似结果集列数(空结果视为无列), 队列优先
                 $rows=!empty($this->fake->selectRowsQueue)
                     ? $this->fake->selectRowsQueue[0]

@@ -577,7 +577,7 @@ class ModelTest extends TestCase {
         $this->assertTrue($post->delete());
         $this->assertTrue($post->trashed());
         $this->assertSame(
-            'UPDATE `posts` SET `deleted_at` = ? WHERE `id` = ?',
+            'UPDATE `posts` SET `deleted_at` = ? WHERE `id` = ? AND `deleted_at` IS NULL',
             $this->pdo->executed[1]
         );
     }
@@ -594,7 +594,7 @@ class ModelTest extends TestCase {
         $this->assertTrue($post->restore());
         $this->assertFalse($post->trashed());
         $this->assertSame(
-            'UPDATE `posts` SET `deleted_at` = ? WHERE `id` = ?',
+            'UPDATE `posts` SET `deleted_at` = ? WHERE `id` = ? AND `deleted_at` IS NOT NULL',
             $this->pdo->executed[1]
         );
     }
@@ -661,6 +661,77 @@ class ModelTest extends TestCase {
         $this->assertFalse($post->restore());
         $this->assertTrue($post->trashed());
         $this->assertSame('2025-01-01 00:00:00',$post->getAttribute('deleted_at'));
+    }
+
+    /**
+     * 软删除写入失败时不能凭空留下 deleted_at 键
+     *
+     * @return void
+     */
+    public function testSoftDeleteFailureDoesNotAddMissingDeletedAtKey(): void {
+        $post=new Post(array('id'=>1,'title'=>'标题'),true);
+        $this->pdo->errorOnExecution=1;
+        $this->assertFalse($post->delete());
+        $this->assertArrayNotHasKey('deleted_at',$post->getAttributes());
+    }
+
+    /**
+     * 软删除 0 行时返回 false 并回滚内存状态
+     *
+     * @return void
+     */
+    public function testSoftDeleteZeroAffectedRowsRollsBack(): void {
+        $this->pdo->selectRows=[['id'=>1,'title'=>'标题','deleted_at'=>null]];
+        $post=Post::find(1);
+        $this->pdo->affectedRows=0;
+        $this->assertFalse($post->delete());
+        $this->assertFalse($post->trashed());
+        $this->assertNull($post->getAttribute('deleted_at'));
+        $this->assertStringContainsString('`deleted_at` IS NULL',$this->pdo->executed[1]);
+    }
+
+    /**
+     * 已软删记录再次删除时, 条件不匹配并保持原状态
+     *
+     * @return void
+     */
+    public function testDeleteAlreadyTrashedReturnsFalse(): void {
+        $this->pdo->selectRows=[['id'=>1,'title'=>'标题','deleted_at'=>'2025-01-01 00:00:00']];
+        $post=Post::withTrashed()->find(1);
+        $this->pdo->affectedRows=0;
+        $this->assertFalse($post->delete());
+        $this->assertSame('2025-01-01 00:00:00',$post->getAttribute('deleted_at'));
+        $this->assertStringContainsString('`deleted_at` IS NULL',$this->pdo->executed[1]);
+    }
+
+    /**
+     * 恢复 0 行时返回 false 并保持软删除状态
+     *
+     * @return void
+     */
+    public function testRestoreZeroAffectedRowsKeepsTrashedState(): void {
+        $this->pdo->selectRows=[['id'=>1,'title'=>'标题','deleted_at'=>'2025-01-01 00:00:00']];
+        $post=Post::withTrashed()->find(1);
+        $this->pdo->affectedRows=0;
+        $this->assertFalse($post->restore());
+        $this->assertTrue($post->trashed());
+        $this->assertSame('2025-01-01 00:00:00',$post->getAttribute('deleted_at'));
+        $this->assertStringContainsString('`deleted_at` IS NOT NULL',$this->pdo->executed[1]);
+    }
+
+    /**
+     * 未软删记录恢复时, 条件不匹配并保持未删除状态
+     *
+     * @return void
+     */
+    public function testRestoreAlreadyActiveReturnsFalse(): void {
+        $this->pdo->selectRows=[['id'=>1,'title'=>'标题','deleted_at'=>null]];
+        $post=Post::find(1);
+        $this->pdo->affectedRows=0;
+        $this->assertFalse($post->restore());
+        $this->assertFalse($post->trashed());
+        $this->assertNull($post->getAttribute('deleted_at'));
+        $this->assertStringContainsString('`deleted_at` IS NOT NULL',$this->pdo->executed[1]);
     }
 
     /**

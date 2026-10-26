@@ -719,6 +719,7 @@ abstract class Model {
      * 删除当前记录
      *
      * - 启用软删除时标记 deleted_at, 否则物理删除
+     * - 软删除只更新当前未删除记录, 0 行受影响时返回 false 并回滚内存状态
      *
      * @access public
      * @return bool
@@ -728,16 +729,21 @@ abstract class Model {
             return false;
         if(static::usesSoftDelete()) {
             $field=static::deletedAtField();
-            $previous=$this->attributes[$field]??null;
+            $hadField=array_key_exists($field,$this->attributes);
+            $previous=$hadField?$this->attributes[$field]:null;
             $this->attributes[$field]=static::freshTimestamp();
             $result=static::db()->query(
                 Query::update(array($field=>$this->attributes[$field]))
                     ->from(static::tableName())
                     ->where(static::$primaryKey,$this->getKey())
+                    ->whereNull($field)
             );
-            if(!$result->isSuccess()) {
-                // 写入失败时回滚内存状态, 避免"看似已删除实则未删除"
-                $this->attributes[$field]=$previous;
+            if(!$result->isSuccess()||$result->getAffectedRows()<1) {
+                // 写入失败或并发下状态已变化时回滚内存状态, 避免"看似已删除实则未删除"
+                if($hadField)
+                    $this->attributes[$field]=$previous;
+                else
+                    unset($this->attributes[$field]);
                 return false;
             }
             return true;
@@ -778,6 +784,8 @@ abstract class Model {
     /**
      * 恢复软删除的记录
      *
+     * - 只更新当前已软删记录, 0 行受影响时返回 false 并回滚内存状态
+     *
      * @access public
      * @return bool
      */
@@ -785,16 +793,21 @@ abstract class Model {
         if(!static::usesSoftDelete()||!$this->exists)
             return false;
         $field=static::deletedAtField();
-        $previous=$this->attributes[$field]??null;
+        $hadField=array_key_exists($field,$this->attributes);
+        $previous=$hadField?$this->attributes[$field]:null;
         $this->attributes[$field]=null;
         $result=static::db()->query(
             Query::update(array($field=>null))
                 ->from(static::tableName())
                 ->where(static::$primaryKey,$this->getKey())
+                ->whereNull($field,true)
         );
-        if(!$result->isSuccess()) {
-            // 写入失败时保持原来的软删除状态
-            $this->attributes[$field]=$previous;
+        if(!$result->isSuccess()||$result->getAffectedRows()<1) {
+            // 写入失败或并发下状态已变化时保持原来的软删除状态
+            if($hadField)
+                $this->attributes[$field]=$previous;
+            else
+                unset($this->attributes[$field]);
             return false;
         }
         return true;

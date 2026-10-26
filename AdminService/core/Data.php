@@ -8,7 +8,9 @@ use IteratorAggregate;
 
 use function array_key_exists;
 use function array_keys;
+use function array_merge;
 use function count;
+use function is_int;
 use function strtolower;
 
 /**
@@ -94,13 +96,19 @@ class Data implements IteratorAggregate,Countable {
 
     /**
      * 存储数据
-     * 
+     *
+     * - 数字键追加, 字符串键覆盖(保持旧 `array_merge` 语义)
+     * - 字符串键按当前大小写规则归一
+     *
      * @access public
      * @param array<string,mixed> $data 数据
      * @return void
      */
     public function save(array $data): void {
-        $this->batchSet($data);
+        $normalized=array();
+        foreach($data as $key=>$val)
+            $normalized[is_int($key)?$key:$this->convertKey($key)]=$val;
+        $this->data=array_merge($this->data,$normalized);
     }
 
     /**
@@ -192,14 +200,17 @@ class Data implements IteratorAggregate,Countable {
 
     /**
      * 批量设置数据
-     * 
+     *
+     * - 数字键与字符串键均为按键覆盖, 不追加
+     * - 每个键只转换一次
+     *
      * @access public
      * @param array<string,mixed> $data 数据
      * @return void
      */
     public function batchSet(array $data): void {
         foreach($data as $key=>$val)
-            $this->set($this->convertKey($key),$val);
+            $this->data[$this->convertKey((string)$key)]=$val;
     }
     
 }

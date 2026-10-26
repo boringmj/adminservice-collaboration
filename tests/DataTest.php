@@ -64,4 +64,41 @@ class DataTest extends TestCase {
         $this->assertSame(array('a','b'),array_keys($data->all()));
     }
 
+    /**
+     * save() 对数字键保持追加语义, 字符串键覆盖
+     *
+     * @return void
+     */
+    public function testSaveAppendsNumericKeysAndOverwritesStringKeys(): void {
+        $data=new Data(array('a'=>1,0=>'x',1=>'y'));
+        $data->save(array('a'=>2,0=>'z'));
+        $this->assertSame(
+            array('a'=>2,0=>'x',1=>'y',2=>'z'),
+            $data->all()
+        );
+    }
+
+    /**
+     * batchSet() 对数字键保持按键覆盖
+     *
+     * @return void
+     */
+    public function testBatchSetOverwritesNumericKeys(): void {
+        $data=new Data(array(0=>'a',1=>'b'));
+        $data->batchSet(array(0=>'c',2=>'d'));
+        $this->assertSame(array(0=>'c',1=>'b',2=>'d'),$data->all());
+    }
+
+    /**
+     * save() 保留显式 null
+     *
+     * @return void
+     */
+    public function testSaveKeepsExplicitNull(): void {
+        $data=new Data(array('a'=>1));
+        $data->save(array('a'=>null));
+        $this->assertTrue($data->has('a'));
+        $this->assertNull($data->get('a','DFLT'));
+    }
+
 }

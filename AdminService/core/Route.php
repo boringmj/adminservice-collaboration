@@ -24,7 +24,6 @@ use function is_array;
 use function is_numeric;
 use function is_string;
 use function urldecode;
-use function usort;
 
 /**
  * 路由协调器
@@ -78,7 +77,10 @@ final class Route extends BaseRoute {
         // 路径存在但方法不符: 告知允许的方法; OPTIONS 以 204 应答
         $allowed=$this->router()->allowedMethods($uri);
         if($allowed!==array()) {
-            $this->notAllowed($allowed,$method==='OPTIONS');
+            if($method==='OPTIONS')
+                $this->options($allowed);
+            else
+                $this->methodNotAllowed($allowed);
             return;
         }
         $this->notFound();
@@ -87,24 +89,30 @@ final class Route extends BaseRoute {
     /**
      * 方法不被允许时的响应
      *
-     * - 405 与 204 均带 `Allow` 头, 客户端据此得知可用方法
-     *
      * @access private
      * @param array<string> $allowed 允许的请求方法
-     * @param bool $isOptions 是否为 OPTIONS 请求
      * @return void
      * @throws Exception|ReflectionException
      */
-    private function notAllowed(array $allowed,bool $isOptions): void {
+    private function methodNotAllowed(array $allowed): void {
+        HttpError::methodNotAllowed($allowed)->apply(App::get(Response::class));
+    }
+
+    /**
+     * OPTIONS 自动应答
+     *
+     * - 204 仍带 `Allow` 头, 客户端据此得知可用方法
+     *
+     * @access private
+     * @param array<string> $allowed 允许的请求方法
+     * @return void
+     * @throws Exception|ReflectionException
+     */
+    private function options(array $allowed): void {
         $response=App::get(Response::class);
         $response->header('Allow',implode(', ',$allowed));
-        if($isOptions) {
-            $response->status(204);
-            $response->body('');
-            return;
-        }
-        $response->status(405);
-        $response->body('405 Method Not Allowed');
+        $response->status(204);
+        $response->body('');
     }
 
     /**
@@ -117,9 +125,7 @@ final class Route extends BaseRoute {
      * @throws Exception|ReflectionException
      */
     private function notFound(): void {
-        $response=App::get(Response::class);
-        $response->status(404);
-        $response->body('404 Not Found');
+        HttpError::notFound()->apply(App::get(Response::class));
     }
 
     /**

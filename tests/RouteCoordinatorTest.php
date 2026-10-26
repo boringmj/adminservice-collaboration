@@ -246,6 +246,7 @@ class RouteCoordinatorTest extends TestCase {
         $this->dispatch('/t/hello');
         $this->assertSame(405,$this->response()->status());
         $this->assertSame('POST',$this->response()->header('Allow'));
+        $this->assertSame('405 Method Not Allowed',$this->response()->body());
     }
 
     /**
@@ -268,6 +269,7 @@ class RouteCoordinatorTest extends TestCase {
         $this->dispatch('/t/o','OPTIONS');
         $this->assertSame(204,$this->response()->status());
         $this->assertSame('GET, HEAD',$this->response()->header('Allow'));
+        $this->assertSame('',$this->response()->body());
     }
 
     /**

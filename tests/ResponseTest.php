@@ -455,6 +455,8 @@ class ResponseTest extends TestCase {
         $this->assertSame(200,$response->status());
         $this->assertSame('body',$response->render());
         $this->assertSame('text/html; charset=utf-8',$response->header('Content-Type'));
+        // 没有 Accept 时仍保留 Vary: 同一 URL 的后续请求带 Accept 可能得到不同类型
+        $this->assertSame('Accept',$response->header('Vary'));
     }
 
     /**
@@ -483,6 +485,8 @@ class ResponseTest extends TestCase {
         $this->assertSame(200,$response->status());
         $this->assertSame('body',$response->render());
         $this->assertSame('text/html; charset=utf-8',$response->header('Content-Type'));
+        // fallback 仍然按 Accept 决定是否回落, 缓存必须知道响应依赖 Accept
+        $this->assertSame('Accept',$response->header('Vary'));
     }
 
     /**

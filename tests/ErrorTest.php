@@ -10,6 +10,7 @@ use AdminService\Error;
 use ReflectionMethod;
 use ReflectionProperty;
 
+use function error_reporting;
 use function fclose;
 use function file_get_contents;
 use function is_file;
@@ -65,11 +66,13 @@ class ErrorTest extends TestCase {
      */
     public function testAtSuppressedWarningIsNotCollected(): void {
         self::setErrors(array());
+        $previous=error_reporting(E_ALL);
         set_error_handler(array(Error::class,'handleError'),E_ALL);
         try {
             @trigger_error('suppressed warning',E_USER_WARNING);
         } finally {
             restore_error_handler();
+            error_reporting($previous);
         }
         $this->assertSame(array(),Error::getErrors());
     }
@@ -80,11 +83,13 @@ class ErrorTest extends TestCase {
      */
     public function testNormalWarningIsCollected(): void {
         self::setErrors(array());
+        $previous=error_reporting(E_ALL);
         set_error_handler(array(Error::class,'handleError'),E_ALL);
         try {
             trigger_error('normal warning',E_USER_WARNING);
         } finally {
             restore_error_handler();
+            error_reporting($previous);
         }
         $errors=Error::getErrors();
         $this->assertCount(1,$errors);

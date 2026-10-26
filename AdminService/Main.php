@@ -45,8 +45,8 @@ final class Main {
      */
     public function init(): self {
         // 判断PHP版本
-        if(version_compare(PHP_VERSION,'8.1.0','<'))
-            exit('无法兼容您的PHP版本('.PHP_VERSION.'),需要PHP8.1.0及以上版本');
+        if(version_compare(PHP_VERSION,'8.2.0','<'))
+            exit('无法兼容您的PHP版本('.PHP_VERSION.'),需要PHP8.2.0及以上版本');
         // 注册错误处理(响应出口: 正常退出时按请求准备好响应再发送)
         // 关停阶段门面已收回应用级容器, 故这里直接向 Application 取请求级容器(框架内部不走门面)
         Error::register(function(): void {

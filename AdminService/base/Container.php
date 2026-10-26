@@ -49,8 +49,9 @@ interface Container {
      * 获取对象(存在则复用, 不存在则实例化并复用)
      *
      * @access public
-     * @param string $name 对象名(类名 / 接口名 / 别名)
-     * @return object
+     * @template T of object
+     * @param class-string<T>|string $name 对象名(类名 / 接口名 / 别名)
+     * @return T
      * @throws \Exception
      */
     public function get(string $name): object;
@@ -152,8 +153,9 @@ interface Container {
      * 获取对象(复用已登记实例; 未登记则实例化并做完整装配)
      *
      * @access public
-     * @param string $name 对象名(类名 / 接口名 / 别名)
-     * @return object
+     * @template T of object
+     * @param class-string<T>|string $name 对象名(类名 / 接口名 / 别名)
+     * @return T
      * @throws \Exception
      */
     public function make(string $name): object;
@@ -162,8 +164,9 @@ interface Container {
      * 强制新建对象(每次都是新实例, 做完整装配, 结果覆盖登记)
      *
      * @access public
-     * @param string $name 对象名(类名 / 接口名 / 别名)
-     * @return object
+     * @template T of object
+     * @param class-string<T>|string $name 对象名(类名 / 接口名 / 别名)
+     * @return T
      * @throws \Exception
      */
     public function fresh(string $name): object;
@@ -172,9 +175,10 @@ interface Container {
      * 构建对象(带构造参数, 做完整装配, **不登记**)
      *
      * @access public
-     * @param string $__name 对象名(类名 / 接口名 / 别名)
+     * @template T of object
+     * @param class-string<T>|string $__name 对象名(类名 / 接口名 / 别名)
      * @param mixed ...$args 构造函数参数(关系型键按参数名赋值, 索引键按位置赋值)
-     * @return object
+     * @return T
      * @throws \Exception
      */
     public function build(string $__name,...$args): object;

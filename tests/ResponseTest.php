@@ -490,6 +490,38 @@ class ResponseTest extends TestCase {
     }
 
     /**
+     * off 关闭自动协商
+     *
+     * - 不读取 Accept、不追加 Vary, 也不返回 406
+     * - 仅影响未显式指定内容类型的响应; 未指定时按类型表第一个具体类型渲染
+     *
+     * @return void
+     */
+    public function testNegotiationOffDisablesAcceptAndVary(): void {
+        $configs=Config::all();
+        $configs['response']['default']['negotiation']='off';
+        set_config($configs);
+        $response=new Response();
+        $response->body('body');
+        $response->prepare($this->request('GET','application/xml'));
+        $this->assertSame(200,$response->status());
+        $this->assertSame('*/*',$response->contentType());
+        $this->assertSame('',$response->header('Vary'));
+        $this->assertSame('body',$response->render());
+        $this->assertSame('text/html; charset=utf-8',$response->header('Content-Type'));
+        // 显式类型仍优先, 不受 off 影响
+        $response=new Response();
+        $response->body('body');
+        $response->json();
+        $response->prepare($this->request('GET','text/plain'));
+        $this->assertSame(200,$response->status());
+        $this->assertSame('application/json',$response->contentType());
+        $this->assertSame('',$response->header('Vary'));
+        $this->assertSame('["body"]',$response->render());
+        $this->assertSame('application/json; charset=utf-8',$response->header('Content-Type'));
+    }
+
+    /**
      * 测试显式类型大小写归一后仍按 JSON 渲染
      * @return void
      */

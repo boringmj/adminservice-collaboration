@@ -38,7 +38,7 @@
 ## 从旧版升级
 
 - PHP 最低版本为 `8.2.0`; 旧版入口/扩展若直接使用 `Application`, 需自行保证版本检查。
-- 内容协商默认 `response.default.negotiation=strict`: 有正文的 `2xx` 没有可接受类型时返回 `406 text/plain`; 需要旧版回落行为时设为 `fallback`。
+- 内容协商默认 `response.default.negotiation=strict`: 有正文的 `2xx` 没有可接受类型时返回 `406 text/plain`; 需要旧版回落行为时设为 `fallback`; 设为 `off` 则关闭自动协商, 不读取 `Accept`、不返回 `406`、不自动追加 `Vary`, 未显式指定类型时按类型表第一个具体类型(当前 `text/html`)渲染。
 - `404` / `405` 固定返回 `text/plain`, 不再参与内容协商; 自动 `OPTIONS` 会列入 `Allow`。
 - 旧版约定式路由已移除, 改用显式路由或控制器属性路由。
 - 完整破坏性变更与迁移说明见 Wiki [新旧版本调整](https://github.com/boringmj/adminservice-collaboration/wiki/新旧版本调整)。
@@ -101,7 +101,7 @@ public function run(): void {
 
 ## 响应协商
 
-`prepare()` 依据请求 `Accept` 从 `response.default.type` 选择响应类型；默认 `response.default.negotiation=strict`，有正文的 `2xx` 没有可接受类型时返回 `406 text/plain`，设为 `fallback` 则回落到默认具体类型。vendor 类型 `application/xxx+json` 与 `application/json` 等价，`Accept: application/*+json` 也兼容标准 JSON；无 `Accept` 或空正文的 `2xx` 不触发 `406`。`404` / `405` 固定为 `text/plain`，自动 `OPTIONS` 会列入 `Allow`。详见 Wiki [返回类型](https://github.com/boringmj/adminservice-collaboration/wiki/返回类型)
+`prepare()` 依据请求 `Accept` 从 `response.default.type` 选择响应类型；默认 `response.default.negotiation=strict`，有正文的 `2xx` 没有可接受类型时返回 `406 text/plain`，设为 `fallback` 则回落到默认具体类型，设为 `off` 则跳过自动协商(不读取 `Accept`、不返回 `406`、不自动追加 `Vary`)。协商只作用于未显式指定内容类型的响应；`json()` / `html()` / `text()` / `type()` / `contentType()` 显式指定类型时始终优先。vendor 类型 `application/xxx+json` 与 `application/json` 等价，`Accept: application/*+json` 也兼容标准 JSON；无 `Accept` 或空正文的 `2xx` 不触发 `406`。`404` / `405` 固定为 `text/plain`，自动 `OPTIONS` 会列入 `Allow`。详见 Wiki [返回类型](https://github.com/boringmj/adminservice-collaboration/wiki/返回类型)
 
 ## 配置注入
 

@@ -179,15 +179,17 @@ class RouteCoordinatorTest extends TestCase {
      * @param string $uri 请求路径
      * @param string $method 请求方法
      * @param array<string,mixed> $query 预先写入的 GET 参数
+     * @param array<string,string> $headers 请求头
      * @return mixed 控制器返回值
      */
-    private function dispatch(string $uri,string $method='GET',array $query=array()): mixed {
+    private function dispatch(string $uri,string $method='GET',array $query=array(),array $headers=array()): mixed {
         App::instance(Request::class,new HttpRequest(array(
             'server'=>array(
                 'REQUEST_URI'=>$uri,
                 'REQUEST_METHOD'=>$method
             ),
-            'query'=>$query
+            'query'=>$query,
+            'headers'=>$headers
         )));
         App::instance(Response::class,new HttpResponse());
         $this->main()->run();
@@ -243,11 +245,17 @@ class RouteCoordinatorTest extends TestCase {
     public function testExplicitRouteMethodDistinction(): void {
         $this->useRoutes("\$router->post('/t/hello',array(\\app\\demo\\controller\\Index::class,'index'));");
         // 路径存在但方法不符 → 405, 并告知允许的方法
-        $this->dispatch('/t/hello');
+        $this->dispatch('/t/hello','GET',array(),array('Accept'=>'application/json'));
         $this->assertSame(405,$this->response()->status());
         $this->assertSame('POST, OPTIONS',$this->response()->header('Allow'));
         $this->assertSame('405 Method Not Allowed',$this->response()->body());
         $this->assertSame('text/plain',$this->response()->contentType());
+        // 即使客户端要 JSON, 405 仍固定纯文本, 不参与协商
+        $request=$this->main()->application()->requestContainer()->get(Request::class);
+        $this->response()->prepare($request);
+        $this->assertSame('405 Method Not Allowed',$this->response()->render());
+        $this->assertSame('text/plain; charset=utf-8',$this->response()->header('Content-Type'));
+        $this->assertSame('',$this->response()->header('Vary'));
     }
 
     /**
@@ -279,8 +287,14 @@ class RouteCoordinatorTest extends TestCase {
      */
     public function testUnknownPathReturns404(): void {
         $this->useRoutes("\$router->get('/t/only',array(\\app\\demo\\controller\\Index::class,'index'));");
-        $this->dispatch('/t/other');
+        $this->dispatch('/t/other','GET',array(),array('Accept'=>'application/json'));
         $this->assertSame(404,$this->response()->status());
+        // 404 固定纯文本, 不能被 Accept 改成 JSON 数组
+        $request=$this->main()->application()->requestContainer()->get(Request::class);
+        $this->response()->prepare($request);
+        $this->assertSame('404 Not Found',$this->response()->render());
+        $this->assertSame('text/plain; charset=utf-8',$this->response()->header('Content-Type'));
+        $this->assertSame('',$this->response()->header('Vary'));
     }
 
     /**

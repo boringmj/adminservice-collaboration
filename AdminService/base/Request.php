@@ -192,6 +192,8 @@ abstract class Request {
     /**
      * 设置Header信息(仅修改本请求实例的Header容器, 不同步到`Response`)
      *
+     * - 不会反向更新 Server 数据区; 构造完成后两者相互独立
+     *
      * @access public
      * @param string|array $params 参数名或参数组
      * @param string $value Header值($params 参数为数组时此参数无效)
@@ -202,6 +204,8 @@ abstract class Request {
     /**
      * 设置Input参数
      *
+     * - 只修改 input 数据区; 不重新解析请求体, 也不同步到 query / post / cookie
+     *
      * @access public
      * @param string|array $params 参数名或参数组
      * @param string $value Input值($params 参数为数组时此参数无效)
@@ -211,6 +215,8 @@ abstract class Request {
 
     /**
      * 设置Server参数
+     *
+     * - 不会重新推导或更新 Header
      *
      * @access public
      * @param string|array $params 参数名或参数组

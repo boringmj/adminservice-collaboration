@@ -8,6 +8,7 @@ use AdminService\ResponseProcessor\Http;
 // response 相关配置
 return array(
     'default'=>array(
+        'negotiation'=>'strict', // 协商失败: strict=406, fallback=按默认类型
         'type'=>array( // 如果不指定返回方式,默认使用第一个
             '*/*'=>array(
                 'class'=>Http::class

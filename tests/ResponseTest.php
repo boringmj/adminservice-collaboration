@@ -214,7 +214,7 @@ class ResponseTest extends TestCase {
      */
     public function testPrepareDoesNotDuplicateVary(): void {
         $response=new Response();
-        $request=$this->request('GET','application/unknown');
+        $request=$this->request('GET','application/json');
         $response->prepare($request);
         $response->prepare($request);
         $this->assertSame('Accept',$response->header('Vary'));
@@ -328,13 +328,92 @@ class ResponseTest extends TestCase {
     }
 
     /**
-     * 测试协商失败或未注册类型时回退到具体默认类型
+     * 协商失败返回 406
+     *
+     * - 客户端明确给出了 Accept 且没有可用类型: 不再静默回落到 HTML
+     *
      * @return void
      */
-    public function testContentTypeFallbackOnRender(): void {
+    public function testUnsupportedAcceptReturns406(): void {
+        $response=new Response();
+        $response->body('body');
+        $response->prepare($this->request('GET','application/xml'));
+        $this->assertSame(406,$response->status());
+        $this->assertSame('406 Not Acceptable',$response->body());
+        $this->assertSame('text/plain',$response->contentType());
+        // 协商结果依赖 Accept: 406 也应带 Vary
+        $this->assertSame('Accept',$response->header('Vary'));
+        $this->assertSame('406 Not Acceptable',$response->render());
+        $this->assertSame('text/plain; charset=utf-8',$response->header('Content-Type'));
+    }
+
+    /**
+     * 所有候选都被 q=0 拒绝时返回 406
+     * @return void
+     */
+    public function testAllRejectedAcceptReturns406(): void {
+        $response=new Response();
+        $response->body('body');
+        $response->prepare($this->request('GET','application/json;q=0, text/*;q=0'));
+        $this->assertSame(406,$response->status());
+        $this->assertSame('406 Not Acceptable',$response->body());
+    }
+
+    /**
+     * vendor JSON 按标准 JSON 协商
+     * @return void
+     */
+    public function testVendorJsonNegotiatesAsJson(): void {
+        $response=new Response();
+        $response->body('body');
+        $response->prepare($this->request('GET','application/vnd.api+json'));
+        $this->assertSame('application/json',$response->contentType());
+        $this->assertSame('["body"]',$response->render());
+        $this->assertSame('application/json; charset=utf-8',$response->header('Content-Type'));
+    }
+
+    /**
+     * 协商失败不能覆盖 404/405 等错误状态
+     * @return void
+     */
+    public function testNegotiationFailurePreservesErrorStatus(): void {
+        foreach(array(404,405) as $status) {
+            $response=new Response();
+            $response->status($status);
+            $response->body($status.' Error');
+            $response->prepare($this->request('GET','application/xml'));
+            $this->assertSame($status,$response->status());
+            $this->assertSame($status.' Error',$response->body());
+            $this->assertSame($status.' Error',$response->render());
+            $this->assertSame('text/html; charset=utf-8',$response->header('Content-Type'));
+        }
+    }
+
+    /**
+     * 没有 Accept 头时按默认类型回落, 不返回 406
+     * @return void
+     */
+    public function testMissingAcceptFallsBackToDefault(): void {
+        $response=new Response();
+        $response->body('body');
+        $response->prepare($this->request('GET'));
+        $this->assertSame(200,$response->status());
+        $this->assertSame('body',$response->render());
+        $this->assertSame('text/html; charset=utf-8',$response->header('Content-Type'));
+    }
+
+    /**
+     * fallback 配置保留旧的协商失败回落行为
+     * @return void
+     */
+    public function testNegotiationFallbackConfig(): void {
+        $configs=Config::all();
+        $configs['response']['default']['negotiation']='fallback';
+        set_config($configs);
         $response=new Response();
         $response->body('body');
         $response->prepare($this->request('GET','application/unknown'));
+        $this->assertSame(200,$response->status());
         $this->assertSame('body',$response->render());
         $this->assertSame('text/html; charset=utf-8',$response->header('Content-Type'));
     }

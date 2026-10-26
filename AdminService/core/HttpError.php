@@ -16,11 +16,13 @@ final class HttpError {
 
     /**
      * @param array<string,string|array<string>> $headers 响应头
+     * @param string|null $contentType 显式内容类型(null 时保留当前内容类型)
      */
     private function __construct(
         private int $status,
         private mixed $body,
-        private array $headers=array()
+        private array $headers=array(),
+        private ?string $contentType=null
     ) {}
 
     /**
@@ -47,6 +49,16 @@ final class HttpError {
     }
 
     /**
+     * 406 Not Acceptable
+     *
+     * @access public
+     * @return self
+     */
+    public static function notAcceptable(): self {
+        return new self(406,'406 Not Acceptable',array(),'text/plain');
+    }
+
+    /**
      * 应用到响应
      *
      * @access public
@@ -57,6 +69,8 @@ final class HttpError {
         $response->status($this->status);
         foreach($this->headers as $name=>$value)
             $response->header($name,$value);
+        if($this->contentType!==null)
+            $response->contentType($this->contentType);
         $response->body($this->body);
     }
 

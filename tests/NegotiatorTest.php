@@ -28,6 +28,15 @@ class NegotiatorTest extends TestCase {
         );
         // q=0 保留为 0(表示明确拒绝)
         $this->assertSame(array('application/json'=>0.0),Negotiator::parse('application/json;q=0'));
+        // vendor JSON 归一为标准 JSON, 原类型保留
+        $vendor=Negotiator::parse('application/vnd.api+json;q=0.7');
+        $this->assertSame(0.7,$vendor['application/vnd.api+json']);
+        $this->assertSame(0.7,$vendor['application/json']);
+        // 多个 JSON 变体取最高权重, 不受书写顺序影响
+        $vendor=Negotiator::parse('application/vnd.api+json;q=0.5, application/json;q=0');
+        $this->assertSame(0.5,$vendor['application/json']);
+        // 通配的 `+json` 不是具体 vendor JSON, 不补标准 JSON
+        $this->assertArrayNotHasKey('application/json',Negotiator::parse('application/*+json'));
         // 空头
         $this->assertSame(array(),Negotiator::parse(''));
         $this->assertSame(array(),Negotiator::parse(null));
@@ -46,6 +55,8 @@ class NegotiatorTest extends TestCase {
         $this->assertTrue(Negotiator::accepts(Negotiator::parse('*/*'),'image/png'));
         // 明确拒绝
         $this->assertFalse(Negotiator::accepts(Negotiator::parse('*/*, application/json;q=0'),'application/json'));
+        // vendor JSON 视为标准 JSON
+        $this->assertTrue(Negotiator::accepts(Negotiator::parse('application/vnd.api+json'),'application/json'));
         // 空 Accept 解析结果不匹配任何类型(调用方按"无约束"处理)
         $this->assertFalse(Negotiator::accepts(array(),'application/json'));
     }
@@ -74,6 +85,15 @@ class NegotiatorTest extends TestCase {
         $this->assertSame('text/html',Negotiator::best(
             Negotiator::parse('text/*, application/json;q=0'),
             array('application/json','text/html')
+        ));
+        // vendor JSON 与标准 JSON 等价
+        $this->assertSame('application/json',Negotiator::best(
+            Negotiator::parse('application/vnd.api+json'),
+            $candidates
+        ));
+        $this->assertNull(Negotiator::best(
+            Negotiator::parse('application/vnd.api+json;q=0'),
+            array('application/json')
         ));
         // 无可接受候选
         $this->assertNull(Negotiator::best(Negotiator::parse('image/png'),$candidates));

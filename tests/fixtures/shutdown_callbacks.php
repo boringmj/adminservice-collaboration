@@ -23,3 +23,5 @@ register_shutdown_function(function() use ($marker): void {
 
 if($mode==='warning')
     trigger_error('shutdown warning',E_USER_WARNING);
+elseif($mode==='exception')
+    throw new RuntimeException('shutdown exception');

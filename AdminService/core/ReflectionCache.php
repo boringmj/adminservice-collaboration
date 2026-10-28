@@ -160,7 +160,7 @@ final class ReflectionCache {
     /**
      * 清空缓存
      *
-     * - 常驻模式下请求级容器被丢弃时同步释放(避免跨请求长期持有反射对象)
+     * - 请求级容器与父容器共享同一份缓存, 清空会影响所有共享该缓存的容器
      *
      * @access public
      * @return void

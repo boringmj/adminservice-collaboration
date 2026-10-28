@@ -205,7 +205,7 @@ class ContainerBindingTest extends TestCase {
     }
 
     /**
-     * 测试 has() 与 make() 同口径: 有可实例化实现的接口也算"能给出"
+     * 测试 has(): 有可实例化实现的接口也算"能给出"
      *
      * @return void
      */
@@ -216,6 +216,34 @@ class ContainerBindingTest extends TestCase {
         $this->assertTrue($container->has(ServiceInterface::class));
         $this->assertInstanceOf(ServiceInterface::class,$container->get(ServiceInterface::class));
         $this->assertFalse($container->has(RegressionMissingInterface::class),'没有任何实现的接口仍然不可构建');
+    }
+
+    /**
+     * 测试 fresh() 对无绑定接口同样强制新建实现类实例
+     *
+     * @return void
+     */
+    public function testFreshInterfaceBuildsNewImplementationInstance(): void {
+        $container=App::getInstance();
+        $old=$container->make(RegressionFreshImplementation::class);
+        $first=$container->fresh(RegressionFreshInterface::class);
+        $second=$container->fresh(RegressionFreshInterface::class);
+        $this->assertInstanceOf(RegressionFreshImplementation::class,$first);
+        $this->assertNotSame($old,$first);
+        $this->assertNotSame($first,$second);
+    }
+
+    /**
+     * 测试 fresh() 对无绑定抽象类同样强制新建实现类实例
+     *
+     * @return void
+     */
+    public function testFreshAbstractBuildsNewImplementationInstance(): void {
+        $container=App::getInstance();
+        $old=$container->make(RegressionFreshConcrete::class);
+        $fresh=$container->fresh(RegressionFreshAbstract::class);
+        $this->assertInstanceOf(RegressionFreshConcrete::class,$fresh);
+        $this->assertNotSame($old,$fresh);
     }
 
 }
@@ -277,4 +305,28 @@ final class RegressionIncompatibleConsumer {
  * 没有任何实现类的接口
  */
 interface RegressionMissingInterface {
+}
+
+/**
+ * fresh() 用例接口
+ */
+interface RegressionFreshInterface {
+}
+
+/**
+ * fresh() 用例实现类
+ */
+final class RegressionFreshImplementation implements RegressionFreshInterface {
+}
+
+/**
+ * fresh() 抽象类用例
+ */
+abstract class RegressionFreshAbstract {
+}
+
+/**
+ * fresh() 抽象类实现
+ */
+final class RegressionFreshConcrete extends RegressionFreshAbstract {
 }

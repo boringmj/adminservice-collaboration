@@ -7,6 +7,7 @@ use PHPUnit\Framework\TestCase;
 use Tests\Fixtures\CircularA;
 use Tests\Fixtures\CircularB;
 use AdminService\App;
+use AdminService\Exception;
 
 /**
  * 装配器循环依赖用例
@@ -41,4 +42,40 @@ class AutowireCycleTest extends TestCase {
         $this->assertFalse(isset($a->b->a->b));
     }
 
+    /**
+     * 测试构造参数环路抛出受控异常
+     * @return void
+     */
+    public function testConstructorCycleThrowsControlledException(): void {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Circular dependency detected');
+        App::make(ConstructorCycleA::class);
+    }
+
+    /**
+     * 测试 build() 的构造参数环路同样抛出受控异常
+     * @return void
+     */
+    public function testBuildConstructorCycleThrowsControlledException(): void {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Circular dependency detected');
+        App::build(ConstructorCycleA::class);
+    }
+
+}
+
+/**
+ * 构造参数循环依赖 A
+ */
+final class ConstructorCycleA {
+    public function __construct(ConstructorCycleB $b) {
+    }
+}
+
+/**
+ * 构造参数循环依赖 B
+ */
+final class ConstructorCycleB {
+    public function __construct(ConstructorCycleA $a) {
+    }
 }

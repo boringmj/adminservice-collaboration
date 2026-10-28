@@ -167,7 +167,8 @@ final class Application {
     /**
      * 处理一次请求(应用级入口)
      *
-     * - **每请求一个干净的请求级容器**: 从应用级容器 `fork()` 派生, 请求结束随引用释放(绑定与反射缓存仍共享)
+     * - **每请求一个干净的请求级容器**: 从应用级容器 `fork()` 派生, 保留到下一次请求开始时被 `reset()`;
+     *   绑定/别名/单例表是 fork 时的快照, 反射缓存共享
      * - 进入请求作用域时把门面指针指向请求级容器; 请求结束收回应用级容器 —— 响应出口在关停阶段
      *   经 `Application::requestContainer()` 取请求级对象, 不依赖门面指针
      * - 请求级装配: 每请求新建请求 / 响应 / 会话;若容器(含父容器)已有登记则沿用, 便于测试与自定义入口注入
@@ -178,10 +179,10 @@ final class Application {
      * @throws Exception
      */
     public function handle(callable $callback): mixed {
-        // 上一个请求的容器回收(常驻模式下及时释放请求级对象; 首个请求时为空)
+        // 复用请求级容器前清空上一轮的实例(首个请求时为空)
         if($this->request_container!==null)
             $this->request_container->reset();
-        // 请求级 scope: 实例与全局数据独立, 绑定/别名/单例与反射缓存共享
+        // 请求级 scope: 实例表独立; 绑定/别名/单例为 fork 快照; 反射缓存共享
         $container=$this->container->fork();
         $this->request_container=$container;
         // 错误出口需要当前请求的 Response; 在请求开始时同步给错误处理器

@@ -79,6 +79,21 @@ class ScopeTest extends TestCase {
     }
 
     /**
+     * 测试 has() 与 make() 使用同样的名称解析顺序
+     * @return void
+     */
+    public function testHasUsesSameResolutionOrderAsMake(): void {
+        $app=App::getInstance();
+        $app->instance('legacy_service',new ConcreteService());
+        $child=$app->fork();
+        $child->alias('legacy_service','Tests\\MissingService');
+        // 别名解析到不存在的类后, 不能因为父容器里正好有同名的旧实例就返回 true
+        $this->assertFalse($child->has('legacy_service'));
+        $this->expectException(ContainerException::class);
+        $child->make('legacy_service');
+    }
+
+    /**
      * 测试 fork:请求级对象(路由上下文)不回流向父容器, 父容器的对子容器可见
      * @return void
      */

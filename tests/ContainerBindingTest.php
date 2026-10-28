@@ -246,6 +246,19 @@ class ContainerBindingTest extends TestCase {
         $this->assertNotSame($old,$fresh);
     }
 
+    /**
+     * 测试接口注入优先使用已登记的实现类实例
+     *
+     * @return void
+     */
+    public function testInterfaceInjectionPrefersRegisteredImplementation(): void {
+        $registered=new RegressionRegisteredHandler();
+        App::instance(RegressionRegisteredHandler::class,$registered);
+        $handler=App::make(RegressionHandlerInterface::class);
+        $this->assertInstanceOf(RegressionSelfReferencingHandler::class,$handler);
+        $this->assertSame($registered,$handler->inner);
+    }
+
 }
 
 /**
@@ -329,4 +342,24 @@ abstract class RegressionFreshAbstract {
  * fresh() 抽象类实现
  */
 final class RegressionFreshConcrete extends RegressionFreshAbstract {
+}
+
+/**
+ * 多实现接口注入用例
+ */
+interface RegressionHandlerInterface {
+}
+
+/**
+ * 自引用实现(ClassFinder 优先命中)
+ */
+final class RegressionSelfReferencingHandler implements RegressionHandlerInterface {
+    public function __construct(public RegressionHandlerInterface $inner) {
+    }
+}
+
+/**
+ * 已登记的多实现候选
+ */
+final class RegressionRegisteredHandler implements RegressionHandlerInterface {
 }

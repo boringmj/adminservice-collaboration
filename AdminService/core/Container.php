@@ -3,6 +3,7 @@
 namespace AdminService;
 
 use ReflectionClass;
+use ReflectionParameter;
 
 use function array_key_last;
 use function array_pop;
@@ -14,6 +15,7 @@ use function is_array;
 use function is_string;
 use ReflectionException;
 use AdminService\Exception;
+use AdminService\exception\CircularDependencyException;
 
 /**
  * 容器实现
@@ -42,8 +44,8 @@ final class Container implements \base\Container {
     /**
      * 当前构建栈(`makeInternal()` / `build()` 的构建标识)
      *
-     * - 参数解析器回调据此解析构造函数与生命周期方法的参数
-     * - 进入构建时同步, 退出时恢复为上一层(顶层调用为空数组)
+     * - 参数解析器回调与嵌套公共入口据此解析依赖
+     * - 进入构建时同步, 退出时恢复为上一层; 顶层调用为空数组, 嵌套公共入口沿用当前栈
      *
      * @var array<mixed>
      */
@@ -147,12 +149,17 @@ final class Container implements \base\Container {
         });
         // 参数解析器: 按类型解析出实例(先看容器里已有的实例, 再找可实例化的类交给容器装配)
         // 构造参数与生命周期方法参数沿用当前构建栈(`$this->build_flags`)
-        $this->arguments->setInstanceResolver(function(array $types): ?object {
+        $this->arguments->setInstanceResolver(function(array $types,?ReflectionParameter $param=null): ?object {
             $bound=$this->getBoundInstance($types);
             if($bound!==null)
                 return $bound;
             $real_class=$this->classes->getFirstInstantiableClass($types);
             if($real_class===null)
+                return null;
+            // 可选的自引用参数交给参数解析器取默认值 / null, 不生成裸实例
+            if(in_array($real_class,$this->build_flags,true)
+                &&$param!==null
+                &&($param->isDefaultValueAvailable()||$param->allowsNull()))
                 return null;
             return $this->makeInternal($real_class,false,$this->build_flags);
         });
@@ -176,9 +183,18 @@ final class Container implements \base\Container {
         foreach($types as $type) {
             if($type===''||$type==='NULL'||$type==='mixed')
                 continue;
-            $bound=$this->findInstance($type)??$this->findInstance($this->resolve($type));
+            $bound=$this->findInstance($type);
             if($bound!==null)
                 return $bound;
+            $real=$this->resolve($type);
+            $bound=$this->findInstance($real);
+            if($bound!==null)
+                return $bound;
+            if(interface_exists($real)||(class_exists($real)&&$this->reflections->getClass($real)->isAbstract())) {
+                $implementation=$this->findBoundImplementation($real);
+                if($implementation!==null)
+                    return $implementation;
+            }
         }
         return null;
     }
@@ -288,7 +304,7 @@ final class Container implements \base\Container {
      * @throws Exception
      */
     public function get(string $name): object {
-        $flags=array();
+        $flags=$this->build_flags;
         return $this->makeInternal($name,false,$flags);
     }
 
@@ -319,7 +335,7 @@ final class Container implements \base\Container {
         if($constructor!==null&&$constructor->getNumberOfRequiredParameters()>0) {
             $stack=$this->build_flags;
             $stack[]=$name;
-            throw new Exception(
+            throw new CircularDependencyException(
                 'Circular dependency detected while resolving "'.$name.'" ('.implode(' -> ',$stack).
                 '): the class has required constructor parameters and cannot be instantiated without them.',
                 0,
@@ -374,7 +390,7 @@ final class Container implements \base\Container {
     /**
      * 判断容器能否定位到该名称的可实例化类
      *
-     * - 检查范围: 自身或父容器的实例、本地绑定 / 别名解析出的类、已声明的实现类
+     * - 检查范围: 先解析本地绑定 / 别名, 再查自身或父容器的实例、已声明的实现类
      * - 不检查构造参数是否可解析
      * - 绑定 / 别名表是 `fork()` 时的快照, 父容器之后新增的名字不会被子容器看到
      *
@@ -384,8 +400,7 @@ final class Container implements \base\Container {
      */
     public function has(string $name): bool {
         try {
-            if($this->findInstance($name)!==null)
-                return true;
+            // 先解析别名 / 绑定, 再按解析结果查实例, 与 make() 的解析顺序一致
             $real=$this->resolve($name);
             if($this->findInstance($real)!==null)
                 return true;
@@ -576,7 +591,7 @@ final class Container implements \base\Container {
      * - 依赖简单支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
      *   这种情况请先使用 App::instance(Class::class,new Class()) 添加到容器中
      * - 循环依赖被截断时, 回落的实例不执行属性 / Setter / 生命周期方法注入;
-     *   有必填构造参数的环路会抛异常
+     *   可选构造参数回落默认值 / null, 无法回落时抛 `CircularDependencyException`
      *
      * @access public
      * @template T of object
@@ -585,7 +600,7 @@ final class Container implements \base\Container {
      * @throws Exception|ReflectionException
      */
     public function make(string $name): object {
-        $flags=array();
+        $flags=$this->build_flags;
         return $this->makeInternal($name,false,$flags);
     }
 
@@ -594,7 +609,8 @@ final class Container implements \base\Container {
      *
      * - 跳过"复用已登记实例", 但仍做完整装配(属性 / Setter / 生命周期方法)
      * - 传接口/抽象类名时同样强制新建查找到的实现类, 不复用该实现类的已登记实例
-     * - 结果会覆盖登记(与 `make()` 一致), 因此适合"每请求要一个干净实例"的场景
+     * - 结果覆盖解析结果的登记(与 `make()` 一致); 直接以接口 / 抽象类名登记的实例保持不变
+     * - 因此适合"每请求要一个干净实例"的场景
      * - 循环依赖回落对象的限制与 `make()` 相同
      *
      * @access public
@@ -604,7 +620,7 @@ final class Container implements \base\Container {
      * @throws Exception
      */
     public function fresh(string $name): object {
-        $flags=array();
+        $flags=$this->build_flags;
         return $this->makeInternal($name,true,$flags);
     }
 
@@ -689,6 +705,7 @@ final class Container implements \base\Container {
      * - 与 `new` 的区别: **会做完整装配**(属性 / Setter / 生命周期方法注入), 解决"带参构造静默少注入"的问题
      * - 结果**本身不登记**到实例容器; 构造参数与属性依赖仍按 `make()` 解析并登记
      *   (要整体复用的场景请用 `get()` / `make()`)
+     * - 构建过程中调用时沿用当前构建栈; 同一类重入抛 `CircularDependencyException`
      *
      * @access public
      * @template T of object
@@ -700,6 +717,15 @@ final class Container implements \base\Container {
     public function build(string $__name,...$args): object {
         // 获取真实类名
         $__name=$this->resolve($__name);
+        if(in_array($__name,$this->build_flags,true)) {
+            $stack=$this->build_flags;
+            $stack[]=$__name;
+            throw new CircularDependencyException(
+                'Circular dependency detected while building "'.$__name.'" ('.implode(' -> ',$stack).').',
+                0,
+                array('class'=>$__name,'build_stack'=>$stack)
+            );
+        }
         // 判断类或接口是否存在(取不到反射即不存在)
         $ref=$this->getReflection($__name);
         // 判断是否可以被实例化,如果不能则尝试寻找一个可实例化的子类
@@ -710,7 +736,8 @@ final class Container implements \base\Container {
             return $this->build($real_class,...$args);
         }
         // 本对象本身不登记, 但仍以它作为构建栈起点, 让构造参数 / 属性里的自引用能被截断
-        $flags=array($__name);
+        $flags=$this->build_flags;
+        $flags[]=$__name;
         $previous_flags=$this->build_flags;
         $this->build_flags=&$flags;
         try {

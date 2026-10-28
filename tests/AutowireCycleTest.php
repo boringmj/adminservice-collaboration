@@ -7,7 +7,9 @@ use PHPUnit\Framework\TestCase;
 use Tests\Fixtures\CircularA;
 use Tests\Fixtures\CircularB;
 use AdminService\App;
+use AdminService\Container;
 use AdminService\Exception;
+use base\Attribute\AutowireMethod;
 
 /**
  * 装配器循环依赖用例
@@ -62,6 +64,43 @@ class AutowireCycleTest extends TestCase {
         App::build(ConstructorCycleA::class);
     }
 
+    /**
+     * 测试可选自引用且另有必填依赖时, 自引用取默认值
+     * @return void
+     */
+    public function testOptionalSelfConstructorParameterUsesDefault(): void {
+        $node=App::make(OptionalSelfWithDependency::class);
+        $this->assertInstanceOf(OptionalSelfDependency::class,$node->dep);
+        $this->assertNull($node->parent);
+    }
+
+    /**
+     * 测试可选自引用且没有其它必填参数时取默认值
+     * @return void
+     */
+    public function testOptionalSelfOnlyConstructorParameterUsesDefault(): void {
+        $node=App::make(OptionalSelfOnly::class);
+        $this->assertNull($node->parent);
+    }
+
+    /**
+     * 测试可空自引用没有默认值时取 null
+     * @return void
+     */
+    public function testNullableSelfConstructorParameterUsesNull(): void {
+        $node=App::make(NullableSelfWithoutDefault::class);
+        $this->assertNull($node->parent);
+    }
+
+    /**
+     * 测试生命周期方法显式调用公共 API 时沿用当前构建栈
+     * @return void
+     */
+    public function testExplicitLifecycleRecursionIsCut(): void {
+        App::setInstance(new Container());
+        $this->assertInstanceOf(ExplicitLifecycleA::class,App::make(ExplicitLifecycleA::class));
+    }
+
 }
 
 /**
@@ -77,5 +116,58 @@ final class ConstructorCycleA {
  */
 final class ConstructorCycleB {
     public function __construct(ConstructorCycleA $a) {
+    }
+}
+
+/**
+ * 可选自引用构造参数的依赖
+ */
+final class OptionalSelfDependency {
+}
+
+/**
+ * 只有可选自引用构造参数
+ */
+final class OptionalSelfOnly {
+    public function __construct(public ?OptionalSelfOnly $parent=null) {
+    }
+}
+
+/**
+ * 可选自引用构造参数, 另有必填依赖
+ */
+final class OptionalSelfWithDependency {
+    public function __construct(
+        public OptionalSelfDependency $dep,
+        public ?OptionalSelfWithDependency $parent=null
+    ) {
+    }
+}
+
+/**
+ * 可空自引用构造参数, 无默认值
+ */
+final class NullableSelfWithoutDefault {
+    public function __construct(public ?NullableSelfWithoutDefault $parent) {
+    }
+}
+
+/**
+ * 生命周期方法显式调用公共容器的入口
+ */
+final class ExplicitLifecycleA {
+    #[AutowireMethod]
+    public function boot(): void {
+        App::fresh(ExplicitLifecycleB::class);
+    }
+}
+
+/**
+ * 生命周期方法内递归调用自身
+ */
+final class ExplicitLifecycleB {
+    #[AutowireMethod]
+    public function boot(): void {
+        App::fresh(ExplicitLifecycleB::class);
     }
 }

@@ -9,6 +9,7 @@ use ReflectionException;
 use Closure;
 use base\ArgumentResolverInterface;
 use base\Attribute\Config;
+use AdminService\exception\CircularDependencyException;
 
 use function array_filter;
 use function array_key_exists;
@@ -207,7 +208,19 @@ final class ArgumentResolver implements ArgumentResolverInterface {
                 }
             }
             // 获取第一个可实例化的类
-            $real_class=$this->resolveInstance($types);
+            try {
+                $real_class=$this->resolveInstance($types,$param);
+            } catch(CircularDependencyException $e) {
+                if($param->isDefaultValueAvailable()) {
+                    $params_temp[]=$param->getDefaultValue();
+                    continue;
+                }
+                if($param->allowsNull()) {
+                    $params_temp[]=null;
+                    continue;
+                }
+                throw $e;
+            }
             if($real_class!==null) {
                 $params_temp[]=$real_class;
                 continue;
@@ -471,12 +484,13 @@ final class ArgumentResolver implements ArgumentResolverInterface {
      *
      * @access private
      * @param array<string> $types 类型数组
+     * @param ReflectionParameter|null $param 当前形参(供容器识别可选自引用)
      * @return object|null
      */
-    private function resolveInstance(array $types): ?object {
+    private function resolveInstance(array $types,?ReflectionParameter $param=null): ?object {
         if($this->instance_resolver===null)
             return null;
-        return ($this->instance_resolver)($types);
+        return ($this->instance_resolver)($types,$param);
     }
 
 }

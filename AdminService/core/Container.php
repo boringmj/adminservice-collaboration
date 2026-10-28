@@ -200,6 +200,47 @@ final class Container implements \base\Container {
     }
 
     /**
+     * 刷新抽象类或接口名上的实例登记
+     *
+     * - 仅 `fresh()` 且原抽象名已有登记时使用
+     * - 写入当前容器, 子容器会覆盖父容器的同名实例
+     *
+     * @access private
+     * @param string $name 抽象类或接口名
+     * @param object $object 新实例
+     * @param object|null $bound 原登记实例
+     * @param bool $is_force 是否强制新建
+     * @return void
+     */
+    private function refreshAbstractRegistration(string $name,object $object,?object $bound,bool $is_force): void {
+        if(!$is_force||$bound===null)
+            return;
+        $this->container[$name]=$object;
+        $this->refreshSelfRegistration($name,$object,$is_force);
+    }
+
+    /**
+     * 同步容器自身的两个登记键
+     *
+     * - 仅 `fresh()` 重建当前容器对象时使用
+     * - 不依赖登记实例是否仍是当前容器: 连续 `fresh()` 时两个键都要指向最新容器
+     *
+     * @access private
+     * @param string $name 对象名
+     * @param object $object 新实例
+     * @param bool $is_force 是否强制新建
+     * @return void
+     */
+    private function refreshSelfRegistration(string $name,object $object,bool $is_force): void {
+        if(!$is_force)
+            return;
+        if($name!==static::class&&$name!==\base\Container::class)
+            return;
+        $this->container[\base\Container::class]=$object;
+        $this->container[static::class]=$object;
+    }
+
+    /**
      * 查找容器里已登记的、实现指定接口的实例
      *
      * - 用于"契约没有别名、但实现类实例已登记"的多实现场景
@@ -609,7 +650,9 @@ final class Container implements \base\Container {
      *
      * - 跳过"复用已登记实例", 但仍做完整装配(属性 / Setter / 生命周期方法)
      * - 传接口/抽象类名时同样强制新建查找到的实现类, 不复用该实现类的已登记实例
-     * - 结果覆盖解析结果的登记(与 `make()` 一致); 直接以接口 / 抽象类名登记的实例保持不变
+     * - 结果覆盖解析结果的登记(与 `make()` 一致); 接口 / 抽象类名已有实例登记时同步指向新实例
+     * - 子容器刷新接口 / 抽象类登记时写入自身, 不修改父容器
+     * - 重建容器自身时两个自登记键同步指向新容器
      * - 因此适合"每请求要一个干净实例"的场景
      * - 循环依赖回落对象的限制与 `make()` 相同
      *
@@ -652,7 +695,9 @@ final class Container implements \base\Container {
                 $real_class=$this->classes->getFirstInstantiableClass(array($name));
                 if($real_class===null)
                     throw new Exception('Class "'.$name.'" is not instantiable.');
-                return $this->makeInternal($real_class,$is_force,$flags);
+                $object=$this->makeInternal($real_class,$is_force,$flags);
+                $this->refreshAbstractRegistration($name,$object,$bound,$is_force);
+                return $object;
             }
             // 判断类或接口是否存在
             if(!class_exists($name))
@@ -670,7 +715,9 @@ final class Container implements \base\Container {
                 // 抽象名只是"查找入口", 不能留在构建栈里: 否则同一抽象类型的第二个属性会误判为循环
                 array_pop($flags);
                 $pushed=false;
-                return $this->makeInternal($real_class,$is_force,$flags);
+                $object=$this->makeInternal($real_class,$is_force,$flags);
+                $this->refreshAbstractRegistration($name,$object,$bound,$is_force);
+                return $object;
             }
             $constructor=$ref->getConstructor();
             if($constructor!==null) {
@@ -686,6 +733,7 @@ final class Container implements \base\Container {
             // 将对象添加到容器中(并处理单例绑定的抽象名)
             $this->container[$name]=$object;
             $this->registerSingletons($name,$object);
+            $this->refreshSelfRegistration($name,$object,$is_force);
             return $object;
         } finally {
             // 正常路径在 finally 弹出; 抽象类分支已提前弹出, 这里避免重复

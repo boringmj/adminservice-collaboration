@@ -15,6 +15,7 @@ use AdminService\Container;
 use AdminService\Exception;
 use AdminService\exception\AutowireException;
 use base\Attribute\AutowireProperty;
+use base\Container as ContainerContract;
 
 /**
  * 容器绑定与解析语义用例
@@ -244,6 +245,70 @@ class ContainerBindingTest extends TestCase {
         $fresh=$container->fresh(RegressionFreshAbstract::class);
         $this->assertInstanceOf(RegressionFreshConcrete::class,$fresh);
         $this->assertNotSame($old,$fresh);
+    }
+
+    /**
+     * 测试 fresh() 刷新接口名上的已登记实例
+     *
+     * @return void
+     */
+    public function testFreshInterfaceReplacesRegisteredInstance(): void {
+        $container=App::getInstance();
+        $old=new RegressionFreshImplementation();
+        $container->instance(RegressionFreshInterface::class,$old);
+        $fresh=$container->fresh(RegressionFreshInterface::class);
+        $this->assertNotSame($old,$fresh);
+        $this->assertSame($fresh,$container->make(RegressionFreshInterface::class));
+        $this->assertSame($fresh,$container->make(RegressionFreshImplementation::class));
+    }
+
+    /**
+     * 测试 fresh() 刷新抽象类名上的已登记实例
+     *
+     * @return void
+     */
+    public function testFreshAbstractReplacesRegisteredInstance(): void {
+        $container=App::getInstance();
+        $old=new RegressionFreshConcrete();
+        $container->instance(RegressionFreshAbstract::class,$old);
+        $fresh=$container->fresh(RegressionFreshAbstract::class);
+        $this->assertNotSame($old,$fresh);
+        $this->assertSame($fresh,$container->make(RegressionFreshAbstract::class));
+        $this->assertSame($fresh,$container->make(RegressionFreshConcrete::class));
+    }
+
+    /**
+     * 测试 fresh() 在子容器刷新父容器的接口登记
+     *
+     * @return void
+     */
+    public function testFreshInterfaceReplacesParentRegisteredInstance(): void {
+        $parent=new Container();
+        $old=new RegressionFreshImplementation();
+        $parent->instance(RegressionFreshInterface::class,$old);
+        $child=$parent->fork();
+        $fresh=$child->fresh(RegressionFreshInterface::class);
+        $this->assertSame($fresh,$child->make(RegressionFreshInterface::class));
+        $this->assertSame($old,$parent->make(RegressionFreshInterface::class));
+    }
+
+    /**
+     * 测试 fresh() 同步刷新容器自身的两个登记键
+     *
+     * @return void
+     */
+    public function testFreshContainerReplacesSelfRegistrations(): void {
+        $container=new Container();
+        $fresh=$container->fresh(Container::class);
+        $this->assertNotSame($container,$fresh);
+        $this->assertSame($fresh,$container->get(Container::class));
+        $this->assertSame($fresh,$container->get(ContainerContract::class));
+        $fresh_again=$container->fresh(Container::class);
+        $this->assertSame($fresh_again,$container->get(Container::class));
+        $this->assertSame($fresh_again,$container->get(ContainerContract::class));
+        $fresh_from_contract=$container->fresh(ContainerContract::class);
+        $this->assertSame($fresh_from_contract,$container->get(Container::class));
+        $this->assertSame($fresh_from_contract,$container->get(ContainerContract::class));
     }
 
     /**

@@ -9,6 +9,8 @@ use Tests\Fixtures\ConfigOnPropertyConflict;
 use Tests\Fixtures\ConfigOnSetterConflict;
 use Tests\Fixtures\ConfigOnSetterParamConflict;
 use Tests\Fixtures\ConfigOnMethodConflict;
+use Tests\Fixtures\ConfigOnMethodParamConflict;
+use Tests\Fixtures\ConfigOnLifecycleConflict;
 use AdminService\App;
 use AdminService\ArgumentResolver;
 use AdminService\Config;
@@ -123,7 +125,7 @@ class ConfigInjectionTest extends TestCase {
     /**
      * 测试自相矛盾的标注直接报错(fail-fast, 不再静默忽略)
      *
-     * - `#[Config]` 与 `#[AutowireProperty]` / `#[AutowireSetter]` / `#[AutowireMethod]` 同挂一处
+     * - `#[Config]` 与 `#[AutowireProperty]` / `#[AutowireSetter]` / `#[AutowireLifecycle]` / `#[AutowireMethod]` 同挂一处
      * - 此前: 前两者静默忽略 Autowire*, 第三者会把方法**调用两次**
      *
      * @return void
@@ -134,6 +136,8 @@ class ConfigInjectionTest extends TestCase {
             ConfigOnSetterConflict::class,
             ConfigOnSetterParamConflict::class,
             ConfigOnMethodConflict::class,
+            ConfigOnMethodParamConflict::class,
+            ConfigOnLifecycleConflict::class,
         ) as $class) {
             try {
                 App::make($class);

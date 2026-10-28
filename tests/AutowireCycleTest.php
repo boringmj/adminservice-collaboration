@@ -9,7 +9,7 @@ use Tests\Fixtures\CircularB;
 use AdminService\App;
 use AdminService\Container;
 use AdminService\Exception;
-use base\Attribute\AutowireMethod;
+use base\Attribute\AutowireLifecycle;
 
 /**
  * 装配器循环依赖用例
@@ -156,7 +156,7 @@ final class NullableSelfWithoutDefault {
  * 生命周期方法显式调用公共容器的入口
  */
 final class ExplicitLifecycleA {
-    #[AutowireMethod]
+    #[AutowireLifecycle]
     public function boot(): void {
         App::fresh(ExplicitLifecycleB::class);
     }
@@ -166,7 +166,7 @@ final class ExplicitLifecycleA {
  * 生命周期方法内递归调用自身
  */
 final class ExplicitLifecycleB {
-    #[AutowireMethod]
+    #[AutowireLifecycle]
     public function boot(): void {
         App::fresh(ExplicitLifecycleB::class);
     }

@@ -2,6 +2,7 @@
 
 namespace Tests\Fixtures;
 
+use base\Attribute\AutowireLifecycle;
 use base\Attribute\AutowireMethod;
 
 /**
@@ -41,7 +42,7 @@ class UserProfile {
      * @param AbstractStatus $status 用户状态
      * @return void
      */
-    #[AutowireMethod]
+    #[AutowireLifecycle]
     public function init(UserName $name,AbstractStatus $status): void {
         $this->name=$name;
         $this->status=$status;

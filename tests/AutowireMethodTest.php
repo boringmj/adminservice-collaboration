@@ -14,7 +14,8 @@ use AdminService\Config;
 /**
  * 自动方法注入(生命周期)测试
  *
- * - 验证 #[AutowireMethod] 标记的方法在构建后自动调用, 参数按类型注入
+ * - 验证 #[AutowireLifecycle] 标记的方法在构建后自动调用, 参数按类型注入
+ * - 验证 #[AutowireMethod(类名)] 的单依赖注入仍然正常
  */
 class AutowireMethodTest extends TestCase {
 

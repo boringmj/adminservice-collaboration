@@ -337,6 +337,7 @@ final class Container implements \base\Container {
      *
      * - 已登记的实例优先; 否则做**完整装配**(构造参数 / 属性 / Setter / 生命周期方法), 并登记解析结果
      * - 与 `make()` 的区别只是语义命名: 两者都复用已登记实例; 要强制新建请用 `fresh()`
+     * - `AutowireMode::Deferred` 的任务只在最外层成功后刷新; 嵌套构建不会提前执行
      *
      * @access public
      * @template T of object
@@ -345,8 +346,18 @@ final class Container implements \base\Container {
      * @throws Exception
      */
     public function get(string $name): object {
+        $is_root=$this->build_flags===array();
         $flags=$this->build_flags;
-        return $this->makeInternal($name,false,$flags);
+        try {
+            $object=$this->makeInternal($name,false,$flags);
+        } catch(\Throwable $e) {
+            if($is_root)
+                $this->autowire->clearDeferred();
+            throw $e;
+        }
+        if($is_root)
+            $this->autowire->flushDeferred();
+        return $object;
     }
 
     /**
@@ -418,6 +429,7 @@ final class Container implements \base\Container {
      * - 绑定 / 别名 / 单例表与反射缓存**保留**(它们属应用级)
      * - 请求级容器由 `Application::handle()` 在下一次请求开始时调用本方法
      * - 容器自身的登记会重新写回, 因此 `reset()` 后仍可按契约取到自身
+     * - 尚未执行的自动注入延迟任务会一并丢弃, 避免引用已清空的实例
      *
      * @access public
      * @return void
@@ -426,6 +438,8 @@ final class Container implements \base\Container {
         $this->container=array();
         $this->container[\base\Container::class]=$this;
         $this->container[static::class]=$this;
+        // 丢弃未执行的延迟任务, 避免它们引用已被清空的实例
+        $this->autowire->clearDeferred();
     }
 
     /**
@@ -629,6 +643,7 @@ final class Container implements \base\Container {
      *
      * - 解析结果按真实类名登记, 因此同一实现**在每个容器实例内**只构建一次;
      *   要每次新建请用 `fresh()`
+     * - `AutowireMode::Deferred` 的任务在根对象登记后刷新; 嵌套构建不会提前执行
      * - 依赖简单支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
      *   这种情况请先使用 App::instance(Class::class,new Class()) 添加到容器中
      * - 循环依赖被截断时, 回落的实例不执行属性 / Setter / 生命周期方法注入;
@@ -641,8 +656,18 @@ final class Container implements \base\Container {
      * @throws Exception|ReflectionException
      */
     public function make(string $name): object {
+        $is_root=$this->build_flags===array();
         $flags=$this->build_flags;
-        return $this->makeInternal($name,false,$flags);
+        try {
+            $object=$this->makeInternal($name,false,$flags);
+        } catch(\Throwable $e) {
+            if($is_root)
+                $this->autowire->clearDeferred();
+            throw $e;
+        }
+        if($is_root)
+            $this->autowire->flushDeferred();
+        return $object;
     }
 
     /**
@@ -654,6 +679,7 @@ final class Container implements \base\Container {
      * - 子容器刷新接口 / 抽象类登记时写入自身, 不修改父容器
      * - 重建容器自身时两个自登记键同步指向新容器
      * - 因此适合"每请求要一个干净实例"的场景
+     * - `AutowireMode::Deferred` 的任务在根对象登记后刷新
      * - 循环依赖回落对象的限制与 `make()` 相同
      *
      * @access public
@@ -663,8 +689,18 @@ final class Container implements \base\Container {
      * @throws Exception
      */
     public function fresh(string $name): object {
+        $is_root=$this->build_flags===array();
         $flags=$this->build_flags;
-        return $this->makeInternal($name,true,$flags);
+        try {
+            $object=$this->makeInternal($name,true,$flags);
+        } catch(\Throwable $e) {
+            if($is_root)
+                $this->autowire->clearDeferred();
+            throw $e;
+        }
+        if($is_root)
+            $this->autowire->flushDeferred();
+        return $object;
     }
 
     /**
@@ -753,6 +789,8 @@ final class Container implements \base\Container {
      * - 与 `new` 的区别: **会做完整装配**(属性 / Setter / 生命周期方法注入), 解决"带参构造静默少注入"的问题
      * - 结果**本身不登记**到实例容器; 构造参数与属性依赖仍按 `make()` 解析并登记
      *   (要整体复用的场景请用 `get()` / `make()`)
+     * - `AutowireMode::Deferred` 的任务在根构建完成后刷新; 被构建对象本身未登记,
+     *   延迟任务若按"自身类型"解析会得到容器中的另一个实例
      * - 构建过程中调用时沿用当前构建栈; 同一类重入抛 `CircularDependencyException`
      *
      * @access public
@@ -763,6 +801,7 @@ final class Container implements \base\Container {
      * @throws Exception|ReflectionException
      */
     public function build(string $__name,...$args): object {
+        $is_root=$this->build_flags===array();
         // 获取真实类名
         $__name=$this->resolve($__name);
         if(in_array($__name,$this->build_flags,true)) {
@@ -801,8 +840,15 @@ final class Container implements \base\Container {
             }
             // 完整装配
             $this->autowire->autowire($object,$flags);
+            // 最外层构建成功后统一刷新延迟注入队列
+            if($is_root)
+                $this->autowire->flushDeferred();
             // 直接返回对象,不添加到实例容器中
             return $object;
+        } catch(\Throwable $e) {
+            if($is_root)
+                $this->autowire->clearDeferred();
+            throw $e;
         } finally {
             $this->build_flags=$previous_flags;
         }

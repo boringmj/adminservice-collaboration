@@ -3,20 +3,25 @@
 namespace Tests;
 
 use PHPUnit\Framework\TestCase;
+use ReflectionProperty;
 
 use AdminService\Config\Repository;
 use AdminService\Exception;
 use AdminService\File;
 
-use function chmod;
 use function file_get_contents;
 use function file_put_contents;
 use function glob;
+use function in_array;
 use function is_dir;
 use function is_file;
 use function mkdir;
 use function rmdir;
+use function stream_get_wrappers;
+use function stream_wrapper_register;
+use function stream_wrapper_unregister;
 use function sys_get_temp_dir;
+use function time;
 use function uniqid;
 use function unlink;
 /**
@@ -141,36 +146,30 @@ class FileTest extends TestCase {
     /**
      * 删除失败不能假装成功
      *
-     * - 只在当前平台确实能把只读文件设为不可删除时执行
+     * - 用测试流包装器固定 unlink 失败, 不依赖 Windows/Linux 的只读属性差异
      *
      * @return void
      */
     public function testDestroyFailureThrowsException(): void {
-        $file=new File('destroy_failure',$this->config);
-        $file->set('x',1,true);
-        $path=$this->dir.'/destroy_failure.data.json';
-        @chmod($path,0444);
-
-        $probe=$this->dir.'/destroy_probe';
-        file_put_contents($probe,'x');
-        @chmod($probe,0444);
-        $unlinkFails=!@unlink($probe);
-        @chmod($probe,0644);
-        if(is_file($probe))
-            @unlink($probe);
-        if(!$unlinkFails) {
-            @chmod($path,0644);
-            $this->markTestSkipped('当前平台无法通过只读属性模拟删除失败');
-        }
+        $scheme='adminserviceunlinkfail';
+        if(in_array($scheme,stream_get_wrappers(),true))
+            stream_wrapper_unregister($scheme);
+        $registered=stream_wrapper_register($scheme,UnlinkFailureStream::class);
+        $this->assertTrue($registered,'无法注册删除失败测试流包装器');
 
         try {
+            $file=new File('destroy_failure',$this->config);
+            $file->set('x',1,true);
+            $property=new ReflectionProperty(File::class,'file_path');
+            $property->setAccessible(true);
+            $property->setValue($file,$scheme.'://file');
+
             $this->expectException(Exception::class);
             $this->expectExceptionCode(100106);
             $file->destroy();
         } finally {
-            @chmod($path,0644);
-            if(is_file($path))
-                @unlink($path);
+            if(in_array($scheme,stream_get_wrappers(),true))
+                stream_wrapper_unregister($scheme);
         }
     }
 
@@ -231,6 +230,68 @@ class FileTest extends TestCase {
         $this->expectException(Exception::class);
         $this->expectExceptionCode(100108);
         $file->save();
+    }
+
+}
+
+/**
+ * 只用于 FileTest 的流包装器: is_file() 返回 true, unlink() 固定失败
+ */
+final class UnlinkFailureStream {
+
+    /**
+     * PHP 流包装器上下文
+     * @var mixed
+     */
+    public $context;
+
+    /**
+     * 提供文件 stat, 让 is_file() 认定目标存在
+     *
+     * @param string $path
+     * @param int $flags
+     * @return array|false
+     */
+    public function url_stat(string $path,int $flags): array|false {
+        $now=time();
+        return array(
+            0=>0,
+            1=>0,
+            2=>0100644,
+            3=>1,
+            4=>0,
+            5=>0,
+            6=>0,
+            7=>2,
+            8=>$now,
+            9=>$now,
+            10=>$now,
+            11=>-1,
+            12=>-1,
+            'dev'=>0,
+            'ino'=>0,
+            'mode'=>0100644,
+            'nlink'=>1,
+            'uid'=>0,
+            'gid'=>0,
+            'rdev'=>0,
+            'size'=>2,
+            'atime'=>$now,
+            'mtime'=>$now,
+            'ctime'=>$now,
+            'blksize'=>-1,
+            'blocks'=>-1
+        );
+    }
+
+    /**
+     * 固定返回删除失败
+     *
+     * @param string $path
+     * @return bool
+     */
+    public function unlink(string $path): bool {
+        return false;
     }
 
 }

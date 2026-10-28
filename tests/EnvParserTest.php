@@ -14,10 +14,15 @@ use function count;
 use function dirname;
 use function file_put_contents;
 use function implode;
+use function in_array;
 use function is_file;
 use function preg_match;
+use function stream_get_wrappers;
+use function stream_wrapper_register;
+use function stream_wrapper_unregister;
 use function sys_get_temp_dir;
 use function tempnam;
+use function time;
 use function unlink;
 
 /**
@@ -278,24 +283,22 @@ class EnvParserTest extends TestCase {
     /**
      * 测试: 文件存在但不可读时必须报错, 不能静默当成空配置
      *
-     * - Windows 下 chmod 无法可靠制造不可读文件, 跳过
+     * - 用测试流包装器固定 is_readable=false, 不依赖 chmod 与运行用户
      *
      * @return void
      */
     public function testUnreadableFileThrows(): void {
-        if(DIRECTORY_SEPARATOR==='\\')
-            $this->markTestSkipped('Windows 下 chmod 不能可靠制造不可读文件');
-        $file=(string)tempnam(sys_get_temp_dir(),'env_unreadable_');
-        file_put_contents($file,"A=1");
-        chmod($file,0000);
+        $scheme='adminserviceenvunreadable';
+        if(in_array($scheme,stream_get_wrappers(),true))
+            stream_wrapper_unregister($scheme);
+        $registered=stream_wrapper_register($scheme,UnreadableEnvStream::class);
+        $this->assertTrue($registered,'无法注册不可读文件测试流包装器');
         try {
-            if(is_readable($file))
-                $this->markTestSkipped('当前用户仍可读该文件(可能以 root 运行)');
             $this->expectException(ConfigException::class);
-            Env::fromFile($file);
+            Env::fromFile($scheme.'://file');
         } finally {
-            chmod($file,0600);
-            unlink($file);
+            if(in_array($scheme,stream_get_wrappers(),true))
+                stream_wrapper_unregister($scheme);
         }
     }
 
@@ -368,6 +371,58 @@ class EnvParserTest extends TestCase {
         $this->assertSame('app',$env->get('route.default.app'));
         $this->assertFalse($env->get('app.debug'));
         $this->assertSame('secret=with=equals',$env->get('database.connections.default.password'),'口令里的 `=` 不再被截断');
+    }
+
+}
+
+/**
+ * 只用于 EnvParserTest 的流包装器: 文件存在但 is_readable() 为 false
+ */
+final class UnreadableEnvStream {
+
+    /**
+     * PHP 流包装器上下文
+     * @var mixed
+     */
+    public $context;
+
+    /**
+     * 返回无读权限的文件 stat
+     *
+     * @param string $path
+     * @param int $flags
+     * @return array|false
+     */
+    public function url_stat(string $path,int $flags): array|false {
+        $now=time();
+        return array(
+            0=>0,
+            1=>0,
+            2=>0100000,
+            3=>1,
+            4=>0,
+            5=>0,
+            6=>0,
+            7=>3,
+            8=>$now,
+            9=>$now,
+            10=>$now,
+            11=>-1,
+            12=>-1,
+            'dev'=>0,
+            'ino'=>0,
+            'mode'=>0100000,
+            'nlink'=>1,
+            'uid'=>0,
+            'gid'=>0,
+            'rdev'=>0,
+            'size'=>3,
+            'atime'=>$now,
+            'mtime'=>$now,
+            'ctime'=>$now,
+            'blksize'=>-1,
+            'blocks'=>-1
+        );
     }
 
 }

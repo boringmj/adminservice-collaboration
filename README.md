@@ -37,7 +37,7 @@
 
 ## 从旧版升级
 
-- PHP 最低版本为 `8.2.0`; 旧版入口/扩展若直接使用 `Application`, 需自行保证版本检查。
+- PHP 最低版本为 `8.2.0`; 框架支持的 HTTP 入口是 `AdminService\Main`, 它在 `init()` 检查版本; 旧版入口/扩展若直接使用 `Application`, 需自行保证版本检查。
 - 内容协商默认 `response.default.negotiation=strict`: 有正文的 `2xx` 没有可接受类型时返回 `406 text/plain`; 需要旧版回落行为时设为 `fallback`; 设为 `off` 则关闭自动协商, 不读取 `Accept`、不返回 `406`、不自动追加 `Vary`, 未显式指定类型时按类型表第一个具体类型(当前 `text/html`)渲染。
 - `404` / `405` 固定返回 `text/plain`, 不再参与内容协商; 自动 `OPTIONS` 会列入 `Allow`。
 - 旧版约定式路由已移除, 改用显式路由或控制器属性路由。

@@ -5,6 +5,7 @@ namespace Tests;
 use PHPUnit\Framework\TestCase;
 
 use AdminService\App;
+use AdminService\Container;
 use AdminService\DynamicProxy;
 use AdminService\exception\AutowireException;
 use base\Attribute\Config as ConfigAttribute;
@@ -87,6 +88,61 @@ class AutowireModesTest extends TestCase {
         // 若失败任务残留在队列, 这里的 make() 会在刷新时再次抛异常
         $consumer=App::fresh(DeferredPropertyConsumer::class);
         $this->assertInstanceOf(DeferredPropertyDependency::class,$consumer->dependency);
+    }
+
+    /**
+     * 根构建失败时回滚本轮新增的实例, 不留下半装配对象
+     * @return void
+     */
+    public function testDeferredFailureRollsBackNewRegistrations(): void {
+        foreach(array('get','make','fresh') as $method) {
+            $container=new Container();
+            try {
+                $container->$method(DeferredFailureRoot::class);
+                $this->fail($method.'() 延迟刷新失败时应当抛出 AutowireException');
+            } catch(AutowireException $e) {
+                $this->assertStringContainsString('Deferred injection failed',$e->getMessage());
+            }
+            $this->assertFalse(
+                $container->hasInstance(DeferredFailureRoot::class),
+                $method.'() 失败后不应留下根对象'
+            );
+            $this->assertFalse(
+                $container->hasInstance(DeferredFailureDependency::class),
+                $method.'() 失败后不应留下本轮新建的依赖'
+            );
+        }
+
+        // build() 本身不登记根对象, 但它的构造依赖仍不能残留在实例表里
+        $container=new Container();
+        try {
+            $container->build(DeferredFailureRoot::class);
+            $this->fail('build() 延迟刷新失败时应当抛出 AutowireException');
+        } catch(AutowireException $e) {
+            $this->assertStringContainsString('Deferred injection failed',$e->getMessage());
+        }
+        $this->assertFalse($container->hasInstance(DeferredFailureRoot::class));
+        $this->assertFalse($container->hasInstance(DeferredFailureDependency::class));
+    }
+
+    /**
+     * 强制新建失败时恢复原先登记的实例
+     * @return void
+     */
+    public function testDeferredFailureRestoresPreviousRegistration(): void {
+        $container=new Container();
+        $previous=new DeferredFailureRoot(new DeferredFailureDependency());
+        $container->instance(DeferredFailureRoot::class,$previous);
+
+        try {
+            $container->fresh(DeferredFailureRoot::class);
+            $this->fail('延迟刷新失败时应当抛出 AutowireException');
+        } catch(AutowireException $e) {
+            $this->assertStringContainsString('Deferred injection failed',$e->getMessage());
+        }
+
+        $this->assertSame($previous,$container->get(DeferredFailureRoot::class));
+        $this->assertFalse($container->hasInstance(DeferredFailureDependency::class));
     }
 
     /**
@@ -430,6 +486,29 @@ final class DeferredSelf {
  * 延迟目标不存在的消费者
  */
 final class DeferredFailureConsumer {
+
+    #[AutowireProperty('No\\Such\\DeferredTarget',mode:AutowireMode::Deferred)]
+    public ?object $value=null;
+
+}
+
+/**
+ * 延迟失败根对象的构造依赖
+ */
+final class DeferredFailureDependency {
+}
+
+/**
+ * 带构造依赖的延迟失败根对象
+ */
+final class DeferredFailureRoot {
+
+    /**
+     * 构造方法
+     * @param DeferredFailureDependency $dependency 构造依赖
+     */
+    public function __construct(public DeferredFailureDependency $dependency) {
+    }
 
     #[AutowireProperty('No\\Such\\DeferredTarget',mode:AutowireMode::Deferred)]
     public ?object $value=null;

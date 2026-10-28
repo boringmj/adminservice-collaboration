@@ -173,7 +173,7 @@ class Demo {
 
 - `AutowireMode::Normal`: 立即解析并注入真实对象。
 - `AutowireMode::Proxy`: 注入 `DynamicProxy`。必须显式给类名, 且声明类型必须是 `DynamicProxy`、`mixed` / `object`、未声明类型, 或包含 `DynamicProxy` 的联合类型; 具体类型 `A` 与交叉类型 `A&DynamicProxy` 都不满足(前者不是 `DynamicProxy`, 后者要求对象同时是 `A`, 而代理只是包装器), 会抛 `AutowireException`。代理首次使用时无构造参数走容器 `get()`(复用实例), 有构造参数走 `build()`(不登记)。
-- `AutowireMode::Deferred`: 当前对象完成属性 / Setter 注入并登记后, 再由容器统一刷新真实对象。适合打断属性初始化顺序, 但 Setter / 方法的副作用也会被延后。
+- `AutowireMode::Deferred`: 当前对象完成属性 / Setter 注入并登记后, 再由容器统一刷新真实对象。适合打断属性初始化顺序, 但 Setter / 方法的副作用也会被延后。根构建(包括延迟刷新)失败时会回滚本轮新增的实例登记, 避免半装配对象被后续调用复用。
 - `#[AutowireLifecycle]` 不接受模式; 生命周期方法不允许 `Proxy` / `Deferred`。`#[AutowireMethod]` 只保留显式单依赖方法语义, 无 `name` 的旧生命周期写法仅作过渡兼容。
 - `#[Config]` 不能与上述自动注入目标注解同挂一处。
 

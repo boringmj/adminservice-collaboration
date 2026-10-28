@@ -3,6 +3,7 @@
 namespace Tests\Fixtures;
 
 use AdminService\DynamicProxy;
+use base\Attribute\AutowireMode;
 use base\Attribute\AutowireProperty;
 
 /**
@@ -29,7 +30,7 @@ class UserInfo {
      * 用户ID
      * @var DynamicProxy<UserId>
      */
-    #[AutowireProperty(UserId::class,true)]
+    #[AutowireProperty(UserId::class, mode: AutowireMode::Proxy)]
     public DynamicProxy $id;
 
 }

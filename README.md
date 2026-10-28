@@ -40,6 +40,7 @@
 - PHP 最低版本为 `8.2.0`; 框架支持的 HTTP 入口是 `AdminService\Main`, 它在 `init()` 检查版本; 旧版入口/扩展若直接使用 `Application`, 需自行保证版本检查。
 - 内容协商默认 `response.default.negotiation=strict`: 有正文的 `2xx` 没有可接受类型时返回 `406 text/plain`; 需要旧版回落行为时设为 `fallback`; 设为 `off` 则关闭自动协商, 不读取 `Accept`、不返回 `406`、不自动追加 `Vary`, 未显式指定类型时按类型表第一个具体类型(当前 `text/html`)渲染。
 - `404` / `405` 固定返回 `text/plain`, 不再参与内容协商; 自动 `OPTIONS` 会列入 `Allow`。
+- 自动注入的 `bool proxy` 第二参数迁移为 `AutowireMode`; `#[AutowireMethod]` 不再承担生命周期语义, 请改用 `#[AutowireLifecycle]`。旧写法保留一个版本的过渡兼容。
 - 旧版约定式路由已移除, 改用显式路由或控制器属性路由。
 - 完整破坏性变更与迁移说明见 Wiki [新旧版本调整](https://github.com/boringmj/adminservice-collaboration/wiki/新旧版本调整)。
 
@@ -131,10 +132,50 @@ class Demo {
 
 - 键缺失时的兜底顺序:注解 `default:` → **目标自身的默认值**(属性默认值 / 形参默认值)→ `null`(取到 `null` 而类型不可空会抛 `TypeError`, 请显式给 `default:` 或写成可空类型)
 - 支持范围:属性 / Setter 方法 / 构造函数形参 / 方法或函数形参(见下)
-- **生效条件**:凡是由框架解析实参的地方都会生效 —— 构造函数、`#[AutowireMethod]` 方法,以及经 `App::exec_class_function()` / `exec_function()` 调用的方法与函数(控制器由框架经前者调用,所以控制器方法形参上的标注同样生效);框架不参与解析时(你自己直接调方法)自然不生效
+- **生效条件**:凡是由框架解析实参的地方都会生效 —— 构造函数、`#[AutowireLifecycle]` / `#[AutowireMethod]` 方法,以及经 `App::exec_class_function()` / `exec_function()` 调用的方法与函数(控制器由框架经前者调用,所以控制器方法形参上的标注同样生效);框架不参与解析时(你自己直接调方法)自然不生效
 - **实参优先**:具名实参 / 顺位实参 > `#[Config]` > 按类型注入 —— 路由参数与配置键同名时路由参数优先,因此"控制器形参只注入路由参数"的既有语义不变(**未标注**的形参不会拿到配置值)
-- **不能与 `#[AutowireProperty]` / `#[AutowireSetter]` / `#[AutowireMethod]` 同挂一处**:语义冲突, 会抛 `AutowireException`;`#[AutowireSetter]` 方法的**形参上**标 `#[Config]` 同样报错(那条路径按类型注入服务对象)
+- **不能与 `#[AutowireProperty]` / `#[AutowireSetter]` / `#[AutowireLifecycle]` / `#[AutowireMethod]` 同挂一处**:语义冲突, 会抛 `AutowireException`;`#[AutowireSetter]` 方法的**形参上**标 `#[Config]` 同样报错(那条路径按类型注入服务对象)
 - 配置对象本身可按契约注入:依赖 `base\ConfigInterface` 即可 —— 引导期把**当前配置实例按实现类名**(`AdminService\Config\Repository`)登记进应用级容器,再由 `config/app.php` 的 `app.alias` 把契约名指向它(实例不占契约名,换实现只改那条别名)
+
+## 自动注入
+
+`AdminService\Container` 在构建对象时会按注解完成属性 / Setter / 生命周期 / 单依赖方法注入。模式由目标注解的 `mode:` 参数指定:
+
+```php
+use AdminService\DynamicProxy;
+use base\Attribute\AutowireLifecycle;
+use base\Attribute\AutowireMethod;
+use base\Attribute\AutowireMode;
+use base\Attribute\AutowireProperty;
+use base\Attribute\AutowireSetter;
+
+class Demo {
+
+    #[AutowireProperty(Service::class)]                       // 直接注入
+    private Service $service;
+
+    #[AutowireProperty(Service::class, mode: AutowireMode::Proxy)]
+    private DynamicProxy $proxy;                              // 惰性代理
+
+    #[AutowireProperty(Service::class, mode: AutowireMode::Deferred)]
+    private Service $deferred;                                // 根对象登记后注入
+
+    #[AutowireSetter(Service::class)]                         // 单参数 Setter
+    public function setService(Service $service): void {}
+
+    #[AutowireLifecycle]                                      // 生命周期: 参数按类型注入
+    public function boot(Service $service): void {}
+
+    #[AutowireMethod(Service::class)]                         // 单依赖方法: 必须显式给类名
+    public function injectService(Service $service): void {}
+}
+```
+
+- `AutowireMode::Normal`: 立即解析并注入真实对象。
+- `AutowireMode::Proxy`: 注入 `DynamicProxy`。必须显式给类名, 且声明类型必须是 `DynamicProxy`、`mixed` / `object`、未声明类型, 或包含 `DynamicProxy` 的联合类型; 具体类型 `A` 与交叉类型 `A&DynamicProxy` 都不满足(前者不是 `DynamicProxy`, 后者要求对象同时是 `A`, 而代理只是包装器), 会抛 `AutowireException`。代理首次使用时无构造参数走容器 `get()`(复用实例), 有构造参数走 `build()`(不登记)。
+- `AutowireMode::Deferred`: 当前对象完成属性 / Setter 注入并登记后, 再由容器统一刷新真实对象。适合打断属性初始化顺序, 但 Setter / 方法的副作用也会被延后。
+- `#[AutowireLifecycle]` 不接受模式; 生命周期方法不允许 `Proxy` / `Deferred`。`#[AutowireMethod]` 只保留显式单依赖方法语义, 无 `name` 的旧生命周期写法仅作过渡兼容。
+- `#[Config]` 不能与上述自动注入目标注解同挂一处。
 
 ## 配置与 `.env`
 

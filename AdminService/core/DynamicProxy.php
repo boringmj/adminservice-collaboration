@@ -11,7 +11,11 @@ use function property_exists;
 
 /**
  * 动态代理类
- * 
+ *
+ * - 首次访问目标时惰性解析, 之后缓存
+ * - 无显式构造参数时通过容器的 `get()` 复用已登记实例
+ * - 有显式构造参数时通过 `build()` 新建, 目标对象不登记到容器
+ *
  * @template T of object
  * @mixin T
  */
@@ -126,8 +130,11 @@ class DynamicProxy {
     protected function __getTarget(): object {
         // 如果目标类对象不存在则实例化一个
         if(!isset($this->__target_object)) {
-           // 通过容器构建目标类(带构造参数)
-           $this->__target_object=$this->container()->build($this->__getTargetClass(),...$this->__args);
+            $target=$this->__getTargetClass();
+            // 没有显式构造参数时复用容器中的实例; 有参数时才按参数新建
+            $this->__target_object=$this->__args===array()
+                ?$this->container()->get($target)
+                :$this->container()->build($target,...$this->__args);
         }
         return $this->__target_object;
     }
@@ -143,7 +150,7 @@ class DynamicProxy {
      */
     protected function container(): ContainerContract {
         if($this->container===null)
-            throw new Exception('代理未绑定容器: 请由容器构建被注入的代理对象(如 #[AutowireProperty(类名,proxy:true)])');
+            throw new Exception('代理未绑定容器: 请由容器构建被注入的代理对象(如 #[AutowireProperty(类名, mode: AutowireMode::Proxy)])');
         return $this->container;
     }
 

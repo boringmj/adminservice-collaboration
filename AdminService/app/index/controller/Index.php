@@ -6,6 +6,7 @@ use Exception;
 use base\Controller;
 use AdminService\Log;
 use AdminService\DynamicProxy;
+use base\Attribute\AutowireMode;
 use base\Attribute\AutowireProperty;
 use base\Attribute\Route;
 use base\Attribute\RouteGroup;
@@ -17,7 +18,7 @@ class Index extends Controller {
      * 通过属性注入Log代理对象
      * @var DynamicProxy<Log>
      */
-    #[AutowireProperty(Log::class,true)]
+    #[AutowireProperty(Log::class, mode: AutowireMode::Proxy)]
     private $log;
 
     /**

@@ -6,10 +6,11 @@ use base\Attribute\Config;
 use base\Attribute\AutowireProperty;
 use base\Attribute\AutowireSetter;
 use base\Attribute\AutowireMethod;
+use base\Attribute\AutowireLifecycle;
 use AdminService\Log;
 
 /**
- * 自相矛盾的标注用例(四种矛盾同放一个文件, 便于集中验证)
+ * 自相矛盾的标注用例(六种矛盾同放一个文件, 便于集中验证)
  *
  * - 都应当抛 `AutowireException`: 一个位置不能同时是"配置值注入"与"服务注入/生命周期钩子",
  *   也不能在"按类型注入服务"的 Setter 形参上标 `#[Config]`(那条路径不会应用它, 属静默失效)
@@ -78,8 +79,42 @@ class ConfigOnMethodConflict {
      * @return void
      */
     #[Config('data.ext_name')]
-    #[AutowireMethod]
+    #[AutowireMethod(Log::class)]
     public function boot($value=null): void {
+    }
+
+}
+
+/**
+ * 显式单依赖方法的形参上标 #[Config]
+ */
+class ConfigOnMethodParamConflict {
+
+    /**
+     * 矛盾方法
+     *
+     * @param mixed $value 值
+     * @return void
+     */
+    #[AutowireMethod(Log::class)]
+    public function boot(#[Config('data.ext_name')] $value=null): void {
+    }
+
+}
+
+/**
+ * 方法同时标 #[Config] 与 #[AutowireLifecycle]
+ */
+class ConfigOnLifecycleConflict {
+
+    /**
+     * 矛盾方法
+     *
+     * @return void
+     */
+    #[Config('data.ext_name')]
+    #[AutowireLifecycle]
+    public function boot(): void {
     }
 
 }

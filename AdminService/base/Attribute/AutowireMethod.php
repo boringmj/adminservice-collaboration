@@ -5,16 +5,14 @@ namespace base\Attribute;
 use Attribute;
 
 /**
- * 自动注入方法(生命周期钩子)
+ * 单依赖方法注入
  *
- * - 标记的方法在对象构建并注入属性/Setter 后自动调用
- * - 不指定 name: 方法所有参数按类型自动注入(与构造函数注入一致)
- * - 指定 name: 方法必须只有单个参数, 注入该显式依赖(支持 proxy), 与 Setter 注入一致
- * - 无类型且无默认值的参数会抛 AutowireException
+ * - 必须指定 `name`; 方法必须只有一个形参, 注入该显式依赖
+ * - 支持 `AutowireMode::Normal` / `Proxy` / `Deferred`
+ * - 生命周期钩子请使用 {@see AutowireLifecycle}
+ * - 无 `name` 的旧写法保留一个版本兼容: 按生命周期方法处理, 但禁止 Proxy / Deferred
  *
- * - 装配实现在 `AdminService\Autowire`(见 `autowireMethod()`), 契约层不引用实现层, 故此处只作说明
+ * 装配实现在 `AdminService\Autowire`(见 `autowireMethod()`), 契约层不引用实现层。
  */
 #[Attribute(Attribute::TARGET_METHOD)]
-class AutowireMethod extends Autowire {
-
-}
+class AutowireMethod extends Autowire { }

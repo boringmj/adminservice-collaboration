@@ -338,6 +338,7 @@ final class Container implements \base\Container {
      * - 已登记的实例优先; 否则做**完整装配**(构造参数 / 属性 / Setter / 生命周期方法), 并登记解析结果
      * - 与 `make()` 的区别只是语义命名: 两者都复用已登记实例; 要强制新建请用 `fresh()`
      * - `AutowireMode::Deferred` 的任务只在最外层成功后刷新; 嵌套构建不会提前执行
+     * - 根构建失败(包括延迟刷新失败)会回滚本轮新增的实例登记, 已有实例保持不变
      *
      * @access public
      * @template T of object
@@ -347,17 +348,17 @@ final class Container implements \base\Container {
      */
     public function get(string $name): object {
         $is_root=$this->build_flags===array();
+        $snapshot=$is_root?$this->container:null;
         $flags=$this->build_flags;
         try {
             $object=$this->makeInternal($name,false,$flags);
-        } catch(\Throwable $e) {
             if($is_root)
-                $this->autowire->clearDeferred();
+                $this->autowire->flushDeferred();
+            return $object;
+        } catch(\Throwable $e) {
+            $this->rollbackRootContainer($snapshot);
             throw $e;
         }
-        if($is_root)
-            $this->autowire->flushDeferred();
-        return $object;
     }
 
     /**
@@ -439,6 +440,24 @@ final class Container implements \base\Container {
         $this->container[\base\Container::class]=$this;
         $this->container[static::class]=$this;
         // 丢弃未执行的延迟任务, 避免它们引用已被清空的实例
+        $this->autowire->clearDeferred();
+    }
+
+    /**
+     * 回滚根构建失败时新增的实例登记
+     *
+     * - `get()` / `make()` / `fresh()` / `build()` 在最外层构建前保存实例表快照
+     * - 构建或延迟刷新失败时恢复快照, 避免半装配对象留在容器里被后续调用复用
+     * - 只回滚实例表; 绑定 / 别名表, 以及生命周期方法产生的外部副作用不在此范围
+     *
+     * @access private
+     * @param array|null $snapshot 根构建前的实例表快照; 嵌套构建传 null
+     * @return void
+     */
+    private function rollbackRootContainer(?array $snapshot): void {
+        if($snapshot===null)
+            return;
+        $this->container=$snapshot;
         $this->autowire->clearDeferred();
     }
 
@@ -644,6 +663,7 @@ final class Container implements \base\Container {
      * - 解析结果按真实类名登记, 因此同一实现**在每个容器实例内**只构建一次;
      *   要每次新建请用 `fresh()`
      * - `AutowireMode::Deferred` 的任务在根对象登记后刷新; 嵌套构建不会提前执行
+     * - 根构建失败(包括延迟刷新失败)会回滚本轮新增的实例登记, 已有实例保持不变
      * - 依赖简单支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
      *   这种情况请先使用 App::instance(Class::class,new Class()) 添加到容器中
      * - 循环依赖被截断时, 回落的实例不执行属性 / Setter / 生命周期方法注入;
@@ -657,17 +677,17 @@ final class Container implements \base\Container {
      */
     public function make(string $name): object {
         $is_root=$this->build_flags===array();
+        $snapshot=$is_root?$this->container:null;
         $flags=$this->build_flags;
         try {
             $object=$this->makeInternal($name,false,$flags);
-        } catch(\Throwable $e) {
             if($is_root)
-                $this->autowire->clearDeferred();
+                $this->autowire->flushDeferred();
+            return $object;
+        } catch(\Throwable $e) {
+            $this->rollbackRootContainer($snapshot);
             throw $e;
         }
-        if($is_root)
-            $this->autowire->flushDeferred();
-        return $object;
     }
 
     /**
@@ -680,6 +700,7 @@ final class Container implements \base\Container {
      * - 重建容器自身时两个自登记键同步指向新容器
      * - 因此适合"每请求要一个干净实例"的场景
      * - `AutowireMode::Deferred` 的任务在根对象登记后刷新
+     * - 根构建失败(包括延迟刷新失败)会回滚本轮新增的实例登记; 若原先已有登记, 失败后保留原实例
      * - 循环依赖回落对象的限制与 `make()` 相同
      *
      * @access public
@@ -690,17 +711,17 @@ final class Container implements \base\Container {
      */
     public function fresh(string $name): object {
         $is_root=$this->build_flags===array();
+        $snapshot=$is_root?$this->container:null;
         $flags=$this->build_flags;
         try {
             $object=$this->makeInternal($name,true,$flags);
-        } catch(\Throwable $e) {
             if($is_root)
-                $this->autowire->clearDeferred();
+                $this->autowire->flushDeferred();
+            return $object;
+        } catch(\Throwable $e) {
+            $this->rollbackRootContainer($snapshot);
             throw $e;
         }
-        if($is_root)
-            $this->autowire->flushDeferred();
-        return $object;
     }
 
     /**
@@ -790,7 +811,9 @@ final class Container implements \base\Container {
      * - 结果**本身不登记**到实例容器; 构造参数与属性依赖仍按 `make()` 解析并登记
      *   (要整体复用的场景请用 `get()` / `make()`)
      * - `AutowireMode::Deferred` 的任务在根构建完成后刷新; 被构建对象本身未登记,
-     *   延迟任务若按"自身类型"解析会得到容器中的另一个实例
+     *   延迟任务若按"自身类型"解析会得到容器中的另一个实例。该实例可无参裸建时由
+     *   `createBare()` 创建并登记; 目标有必需构造参数时, 延迟刷新会失败
+     * - 根构建失败(包括延迟刷新失败)会回滚本轮新增的实例登记, 已有实例保持不变
      * - 构建过程中调用时沿用当前构建栈; 同一类重入抛 `CircularDependencyException`
      *
      * @access public
@@ -802,6 +825,7 @@ final class Container implements \base\Container {
      */
     public function build(string $__name,...$args): object {
         $is_root=$this->build_flags===array();
+        $snapshot=$is_root?$this->container:null;
         // 获取真实类名
         $__name=$this->resolve($__name);
         if(in_array($__name,$this->build_flags,true)) {
@@ -846,8 +870,7 @@ final class Container implements \base\Container {
             // 直接返回对象,不添加到实例容器中
             return $object;
         } catch(\Throwable $e) {
-            if($is_root)
-                $this->autowire->clearDeferred();
+            $this->rollbackRootContainer($snapshot);
             throw $e;
         } finally {
             $this->build_flags=$previous_flags;

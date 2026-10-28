@@ -7,7 +7,7 @@ use ReflectionClass;
 /**
  * 容器契约
  *
- * - 容器内核(实例表 / 绑定表 / 别名表 / 单例表 / 全局数据 / 参数转换开关)**全部是实例状态**, 没有静态状态
+ * - 容器内核(实例表 / 绑定表 / 别名表 / 单例表 / 参数转换开关)**全部是实例状态**, 没有静态状态
  * - 实现见 `AdminService\Container`(实现层), 门面见 `AdminService\App`(使用者入口, 无状态转发)
  * - 契约层不得引用实现层: 本文件只依赖 `base\` 自身与语言内置
  * - 解析语义: `get()` / `make()` **复用已登记实例**;要每次新建用 `fresh()`;要带构造参数用 `build()`
@@ -57,7 +57,9 @@ interface Container {
     public function get(string $name): object;
 
     /**
-     * 判断容器能否给出该名称
+     * 判断容器能否定位到该名称的可实例化类
+     *
+     * - 只看实例 / 绑定 / 别名与已声明类, 不检查构造参数能否解析
      *
      * @access public
      * @param string $name 名称(类名 / 接口名 / 别名)
@@ -121,8 +123,8 @@ interface Container {
     /**
      * 派生一个请求级子容器
      *
-     * - 共享绑定 / 别名 / 单例表与反射缓存
-     * - 实例表与全局数据独立(请求结束丢弃, 不影响应用级)
+     * - 绑定 / 别名 / 单例表在派生时**复制快照**, 之后父容器的变更不回溯
+     * - 反射缓存共享; 实例表独立(不回流应用级); 父容器已登记实例可被子容器读取
      *
      * @access public
      * @return static
@@ -130,7 +132,9 @@ interface Container {
     public function fork(): static;
 
     /**
-     * 清空实例表与全局数据(绑定 / 别名 / 单例表与反射缓存保留)
+     * 清空实例表(绑定 / 别名 / 单例表与反射缓存保留)
+     *
+     * - 请求级容器在下一次请求开始时被清空
      *
      * @access public
      * @return void
@@ -152,6 +156,9 @@ interface Container {
     /**
      * 获取对象(复用已登记实例; 未登记则实例化并做完整装配)
      *
+     * - 循环依赖被截断时, 回落的实例不做属性 / Setter / 生命周期方法注入;
+     *   有必填构造参数的环路会抛异常
+     *
      * @access public
      * @template T of object
      * @param class-string<T>|string $name 对象名(类名 / 接口名 / 别名)
@@ -161,7 +168,10 @@ interface Container {
     public function make(string $name): object;
 
     /**
-     * 强制新建对象(每次都是新实例, 做完整装配, 结果覆盖登记)
+     * 强制新建对象(跳过复用, 做完整装配, 结果覆盖登记)
+     *
+     * - 接口 / 抽象类名同样强制新建查找到的实现类
+     * - 循环依赖回落的限制与 `make()` 相同
      *
      * @access public
      * @template T of object
@@ -172,7 +182,9 @@ interface Container {
     public function fresh(string $name): object;
 
     /**
-     * 构建对象(带构造参数, 做完整装配, **不登记**)
+     * 构建对象(带构造参数, 做完整装配, **本对象不登记**)
+     *
+     * - 构造参数与属性依赖仍按 `make()` 解析并登记
      *
      * @access public
      * @template T of object

@@ -14,15 +14,16 @@ use AdminService\App;
 use AdminService\Application;
 use AdminService\Container;
 use AdminService\Error;
+use AdminService\Exception as ContainerException;
 use AdminService\RouteContext;
 use ReflectionProperty;
 
 /**
  * 生命周期分层(应用级 / 请求级 scope)用例
  *
- * - `fork()`:共享绑定 / 别名 / 单例与反射缓存, 实例表与全局数据独立
+ * - `fork()`:复制绑定 / 别名 / 单例表, 实例表独立并共享反射缓存
  * - `Application::handle()`:每次请求一个干净容器; 上一个请求的容器在下一次请求开始时被回收
- * - `reset()`:清实例与数据, 保留绑定
+ * - `reset()`:清实例, 保留绑定
  */
 class ScopeTest extends TestCase {
 
@@ -44,10 +45,10 @@ class ScopeTest extends TestCase {
     }
 
     /**
-     * 测试 fork:共享绑定, 父容器实例可见, 子容器登记不回流
+     * 测试 fork:复制绑定, 父容器实例可见, 子容器登记不回流
      * @return void
      */
-    public function testForkSharesBindingsAndIsolatesInstances(): void {
+    public function testForkCopiesBindingsAndIsolatesInstances(): void {
         $app=App::getInstance();
         $app->bind(ServiceInterface::class, ConcreteService::class);
         $shared=new ConcreteService();
@@ -62,6 +63,19 @@ class ScopeTest extends TestCase {
         $child_only=new ConcreteService();
         $child->instance(ConcreteService::class, $child_only);
         $this->assertNotSame($child_only, $app->get(ConcreteService::class));
+    }
+
+    /**
+     * 测试 fork:父容器之后新增的别名对子容器不可见
+     * @return void
+     */
+    public function testForkDoesNotSeeBindingsAddedToParentLater(): void {
+        $app=App::getInstance();
+        $child=$app->fork();
+        $app->alias('late_service',ServiceInterface::class);
+        $this->assertFalse($child->has('late_service'));
+        $this->expectException(ContainerException::class);
+        $child->make('late_service');
     }
 
     /**
@@ -148,7 +162,7 @@ class ScopeTest extends TestCase {
     }
 
     /**
-     * 测试 reset:清实例与数据, 保留绑定, 自身登记仍在
+     * 测试 reset:清实例, 保留绑定, 自身登记仍在
      * @return void
      */
     public function testResetKeepsBindings(): void {

@@ -19,12 +19,28 @@ use function json_encode;
 use function json_last_error_msg;
 use function mkdir;
 use function preg_match;
+use function strlen;
 use function time;
 use function unlink;
 use function AdminService\common\uuid;
 
 
 final class File {
+
+    /**
+     * 错误码(每类失败使用唯一值)
+     */
+    private const ERROR_INVALID_NAME=-1;
+    private const ERROR_READ_FAILED=100101;
+    private const ERROR_DECODE_FAILED=100102;
+    private const ERROR_WRITE_FAILED=100103;
+    private const ERROR_ENCODE_FAILED=100104;
+    private const ERROR_DESTROY_NOT_INITIALIZED=100105;
+    private const ERROR_DESTROY_FAILED=100106;
+    private const ERROR_FILE_NOT_FOUND=100107;
+    private const ERROR_SAVE_NOT_INITIALIZED=100108;
+    private const ERROR_DIRECTORY_FAILED=100109;
+    private const ERROR_PARTIAL_WRITE=100110;
 
     /**
      * 配置(构造期可注入; 未注入时回落门面当前那份 —— 手工构造 / 测试用)
@@ -88,12 +104,16 @@ final class File {
                 $file_name='cache_'.uuid();
         }
         if(!preg_match('/^[a-zA-Z0-9_-]+$/',$file_name))
-            throw new Exception('File name is invalid',-1);
+            throw new Exception('File name is invalid',self::ERROR_INVALID_NAME);
         $this->file_path=$this->config()->get("data.path").'/'.$file_name.$this->config()->get("data.ext_name");
-        // 补全目录
+        // 补全目录; 创建失败时转成受控异常, 不把 warning 留给全局错误栈
         $dir=dirname($this->file_path);
-        if(!is_dir($dir))
-            mkdir($dir,$this->config()->get("data.dir_mode"),true);
+        if(!is_dir($dir)) {
+            if(!@mkdir($dir,$this->config()->get("data.dir_mode"),true)&&!is_dir($dir))
+                throw new Exception("File directory create failed: $dir, please check the path permission.",self::ERROR_DIRECTORY_FAILED,array(
+                    'dir'=>$dir
+                ));
+        }
         // 读取数据
         $this->read();
     }
@@ -110,14 +130,15 @@ final class File {
             $this->data=array();
             return;
         }
-        $data=file_get_contents($this->file_path);
+        // 预期 I/O 失败统一抑制 warning, 由异常携带错误码; 避免污染全局错误栈
+        $data=@file_get_contents($this->file_path);
         if($data===false)
-            throw new Exception("File read failed: $this->file_path, please check the file permission.",100101,array(
+            throw new Exception("File read failed: $this->file_path, please check the file permission.",self::ERROR_READ_FAILED,array(
                 'file_path'=>$this->file_path
             ));
         $data=json_decode($data,true);
         if($data===null)
-            throw new Exception("File decode failed: $this->file_path, please check the file content.",100102,array(
+            throw new Exception("File decode failed: $this->file_path, please check the file content.",self::ERROR_DECODE_FAILED,array(
                 'file_path'=>$this->file_path
             ));
         $this->data=$data;
@@ -133,21 +154,29 @@ final class File {
     private function write(): void {
         $data=json_encode($this->data);
         if($data===false)
-            throw new Exception("File encode failed: $this->file_path, please check the file content.",100104,array(
+            throw new Exception("File encode failed: $this->file_path, please check the file content.",self::ERROR_ENCODE_FAILED,array(
                 'file_path'=>$this->file_path,
                 'json_error'=>json_last_error_msg()
             ));
+        $expected=strlen($data);
         try {
-            $result=file_put_contents($this->file_path,$data);
-            if($result===false)
-                throw new Exception("File write failed: $this->file_path, please check the file permission.",100103,array(
-                    'file_path'=>$this->file_path
-                ));
-        } catch(Throwable) {
-            throw new Exception("File write failed: $this->file_path, please check the file permission.",100103,array(
-                'file_path'=>$this->file_path
+            $written=@file_put_contents($this->file_path,$data);
+        } catch(Throwable $e) {
+            throw new Exception("File write failed: $this->file_path, please check the file permission.",self::ERROR_WRITE_FAILED,array(
+                'file_path'=>$this->file_path,
+                'exception'=>$e->getMessage()
             ));
         }
+        if($written===false)
+            throw new Exception("File write failed: $this->file_path, please check the file permission.",self::ERROR_WRITE_FAILED,array(
+                'file_path'=>$this->file_path
+            ));
+        if($written<$expected)
+            throw new Exception("File write incomplete: $this->file_path.",self::ERROR_PARTIAL_WRITE,array(
+                'file_path'=>$this->file_path,
+                'expected'=>$expected,
+                'written'=>$written
+            ));
     }
 
     /**
@@ -219,7 +248,7 @@ final class File {
      */
     public function save(): void {
         if(empty($this->file_path))
-            throw new Exception("File not saved, please use init() to initialize.",100104);
+            throw new Exception("File not saved, please use init() to initialize.",self::ERROR_SAVE_NOT_INITIALIZED);
         $this->write();
     }
 
@@ -232,11 +261,11 @@ final class File {
      */
     public function destroy(): void {
         if(empty($this->file_path))
-            throw new Exception("File not destroyed, please use init() to initialize.",100105);
+            throw new Exception("File not destroyed, please use init() to initialize.",self::ERROR_DESTROY_NOT_INITIALIZED);
         if(is_file($this->file_path)) {
             try {
                 if(!@unlink($this->file_path))
-                    throw new Exception("File destroy failed: $this->file_path, please check the file permission.",100106,array(
+                    throw new Exception("File destroy failed: $this->file_path, please check the file permission.",self::ERROR_DESTROY_FAILED,array(
                         'file_path'=>$this->file_path
                     ));
                 $this->file_path=null;
@@ -244,13 +273,13 @@ final class File {
             } catch(Throwable $e) {
                 if($e instanceof Exception)
                     throw $e;
-                throw new Exception("File destroy failed: $this->file_path, please check the file permission.",100106,array(
+                throw new Exception("File destroy failed: $this->file_path, please check the file permission.",self::ERROR_DESTROY_FAILED,array(
                     'file_path'=>$this->file_path
                 ));
             }
         }
         else
-            throw new Exception("File not found: $this->file_path, please check the file path.",100107,array(
+            throw new Exception("File not found: $this->file_path, please check the file path.",self::ERROR_FILE_NOT_FOUND,array(
                 'file_path'=>$this->file_path
             ));
     }

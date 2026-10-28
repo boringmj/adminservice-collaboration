@@ -174,4 +174,63 @@ class FileTest extends TestCase {
         }
     }
 
+    /**
+     * 目录创建失败必须抛受控异常, 且错误码唯一
+     * @return void
+     */
+    public function testDirectoryCreateFailureThrowsException(): void {
+        $blocked=$this->dir.'/blocked';
+        file_put_contents($blocked,'x');
+        $config=new Repository(array(
+            'data'=>array(
+                'path'=>$blocked,
+                'ext_name'=>'.data.json',
+                'dir_mode'=>0755,
+                'name_cycle'=>0
+            )
+        ));
+        $this->expectException(Exception::class);
+        $this->expectExceptionCode(100109);
+        new File('nested',$config);
+    }
+
+    /**
+     * 写入目标不可写时抛受控异常
+     * @return void
+     */
+    public function testWriteTargetFailureThrowsException(): void {
+        $target=$this->dir.'/write_target';
+        mkdir($target);
+        $config=new Repository(array(
+            'data'=>array(
+                'path'=>$this->dir,
+                'ext_name'=>'',
+                'dir_mode'=>0755,
+                'name_cycle'=>0
+            )
+        ));
+        try {
+            $file=new File('write_target',$config);
+            $this->expectException(Exception::class);
+            $this->expectExceptionCode(100103);
+            $file->set('x',1,true);
+        } finally {
+            if(is_dir($target))
+                rmdir($target);
+        }
+    }
+
+    /**
+     * save() 未初始化使用独立错误码, 不与编码失败复用
+     * @return void
+     */
+    public function testSaveUninitializedUsesOwnErrorCode(): void {
+        $file=new File('save_uninitialized',$this->config);
+        $file->set('x',1,true);
+        $file->destroy();
+        $this->expectException(Exception::class);
+        $this->expectExceptionCode(100108);
+        $file->save();
+    }
+
 }

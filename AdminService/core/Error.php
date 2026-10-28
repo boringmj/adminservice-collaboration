@@ -17,7 +17,9 @@ use function error_log;
 use function error_reporting;
 use function explode;
 use function get_class;
+use function headers_sent;
 use function htmlspecialchars;
+use function http_response_code;
 use function implode;
 use function in_array;
 use function ini_set;
@@ -263,9 +265,8 @@ final class Error extends BaseError {
             'is_exception'=>true
         );
         
-        // 直接处理并退出
+        // 处理并让脚本自然结束; 不主动 exit(), 保留后续 shutdown 回调
         self::handleShutdown();
-        exit();
     }
 
     /**
@@ -350,6 +351,7 @@ final class Error extends BaseError {
         // - 引导完成且容器可用: 走应用的 Log 服务
         // - 引导未完成 / 容器不可用: 直写 PHP 错误日志(不依赖容器, 也不依赖配置)
         $logFailure=null;
+        $headerFailure=null;
         try {
             foreach(self::$errors as $error) {
                 $errorType=self::$errorTypes[$error['type']]??'Unknown';
@@ -372,20 +374,44 @@ final class Error extends BaseError {
                     $container->exec_class_function(Log::class,'write',array($logMessage,$context));
             }
         } catch(\Throwable $e) {
-            $logFailure=$e->getMessage();
+            $logFailure=$e;
         }
-        // 日志写完后统一发送响应头与正文
+        // 发送正文前兜底 500: 响应对象取不到或 sendHeaders() 提前失败时也不能让客户端看到 200
+        if(!headers_sent())
+            http_response_code(500);
         if($response!==null) {
             try {
                 $response->sendHeaders();
             } catch(\Throwable $e) {
                 // 响应头发送失败不能吞掉错误页正文
-                $logFailure=$logFailure??$e->getMessage();
+                $headerFailure=$e;
             }
         }
         echo $errorPage;
-        if($logFailure!==null)
-            echo "<br>日志记录失败: ".htmlspecialchars($logFailure);
+        // 页面只给通用提示, 详细原因写日志; 日志失败与响应头失败必须分开, 避免误导排障
+        if($logFailure!==null) {
+            self::writeOutletFailureLog('log',$logFailure);
+            echo '<br>日志记录失败，请检查日志配置。';
+        }
+        if($headerFailure!==null) {
+            self::writeOutletFailureLog('header',$headerFailure);
+            echo '<br>响应头发送失败，请检查是否已有输出。';
+        }
+    }
+
+    /**
+     * 记录错误出口自身的失败(不依赖应用 Log 服务)
+     *
+     * @access private
+     * @param string $stage 失败阶段(log/header)
+     * @param \Throwable $failure 失败原因
+     * @return void
+     */
+    private static function writeOutletFailureLog(string $stage,\Throwable $failure): void {
+        error_log(
+            '[AdminService] error outlet '.$stage.' failed: '.$failure->getMessage()
+            .' in '.$failure->getFile().' on line '.$failure->getLine()
+        );
     }
 
     /**

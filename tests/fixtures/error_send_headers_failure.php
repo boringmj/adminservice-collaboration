@@ -16,6 +16,10 @@ use AdminService\Log;
 use base\Response as BaseResponse;
 use base\View as BaseView;
 
+$log_file=$argv[1]??'';
+if($log_file!=='')
+    ini_set('error_log',$log_file);
+
 /**
  * 发送响应头时抛异常的假响应
  */

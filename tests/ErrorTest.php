@@ -147,6 +147,25 @@ class ErrorTest extends TestCase {
     }
 
     /**
+     * 测试未捕获异常出口不阻止后续 shutdown 回调
+     * @return void
+     */
+    public function testShutdownCallbacksContinueAfterException(): void {
+        $marker=tempnam(sys_get_temp_dir(),'shutdown_exception_');
+        try {
+            list($status,,$stderr)=$this->runFixture(
+                __DIR__.'/fixtures/shutdown_callbacks.php',
+                array($marker,'exception')
+            );
+            $this->assertSame(0,$status,$stderr);
+            $this->assertSame('ok',(string)file_get_contents($marker));
+        } finally {
+            if(is_file($marker))
+                unlink($marker);
+        }
+    }
+
+    /**
      * 测试错误日志先于错误页输出
      *
      * - 客户端断连导致输出失败时, 不能把日志写入留到之后
@@ -171,12 +190,64 @@ class ErrorTest extends TestCase {
      * @return void
      */
     public function testErrorPageSurvivesSendHeadersFailure(): void {
-        list($status,$stdout,$stderr)=$this->runFixture(
-            __DIR__.'/fixtures/error_send_headers_failure.php'
-        );
+        $log_file=tempnam(sys_get_temp_dir(),'error_header_log_');
+        try {
+            list($status,$stdout,$stderr)=$this->runFixture(
+                __DIR__.'/fixtures/error_send_headers_failure.php',
+                array($log_file)
+            );
+            $log=(string)file_get_contents($log_file);
+        } finally {
+            if(is_file($log_file))
+                unlink($log_file);
+        }
         $this->assertSame(0,$status,$stderr);
         $this->assertStringContainsString('|PAGE|',$stdout);
         $this->assertStringContainsString('|END|',$stdout);
+        $this->assertStringContainsString('响应头发送失败',$stdout);
+        $this->assertStringNotContainsString('日志记录失败',$stdout);
+        $this->assertStringNotContainsString('headers failed',$stdout);
+        $this->assertStringContainsString('error outlet header failed',$log);
+        $this->assertStringContainsString('headers failed',$log);
+    }
+
+    /**
+     * 测试日志写入失败与响应头发送失败分开提示
+     * @return void
+     */
+    public function testLogFailureIsSeparatedFromHeaderFailure(): void {
+        $log_file=tempnam(sys_get_temp_dir(),'error_log_failure_');
+        try {
+            list($status,$stdout,$stderr)=$this->runFixture(
+                __DIR__.'/fixtures/error_log_failure.php',
+                array($log_file)
+            );
+            $log=(string)file_get_contents($log_file);
+        } finally {
+            if(is_file($log_file))
+                unlink($log_file);
+        }
+        $this->assertSame(0,$status,$stderr);
+        $this->assertStringContainsString('|PAGE|',$stdout);
+        $this->assertStringContainsString('|END|',$stdout);
+        $this->assertStringContainsString('日志记录失败',$stdout);
+        $this->assertStringNotContainsString('响应头发送失败',$stdout);
+        $this->assertStringNotContainsString('log failed',$stdout);
+        $this->assertStringContainsString('error outlet log failed',$log);
+        $this->assertStringContainsString('log failed',$log);
+    }
+
+    /**
+     * 测试无响应对象时错误页兜底为 500
+     * @return void
+     */
+    public function testErrorPageFallsBackTo500Status(): void {
+        list($status,$stdout,$stderr)=$this->runFixture(
+            __DIR__.'/fixtures/error_status_fallback.php'
+        );
+        $this->assertSame(0,$status,$stderr);
+        $this->assertStringContainsString('发生错误',$stdout);
+        $this->assertStringContainsString('|STATUS|500',$stdout);
     }
 
     /**

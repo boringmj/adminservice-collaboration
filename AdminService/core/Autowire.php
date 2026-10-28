@@ -4,10 +4,11 @@ namespace AdminService;
 
 use ReflectionType;
 use ReflectionClass;
+use ReflectionMethod;
 use ReflectionParameter;
 use ReflectionNamedType;
 use ReflectionUnionType;
-// use ReflectionIntersectionType; // PHP 8.0 不支持
+// use ReflectionIntersectionType; // PHP 8.1+ 可用, 当前类型解析未单独处理交叉类型
 use ReflectionProperty;
 use base\AutowireInterface;
 use base\ArgumentResolverInterface;

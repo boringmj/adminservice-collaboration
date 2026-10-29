@@ -9,7 +9,6 @@ use Tests\Fixtures\ConcreteService;
 use Tests\Fixtures\AbstractService;
 use Tests\Fixtures\ServiceInterface;
 use AdminService\App;
-use AdminService\Config;
 use AdminService\Exception;
 
 use function get_class;
@@ -29,9 +28,9 @@ class AppTest extends TestCase {
      * @return void
      */
     public function testBind(): void {
-        App::bind('Service', ConcreteService::class);
+        App::bind('Service',ConcreteService::class);
         // 绑定生效: 按别名取到的就是绑定的实现类(真实类名解析已收为容器内部实现)
-        $this->assertInstanceOf(ConcreteService::class, App::get('Service'));
+        $this->assertInstanceOf(ConcreteService::class,App::get('Service'));
         $this->assertTrue(App::has('Service'));
     }
 
@@ -41,11 +40,11 @@ class AppTest extends TestCase {
      */
     public function testAutoFindInterfaceImplementation(): void {
         $service=App::make(ServiceInterface::class);
-        $this->assertInstanceOf(ConcreteService::class, $service);
+        $this->assertInstanceOf(ConcreteService::class,$service);
         $service=App::get(ServiceInterface::class);
-        $this->assertInstanceOf(ConcreteService::class, $service);
+        $this->assertInstanceOf(ConcreteService::class,$service);
         $service=App::new(ServiceInterface::class);
-        $this->assertInstanceOf(ConcreteService::class, $service);
+        $this->assertInstanceOf(ConcreteService::class,$service);
     }
 
     /**
@@ -53,13 +52,13 @@ class AppTest extends TestCase {
      * @return void
      */
     public function testAbstractBinding(): void {
-        App::bind(AbstractService::class, ConcreteService::class);
+        App::bind(AbstractService::class,ConcreteService::class);
         $service=App::make(AbstractService::class);
-        $this->assertSame(ConcreteService::class, get_class($service));
+        $this->assertSame(ConcreteService::class,get_class($service));
         $service=App::get(AbstractService::class);
-        $this->assertSame(ConcreteService::class, get_class($service));
+        $this->assertSame(ConcreteService::class,get_class($service));
         $service=App::new(AbstractService::class);
-        $this->assertSame(ConcreteService::class, get_class($service));
+        $this->assertSame(ConcreteService::class,get_class($service));
     }
 
     /**

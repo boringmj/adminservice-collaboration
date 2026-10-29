@@ -9,7 +9,6 @@ use base\Database\Execution\PdoSqlExecutor;
 use base\Database\Query\Query;
 use base\Database\Sql\Builder\QueryStatementBuilder;
 use base\Database\Sql\Compiler\CompiledStatement;
-use base\Database\Sql\Compiler\CompileModeSet;
 use base\Database\Sql\Compiler\CompilerContext;
 use base\Database\Sql\Compiler\MysqlCompiler;
 use base\Database\Sql\Dialect\MysqlDialect;

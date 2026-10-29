@@ -6,6 +6,9 @@ use PHPUnit\Framework\TestCase;
 
 use AdminService\Config;
 
+use function date_default_timezone_get;
+use function date_default_timezone_set;
+
 /**
  * 时区配置用例
  *

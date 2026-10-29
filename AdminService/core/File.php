@@ -7,6 +7,7 @@ use base\ConfigInterface;
 
 use Throwable;
 
+use function array_key_exists;
 use function array_keys;
 use function dirname;
 use function file_get_contents;

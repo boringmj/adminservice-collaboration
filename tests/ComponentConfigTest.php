@@ -17,6 +17,8 @@ use base\ConfigInterface;
 
 use ReflectionProperty;
 
+use function array_key_exists;
+
 /**
  * 测试用配置实现(声明顺序在 SecondConfig 之前)
  */

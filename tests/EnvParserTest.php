@@ -8,7 +8,6 @@ use AdminService\Config\Env;
 use AdminService\exception\ConfigException;
 
 use function AdminService\env;
-use function AdminService\env_snapshot;
 
 use function count;
 use function dirname;

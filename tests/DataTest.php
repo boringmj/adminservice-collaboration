@@ -6,6 +6,8 @@ use PHPUnit\Framework\TestCase;
 
 use AdminService\Data;
 
+use function array_keys;
+
 /**
  * Data 容器测试
  *

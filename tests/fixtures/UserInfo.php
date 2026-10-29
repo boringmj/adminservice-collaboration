@@ -30,7 +30,7 @@ class UserInfo {
      * 用户ID
      * @var DynamicProxy<UserId>
      */
-    #[AutowireProperty(UserId::class, mode: AutowireMode::Proxy)]
+    #[AutowireProperty(UserId::class,mode:AutowireMode::Proxy)]
     public DynamicProxy $id;
 
 }

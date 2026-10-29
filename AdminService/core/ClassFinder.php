@@ -8,7 +8,6 @@ use function array_diff;
 use function array_filter;
 use function array_pop;
 use function class_exists;
-use function count;
 use function class_implements;
 use function get_declared_classes;
 use function get_parent_class;

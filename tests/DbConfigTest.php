@@ -4,7 +4,6 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
-use AdminService\Config;
 use base\Database\Connection\ConnectionConfig;
 use base\Database\Db;
 use base\Database\Exception\ConfigException;

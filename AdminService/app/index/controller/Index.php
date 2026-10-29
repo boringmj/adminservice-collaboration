@@ -18,7 +18,7 @@ class Index extends Controller {
      * 通过属性注入Log代理对象
      * @var DynamicProxy<Log>
      */
-    #[AutowireProperty(Log::class, mode: AutowireMode::Proxy)]
+    #[AutowireProperty(Log::class,mode:AutowireMode::Proxy)]
     private $log;
 
     /**

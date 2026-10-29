@@ -2,6 +2,8 @@
 
 namespace AdminService;
 
+use function is_file;
+
 $autoload_path=__DIR__."/../vendor/autoload.php";
 
 # 加载composer自动加载文件

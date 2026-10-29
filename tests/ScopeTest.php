@@ -7,7 +7,6 @@ use PHPUnit\Framework\TestCase;
 use base\Container as ContainerContract;
 use base\Request;
 use base\RouteContextInterface;
-use Tests\Fixtures\AbstractService;
 use Tests\Fixtures\ConcreteService;
 use Tests\Fixtures\ServiceInterface;
 use AdminService\App;
@@ -50,19 +49,19 @@ class ScopeTest extends TestCase {
      */
     public function testForkCopiesBindingsAndIsolatesInstances(): void {
         $app=App::getInstance();
-        $app->bind(ServiceInterface::class, ConcreteService::class);
+        $app->bind(ServiceInterface::class,ConcreteService::class);
         $shared=new ConcreteService();
-        $app->instance(ServiceInterface::class, $shared);
+        $app->instance(ServiceInterface::class,$shared);
 
         $child=$app->fork();
         // 绑定(别名/单例表同理)对子容器可见
         $this->assertTrue($child->has(ServiceInterface::class));
         // 父容器登记的实例对子容器可见, 且是同一个对象
-        $this->assertSame($shared, $child->get(ServiceInterface::class));
+        $this->assertSame($shared,$child->get(ServiceInterface::class));
         // 子容器登记的实例不回流到父容器
         $child_only=new ConcreteService();
-        $child->instance(ConcreteService::class, $child_only);
-        $this->assertNotSame($child_only, $app->get(ConcreteService::class));
+        $child->instance(ConcreteService::class,$child_only);
+        $this->assertNotSame($child_only,$app->get(ConcreteService::class));
     }
 
     /**
@@ -182,7 +181,7 @@ class ScopeTest extends TestCase {
      */
     public function testResetKeepsBindings(): void {
         $container=new Container();
-        $container->bind(ServiceInterface::class, ConcreteService::class);
+        $container->bind(ServiceInterface::class,ConcreteService::class);
         $first=$container->get(ServiceInterface::class);
         $container->instance(ConcreteService::class,new ConcreteService());
         $container->reset();

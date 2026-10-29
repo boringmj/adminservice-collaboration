@@ -4,6 +4,9 @@ namespace AdminService;
 
 use AdminService\Config\Env;
 
+use function dirname;
+use function is_file;
+
 /**
  * 读取 `.env` 配置项
  *

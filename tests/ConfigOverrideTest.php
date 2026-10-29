@@ -8,6 +8,7 @@ use AdminService\Config\Env;
 use AdminService\Config\Repository;
 use AdminService\exception\ConfigException;
 
+use function explode;
 use function implode;
 use function is_array;
 

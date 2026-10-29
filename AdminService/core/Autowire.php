@@ -21,6 +21,7 @@ use base\Attribute\AutowireLifecycle;
 use AdminService\exception\AutowireException;
 use Closure;
 
+use function array_key_exists;
 use function array_merge;
 use function array_unique;
 use function array_values;

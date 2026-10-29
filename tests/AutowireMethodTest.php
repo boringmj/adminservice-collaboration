@@ -9,7 +9,6 @@ use Tests\Fixtures\UserName;
 use Tests\Fixtures\UserProfile;
 use Tests\Fixtures\UserStatus;
 use AdminService\App;
-use AdminService\Config;
 
 /**
  * 自动方法注入(生命周期)测试

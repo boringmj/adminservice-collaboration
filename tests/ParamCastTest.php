@@ -5,7 +5,6 @@ namespace Tests;
 use PHPUnit\Framework\TestCase;
 
 use AdminService\App;
-use AdminService\Config;
 use AdminService\Exception;
 
 use Tests\Fixtures\ConcreteService;
@@ -114,7 +113,7 @@ class ParamCastTest extends TestCase {
      */
     public function testDigitStringToInt(): void {
         $target=new ParamCastTarget();
-        $this->assertSame(2, App::exec_class_function($target,'toInt',array(
+        $this->assertSame(2,App::exec_class_function($target,'toInt',array(
             'x'=>'2'
         )));
     }
@@ -125,7 +124,7 @@ class ParamCastTest extends TestCase {
      */
     public function testDigitStringToIntPositional(): void {
         $target=new ParamCastTarget();
-        $this->assertSame(2, App::exec_class_function($target,'toInt',array(0=>'2')));
+        $this->assertSame(2,App::exec_class_function($target,'toInt',array(0=>'2')));
     }
 
     /**
@@ -155,7 +154,7 @@ class ParamCastTest extends TestCase {
      */
     public function testFloatStringToFloat(): void {
         $target=new ParamCastTarget();
-        $this->assertEquals(3.14, App::exec_class_function($target,'toFloat',array(
+        $this->assertEquals(3.14,App::exec_class_function($target,'toFloat',array(
             'x'=>'3.14'
         )));
     }
@@ -191,7 +190,7 @@ class ParamCastTest extends TestCase {
      */
     public function testFloatToIntTruncation(): void {
         $target=new ParamCastTarget();
-        $this->assertSame(3, App::exec_class_function($target,'toInt',array(
+        $this->assertSame(3,App::exec_class_function($target,'toInt',array(
             'x'=>3.9
         )));
     }
@@ -202,7 +201,7 @@ class ParamCastTest extends TestCase {
      */
     public function testIntToFloat(): void {
         $target=new ParamCastTarget();
-        $this->assertSame(3.0, App::exec_class_function($target,'toFloat',array(
+        $this->assertSame(3.0,App::exec_class_function($target,'toFloat',array(
             'x'=>3
         )));
     }
@@ -213,7 +212,7 @@ class ParamCastTest extends TestCase {
      */
     public function testDigitStringToVariadicInt(): void {
         $target=new ParamCastTarget();
-        $this->assertSame(6, App::exec_class_function($target,'sum',array(
+        $this->assertSame(6,App::exec_class_function($target,'sum',array(
             0=>'1',1=>'2',2=>'3'
         )));
     }
@@ -247,7 +246,7 @@ class ParamCastTest extends TestCase {
     public function testStrictModeAcceptsCorrectType(): void {
         App::setParamCast(false);
         $target=new ParamCastTarget();
-        $this->assertSame(2, App::exec_class_function($target,'toInt',array('x'=>2)));
+        $this->assertSame(2,App::exec_class_function($target,'toInt',array('x'=>2)));
         $this->assertSame('abc', App::exec_class_function($target,'toString',array(
             'x'=>'abc'
         )));

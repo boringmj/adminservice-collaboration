@@ -17,6 +17,8 @@ use AdminService\exception\AutowireException;
 use base\Attribute\AutowireProperty;
 use base\Container as ContainerContract;
 
+use function class_exists;
+
 /**
  * 容器绑定与解析语义用例
  *
@@ -34,7 +36,7 @@ class ContainerBindingTest extends TestCase {
     }
 
     /**
-     * 每个用例用一个干净的容器(实例状态, 互不污染)
+     * 每个用例用一个干净的容器(实例状态,互不污染)
      * @return void
      */
     protected function setUp(): void {
@@ -42,37 +44,37 @@ class ContainerBindingTest extends TestCase {
     }
 
     /**
-     * 测试 bind:抽象名绑定实现类, 取用与复用
+     * 测试 bind:抽象名绑定实现类,取用与复用
      * @return void
      */
     public function testBindAndReuse(): void {
-        App::bind(ServiceInterface::class, ConcreteService::class);
+        App::bind(ServiceInterface::class,ConcreteService::class);
         $this->assertTrue(App::has(ServiceInterface::class));
-        $this->assertInstanceOf(ConcreteService::class, App::get(ServiceInterface::class));
+        $this->assertInstanceOf(ConcreteService::class,App::get(ServiceInterface::class));
         // 复用:同一实现只构建一次
-        $this->assertSame(App::make(ServiceInterface::class), App::make(ServiceInterface::class));
+        $this->assertSame(App::make(ServiceInterface::class),App::make(ServiceInterface::class));
     }
 
     /**
-     * 测试 instance:登记现成对象, 并在别名/契约名下都能取到
+     * 测试 instance:登记现成对象,并在别名/契约名下都能取到
      * @return void
      */
     public function testInstanceRegistration(): void {
         $service=new ConcreteService();
-        App::instance(ServiceInterface::class, $service);
-        $this->assertSame($service, App::get(ServiceInterface::class));
+        App::instance(ServiceInterface::class,$service);
+        $this->assertSame($service,App::get(ServiceInterface::class));
     }
 
     /**
-     * 测试 alias:别名与绑定分表, 支持链式解析
+     * 测试 alias:别名与绑定分表,支持链式解析
      * @return void
      */
     public function testAliasChain(): void {
-        App::bind(AbstractService::class, ConcreteService::class);
-        App::alias('service', 'service.alias');
-        App::alias('service.alias', AbstractService::class);
+        App::bind(AbstractService::class,ConcreteService::class);
+        App::alias('service','service.alias');
+        App::alias('service.alias',AbstractService::class);
         $this->assertTrue(App::has('service'));
-        $this->assertInstanceOf(ConcreteService::class, App::get('service'));
+        $this->assertInstanceOf(ConcreteService::class,App::get('service'));
     }
 
     /**
@@ -80,10 +82,10 @@ class ContainerBindingTest extends TestCase {
      * @return void
      */
     public function testSingletonSharesInstance(): void {
-        App::singleton(ServiceInterface::class, ConcreteService::class);
+        App::singleton(ServiceInterface::class,ConcreteService::class);
         $by_abstract=App::get(ServiceInterface::class);
         $by_class=App::get(ConcreteService::class);
-        $this->assertSame($by_abstract, $by_class);
+        $this->assertSame($by_abstract,$by_class);
     }
 
     /**
@@ -91,9 +93,9 @@ class ContainerBindingTest extends TestCase {
      * @return void
      */
     public function testMakeReusesFreshDoesNot(): void {
-        App::bind(AbstractService::class, ConcreteService::class);
-        $this->assertSame(App::make(AbstractService::class), App::make(AbstractService::class));
-        $this->assertNotSame(App::fresh(AbstractService::class), App::fresh(AbstractService::class));
+        App::bind(AbstractService::class,ConcreteService::class);
+        $this->assertSame(App::make(AbstractService::class),App::make(AbstractService::class));
+        $this->assertNotSame(App::fresh(AbstractService::class),App::fresh(AbstractService::class));
     }
 
     /**
@@ -101,14 +103,14 @@ class ContainerBindingTest extends TestCase {
      * @return void
      */
     public function testBuildWithArgsAndAutowire(): void {
-        // UserInfo 的 status 属性按 AbstractStatus 注入, 明确给出实现, 避免依赖其他用例先加载 UserStatus
+        // UserInfo 的 status 属性按 AbstractStatus 注入,明确给出实现,避免依赖其他用例先加载 UserStatus
         App::bind(AbstractStatus::class,UserStatus::class);
-        // build 会做属性装配(#[AutowireProperty]), 与 make 的装配一致
+        // build 会做属性装配(#[AutowireProperty]),与 make 的装配一致
         $user=App::build(UserInfo::class);
-        $this->assertInstanceOf(UserInfo::class, $user);
+        $this->assertInstanceOf(UserInfo::class,$user);
         $this->assertNotNull($user->name);
         // 不登记:build 出来的对象不会成为后续 get/build 的复用对象
-        $this->assertNotSame($user, App::build(UserInfo::class));
+        $this->assertNotSame($user,App::build(UserInfo::class));
     }
 
     /**
@@ -120,8 +122,8 @@ class ContainerBindingTest extends TestCase {
             ServiceInterface::class=>ConcreteService::class,
             AbstractService::class=>ConcreteService::class,
         ));
-        $this->assertInstanceOf(ConcreteService::class, App::get(ServiceInterface::class));
-        $this->assertInstanceOf(ConcreteService::class, App::get(AbstractService::class));
+        $this->assertInstanceOf(ConcreteService::class,App::get(ServiceInterface::class));
+        $this->assertInstanceOf(ConcreteService::class,App::get(AbstractService::class));
     }
 
     /**
@@ -139,7 +141,7 @@ class ContainerBindingTest extends TestCase {
      */
     public function testCircularBindingRejected(): void {
         $this->expectException(Exception::class);
-        App::bind(ConcreteService::class, ConcreteService::class);
+        App::bind(ConcreteService::class,ConcreteService::class);
     }
 
     /**
@@ -147,15 +149,15 @@ class ContainerBindingTest extends TestCase {
      * @return void
      */
     public function testCircularAliasRejected(): void {
-        App::alias('a', 'b');
+        App::alias('a','b');
         $this->expectException(Exception::class);
-        App::alias('b', 'a');
+        App::alias('b','a');
     }
 
     /**
      * 测试 get(): 未登记时做完整装配(构造参数也要注入)
      *
-     * - 旧实现只 `newInstance()`(零参), 有必填构造依赖时会直接 ArgumentCountError
+     * - 旧实现只 `newInstance()`(零参),有必填构造依赖时会直接 ArgumentCountError
      *
      * @return void
      */
@@ -168,7 +170,7 @@ class ContainerBindingTest extends TestCase {
     /**
      * 测试抽象类依赖不会在构建栈里残留
      *
-     * - 旧实现解析完抽象类后把抽象名留在 `$flags` 里, 同一类型的第二个属性会被误判成循环依赖
+     * - 旧实现解析完抽象类后把抽象名留在 `$flags` 里,同一类型的第二个属性会被误判成循环依赖
      *
      * @return void
      */
@@ -182,7 +184,7 @@ class ContainerBindingTest extends TestCase {
     /**
      * 测试显式实现类优先于按类型绑定解析
      *
-     * - 旧实现的 `is_a()` 参数方向写反, 显式实现类会被静默换成绑定里的实现
+     * - 旧实现的 `is_a()` 参数方向写反,显式实现类会被静默换成绑定里的实现
      *
      * @return void
      */

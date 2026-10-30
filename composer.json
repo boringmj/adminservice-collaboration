@@ -1,4 +1,5 @@
 {
+    "$schema": "https://getcomposer.org/schema.json",
     "name": "boringmj/adminservice-collaboration",
     "type": "project",
     "description": "A PHP lightweight fast response framework under development, mainly for the back-end API interface",

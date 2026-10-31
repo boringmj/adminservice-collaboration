@@ -56,6 +56,7 @@ final class Route {
      * @param string|null $name 路由名
      * @param string|array<string|object>|object $middleware 路由级中间件(类名 / 实例 / 数组)
      * @param array<string,string> $bind 路由参数到控制器形参的绑定(占位符名 => 形参名)
+     * @throws \InvalidArgumentException 请求方法不是非空字符串或 Method 枚举
      */
     public function __construct(
         string|Method $method,

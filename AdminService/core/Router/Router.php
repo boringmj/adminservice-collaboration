@@ -170,6 +170,7 @@ final class Router implements RoutingInterface {
      * @param mixed $handler 处理器
      * @return RouteItem
      * @throws Exception
+     * @throws \InvalidArgumentException 请求方法不是非空字符串或 Method 枚举
      */
     public function match(array $methods,string $path,mixed $handler): RouteItem {
         return $this->add($methods,$path,$handler);
@@ -184,6 +185,7 @@ final class Router implements RoutingInterface {
      * @param mixed $handler 处理器
      * @return RouteItem
      * @throws Exception 与已注册路由冲突
+     * @throws \InvalidArgumentException 请求方法不是非空字符串或 Method 枚举
      */
     public function add(array $methods,string $path,mixed $handler): RouteItem {
         $route=new RouteItem($methods,self::joinPath($this->prefix(),$path),$handler,$this->groupMiddlewareEntries());
@@ -364,6 +366,7 @@ final class Router implements RoutingInterface {
      * @param array<class-string> $classes 控制器类名列表
      * @return void
      * @throws Exception
+     * @throws \InvalidArgumentException 请求方法不是非空字符串或 Method 枚举
      */
     public function registerAttributes(array $classes): void {
         foreach($classes as $class) {

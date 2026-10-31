@@ -6,6 +6,7 @@ use InvalidArgumentException;
 
 use function is_string;
 use function strtoupper;
+use function trim;
 
 /**
  * 路由请求方法
@@ -51,16 +52,20 @@ enum Method: string {
     case ANY='*';
 
     /**
-     * 归一化为注册表使用的大写字符串
+     * 归一化为注册表使用的大写字符串(去除首尾空白)
      *
      * @access public
      * @param mixed $method 请求方法(枚举或字符串)
      * @return string
+     * @throws InvalidArgumentException 请求方法不是非空字符串或 Method 枚举
      */
     public static function normalize(mixed $method): string {
         if($method instanceof self)
             return $method->value;
-        if(!is_string($method)||$method==='')
+        if(!is_string($method))
+            throw new InvalidArgumentException('Route method must be a non-empty string or Method enum.');
+        $method=trim($method);
+        if($method==='')
             throw new InvalidArgumentException('Route method must be a non-empty string or Method enum.');
         return strtoupper($method);
     }

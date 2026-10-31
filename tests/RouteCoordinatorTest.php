@@ -18,6 +18,7 @@ use AdminService\Router\Router;
 use AdminService\Router\RouterFactory;
 use Tests\Fixtures\LabelMiddleware;
 use Tests\Fixtures\MiddlewareLog;
+use Tests\Fixtures\AttributeMiddleware;
 
 use function file_put_contents;
 use function glob;
@@ -230,6 +231,52 @@ class RouteCoordinatorTest extends TestCase {
         $this->assertSame('optional:first-default,last-default',$this->dispatch('/t/bind/optional'));
         $this->assertSame('optional:Alice,last-default',$this->dispatch('/t/bind/optional/Alice'));
         $this->assertSame('optional:Alice,Bob',$this->dispatch('/t/bind/optional/Alice/Bob'));
+    }
+
+    /**
+     * 测试控制器形参只取路由占位符, 不重命名其他请求属性
+     *
+     * - 中间件写入与绑定目标同名的属性, 不应参与控制器形参映射
+     * - 请求属性区保持原名, 路由反向生成仍使用占位符名
+     *
+     * @return void
+     */
+    public function testControllerArgsOnlyUseRouteParameters(): void {
+        $this->useRoutes(
+            "\$router->get('/t/bind/attrs/{first}/{last}',array(\\Tests\\Fixtures\\RouteBindingController::class,'route'))".
+            "->bind(array('first'=>'first_name','last'=>'last_name'))".
+            "->middleware(\\Tests\\Fixtures\\AttributeMiddleware::class)".
+            "->name('t.bind.attrs');"
+        );
+        $this->assertSame('route:Alice,Bob',$this->dispatch('/t/bind/attrs/Alice/Bob'));
+
+        $container=$this->main()->application()->requestContainer();
+        $request=$container->get(Request::class);
+        $this->assertSame('Alice',$request->attribute('first'));
+        $this->assertSame('Bob',$request->attribute('last'));
+        $this->assertSame('middleware',$request->attribute('first_name'));
+        $this->assertNull($request->attribute('last_name'));
+
+        $router=$container->get(Router::class);
+        $this->assertSame(
+            '/t/bind/attrs/Alice/Bob',
+            $router->url('t.bind.attrs',array('first'=>'Alice','last'=>'Bob'))
+        );
+    }
+
+    /**
+     * 测试绑定目标与未绑定占位符同名时在分发期报错
+     *
+     * @return void
+     */
+    public function testRouteParameterBindingTargetCollidesWithUnboundPlaceholder(): void {
+        $this->useRoutes(
+            "\$router->get('/t/bind/conflict/{first}/{first_name}',array(\\Tests\\Fixtures\\RouteBindingController::class,'conflict'))".
+            "->bind(array('first'=>'first_name'));"
+        );
+        $this->expectException(\AdminService\Exception::class);
+        $this->expectExceptionMessage('target is duplicated');
+        $this->dispatch('/t/bind/conflict/Alice/Bob');
     }
 
     /**

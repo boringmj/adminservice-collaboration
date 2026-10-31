@@ -11,11 +11,15 @@ use AdminService\Pipeline;
 use AdminService\Router\RouteItem;
 use AdminService\Router\Router;
 use base\Attribute\Method;
+use Tests\Fixtures\AbstractResourceController;
 use Tests\Fixtures\ApiResourceController;
 use Tests\Fixtures\FirstMiddleware;
 use Tests\Fixtures\GroupedController;
+use Tests\Fixtures\InheritedResourceController;
 use Tests\Fixtures\MethodRouteController;
 use Tests\Fixtures\MiddlewareLog;
+use Tests\Fixtures\MultiApiResourceController;
+use Tests\Fixtures\MultiResourceController;
 use Tests\Fixtures\NoSlashGroupedController;
 use Tests\Fixtures\ResourceController;
 use Tests\Fixtures\RouteBindingController;
@@ -351,7 +355,7 @@ class RouterTest extends TestCase {
      */
     public function testResourceRoutes(): void {
         $router=new Router();
-        $router->resource('/article','AppController');
+        $router->resource('/article',ResourceController::class);
         $this->assertCount(7,$router->getRoutes());
         $this->assertSame('index',$router->find('GET','/article')[0]->getHandler()[1]);
         $this->assertSame('store',$router->find('POST','/article')[0]->getHandler()[1]);
@@ -375,7 +379,7 @@ class RouterTest extends TestCase {
     public function testResourceRouteNamesIncludeGroupPrefix(): void {
         $router=new Router();
         $router->group(array('prefix'=>'/index'),function(Router $router): void {
-            $router->resource('/users','AppController');
+            $router->resource('/users',ResourceController::class);
         });
         $this->assertNotNull($router->find('GET','/index/users/5'));
         $this->assertSame('/index/users/5',$router->url('index.users.show',array('id'=>5)));
@@ -404,6 +408,119 @@ class RouterTest extends TestCase {
         $this->assertSame('destroy',$router->find('DELETE','/index/users/5')[0]->getHandler()[1]);
         $this->assertSame('/index/users',$router->url('index.users.index'));
         $this->assertSame('/index/users/5/edit',$router->url('index.users.edit',array('id'=>5)));
+    }
+
+    /**
+     * 测试根资源路由名不带前导点
+     *
+     * @return void
+     */
+    public function testRootResourceRouteNames(): void {
+        $router=new Router();
+        $router->resource('/',ResourceController::class);
+        $this->assertCount(7,$router->getRoutes());
+        $this->assertNotNull($router->find('GET','/'));
+        $this->assertNotNull($router->find('GET','/create'));
+        $this->assertSame('/',$router->url('index'));
+        $this->assertSame('/create',$router->url('create'));
+        $this->assertSame('/5/edit',$router->url('edit',array('id'=>5)));
+        $this->assertFalse($router->has('.index'));
+    }
+
+    /**
+     * 测试同一控制器可声明多个资源根
+     *
+     * @return void
+     */
+    public function testResourceAttributeSupportsMultipleRoots(): void {
+        $router=new Router();
+        $router->registerAttributes(array(MultiResourceController::class));
+        $this->assertCount(14,$router->getRoutes());
+        $this->assertNotNull($router->find('GET','/alpha'));
+        $this->assertNotNull($router->find('GET','/beta'));
+        $this->assertSame('/alpha/5',$router->url('alpha.show',array('id'=>5)));
+        $this->assertSame('/beta',$router->url('beta.index'));
+    }
+
+    /**
+     * 测试同一控制器可声明多个 API 资源根
+     *
+     * @return void
+     */
+    public function testApiResourceAttributeSupportsMultipleRoots(): void {
+        $router=new Router();
+        $router->registerAttributes(array(MultiApiResourceController::class));
+        $this->assertCount(10,$router->getRoutes());
+        $this->assertNotNull($router->find('GET','/gamma'));
+        $this->assertNotNull($router->find('GET','/delta'));
+        $this->assertSame('/gamma/5',$router->url('gamma.show',array('id'=>5)));
+        $this->assertSame('/delta',$router->url('delta.index'));
+    }
+
+    /**
+     * 测试带资源声明的控制器必须可实例化
+     *
+     * @return void
+     */
+    public function testResourceAttributeRejectsNonInstantiableClass(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('must be instantiable');
+        $router->registerAttributes(array(AbstractResourceController::class));
+    }
+
+    /**
+     * 测试类级资源注解不随继承传递
+     *
+     * @return void
+     */
+    public function testResourceAttributeIsNotInherited(): void {
+        $router=new Router();
+        $router->registerAttributes(array(InheritedResourceController::class));
+        $this->assertCount(0,$router->getRoutes());
+    }
+
+    /**
+     * 测试资源动作缺失时在装配期报错
+     *
+     * @return void
+     */
+    public function testResourceRejectsMissingAction(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('create');
+        $router->resource('/broken',ApiResourceController::class);
+    }
+
+    /**
+     * 测试资源注解与嵌套分组组合
+     *
+     * @return void
+     */
+    public function testResourceAttributeWithNestedGroup(): void {
+        $router=new Router();
+        $router->group(array('prefix'=>'/api'),function(Router $router): void {
+            $router->registerAttributes(array(ResourceController::class));
+        });
+        $this->assertCount(7,$router->getRoutes());
+        $this->assertNotNull($router->find('GET','/api/index/users'));
+        $this->assertSame('/api/index/users',$router->url('api.index.users.index'));
+        $this->assertSame('/api/index/users/5/edit',$router->url('api.index.users.edit',array('id'=>5)));
+    }
+
+    /**
+     * 测试 API 资源注解与分组组合
+     *
+     * @return void
+     */
+    public function testApiResourceAttributeWithGroup(): void {
+        $router=new Router();
+        $router->group(array('prefix'=>'/api'),function(Router $router): void {
+            $router->registerAttributes(array(ApiResourceController::class));
+        });
+        $this->assertCount(5,$router->getRoutes());
+        $this->assertNotNull($router->find('GET','/api/files'));
+        $this->assertSame('/api/files/5',$router->url('api.files.show',array('id'=>5)));
     }
 
     /**
@@ -473,6 +590,7 @@ class RouterTest extends TestCase {
     public function testRouteParameterBindingRejectsUnknownParameter(): void {
         $router=new Router();
         $this->expectException(Exception::class);
+        $this->expectExceptionMessage('unknown parameter');
         $router->get('/bad/{name}',array(RouteBindingController::class,'route'))
             ->bind(array('missing'=>'first_name'));
     }
@@ -485,6 +603,7 @@ class RouterTest extends TestCase {
     public function testRouteParameterBindingRejectsDuplicateTarget(): void {
         $router=new Router();
         $this->expectException(Exception::class);
+        $this->expectExceptionMessage('target is duplicated');
         $router->get('/dup/{first}/{last}',array(RouteBindingController::class,'route'))
             ->bind(array('first'=>'same','last'=>'same'));
     }
@@ -499,6 +618,35 @@ class RouterTest extends TestCase {
         $item=$router->get('/missing/{name}',array(RouteBindingController::class,'route'))
             ->bind(array('name'=>'missing'));
         $this->expectException(Exception::class);
+        $this->expectExceptionMessage('not a handler parameter');
+        $item->getBindings();
+    }
+
+    /**
+     * 测试参数级绑定引用不存在的占位符时直接报错
+     *
+     * @return void
+     */
+    public function testParameterBindingRejectsUnknownSource(): void {
+        $router=new Router();
+        $router->registerAttributes(array(RouteBindingController::class));
+        $item=$router->find('GET','/bind/unknown/1')[0];
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('unknown parameter');
+        $item->getBindings();
+    }
+
+    /**
+     * 测试参数级绑定重复声明同一个占位符时直接报错
+     *
+     * @return void
+     */
+    public function testParameterBindingRejectsDuplicateSource(): void {
+        $router=new Router();
+        $router->registerAttributes(array(RouteBindingController::class));
+        $item=$router->find('GET','/bind/duplicate/1')[0];
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('declared more than once');
         $item->getBindings();
     }
 
@@ -982,7 +1130,7 @@ class RouterTest extends TestCase {
      */
     public function testApiResource(): void {
         $router=new Router();
-        $router->apiResource('/article','AppController');
+        $router->apiResource('/article',ApiResourceController::class);
         $this->assertCount(5,$router->getRoutes());
         $this->assertSame('index',$router->find('GET','/article')[0]->getHandler()[1]);
         $this->assertSame('store',$router->find('POST','/article')[0]->getHandler()[1]);

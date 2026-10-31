@@ -15,7 +15,7 @@ use function trait_exists;
 /**
  * 属性路由扫描器
  *
- * - 按约定在应用目录下发现控制器类, 交给 {@see Router::registerAttributes()} 注册 `#[Route]`
+ * - 按约定在应用目录下发现控制器类, 交给 {@see Router::registerAttributes()} 注册 `#[Route]` / 资源路由
  * - PHP 为懒加载: 未载入的类无法反射, 故先由「目录 + 文件名」推出类名, 再经 `class_exists` 载入
  *
  * 扫描规则:

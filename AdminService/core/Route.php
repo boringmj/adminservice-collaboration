@@ -23,14 +23,13 @@ use function count;
 use function implode;
 use function in_array;
 use function is_array;
-use function is_numeric;
 use function is_string;
 use function urldecode;
 
 /**
  * 路由协调器
  *
- * - 显式路由由路由文件与控制器 `#[Route]` 属性声明, 未命中即 404
+ * - 显式路由由路由文件与控制器 `#[Route]` / `#[Resource]` / `#[ApiResource]` 属性声明, 未命中即 404
  * - 路由协调器持有请求对象, 是**请求级对象**: 每请求新建
  * - 路由表本身由应用级 `RouterFactory` 缓存: **同一 Application/进程内**复用同一 `Router`;
  *   默认 HTTP 入口每请求新建 `Main`, 因此不会跨请求复用; `Config::setRepository()` 替换配置对象时重建
@@ -254,7 +253,7 @@ final class Route extends BaseRoute {
      * 提取控制器方法参数
      *
      * - 只注入**路由参数**(属性区): 查询参数等输入不参与形参注入, 须在方法内显式获取
-     * - 键名为数字的参数跳过(如通配捕获的多段拼接值)
+     * - 只读取当前路由自己声明的占位符, 不重命名中间件等写入的其他请求属性
      * - 路由级与参数级绑定把占位符名改写为控制器形参名
      *
      * @access private
@@ -263,10 +262,12 @@ final class Route extends BaseRoute {
      * @throws Exception|ReflectionException
      */
     private function controllerArgs(RouteItem $route): array {
-        $args=$this->request->attributes();
-        foreach($args as $k=>$v)
-            if(is_numeric($k))
-                unset($args[$k]);
+        $attributes=$this->request->attributes();
+        $args=array();
+        foreach($route->getParamNames() as $name) {
+            if(array_key_exists($name,$attributes))
+                $args[$name]=$attributes[$name];
+        }
         $bindings=$route->getBindings();
         if($bindings===array())
             return $args;

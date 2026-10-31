@@ -54,6 +54,27 @@ class AutowireModesTest extends TestCase {
     }
 
     /**
+     * Deferred 队列随容器隔离, 子容器 fork() 后不共享待执行任务
+     *
+     * @return void
+     */
+    public function testDeferredQueueIsolatedAcrossFork(): void {
+        $parent=new Container();
+        $child=$parent->fork();
+
+        $child_consumer=$child->get(DeferredPropertyConsumer::class);
+        $this->assertInstanceOf(DeferredPropertyDependency::class,$child_consumer->dependency);
+        $this->assertTrue($child->hasInstance(DeferredPropertyConsumer::class));
+        $this->assertFalse($parent->hasInstance(DeferredPropertyConsumer::class),'子容器的延迟任务不应写入父容器');
+        $this->assertFalse($parent->hasInstance(DeferredPropertyDependency::class),'子容器的延迟任务不应写入父容器');
+
+        $parent_consumer=$parent->get(DeferredPropertyConsumer::class);
+        $this->assertInstanceOf(DeferredPropertyDependency::class,$parent_consumer->dependency);
+        $this->assertNotSame($child_consumer,$parent_consumer);
+        $this->assertNotSame($child_consumer->dependency,$parent_consumer->dependency);
+    }
+
+    /**
      * 延迟任务按登记后的根对象解析, 因此循环依赖两侧都是完整对象
      * @return void
      */

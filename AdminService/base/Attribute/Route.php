@@ -13,9 +13,10 @@ use function is_array;
  * - 路径中 `{name}`、`{name:约束}`、`{name?}` 为参数占位符, 可选参数须位于末尾
  * - 路径参数默认按占位符名绑定控制器形参; `bind` 可声明路由级绑定, 参数级 `#[RouteParam]` 优先
  * - 分组/前缀能力见 {@see RouteGroup}; 跨控制器能力请走集中式路由文件
+ * - 方法型短语糖 `#[Get]` / `#[Post]` / `#[Put]` / `#[Patch]` / `#[Delete]` / `#[Options]` / `#[Any]` 位于 `base\Attribute\RouteMethod`, 继承此类
  */
 #[Attribute(Attribute::TARGET_METHOD|Attribute::IS_REPEATABLE)]
-final class Route {
+class Route {
 
     /**
      * 请求方法

@@ -14,6 +14,7 @@ use base\Attribute\Method;
 use Tests\Fixtures\ApiResourceController;
 use Tests\Fixtures\FirstMiddleware;
 use Tests\Fixtures\GroupedController;
+use Tests\Fixtures\MethodRouteController;
 use Tests\Fixtures\MiddlewareLog;
 use Tests\Fixtures\NoSlashGroupedController;
 use Tests\Fixtures\ResourceController;
@@ -721,6 +722,42 @@ class RouterTest extends TestCase {
                 $this->assertNotSame('',$e->getMessage());
             }
         }
+    }
+
+    /**
+     * 测试方法型路由注解注册与叠加
+     *
+     * @return void
+     */
+    public function testMethodTypeRouteAttributes(): void {
+        $router=new Router();
+        $router->registerAttributes(array(MethodRouteController::class));
+        foreach(array(
+            'GET'=>'/mg',
+            'POST'=>'/mp',
+            'PUT'=>'/mu',
+            'PATCH'=>'/mpa',
+            'DELETE'=>'/md',
+            'OPTIONS'=>'/mo',
+        ) as $method=>$path) {
+            $found=$router->find($method,$path);
+            $this->assertNotNull($found,$method.' '.$path);
+            $this->assertSame(array($method),$found[0]->getMethods(),$method.' '.$path);
+        }
+        // ANY 通配任意请求方法
+        $any=$router->find('PATCH','/ma');
+        $this->assertNotNull($any);
+        $this->assertSame(array('*'),$any[0]->getMethods());
+        // 路由名与反向生成
+        $this->assertSame('/mg',$router->url('method.get'));
+        // 同一方法叠加两个不同请求方法
+        $shared=$router->find('GET','/shared');
+        $this->assertNotNull($shared);
+        $this->assertNotNull($router->find('POST','/shared'));
+        // bind 与 #[Route] 行为一致
+        $bound=$router->find('GET','/param/9');
+        $this->assertNotNull($bound);
+        $this->assertSame(array('id'=>'user_id'),$bound[0]->getBindings());
     }
 
     /**

@@ -10,6 +10,7 @@ use base\Attribute\RouteGroup;
 use base\RoutingInterface;
 use AdminService\Exception;
 use AdminService\Pipeline;
+use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionMethod;
 
@@ -360,6 +361,7 @@ final class Router implements RoutingInterface {
      *
      * - 仅扫描传入的类, 类的收集由调用方决定
      * - 类上的 `#[RouteGroup]` 提供统一前缀与中间件, 方法上的 `#[Route]` 声明子路径与命名
+     * - 方法型短语糖 `#[Get]` / `#[Post]` 等位于 `base\Attribute\RouteMethod`, 继承 `#[Route]` 并一并识别
      * - 类上的 `#[Resource]` / `#[ApiResource]` 复用资源路由注册, 并与 `#[RouteGroup]` 组合
      *
      * @access public
@@ -409,7 +411,7 @@ final class Router implements RoutingInterface {
                 });
             }
             foreach($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-                foreach($method->getAttributes(Route::class) as $attribute) {
+                foreach($method->getAttributes(Route::class,ReflectionAttribute::IS_INSTANCEOF) as $attribute) {
                     $route=$attribute->newInstance();
                     $item=$this->add(array($route->getMethod()),self::joinPath($prefix,$route->getPath()),array($class,$method->getName()));
                     $item->bind($route->getBindings());

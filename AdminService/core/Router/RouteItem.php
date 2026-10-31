@@ -142,6 +142,7 @@ final class RouteItem {
      * @param mixed $handler 处理器
      * @param mixed $middlewares 分组层中间件(类名 / 实例 / 数组 / 含 priority 的条目)
      * @throws Exception 路径参数名重复或路径格式非法
+     * @throws \InvalidArgumentException 请求方法不是非空字符串或 Method 枚举
      */
     public function __construct(array $methods,string $path,mixed $handler,mixed $middlewares=array()) {
         $this->methods=array();

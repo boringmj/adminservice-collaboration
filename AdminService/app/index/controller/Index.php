@@ -31,6 +31,7 @@ class Index extends Controller {
      *  - 已知风险: 部分标记可能导致方法被框架自动/重复调用
      *  - 可用`#[Route]`属性就近声明路由,框架会自动扫描控制器上的路由属性
      *  - 类上的`#[RouteGroup]`为该控制器下所有路由提供统一前缀与中间件
+     *  - 可使用`#[RouteParam]`为控制器方法的形参显式绑定路由参数
      * @throws Exception
      */
     #[Route(Method::GET,'/{name?}',name:'index.index')]

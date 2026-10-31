@@ -187,6 +187,8 @@ final class App {
     /**
      * 为抽象类或接口绑定实现类或闭包工厂
      *
+     * - 闭包工厂首次解析后缓存; 重新绑定时清理旧自动缓存
+     *
      * @access public
      * @param string $abstract 抽象类或接口名(或别名)
      * @param string|Closure $concrete 实现类或工厂
@@ -213,6 +215,8 @@ final class App {
     /**
      * 单例绑定:解析后抽象名与实现类名指向同一实例
      *
+     * - 闭包工厂首次解析后缓存, 抽象名与返回对象实际类名指向同一实例
+     *
      * @access public
      * @param string $abstract 抽象类或接口名
      * @param string|Closure $concrete 实现类或工厂
@@ -225,6 +229,8 @@ final class App {
 
     /**
      * 瞬态闭包工厂绑定: 每次解析都调用
+     *
+     * - 工厂返回值执行属性 / Setter / 生命周期方法完整装配
      *
      * @access public
      * @param string $abstract 抽象类或接口名(或任意绑定名)

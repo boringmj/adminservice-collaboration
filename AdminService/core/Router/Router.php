@@ -2,6 +2,7 @@
 
 namespace AdminService\Router;
 
+use base\Attribute\Method;
 use base\Attribute\Route;
 use base\Attribute\RouteGroup;
 use base\RoutingInterface;
@@ -77,7 +78,7 @@ final class Router implements RoutingInterface {
      * @throws Exception
      */
     public function get(string $path,mixed $handler): RouteItem {
-        return $this->add(array('GET'),$path,$handler);
+        return $this->add(array(Method::GET),$path,$handler);
     }
 
     /**
@@ -90,7 +91,7 @@ final class Router implements RoutingInterface {
      * @throws Exception
      */
     public function post(string $path,mixed $handler): RouteItem {
-        return $this->add(array('POST'),$path,$handler);
+        return $this->add(array(Method::POST),$path,$handler);
     }
 
     /**
@@ -103,7 +104,7 @@ final class Router implements RoutingInterface {
      * @throws Exception
      */
     public function put(string $path,mixed $handler): RouteItem {
-        return $this->add(array('PUT'),$path,$handler);
+        return $this->add(array(Method::PUT),$path,$handler);
     }
 
     /**
@@ -116,7 +117,7 @@ final class Router implements RoutingInterface {
      * @throws Exception
      */
     public function patch(string $path,mixed $handler): RouteItem {
-        return $this->add(array('PATCH'),$path,$handler);
+        return $this->add(array(Method::PATCH),$path,$handler);
     }
 
     /**
@@ -129,7 +130,7 @@ final class Router implements RoutingInterface {
      * @throws Exception
      */
     public function delete(string $path,mixed $handler): RouteItem {
-        return $this->add(array('DELETE'),$path,$handler);
+        return $this->add(array(Method::DELETE),$path,$handler);
     }
 
     /**
@@ -142,7 +143,7 @@ final class Router implements RoutingInterface {
      * @throws Exception
      */
     public function options(string $path,mixed $handler): RouteItem {
-        return $this->add(array('OPTIONS'),$path,$handler);
+        return $this->add(array(Method::OPTIONS),$path,$handler);
     }
 
     /**
@@ -155,14 +156,14 @@ final class Router implements RoutingInterface {
      * @throws Exception
      */
     public function any(string $path,mixed $handler): RouteItem {
-        return $this->add(array('*'),$path,$handler);
+        return $this->add(array(Method::ANY),$path,$handler);
     }
 
     /**
      * 注册指定方法的路由
      *
      * @access public
-     * @param array<string> $methods 请求方法
+     * @param array<string|Method> $methods 请求方法(枚举 / 字符串)
      * @param string $path 路由路径
      * @param mixed $handler 处理器
      * @return RouteItem
@@ -176,7 +177,7 @@ final class Router implements RoutingInterface {
      * 注册一条路由
      *
      * @access public
-     * @param array<string> $methods 请求方法
+     * @param array<string|Method> $methods 请求方法(枚举 / 字符串)
      * @param string $path 路由路径
      * @param mixed $handler 处理器
      * @return RouteItem

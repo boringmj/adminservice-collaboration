@@ -4,6 +4,7 @@ namespace AdminService\Router;
 
 use AdminService\Exception;
 use AdminService\Pipeline;
+use base\Attribute\Method;
 use base\Attribute\RouteParam;
 use Closure;
 use ReflectionFunction;
@@ -33,7 +34,6 @@ use function preg_replace;
 use function rtrim;
 use function str_contains;
 use function strlen;
-use function strtoupper;
 use function substr;
 
 /**
@@ -136,7 +136,7 @@ final class RouteItem {
      * 构造方法
      *
      * @access public
-     * @param array<string> $methods 允许的请求方法(传 `*` 表示不限)
+     * @param array<string|Method> $methods 允许的请求方法(枚举 / 字符串, 含 `*` 表示不限)
      * @param string $path 路由路径
      * @param mixed $handler 处理器
      * @param mixed $middlewares 分组层中间件(类名 / 实例 / 数组 / 含 priority 的条目)
@@ -145,7 +145,7 @@ final class RouteItem {
     public function __construct(array $methods,string $path,mixed $handler,mixed $middlewares=array()) {
         $this->methods=array();
         foreach($methods as $method)
-            $this->methods[]=strtoupper((string)$method);
+            $this->methods[]=Method::normalize($method);
         $this->path=self::expandWildcard(self::normalizePath($path));
         $this->handler=$handler;
         $this->group_middlewares=Pipeline::normalize($middlewares);

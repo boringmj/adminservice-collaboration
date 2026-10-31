@@ -9,6 +9,7 @@ use AdminService\Exception;
 use AdminService\Pipeline;
 use AdminService\Router\RouteItem;
 use AdminService\Router\Router;
+use base\Attribute\Method;
 use Tests\Fixtures\FirstMiddleware;
 use Tests\Fixtures\GroupedController;
 use Tests\Fixtures\MiddlewareLog;
@@ -373,6 +374,10 @@ class RouterTest extends TestCase {
         $this->assertSame(array('name'=>'world'),$found[1]);
         // 不限方法声明
         $this->assertNotNull($router->find('POST','/ping'));
+        // 请求方法枚举声明
+        $found=$router->find('GET','/enum');
+        $this->assertNotNull($found);
+        $this->assertSame(array(RouteController::class,'method_enum'),$found[0]->getHandler());
         // 未声明路由的方法不注册
         $this->assertNull($router->find('GET','/ignored'));
     }
@@ -632,6 +637,27 @@ class RouterTest extends TestCase {
         }
         $this->expectException(Exception::class);
         $router->get('/bad/{x?}/{y}',array('C','index'));
+    }
+
+    /**
+     * 测试请求方法枚举注册与旧字符串兼容
+     *
+     * - 枚举与字符串可混用, 注册表统一存为大写字符串
+     * - `Method::ANY` 与 `*` 的通配语义一致
+     *
+     * @return void
+     */
+    public function testMethodEnumRegistration(): void {
+        $router=new Router();
+        $item=$router->match(array(Method::GET,'post'),'/method-enum',array('C','enum'));
+        $this->assertSame(array('GET','POST'),$item->getMethods());
+        $this->assertNotNull($router->find('GET','/method-enum'));
+        $this->assertNotNull($router->find('POST','/method-enum'));
+        $this->assertNull($router->find('DELETE','/method-enum'));
+        $router->any('/method-any',array('C','any'));
+        $this->assertNotNull($router->find('DELETE','/method-any'));
+        $this->assertSame('GET',Method::GET->value);
+        $this->assertSame('*',Method::ANY->value);
     }
 
     /**

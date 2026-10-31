@@ -12,12 +12,39 @@ use function strtoupper;
  */
 enum Method: string {
 
+    /**
+     * 匹配 GET 请求, 同时承接 HEAD
+     */
     case GET='GET';
+
+    /**
+     * 匹配 POST 请求
+     */
     case POST='POST';
+
+    /**
+     * 匹配 PUT 请求
+     */
     case PUT='PUT';
+
+    /**
+     * 匹配 PATCH 请求
+     */
     case PATCH='PATCH';
+
+    /**
+     * 匹配 DELETE 请求
+     */
     case DELETE='DELETE';
+
+    /**
+     * 匹配 OPTIONS 请求
+     */
     case OPTIONS='OPTIONS';
+
+    /**
+     * 匹配任意请求方法(通配 `*`)
+     */
     case ANY='*';
 
     /**

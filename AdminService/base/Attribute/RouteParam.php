@@ -9,6 +9,7 @@ use Attribute;
  *
  * - 声明当前形参从哪个路径占位符取值
  * - 未声明时按形参名与占位符名匹配
+ * - 同一形参不要叠加 `#[Config]`: 路由绑定提供实参时 `#[Config]` 不会生效
  */
 #[Attribute(Attribute::TARGET_PARAMETER)]
 final class RouteParam {

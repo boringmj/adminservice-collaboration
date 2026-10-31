@@ -9,6 +9,7 @@ use AdminService\DynamicProxy;
 use base\Attribute\AutowireMode;
 use base\Attribute\AutowireProperty;
 use base\Attribute\Route;
+use base\Attribute\Method;
 use base\Attribute\RouteGroup;
 
 #[RouteGroup('/index')]
@@ -32,7 +33,7 @@ class Index extends Controller {
      *  - 类上的`#[RouteGroup]`为该控制器下所有路由提供统一前缀与中间件
      * @throws Exception
      */
-    #[Route('GET','/{name?}',name:'index.index')]
+    #[Route(Method::GET,'/{name?}',name:'index.index')]
     public function index(string $name="World"): string {
         // 路由传入的 `name` 会覆盖默认值
         $this->log->write($this->log::class.": Hello $name!");

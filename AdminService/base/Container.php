@@ -11,7 +11,7 @@ use ReflectionClass;
  * - 容器内核(实例表 / 绑定表 / 别名表 / 单例表 / 闭包工厂表 / 参数转换开关)**全部是实例状态**, 没有静态状态
  * - 实现见 `AdminService\Container`(实现层), 门面见 `AdminService\App`(使用者入口, 无状态转发)
  * - 契约层不得引用实现层: 本文件只依赖 `base\` 自身与语言内置
- * - 解析语义: `get()` / `make()` **复用已登记实例**;要每次新建用 `fresh()`;要带构造参数用 `build()`
+ * - 解析语义: `get()` / `make()` **复用已登记实例**; `factory()` / `fresh()` 可每次新建; `build()` 带构造参数
  * - 契约只保留**实证在用的入口**;`resolve()` / 循环检测等属实现细节, 不在此列
  *
  * @access public
@@ -47,7 +47,9 @@ interface Container {
     public function getReflectionByObject(object $object): ReflectionClass;
 
     /**
-     * 获取对象(存在则复用, 不存在则实例化并复用)
+     * 获取对象(存在则复用; 未登记则按绑定路径构建)
+     *
+     * - 类路径构建后登记; `factory()` 瞬态绑定不登记
      *
      * @access public
      * @template T of object
@@ -85,7 +87,8 @@ interface Container {
      * - 字符串实现类: 解析结果按真实类名复用
      * - 闭包工厂: 首次解析后缓存, 后续 `get()` / `make()` 复用; `fresh()` 重新调用并替换
      *   工厂签名 `function(Container $container): object`
-     * - 每次都创建新对象请使用 `factory()`
+     * - 每次创建新对象请使用 `factory()`
+     * - 重新绑定时会清理该名称下由旧绑定产生的自动缓存; 显式 `instance()` 仍优先
      *
      * @access public
      * @param string $abstract 抽象类或接口名
@@ -110,7 +113,8 @@ interface Container {
      * 单例绑定:解析后抽象名与实现类名指向同一实例
      *
      * - 字符串实现类: 与现有类绑定一致
-     * - 闭包工厂: 首次 `get()` / `make()` 调用后缓存, 后续复用; `fresh()` 重新调用并替换
+     * - 闭包工厂: 首次 `get()` / `make()` 调用后缓存, 抽象名与返回对象的实际实现类名指向同一实例;
+     *   `fresh()` 重新调用并替换
      *   工厂签名 `function(Container $container): object`
      *
      * @access public
@@ -125,6 +129,7 @@ interface Container {
      * 瞬态闭包工厂绑定
      *
      * - 每次 `get()` / `make()` / `fresh()` 都调用工厂, 不写实例表
+     * - 工厂返回值会执行与类路径相同的完整自动装配(属性 / Setter / 生命周期方法)
      * - 工厂签名 `function(Container $container): object`
      *
      * @access public
@@ -148,8 +153,9 @@ interface Container {
     /**
      * 派生一个请求级子容器
      *
-     * - 绑定 / 别名 / 单例表 / 闭包工厂表在派生时**复制快照**, 之后父容器的变更不回溯
+     * - 绑定 / 别名 / 单例表 / 闭包工厂表及其缓存标记在派生时**复制快照**, 之后父容器的变更不回溯
      * - 反射缓存共享; 实例表独立(不回流应用级); 父容器已登记实例可被子容器读取
+     * - 子容器本地重新绑定同名服务后, 本地绑定优先于父容器已登记实例
      *
      * @access public
      * @return static
@@ -157,7 +163,7 @@ interface Container {
     public function fork(): static;
 
     /**
-     * 清空实例表(绑定 / 别名 / 单例表与反射缓存保留)
+     * 清空实例表(绑定 / 别名 / 单例表 / 闭包工厂表与反射缓存保留)
      *
      * - 请求级容器在下一次请求开始时被清空
      *
@@ -179,8 +185,9 @@ interface Container {
     public function hasInstance(string $name): bool;
 
     /**
-     * 获取对象(复用已登记实例; 未登记则实例化并做完整装配)
+     * 获取对象(复用已登记实例; 未登记则按绑定路径构建并做完整装配)
      *
+     * - 类路径与闭包工厂返回值都会执行属性 / Setter / 生命周期方法装配
      * - 循环依赖被截断时, 回落的实例不做属性 / Setter / 生命周期方法注入;
      *   可选构造参数回落默认值 / null, 无法回落时抛异常
      *

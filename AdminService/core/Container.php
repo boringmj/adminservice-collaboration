@@ -23,7 +23,7 @@ use AdminService\exception\CircularDependencyException;
  * 容器实现
  *
  * - 实例表按容器隔离; 请求级容器由 `fork()` 派生, 实例查找会回落父容器
- * - 绑定 / 别名 / 单例表 / 闭包工厂表在 `fork()` 时复制快照, 之后父容器的变更不回溯
+ * - 绑定 / 别名 / 单例表 / 闭包工厂表及缓存标记在 `fork()` 时复制快照, 之后父容器的变更不回溯
  * - 反射缓存由派生容器共享; 内核组件以回调方式取得解析能力, 不反向依赖容器
  *
  * @access public
@@ -36,7 +36,7 @@ final class Container implements \base\Container {
      * 父容器(请求级容器 fork 自应用级容器)
      *
      * - 实例查找: 先查自身, 未命中再查父容器
-     * - 绑定 / 别名 / 单例表 / 闭包工厂表: fork 时复制快照, 不随父容器后续变更
+     * - 绑定 / 别名 / 单例表 / 闭包工厂表及缓存标记: fork 时复制快照, 不随父容器后续变更
      * - `instance()` **只写自身**, 因此请求级容器不会污染应用级
      *
      * @var Container|null
@@ -58,6 +58,23 @@ final class Container implements \base\Container {
      * @var array
      */
     private array $container=array();
+
+    /**
+     * 自动解析 / 缓存生成的实例标记(名称 → true)
+     *
+     * - `instance()` 显式登记会清除标记; 重新绑定时只清理这些自动缓存
+     * @var array<string,true>
+     */
+    private array $resolved_container=array();
+
+    /**
+     * 当前容器本地绑定名(用于覆盖父容器已登记实例)
+     *
+     * - 子容器重新绑定同名服务时, 应优先使用本地绑定, 而不是父容器旧实例
+     * - 不随 `fork()` 复制: 子容器仍应优先读取父容器的已登记实例
+     * @var array<string,true>
+     */
+    private array $local_bindings=array();
 
     /**
      * 未被实例化的类容器(绑定表: 抽象名 → 实现类)
@@ -87,6 +104,20 @@ final class Container implements \base\Container {
      * @var array<string,true>
      */
     private array $factory_cached=array();
+
+    /**
+     * 单例闭包标记(抽象名 → true)
+     * @var array<string,true>
+     */
+    private array $factory_singleton=array();
+
+    /**
+     * 单例闭包首次解析出的真实类名(抽象名 → 类名)
+     *
+     * 用于在重新绑定时清理旧实现类上的自动缓存。
+     * @var array<string,string>
+     */
+    private array $factory_singleton_class=array();
 
     /**
      * 反射缓存(实例状态)
@@ -233,6 +264,7 @@ final class Container implements \base\Container {
         if(!$is_force||$bound===null)
             return;
         $this->container[$name]=$object;
+        $this->resolved_container[$name]=true;
         $this->refreshSelfRegistration($name,$object,$is_force);
     }
 
@@ -282,6 +314,7 @@ final class Container implements \base\Container {
      *
      * - 请求级容器因此能看到应用级登记的对象(如配置、日志、数据库);`instance()` 只写自身
      * - 不把父容器的实例复制到自身: 父容器换实例后请求级容器立刻看到新的
+     * - 子容器本地重新绑定同名服务后, 本地绑定优先于父容器旧实例
      *
      * @access private
      * @param string $name 名称(类名 / 接口名 / 别名, 需已是真实类名或原名)
@@ -290,9 +323,45 @@ final class Container implements \base\Container {
     private function findInstance(string $name): ?object {
         if(isset($this->container[$name]))
             return $this->container[$name];
-        if($this->parent!==null&&isset($this->parent->container[$name]))
+        if($this->parent!==null
+            &&!isset($this->local_bindings[$name])
+            &&isset($this->parent->container[$name]))
             return $this->parent->container[$name];
         return null;
+    }
+
+    /**
+     * 清理某个名字上由容器自动解析产生的实例
+     *
+     * - 显式 `instance()` 登记的名字没有标记, 因此不会被重新绑定误删
+     * - 只清当前容器, 父容器的实例仍按正常回落规则可见
+     *
+     * @access private
+     * @param string $name 名称
+     * @return void
+     */
+    private function clearResolvedInstance(string $name): void {
+        if(!isset($this->resolved_container[$name]))
+            return;
+        unset($this->container[$name],$this->resolved_container[$name]);
+    }
+
+    /**
+     * 清理旧绑定关联的自动实例
+     *
+     * - 闭包单例会同时把返回对象的实际类登记进实例表, 这里一并清理
+     * - 单例闭包标记本身由调用方负责移除
+     *
+     * @access private
+     * @param string $abstract 抽象名
+     * @return void
+     */
+    private function clearResolvedBinding(string $abstract): void {
+        $this->clearResolvedInstance($abstract);
+        if(isset($this->factory_singleton_class[$abstract])) {
+            $this->clearResolvedInstance($this->factory_singleton_class[$abstract]);
+            unset($this->factory_singleton_class[$abstract]);
+        }
     }
 
     /**
@@ -352,8 +421,10 @@ final class Container implements \base\Container {
     /**
      * 获取对象(如果不存在则自动实例化)
      *
-     * - 已登记的实例优先; 否则做**完整装配**(构造参数 / 属性 / Setter / 生命周期方法), 并登记解析结果
-     * - 与 `make()` 的区别只是语义命名: 两者都复用已登记实例; 要强制新建请用 `fresh()`
+     * - 已登记的实例优先; 否则按绑定路径构建
+     * - **类路径**做完整装配(构造参数 / 属性 / Setter / 生命周期方法), 并登记解析结果
+     * - **闭包工厂**由工厂负责构造, 容器校验类型后同样执行完整装配; `factory()` 瞬态结果不登记
+     * - 与 `make()` 的区别只是语义命名: 两者都复用已登记实例; 要每次新建请用 `factory()` 或 `fresh()`
      * - `AutowireMode::Deferred` 的任务只在最外层成功后刷新; 嵌套构建不会提前执行
      * - 根构建失败(包括延迟刷新失败)会回滚本轮新增的实例登记, 已有实例保持不变
      *
@@ -366,6 +437,8 @@ final class Container implements \base\Container {
     public function get(string $name): object {
         $is_root=$this->build_flags===array();
         $snapshot=$is_root?$this->container:null;
+        $resolved_snapshot=$is_root?$this->resolved_container:null;
+        $singleton_snapshot=$is_root?$this->factory_singleton_class:null;
         $flags=$this->build_flags;
         try {
             $object=$this->makeInternal($name,false,$flags);
@@ -373,7 +446,7 @@ final class Container implements \base\Container {
                 $this->autowire->flushDeferred();
             return $object;
         } catch(\Throwable $e) {
-            $this->rollbackRootContainer($snapshot);
+            $this->rollbackRootContainer($snapshot,$resolved_snapshot,$singleton_snapshot);
             throw $e;
         }
     }
@@ -394,10 +467,9 @@ final class Container implements \base\Container {
      */
     private function createBare(string $name): object {
         $name=$this->resolve($name);
-        if(isset($this->container[$name]))
-            return $this->container[$name];
-        if($this->parent!==null&&isset($this->parent->container[$name]))
-            return $this->parent->container[$name];
+        $bound=$this->findInstance($name);
+        if($bound!==null)
+            return $bound;
         $ref=$this->getReflection($name);
         if(!$ref->isInstantiable())
             throw new Exception('Class "'.$name.'" is not instantiable.');
@@ -414,6 +486,7 @@ final class Container implements \base\Container {
         }
         $instance=$ref->newInstance();
         $this->container[$name]=$instance;
+        $this->resolved_container[$name]=true;
         $this->registerSingletons($name,$instance);
         return $instance;
     }
@@ -421,10 +494,11 @@ final class Container implements \base\Container {
     /**
      * 派生一个请求级子容器
      *
-     * - **复制快照**: 绑定表 / 别名表 / 单例表 / 闭包工厂表; 之后父容器的 `bind()` / `alias()` /
+     * - **复制快照**: 绑定表 / 别名表 / 单例表 / 闭包工厂表及缓存标记; 之后父容器的 `bind()` / `alias()` /
      *   `singleton()` / `factory()` 不会回溯到已有子容器
      * - **共享**: 反射缓存(同一对象, 不随子容器销毁)
      * - **不共享**: 实例表(请求级容器读写自己的, 不污染应用级)
+     * - 父容器已登记实例可被子容器读取; 子容器本地重新绑定同名服务后, 本地绑定优先
      * - 内核组件按子容器重新装配(它们的回调必须指向子容器, 否则实例会注册到父容器)
      *
      * @access public
@@ -438,6 +512,8 @@ final class Container implements \base\Container {
         $child->singleton_container=$this->singleton_container;
         $child->factory_container=$this->factory_container;
         $child->factory_cached=$this->factory_cached;
+        $child->factory_singleton=$this->factory_singleton;
+        $child->factory_singleton_class=$this->factory_singleton_class;
         // 参数转换开关跟随父容器(它属进程级配置, 不是请求级状态)
         $child->arguments->setParamCast($this->arguments->getParamCast());
         return $child;
@@ -446,7 +522,8 @@ final class Container implements \base\Container {
     /**
      * 清空实例表(复用容器时调用)
      *
-     * - 绑定 / 别名 / 单例表与反射缓存**保留**(它们属应用级)
+     * - 绑定 / 别名 / 单例表 / 闭包工厂表与反射缓存**保留**(它们属应用级)
+     * - 自动实例标记与延迟任务一并清空, 避免重新绑定误判旧缓存
      * - 请求级容器由 `Application::handle()` 在下一次请求开始时调用本方法
      * - 容器自身的登记会重新写回, 因此 `reset()` 后仍可按契约取到自身
      * - 尚未执行的自动注入延迟任务会一并丢弃, 避免引用已清空的实例
@@ -456,6 +533,8 @@ final class Container implements \base\Container {
      */
     public function reset(): void {
         $this->container=array();
+        $this->resolved_container=array();
+        $this->factory_singleton_class=array();
         $this->container[\base\Container::class]=$this;
         $this->container[static::class]=$this;
         // 丢弃未执行的延迟任务, 避免它们引用已被清空的实例
@@ -465,18 +544,24 @@ final class Container implements \base\Container {
     /**
      * 回滚根构建失败时新增的实例登记
      *
-     * - `get()` / `make()` / `fresh()` / `build()` 在最外层构建前保存实例表快照
+     * - `get()` / `make()` / `fresh()` / `build()` 在最外层构建前保存实例表与自动缓存标记快照
      * - 构建或延迟刷新失败时恢复快照, 避免半装配对象留在容器里被后续调用复用
-     * - 只回滚实例表; 绑定 / 别名表, 以及生命周期方法产生的外部副作用不在此范围
+     * - 只回滚实例表与自动缓存标记; 绑定 / 别名表, 以及生命周期方法产生的外部副作用不在此范围
      *
      * @access private
      * @param array|null $snapshot 根构建前的实例表快照; 嵌套构建传 null
+     * @param array|null $resolved_snapshot 根构建前的自动实例标记快照
+     * @param array|null $singleton_snapshot 根构建前的单例闭包实现类快照
      * @return void
      */
-    private function rollbackRootContainer(?array $snapshot): void {
+    private function rollbackRootContainer(?array $snapshot,?array $resolved_snapshot=null,?array $singleton_snapshot=null): void {
         if($snapshot===null)
             return;
         $this->container=$snapshot;
+        if($resolved_snapshot!==null)
+            $this->resolved_container=$resolved_snapshot;
+        if($singleton_snapshot!==null)
+            $this->factory_singleton_class=$singleton_snapshot;
         $this->autowire->clearDeferred();
     }
 
@@ -536,7 +621,9 @@ final class Container implements \base\Container {
      * @return void
      */
     public function instance(string $name,object $object): void {
-        $this->container[$this->resolve($name)]=$object;
+        $real=$this->resolve($name);
+        $this->container[$real]=$object;
+        unset($this->resolved_container[$real]);
     }
 
     /**
@@ -575,6 +662,7 @@ final class Container implements \base\Container {
      * - 字符串实现类: 支持嵌套绑定; 解析结果按**真实类名**复用(同一实现只构建一次)
      * - 闭包工厂: 首次解析后缓存, 后续 `get()` / `make()` 复用; `fresh()` 重新调用并替换
      * - 瞬态闭包请使用 `factory()`
+     * - 重新绑定时清理该名称下由旧绑定产生的自动缓存; 显式 `instance()` 仍优先
      *
      * @access public
      * @param string $abstract 抽象类或接口名
@@ -584,13 +672,17 @@ final class Container implements \base\Container {
      */
     public function bind(string $abstract,string|Closure $concrete): void {
         if($concrete instanceof Closure) {
-            // 闭包工厂与类绑定互斥; 先清掉旧映射, 避免 resolve() 继续返回旧实现类
+            // 闭包工厂与类绑定互斥; 先清掉旧映射和旧自动缓存, 避免 resolve()/findInstance() 继续返回旧结果
+            $this->clearResolvedBinding($abstract);
             unset(
                 $this->class_container[$abstract],
-                $this->singleton_container[$abstract]
+                $this->singleton_container[$abstract],
+                $this->factory_singleton[$abstract],
+                $this->factory_singleton_class[$abstract]
             );
             $this->factory_container[$abstract]=$concrete;
             $this->factory_cached[$abstract]=true;
+            $this->local_bindings[$abstract]=true;
             return;
         }
         // 如果类不存在则抛出异常
@@ -599,8 +691,16 @@ final class Container implements \base\Container {
         // 判断新绑定是否会形成循环关系
         if($this->wouldCycle($abstract,$concrete))
             throw new Exception('Circular dependency detected for "'.$abstract.'" and "'.$concrete.'"');
-        unset($this->factory_container[$abstract],$this->factory_cached[$abstract]);
+        $this->clearResolvedBinding($abstract);
+        unset(
+            $this->factory_container[$abstract],
+            $this->factory_cached[$abstract],
+            $this->factory_singleton[$abstract],
+            $this->factory_singleton_class[$abstract],
+            $this->singleton_container[$abstract]
+        );
         $this->class_container[$abstract]=$concrete;
+        $this->local_bindings[$abstract]=true;
     }
 
     /**
@@ -626,7 +726,8 @@ final class Container implements \base\Container {
      *
      * - `bind()` 只保证"按真实类名复用";`singleton()` 额外把抽象名也指向该实例
      * - **懒解析**:首次解析(经抽象名或实现类名)时登记, 不在绑定时构建
-     * - 闭包工厂: 首次 `get()` / `make()` 调用后缓存, 后续复用; `fresh()` 重新调用并替换
+     * - 闭包工厂: 首次 `get()` / `make()` 调用后缓存, 抽象名与返回对象的实际实现类名指向同一实例;
+     *   `fresh()` 重新调用并替换
      *
      * @access public
      * @param string $abstract 抽象类或接口名
@@ -637,7 +738,7 @@ final class Container implements \base\Container {
     public function singleton(string $abstract,string|Closure $concrete): void {
         $this->bind($abstract,$concrete);
         if($concrete instanceof Closure) {
-            $this->factory_cached[$abstract]=true;
+            $this->factory_singleton[$abstract]=true;
             return;
         }
         $this->singleton_container[$abstract]=$this->resolve($abstract);
@@ -647,6 +748,7 @@ final class Container implements \base\Container {
      * 瞬态闭包工厂绑定
      *
      * - 每次 `get()` / `make()` / `fresh()` 都调用, 不写实例表
+     * - 工厂返回值会执行与类路径相同的完整自动装配(属性 / Setter / 生命周期方法)
      * - 工厂签名 `function(Container $container): object`
      *
      * @access public
@@ -656,12 +758,16 @@ final class Container implements \base\Container {
      * @throws Exception
      */
     public function factory(string $abstract,Closure $concrete): void {
+        $this->clearResolvedBinding($abstract);
         unset(
             $this->class_container[$abstract],
             $this->singleton_container[$abstract],
-            $this->factory_cached[$abstract]
+            $this->factory_cached[$abstract],
+            $this->factory_singleton[$abstract],
+            $this->factory_singleton_class[$abstract]
         );
         $this->factory_container[$abstract]=$concrete;
+        $this->local_bindings[$abstract]=true;
     }
 
     /**
@@ -711,8 +817,10 @@ final class Container implements \base\Container {
      */
     private function registerSingletons(string $real_class,object $instance): void {
         foreach($this->singleton_container as $abstract=>$concrete) {
-            if($concrete===$real_class)
+            if($concrete===$real_class) {
                 $this->container[$abstract]=$instance;
+                $this->resolved_container[$abstract]=true;
+            }
         }
     }
 
@@ -720,8 +828,9 @@ final class Container implements \base\Container {
     /**
      * 获取对象(**复用**已登记实例; 未登记则实例化并做完整装配)
      *
-     * - 解析结果按真实类名登记, 因此同一实现**在每个容器实例内**只构建一次;
-     *   要每次新建请用 `fresh()`
+     * - 类路径解析结果按真实类名登记, 因此同一实现**在每个容器实例内**只构建一次;
+     *   闭包工厂按绑定语义缓存(`bind()` / `singleton()`)或每次调用(`factory()`)
+     * - 类路径与闭包工厂返回值都会执行属性 / Setter / 生命周期方法装配
      * - `AutowireMode::Deferred` 的任务在根对象登记后刷新; 嵌套构建不会提前执行
      * - 根构建失败(包括延迟刷新失败)会回滚本轮新增的实例登记, 已有实例保持不变
      * - 依赖简单支持抽象类和接口,重复依赖可能会抛出找不到对象的异常,
@@ -738,6 +847,8 @@ final class Container implements \base\Container {
     public function make(string $name): object {
         $is_root=$this->build_flags===array();
         $snapshot=$is_root?$this->container:null;
+        $resolved_snapshot=$is_root?$this->resolved_container:null;
+        $singleton_snapshot=$is_root?$this->factory_singleton_class:null;
         $flags=$this->build_flags;
         try {
             $object=$this->makeInternal($name,false,$flags);
@@ -745,7 +856,7 @@ final class Container implements \base\Container {
                 $this->autowire->flushDeferred();
             return $object;
         } catch(\Throwable $e) {
-            $this->rollbackRootContainer($snapshot);
+            $this->rollbackRootContainer($snapshot,$resolved_snapshot,$singleton_snapshot);
             throw $e;
         }
     }
@@ -772,6 +883,8 @@ final class Container implements \base\Container {
     public function fresh(string $name): object {
         $is_root=$this->build_flags===array();
         $snapshot=$is_root?$this->container:null;
+        $resolved_snapshot=$is_root?$this->resolved_container:null;
+        $singleton_snapshot=$is_root?$this->factory_singleton_class:null;
         $flags=$this->build_flags;
         try {
             $object=$this->makeInternal($name,true,$flags);
@@ -779,7 +892,7 @@ final class Container implements \base\Container {
                 $this->autowire->flushDeferred();
             return $object;
         } catch(\Throwable $e) {
-            $this->rollbackRootContainer($snapshot);
+            $this->rollbackRootContainer($snapshot,$resolved_snapshot,$singleton_snapshot);
             throw $e;
         }
     }
@@ -788,6 +901,8 @@ final class Container implements \base\Container {
      * 调用闭包工厂构建对象
      *
      * - 工厂签名为 `function(Container $container): object`
+     * - 返回值先做类型校验, 再执行与 `make()` 类路径相同的**全量自动装配**
+     *   (属性 / Setter / 生命周期方法); 工厂只负责构造, 装配仍由容器完成
      * - `bind()` / `singleton()` 工厂首次成功后缓存; `factory()` 工厂不缓存
      * - 绑定名是类 / 接口时校验返回值类型; 任意字符串名允许返回任意对象
      *
@@ -800,20 +915,33 @@ final class Container implements \base\Container {
     private function makeFromFactory(string $name,array &$flags): object {
         $factory=$this->factory_container[$name];
         $cached=isset($this->factory_cached[$name]);
+        $singleton=isset($this->factory_singleton[$name]);
         $flags[]=$name;
         try {
             $object=$factory($this);
+            if(!is_object($object))
+                throw new Exception('Closure binding for "'.$name.'" must return an object.');
+            if((class_exists($name)||interface_exists($name))&&!($object instanceof $name))
+                throw new Exception('Closure binding for "'.$name.'" must return an instance of "'.$name.'".');
+            // 工厂只负责构造; 属性 / Setter / 生命周期方法与类路径保持一致
+            $this->autowire->autowire($object,$flags);
         } finally {
             $last=array_key_last($flags);
             if($last!==null&&$flags[$last]===$name)
                 array_pop($flags);
         }
-        if(!is_object($object))
-            throw new Exception('Closure binding for "'.$name.'" must return an object.');
-        if((class_exists($name)||interface_exists($name))&&!($object instanceof $name))
-            throw new Exception('Closure binding for "'.$name.'" must return an instance of "'.$name.'".');
-        if($cached)
+        if($cached) {
             $this->container[$name]=$object;
+            $this->resolved_container[$name]=true;
+            // bind/singleton 闭包同样要让已配置的“抽象名 → 实现类”单例映射指向该实例
+            $this->registerSingletons($object::class,$object);
+            if($singleton) {
+                // 单例闭包：抽象名与返回对象的实际实现类名指向同一实例
+                $this->container[$object::class]=$object;
+                $this->resolved_container[$object::class]=true;
+                $this->factory_singleton_class[$name]=$object::class;
+            }
+        }
         return $object;
     }
 
@@ -895,6 +1023,7 @@ final class Container implements \base\Container {
             $this->autowire->autowire($object,$flags);
             // 将对象添加到容器中(并处理单例绑定的抽象名)
             $this->container[$name]=$object;
+            $this->resolved_container[$name]=true;
             $this->registerSingletons($name,$object);
             $this->refreshSelfRegistration($name,$object,$is_force);
             return $object;
@@ -933,6 +1062,8 @@ final class Container implements \base\Container {
     public function build(string $__name,...$args): object {
         $is_root=$this->build_flags===array();
         $snapshot=$is_root?$this->container:null;
+        $resolved_snapshot=$is_root?$this->resolved_container:null;
+        $singleton_snapshot=$is_root?$this->factory_singleton_class:null;
         // 获取真实类名
         $__name=$this->resolve($__name);
         if(isset($this->factory_container[$__name]))
@@ -979,7 +1110,7 @@ final class Container implements \base\Container {
             // 直接返回对象,不添加到实例容器中
             return $object;
         } catch(\Throwable $e) {
-            $this->rollbackRootContainer($snapshot);
+            $this->rollbackRootContainer($snapshot,$resolved_snapshot,$singleton_snapshot);
             throw $e;
         } finally {
             $this->build_flags=$previous_flags;

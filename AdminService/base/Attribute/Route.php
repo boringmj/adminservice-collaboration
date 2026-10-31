@@ -51,20 +51,20 @@ final class Route {
      * 构造方法
      *
      * @access public
-     * @param string $method 请求方法(传 `*` 表示不限)
+     * @param string|Method $method 请求方法(传 `Method::ANY` 或 `*` 表示不限)
      * @param string $path 路由路径
      * @param string|null $name 路由名
      * @param string|array<string|object>|object $middleware 路由级中间件(类名 / 实例 / 数组)
      * @param array<string,string> $bind 路由参数到控制器形参的绑定(占位符名 => 形参名)
      */
     public function __construct(
-        string $method,
+        string|Method $method,
         string $path,
         ?string $name=null,
         string|array|object $middleware=array(),
         array $bind=array()
     ) {
-        $this->method=$method;
+        $this->method=Method::normalize($method);
         $this->path=$path;
         $this->name=$name;
         $this->middlewares=is_array($middleware)?$middleware:array($middleware);

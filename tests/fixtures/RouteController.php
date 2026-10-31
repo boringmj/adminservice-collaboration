@@ -2,6 +2,7 @@
 
 namespace Tests\Fixtures;
 
+use base\Attribute\Method;
 use base\Attribute\Route;
 
 /**
@@ -30,6 +31,17 @@ class RouteController {
     #[Route('*','/ping')]
     public function ping(): string {
         return 'pong';
+    }
+
+    /**
+     * 使用请求方法枚举声明路由
+     *
+     * @access public
+     * @return string
+     */
+    #[Route(Method::GET,'/enum')]
+    public function method_enum(): string {
+        return 'enum';
     }
 
     /**

@@ -2,12 +2,13 @@
 
 namespace base;
 
+use Closure;
 use ReflectionClass;
 
 /**
  * 容器契约
  *
- * - 容器内核(实例表 / 绑定表 / 别名表 / 单例表 / 参数转换开关)**全部是实例状态**, 没有静态状态
+ * - 容器内核(实例表 / 绑定表 / 别名表 / 单例表 / 闭包工厂表 / 参数转换开关)**全部是实例状态**, 没有静态状态
  * - 实现见 `AdminService\Container`(实现层), 门面见 `AdminService\App`(使用者入口, 无状态转发)
  * - 契约层不得引用实现层: 本文件只依赖 `base\` 自身与语言内置
  * - 解析语义: `get()` / `make()` **复用已登记实例**;要每次新建用 `fresh()`;要带构造参数用 `build()`
@@ -79,15 +80,20 @@ interface Container {
     public function instance(string $name,object $object): void;
 
     /**
-     * 为抽象类或接口绑定实现类(解析结果按真实类名复用)
+     * 为抽象类或接口绑定实现类或闭包工厂
+     *
+     * - 字符串实现类: 解析结果按真实类名复用
+     * - 闭包工厂: 首次解析后缓存, 后续 `get()` / `make()` 复用; `fresh()` 重新调用并替换
+     *   工厂签名 `function(Container $container): object`
+     * - 每次都创建新对象请使用 `factory()`
      *
      * @access public
      * @param string $abstract 抽象类或接口名
-     * @param string $concrete 实现类
+     * @param string|Closure $concrete 实现类或工厂
      * @return void
      * @throws \Exception
      */
-    public function bind(string $abstract,string $concrete): void;
+    public function bind(string $abstract,string|Closure $concrete): void;
 
     /**
      * 为名称设置别名(与绑定分表, 支持嵌套与链式解析)
@@ -103,19 +109,37 @@ interface Container {
     /**
      * 单例绑定:解析后抽象名与实现类名指向同一实例
      *
+     * - 字符串实现类: 与现有类绑定一致
+     * - 闭包工厂: 首次 `get()` / `make()` 调用后缓存, 后续复用; `fresh()` 重新调用并替换
+     *   工厂签名 `function(Container $container): object`
+     *
      * @access public
      * @param string $abstract 抽象类或接口名
-     * @param string $concrete 实现类
+     * @param string|Closure $concrete 实现类或工厂
      * @return void
      * @throws \Exception
      */
-    public function singleton(string $abstract,string $concrete): void;
+    public function singleton(string $abstract,string|Closure $concrete): void;
 
     /**
-     * 批量绑定(抽象 → 实现)
+     * 瞬态闭包工厂绑定
+     *
+     * - 每次 `get()` / `make()` / `fresh()` 都调用工厂, 不写实例表
+     * - 工厂签名 `function(Container $container): object`
      *
      * @access public
-     * @param array<string,string> $bindings 绑定表(键为抽象名, 值为实现类)
+     * @param string $abstract 抽象类或接口名(或任意绑定名)
+     * @param Closure $concrete 工厂
+     * @return void
+     * @throws \Exception
+     */
+    public function factory(string $abstract,Closure $concrete): void;
+
+    /**
+     * 批量绑定(抽象 → 实现类或闭包工厂)
+     *
+     * @access public
+     * @param array<string,string|Closure> $bindings 绑定表(键为抽象名, 值为实现类或工厂)
      * @return void
      * @throws \Exception
      */
@@ -124,7 +148,7 @@ interface Container {
     /**
      * 派生一个请求级子容器
      *
-     * - 绑定 / 别名 / 单例表在派生时**复制快照**, 之后父容器的变更不回溯
+     * - 绑定 / 别名 / 单例表 / 闭包工厂表在派生时**复制快照**, 之后父容器的变更不回溯
      * - 反射缓存共享; 实例表独立(不回流应用级); 父容器已登记实例可被子容器读取
      *
      * @access public
@@ -190,6 +214,7 @@ interface Container {
      *
      * - 构造参数与属性依赖仍按 `make()` 解析并登记
      * - 构建过程中调用时沿用当前构建栈; 同一类重入抛异常
+     * - 闭包工厂绑定不支持 `build()`; 使用 `get()` / `make()` / `fresh()`
      *
      * @access public
      * @template T of object

@@ -2,6 +2,7 @@
 
 namespace AdminService;
 
+use Closure;
 use ReflectionClass;
 use ReflectionParameter;
 
@@ -12,6 +13,7 @@ use function implode;
 use function in_array;
 use function interface_exists;
 use function is_array;
+use function is_object;
 use function is_string;
 use ReflectionException;
 use AdminService\Exception;
@@ -21,7 +23,7 @@ use AdminService\exception\CircularDependencyException;
  * 容器实现
  *
  * - 实例表按容器隔离; 请求级容器由 `fork()` 派生, 实例查找会回落父容器
- * - 绑定 / 别名 / 单例表在 `fork()` 时复制快照, 之后父容器的变更不回溯
+ * - 绑定 / 别名 / 单例表 / 闭包工厂表在 `fork()` 时复制快照, 之后父容器的变更不回溯
  * - 反射缓存由派生容器共享; 内核组件以回调方式取得解析能力, 不反向依赖容器
  *
  * @access public
@@ -34,7 +36,7 @@ final class Container implements \base\Container {
      * 父容器(请求级容器 fork 自应用级容器)
      *
      * - 实例查找: 先查自身, 未命中再查父容器
-     * - 绑定 / 别名 / 单例表: fork 时复制快照, 不随父容器后续变更
+     * - 绑定 / 别名 / 单例表 / 闭包工厂表: fork 时复制快照, 不随父容器后续变更
      * - `instance()` **只写自身**, 因此请求级容器不会污染应用级
      *
      * @var Container|null
@@ -73,6 +75,18 @@ final class Container implements \base\Container {
      * @var array<string,string>
      */
     private array $singleton_container=array();
+
+    /**
+     * 闭包工厂表(抽象名 → 工厂)
+     * @var array<string,Closure>
+     */
+    private array $factory_container=array();
+
+    /**
+     * 闭包工厂缓存标记(抽象名 → true)
+     * @var array<string,true>
+     */
+    private array $factory_cached=array();
 
     /**
      * 反射缓存(实例状态)
@@ -190,6 +204,9 @@ final class Container implements \base\Container {
             $bound=$this->findInstance($real);
             if($bound!==null)
                 return $bound;
+            // 闭包工厂绑定优先于自动实现类查找; 已登记实例仍优先
+            if(isset($this->factory_container[$real]))
+                return $this->makeInternal($real,false,$this->build_flags);
             if(interface_exists($real)||(class_exists($real)&&$this->reflections->getClass($real)->isAbstract())) {
                 $implementation=$this->findBoundImplementation($real);
                 if($implementation!==null)
@@ -404,8 +421,8 @@ final class Container implements \base\Container {
     /**
      * 派生一个请求级子容器
      *
-     * - **复制快照**: 绑定表 / 别名表 / 单例表; 之后父容器的 `bind()` / `alias()` /
-     *   `singleton()` 不会回溯到已有子容器
+     * - **复制快照**: 绑定表 / 别名表 / 单例表 / 闭包工厂表; 之后父容器的 `bind()` / `alias()` /
+     *   `singleton()` / `factory()` 不会回溯到已有子容器
      * - **共享**: 反射缓存(同一对象, 不随子容器销毁)
      * - **不共享**: 实例表(请求级容器读写自己的, 不污染应用级)
      * - 内核组件按子容器重新装配(它们的回调必须指向子容器, 否则实例会注册到父容器)
@@ -419,6 +436,8 @@ final class Container implements \base\Container {
         $child->class_container=$this->class_container;
         $child->alias_container=$this->alias_container;
         $child->singleton_container=$this->singleton_container;
+        $child->factory_container=$this->factory_container;
+        $child->factory_cached=$this->factory_cached;
         // 参数转换开关跟随父容器(它属进程级配置, 不是请求级状态)
         $child->arguments->setParamCast($this->arguments->getParamCast());
         return $child;
@@ -474,8 +493,10 @@ final class Container implements \base\Container {
      */
     public function has(string $name): bool {
         try {
-            // 先解析别名 / 绑定, 再按解析结果查实例, 与 make() 的解析顺序一致
+            // 先解析别名 / 绑定, 再按解析结果查实例或闭包工厂, 与 make() 的解析顺序一致
             $real=$this->resolve($name);
+            if(isset($this->factory_container[$real]))
+                return true;
             if($this->findInstance($real)!==null)
                 return true;
             if(interface_exists($real)) {
@@ -548,24 +569,37 @@ final class Container implements \base\Container {
     }
 
     /**
-     * 为抽象类或接口绑定实现类(会覆盖已存在的绑定)
+     * 为抽象类或接口绑定实现类或闭包工厂(会覆盖已存在的绑定)
      *
      * - 只写当前容器的绑定表; 子类 / 实现类查找由 `ClassFinder` 在解析实例时完成
-     * - 支持嵌套绑定; 解析结果按**真实类名**复用(同一实现只构建一次)
+     * - 字符串实现类: 支持嵌套绑定; 解析结果按**真实类名**复用(同一实现只构建一次)
+     * - 闭包工厂: 首次解析后缓存, 后续 `get()` / `make()` 复用; `fresh()` 重新调用并替换
+     * - 瞬态闭包请使用 `factory()`
      *
      * @access public
      * @param string $abstract 抽象类或接口名
-     * @param string $concrete 实现类
+     * @param string|Closure $concrete 实现类或工厂
      * @return void
      * @throws Exception
      */
-    public function bind(string $abstract,string $concrete): void {
+    public function bind(string $abstract,string|Closure $concrete): void {
+        if($concrete instanceof Closure) {
+            // 闭包工厂与类绑定互斥; 先清掉旧映射, 避免 resolve() 继续返回旧实现类
+            unset(
+                $this->class_container[$abstract],
+                $this->singleton_container[$abstract]
+            );
+            $this->factory_container[$abstract]=$concrete;
+            $this->factory_cached[$abstract]=true;
+            return;
+        }
         // 如果类不存在则抛出异常
         if(!class_exists($concrete))
             throw new Exception('Class "'.$concrete.'" not found.');
         // 判断新绑定是否会形成循环关系
         if($this->wouldCycle($abstract,$concrete))
             throw new Exception('Circular dependency detected for "'.$abstract.'" and "'.$concrete.'"');
+        unset($this->factory_container[$abstract],$this->factory_cached[$abstract]);
         $this->class_container[$abstract]=$concrete;
     }
 
@@ -592,23 +626,49 @@ final class Container implements \base\Container {
      *
      * - `bind()` 只保证"按真实类名复用";`singleton()` 额外把抽象名也指向该实例
      * - **懒解析**:首次解析(经抽象名或实现类名)时登记, 不在绑定时构建
+     * - 闭包工厂: 首次 `get()` / `make()` 调用后缓存, 后续复用; `fresh()` 重新调用并替换
      *
      * @access public
      * @param string $abstract 抽象类或接口名
-     * @param string $concrete 实现类
+     * @param string|Closure $concrete 实现类或工厂
      * @return void
      * @throws Exception
      */
-    public function singleton(string $abstract,string $concrete): void {
+    public function singleton(string $abstract,string|Closure $concrete): void {
         $this->bind($abstract,$concrete);
+        if($concrete instanceof Closure) {
+            $this->factory_cached[$abstract]=true;
+            return;
+        }
         $this->singleton_container[$abstract]=$this->resolve($abstract);
     }
 
     /**
-     * 批量绑定(抽象 → 实现)
+     * 瞬态闭包工厂绑定
+     *
+     * - 每次 `get()` / `make()` / `fresh()` 都调用, 不写实例表
+     * - 工厂签名 `function(Container $container): object`
      *
      * @access public
-     * @param array<string,string> $bindings 绑定表(键为抽象名, 值为实现类)
+     * @param string $abstract 抽象类或接口名(或任意绑定名)
+     * @param Closure $concrete 工厂
+     * @return void
+     * @throws Exception
+     */
+    public function factory(string $abstract,Closure $concrete): void {
+        unset(
+            $this->class_container[$abstract],
+            $this->singleton_container[$abstract],
+            $this->factory_cached[$abstract]
+        );
+        $this->factory_container[$abstract]=$concrete;
+    }
+
+    /**
+     * 批量绑定(抽象 → 实现类或闭包工厂)
+     *
+     * @access public
+     * @param array<string,string|Closure> $bindings 绑定表(键为抽象名, 值为实现类或工厂)
      * @return void
      * @throws Exception
      */
@@ -725,6 +785,39 @@ final class Container implements \base\Container {
     }
 
     /**
+     * 调用闭包工厂构建对象
+     *
+     * - 工厂签名为 `function(Container $container): object`
+     * - `bind()` / `singleton()` 工厂首次成功后缓存; `factory()` 工厂不缓存
+     * - 绑定名是类 / 接口时校验返回值类型; 任意字符串名允许返回任意对象
+     *
+     * @access private
+     * @param string $name 已解析的名称
+     * @param array<mixed> $flags 构建栈(引用传递)
+     * @return object
+     * @throws Exception|CircularDependencyException
+     */
+    private function makeFromFactory(string $name,array &$flags): object {
+        $factory=$this->factory_container[$name];
+        $cached=isset($this->factory_cached[$name]);
+        $flags[]=$name;
+        try {
+            $object=$factory($this);
+        } finally {
+            $last=array_key_last($flags);
+            if($last!==null&&$flags[$last]===$name)
+                array_pop($flags);
+        }
+        if(!is_object($object))
+            throw new Exception('Closure binding for "'.$name.'" must return an object.');
+        if((class_exists($name)||interface_exists($name))&&!($object instanceof $name))
+            throw new Exception('Closure binding for "'.$name.'" must return an instance of "'.$name.'".');
+        if($cached)
+            $this->container[$name]=$object;
+        return $object;
+    }
+
+    /**
      * 构建对象(内部实现)
      *
      * - `$is_force` 为假时复用已登记实例;`$flags` 为**引用传递**的构建栈, 用于阻断依赖注入死循环
@@ -742,10 +835,23 @@ final class Container implements \base\Container {
         $pushed=false;
         try {
             $name=$this->resolve($name);
-            // 复用规则: 自身或**父容器**已登记则直接返回(除非强制新建); 构建栈里出现同一类也直接返回(阻断循环)
+            // 复用规则: 自身或**父容器**已登记则直接返回(除非强制新建)
             $bound=$this->findInstance($name);
-            if((!$is_force&&$bound!==null)||in_array($name,$flags))
+            if(!$is_force&&$bound!==null)
+                return $bound;
+            // 构建栈里出现同一名称: 闭包工厂视为循环; 类路径沿用裸实例兜底
+            if(in_array($name,$flags,true)) {
+                if(isset($this->factory_container[$name]))
+                    throw new CircularDependencyException(
+                        'Circular dependency detected while resolving closure binding "'.$name.'".',
+                        0,
+                        array('class'=>$name,'build_stack'=>$flags)
+                    );
                 return $bound??$this->createBare($name);
+            }
+            // 闭包工厂: bind() / singleton() 缓存, factory() 瞬态
+            if(isset($this->factory_container[$name]))
+                return $this->makeFromFactory($name,$flags);
             // 判断是否为接口
             if(interface_exists($name)) {
                 // 寻找一个可实例化的子类
@@ -815,6 +921,7 @@ final class Container implements \base\Container {
      *   `createBare()` 创建并登记; 目标有必需构造参数时, 延迟刷新会失败
      * - 根构建失败(包括延迟刷新失败)会回滚本轮新增的实例登记, 已有实例保持不变
      * - 构建过程中调用时沿用当前构建栈; 同一类重入抛 `CircularDependencyException`
+     * - 闭包工厂绑定不支持 `build()`; 使用 `get()` / `make()` / `fresh()`
      *
      * @access public
      * @template T of object
@@ -828,6 +935,8 @@ final class Container implements \base\Container {
         $snapshot=$is_root?$this->container:null;
         // 获取真实类名
         $__name=$this->resolve($__name);
+        if(isset($this->factory_container[$__name]))
+            throw new Exception('Closure binding "'.$__name.'" cannot be built with build(); use get()/make()/fresh().');
         if(in_array($__name,$this->build_flags,true)) {
             $stack=$this->build_flags;
             $stack[]=$__name;

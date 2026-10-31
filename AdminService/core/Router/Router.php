@@ -2,7 +2,9 @@
 
 namespace AdminService\Router;
 
+use base\Attribute\ApiResource;
 use base\Attribute\Method;
+use base\Attribute\Resource;
 use base\Attribute\Route;
 use base\Attribute\RouteGroup;
 use base\RoutingInterface;
@@ -261,8 +263,15 @@ final class Router implements RoutingInterface {
     /**
      * 注册 RESTful 资源路由
      *
-     * - 生成 index/create/store/show/edit/update/destroy 七个动作
-     * - 路由名以路径的斜杠替换为点号后作为前缀
+     * - 以 `$path` 为资源根路径, 批量生成以下路由:
+     *   `GET {path}` => index, `GET {path}/create` => create,
+     *   `POST {path}` => store, `GET {path}/{id}` => show,
+     *   `GET {path}/{id}/edit` => edit, `PUT/PATCH {path}/{id}` => update,
+     *   `DELETE {path}/{id}` => destroy
+     * - `{id}` 是这里写入路径模板的占位符, 由请求路径匹配后按名注入, 不是额外全局参数
+     * - 路由名以完整路径(含当前分组前缀)的 `/` 替换为 `.` 作为前缀, 再追加动作名;
+     *   如分组前缀 `/index` 下注册 `/users`, `show` 路由名为 `index.users.show`
+     * - 路径、请求方法、重名与冲突校验全部复用 `add()` 的既有规则
      *
      * @access public
      * @param string $path 资源路径
@@ -272,21 +281,24 @@ final class Router implements RoutingInterface {
      */
     public function resource(string $path,string $controller): void {
         $base='/'.trim($path,'/');
-        $name=trim(str_replace('/','.',$base),'.');
+        $name=$this->resourceNamePrefix($base);
         $this->get($base,array($controller,'index'))->name($name.'.index');
         $this->get($base.'/create',array($controller,'create'))->name($name.'.create');
         $this->post($base,array($controller,'store'))->name($name.'.store');
         $this->get($base.'/{id}',array($controller,'show'))->name($name.'.show');
         $this->get($base.'/{id}/edit',array($controller,'edit'))->name($name.'.edit');
-        $this->match(array('PUT','PATCH'),$base.'/{id}',array($controller,'update'))->name($name.'.update');
+        $this->match(array(Method::PUT,Method::PATCH),$base.'/{id}',array($controller,'update'))->name($name.'.update');
         $this->delete($base.'/{id}',array($controller,'destroy'))->name($name.'.destroy');
     }
 
     /**
      * 注册 RESTful API 资源路由
      *
-     * - 生成 index/store/show/update/destroy 五个动作, 不含 create/edit 表单页
-     * - 路由名规则同 resource()
+     * - 以 `$path` 为资源根路径, 批量生成以下路由:
+     *   `GET {path}` => index, `POST {path}` => store, `GET {path}/{id}` => show,
+     *   `PUT/PATCH {path}/{id}` => update, `DELETE {path}/{id}` => destroy
+     * - 不含 create/edit 表单页
+     * - `{id}` 占位符与路由名规则同 {@see resource()}
      *
      * @access public
      * @param string $path 资源路径
@@ -296,12 +308,25 @@ final class Router implements RoutingInterface {
      */
     public function apiResource(string $path,string $controller): void {
         $base='/'.trim($path,'/');
-        $name=trim(str_replace('/','.',$base),'.');
+        $name=$this->resourceNamePrefix($base);
         $this->get($base,array($controller,'index'))->name($name.'.index');
         $this->post($base,array($controller,'store'))->name($name.'.store');
         $this->get($base.'/{id}',array($controller,'show'))->name($name.'.show');
-        $this->match(array('PUT','PATCH'),$base.'/{id}',array($controller,'update'))->name($name.'.update');
+        $this->match(array(Method::PUT,Method::PATCH),$base.'/{id}',array($controller,'update'))->name($name.'.update');
         $this->delete($base.'/{id}',array($controller,'destroy'))->name($name.'.destroy');
+    }
+
+    /**
+     * 生成资源路由名前缀
+     *
+     * - 以完整路径(含当前分组前缀)为准, 保证路径与路由名前缀一致
+     *
+     * @access private
+     * @param string $path 资源根路径
+     * @return string
+     */
+    private function resourceNamePrefix(string $path): string {
+        return trim(str_replace('/','.',self::joinPath($this->prefix(),$path)),'.');
     }
 
     /**
@@ -329,10 +354,11 @@ final class Router implements RoutingInterface {
     }
 
     /**
-     * 从控制器方法的路由属性注册路由
+     * 从控制器属性注册路由
      *
      * - 仅扫描传入的类, 类的收集由调用方决定
      * - 类上的 `#[RouteGroup]` 提供统一前缀与中间件, 方法上的 `#[Route]` 声明子路径与命名
+     * - 类上的 `#[Resource]` / `#[ApiResource]` 复用资源路由注册, 并与 `#[RouteGroup]` 组合
      *
      * @access public
      * @param array<class-string> $classes 控制器类名列表
@@ -357,6 +383,27 @@ final class Router implements RoutingInterface {
                 $group=$attribute->newInstance();
                 $prefix=self::joinPath($prefix,$group->getPrefix());
                 $group_middlewares=array_merge($group_middlewares,$group->getMiddlewares());
+            }
+            // 类级资源声明: 通过分组上下文复用 resource() / apiResource()
+            $resources=array();
+            foreach($reflection->getAttributes(Resource::class) as $attribute)
+                $resources[]=$attribute->newInstance();
+            foreach($reflection->getAttributes(ApiResource::class) as $attribute)
+                $resources[]=$attribute->newInstance();
+            if($resources!==array()) {
+                $attributes=array();
+                if($prefix!=='')
+                    $attributes['prefix']=$prefix;
+                if($group_middlewares!==array())
+                    $attributes['middleware']=$group_middlewares;
+                $this->group($attributes,function(Router $router) use ($resources,$class): void {
+                    foreach($resources as $resource) {
+                        if($resource instanceof ApiResource)
+                            $router->apiResource($resource->getPath(),$class);
+                        else
+                            $router->resource($resource->getPath(),$class);
+                    }
+                });
             }
             foreach($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
                 foreach($method->getAttributes(Route::class) as $attribute) {

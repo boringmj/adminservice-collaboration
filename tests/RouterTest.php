@@ -10,10 +10,12 @@ use AdminService\Pipeline;
 use AdminService\Router\RouteItem;
 use AdminService\Router\Router;
 use base\Attribute\Method;
+use Tests\Fixtures\ApiResourceController;
 use Tests\Fixtures\FirstMiddleware;
 use Tests\Fixtures\GroupedController;
 use Tests\Fixtures\MiddlewareLog;
 use Tests\Fixtures\NoSlashGroupedController;
+use Tests\Fixtures\ResourceController;
 use Tests\Fixtures\RouteBindingController;
 use Tests\Fixtures\RouteController;
 use Tests\Fixtures\SecondMiddleware;
@@ -359,6 +361,47 @@ class RouterTest extends TestCase {
         $this->assertSame('destroy',$router->find('DELETE','/article/5')[0]->getHandler()[1]);
         // 资源路由自带命名
         $this->assertSame('/article/5',$router->url('article.show',array('id'=>5)));
+    }
+
+    /**
+     * 测试分组内资源路由名包含分组前缀
+     *
+     * - 路径与路由名前缀必须一致, 避免 `/index/users` 却生成 `users.*`
+     *
+     * @return void
+     */
+    public function testResourceRouteNamesIncludeGroupPrefix(): void {
+        $router=new Router();
+        $router->group(array('prefix'=>'/index'),function(Router $router): void {
+            $router->resource('/users','AppController');
+        });
+        $this->assertNotNull($router->find('GET','/index/users/5'));
+        $this->assertSame('/index/users/5',$router->url('index.users.show',array('id'=>5)));
+        $this->assertSame('/index/users',$router->url('index.users.index'));
+    }
+
+    /**
+     * 测试类级资源注解
+     *
+     * - `#[Resource]` 复用 resource() 的注册行为
+     * - `#[RouteGroup]` 与资源路径拼接, 路由名同样含分组前缀
+     *
+     * @return void
+     */
+    public function testResourceAttribute(): void {
+        $router=new Router();
+        $router->registerAttributes(array(ResourceController::class));
+        $this->assertCount(7,$router->getRoutes());
+        $found=$router->find('GET','/index/users');
+        $this->assertNotNull($found);
+        $this->assertSame(array(ResourceController::class,'index'),$found[0]->getHandler());
+        $this->assertSame(array(FirstMiddleware::class),$found[0]->getGroupMiddlewares());
+        $this->assertSame('store',$router->find('POST','/index/users')[0]->getHandler()[1]);
+        $this->assertSame('show',$router->find('GET','/index/users/5')[0]->getHandler()[1]);
+        $this->assertSame('update',$router->find('PATCH','/index/users/5')[0]->getHandler()[1]);
+        $this->assertSame('destroy',$router->find('DELETE','/index/users/5')[0]->getHandler()[1]);
+        $this->assertSame('/index/users',$router->url('index.users.index'));
+        $this->assertSame('/index/users/5/edit',$router->url('index.users.edit',array('id'=>5)));
     }
 
     /**
@@ -897,6 +940,32 @@ class RouterTest extends TestCase {
                 $names[]=$item->getName();
         $this->assertNotContains('article.create',$names);
         $this->assertNotContains('article.edit',$names);
+    }
+
+    /**
+     * 测试类级 API 资源注解
+     *
+     * - `#[ApiResource]` 复用 apiResource() 的五个动作
+     * - 不生成 create/edit 表单页
+     *
+     * @return void
+     */
+    public function testApiResourceAttribute(): void {
+        $router=new Router();
+        $router->registerAttributes(array(ApiResourceController::class));
+        $this->assertCount(5,$router->getRoutes());
+        $this->assertSame('index',$router->find('GET','/files')[0]->getHandler()[1]);
+        $this->assertSame('store',$router->find('POST','/files')[0]->getHandler()[1]);
+        $this->assertSame('show',$router->find('GET','/files/5')[0]->getHandler()[1]);
+        $this->assertSame('update',$router->find('PUT','/files/5')[0]->getHandler()[1]);
+        $this->assertSame('destroy',$router->find('DELETE','/files/5')[0]->getHandler()[1]);
+        $this->assertSame('/files/5',$router->url('files.show',array('id'=>5)));
+        $names=array();
+        foreach($router->getRoutes() as $item)
+            if($item->getName()!==null)
+                $names[]=$item->getName();
+        $this->assertNotContains('files.create',$names);
+        $this->assertNotContains('files.edit',$names);
     }
 
     /**

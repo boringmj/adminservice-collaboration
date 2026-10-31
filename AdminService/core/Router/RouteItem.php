@@ -4,6 +4,11 @@ namespace AdminService\Router;
 
 use AdminService\Exception;
 use AdminService\Pipeline;
+use base\Attribute\RouteParam;
+use Closure;
+use ReflectionFunction;
+use ReflectionFunctionAbstract;
+use ReflectionMethod;
 
 use function array_key_exists;
 use function array_diff_key;
@@ -16,7 +21,11 @@ use function explode;
 use function http_build_query;
 use function implode;
 use function in_array;
+use function is_array;
+use function is_object;
+use function is_string;
 use function ltrim;
+use function method_exists;
 use function preg_match;
 use function preg_match_all;
 use function preg_quote;
@@ -30,9 +39,10 @@ use function substr;
 /**
  * 单条路由
  *
- * - 承载方法、路径、处理器与中间件
+ * - 承载方法、路径、处理器、参数绑定与中间件
  * - 中间件按层分开放置: 分组层({@see groupMiddleware()})与路由层({@see middleware()}), 各层内部按 `priority` 排序
  * - 路径中的 `{name}`、`{name:约束}`、`{name?}` 在构造时编译为具名捕获组
+ * - 路由级参数绑定用 {@see bind()}; 控制器形参上的 `#[RouteParam]` 优先于路由级绑定
  * - 可选参数(带 `?`)可多个, 但须构成 `/` 分隔的末尾序列, 如 `/a/{b?}/{c?}`
  * - 末尾的 `*` 为通配糖: `/files/*` 等价于 `/files/{any?:.*}`
  */
@@ -79,6 +89,18 @@ final class RouteItem {
      * @var string|null
      */
     private ?string $name=null;
+
+    /**
+     * 路由级参数绑定(占位符名 => 控制器形参名)
+     * @var array<string,string>
+     */
+    private array $bindings=array();
+
+    /**
+     * 合并参数级属性后的绑定缓存
+     * @var array<string,string>|null
+     */
+    private ?array $resolved_bindings=null;
 
     /**
      * 编译后的匹配正则
@@ -281,6 +303,124 @@ final class RouteItem {
                 'constraint'=>$constraint
             ));
         return $value;
+    }
+
+    /**
+     * 设置路由级参数绑定
+     *
+     * - 参数级 `#[RouteParam]` 会覆盖同一占位符的路由级绑定
+     *
+     * @access public
+     * @param array<string,string> $bindings 占位符名 => 控制器形参名
+     * @return static
+     * @throws Exception 占位符不存在、目标名非法或目标重复
+     */
+    public function bind(array $bindings): static {
+        if($bindings===array())
+            return $this;
+        $merged=array_merge($this->bindings,$bindings);
+        $targets=array();
+        foreach($merged as $source=>$target) {
+            if(!is_string($source)||!is_string($target)||$source===''||$target==='')
+                throw new Exception('Route parameter binding must use non-empty string names.',-422,array(
+                    'path'=>$this->path
+                ));
+            if(!in_array($source,$this->params,true))
+                throw new Exception('Route parameter binding references an unknown parameter.',-422,array(
+                    'path'=>$this->path,
+                    'name'=>$source
+                ));
+            if(preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/',$target)!==1)
+                throw new Exception('Route parameter binding target is not a valid variable name.',-422,array(
+                    'path'=>$this->path,
+                    'name'=>$source,
+                    'target'=>$target
+                ));
+            if(array_key_exists($target,$targets))
+                throw new Exception('Route parameter binding target is duplicated.',-422,array(
+                    'path'=>$this->path,
+                    'target'=>$target
+                ));
+            $targets[$target]=true;
+        }
+        $this->bindings=$merged;
+        $this->resolved_bindings=null;
+        return $this;
+    }
+
+    /**
+     * 获取生效的参数绑定
+     *
+     * - 合并路由级绑定与控制器形参上的 `#[RouteParam]`
+     * - 同一占位符冲突时参数级优先
+     *
+     * @access public
+     * @return array<string,string> 占位符名 => 控制器形参名
+     * @throws Exception 绑定引用了不存在的占位符或目标形参
+     */
+    public function getBindings(): array {
+        if($this->resolved_bindings!==null)
+            return $this->resolved_bindings;
+        $reflection=$this->handlerReflection();
+        $parameter_bindings=array();
+        $parameter_names=array();
+        foreach($reflection->getParameters() as $param) {
+            $parameter_names[$param->getName()]=true;
+            foreach($param->getAttributes(RouteParam::class) as $attribute) {
+                /** @var RouteParam $declaration */
+                $declaration=$attribute->newInstance();
+                $source=$declaration->getName();
+                if(array_key_exists($source,$parameter_bindings))
+                    throw new Exception('Route parameter binding is declared more than once.',-422,array(
+                        'path'=>$this->path,
+                        'name'=>$source
+                    ));
+                $parameter_bindings[$source]=$param->getName();
+            }
+        }
+        $bindings=array_merge($this->bindings,$parameter_bindings);
+        $targets=array();
+        foreach($bindings as $source=>$target) {
+            if(!in_array($source,$this->params,true))
+                throw new Exception('Route parameter binding references an unknown parameter.',-422,array(
+                    'path'=>$this->path,
+                    'name'=>$source
+                ));
+            if(!array_key_exists($target,$parameter_names))
+                throw new Exception('Route parameter binding target is not a handler parameter.',-422,array(
+                    'path'=>$this->path,
+                    'name'=>$source,
+                    'target'=>$target
+                ));
+            if(array_key_exists($target,$targets))
+                throw new Exception('Route parameter binding target is duplicated.',-422,array(
+                    'path'=>$this->path,
+                    'target'=>$target
+                ));
+            $targets[$target]=true;
+        }
+        $this->resolved_bindings=$bindings;
+        return $bindings;
+    }
+
+    /**
+     * 获取处理器反射
+     *
+     * @access private
+     * @return ReflectionFunctionAbstract
+     * @throws Exception 处理器无法反射
+     */
+    private function handlerReflection(): ReflectionFunctionAbstract {
+        $handler=$this->handler;
+        if(is_array($handler)&&count($handler)===2&&is_string($handler[1]))
+            return new ReflectionMethod($handler[0],$handler[1]);
+        if($handler instanceof Closure||is_string($handler))
+            return new ReflectionFunction($handler);
+        if(is_object($handler)&&method_exists($handler,'__invoke'))
+            return new ReflectionMethod($handler,'__invoke');
+        throw new Exception('Route handler cannot be reflected.',-422,array(
+            'path'=>$this->path
+        ));
     }
 
     /**

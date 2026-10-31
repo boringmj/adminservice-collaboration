@@ -17,6 +17,7 @@ use base\RoutingInterface;
 use ReflectionException;
 
 use function array_merge;
+use function array_key_exists;
 use function class_exists;
 use function count;
 use function implode;
@@ -182,8 +183,8 @@ final class Route extends BaseRoute {
             $this->controllerMiddlewares($handler)
         );
         $response=App::get(Response::class);
-        (new Pipeline($middlewares,$this->request))->then(function() use ($handler,$response): void {
-            $response->body($this->callHandler($handler));
+        (new Pipeline($middlewares,$this->request))->then(function() use ($route,$handler,$response): void {
+            $response->body($this->callHandler($route,$handler));
         });
     }
 
@@ -234,18 +235,19 @@ final class Route extends BaseRoute {
      * - 控制器是请求级对象: 每次分发都强制新建, 避免复用容器中上一次请求的实例(其请求/响应对象已过期)
      *
      * @access private
+     * @param RouteItem $route 命中的路由
      * @param mixed $handler 处理器
      * @return mixed
      * @throws Exception|ReflectionException
      */
-    private function callHandler(mixed $handler): mixed {
+    private function callHandler(RouteItem $route,mixed $handler): mixed {
         if(is_array($handler)&&count($handler)===2) {
             // 控制器实例属**请求级**对象: 每请求新建;`fresh()` 会按处理器类名登记, 供控制器助手按类名取用
             if(is_string($handler[0]))
                 $handler[0]=App::fresh($handler[0]);
-            return App::exec_class_function($handler[0],$handler[1],$this->controllerArgs());
+            return App::exec_class_function($handler[0],$handler[1],$this->controllerArgs($route));
         }
-        return App::exec_function($handler,$this->controllerArgs());
+        return App::exec_function($handler,$this->controllerArgs($route));
     }
 
     /**
@@ -253,16 +255,32 @@ final class Route extends BaseRoute {
      *
      * - 只注入**路由参数**(属性区): 查询参数等输入不参与形参注入, 须在方法内显式获取
      * - 键名为数字的参数跳过(如通配捕获的多段拼接值)
+     * - 路由级与参数级绑定把占位符名改写为控制器形参名
      *
      * @access private
+     * @param RouteItem $route 命中的路由
      * @return array
+     * @throws Exception|ReflectionException
      */
-    private function controllerArgs(): array {
+    private function controllerArgs(RouteItem $route): array {
         $args=$this->request->attributes();
         foreach($args as $k=>$v)
             if(is_numeric($k))
                 unset($args[$k]);
-        return $args;
+        $bindings=$route->getBindings();
+        if($bindings===array())
+            return $args;
+        $mapped=array();
+        foreach($args as $name=>$value) {
+            $target=$bindings[$name]??$name;
+            if(array_key_exists($target,$mapped))
+                throw new Exception('Route parameter binding target is duplicated.',-422,array(
+                    'name'=>$name,
+                    'target'=>$target
+                ));
+            $mapped[$target]=$value;
+        }
+        return $mapped;
     }
 
     /**

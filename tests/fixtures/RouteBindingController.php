@@ -95,4 +95,44 @@ class RouteBindingController {
         return 'optional:'.$first_name.','.$last_name;
     }
 
+    /**
+     * 绑定目标与未绑定占位符同名
+     *
+     * @access public
+     * @param string $first_name 第一个名称
+     * @return string
+     */
+    #[Route('GET','/conflict/{first}/{first_name}',bind:array('first'=>'first_name'))]
+    public function conflict(string $first_name): string {
+        return 'conflict:'.$first_name;
+    }
+
+    /**
+     * 参数级绑定引用未知占位符
+     *
+     * @access public
+     * @param string $id 标识
+     * @return string
+     */
+    #[Route('GET','/unknown/{id}')]
+    public function unknown(#[RouteParam('missing')] string $id): string {
+        return 'unknown:'.$id;
+    }
+
+    /**
+     * 参数级重复声明同一个占位符
+     *
+     * @access public
+     * @param string $first 第一个值
+     * @param string $second 第二个值
+     * @return string
+     */
+    #[Route('GET','/duplicate/{id}')]
+    public function duplicate(
+        #[RouteParam('id')] string $first,
+        #[RouteParam('id')] string $second
+    ): string {
+        return 'duplicate:'.$first.','.$second;
+    }
+
 }

@@ -271,10 +271,12 @@ final class Router implements RoutingInterface {
      *   `POST {path}` => store, `GET {path}/{id}` => show,
      *   `GET {path}/{id}/edit` => edit, `PUT/PATCH {path}/{id}` => update,
      *   `DELETE {path}/{id}` => destroy
+     * - 注册前校验控制器存在、可实例化且动作方法为 public, 避免分发期才暴露配置错误
      * - `{id}` 是这里写入路径模板的占位符, 由请求路径匹配后按名注入, 不是额外全局参数
      * - 路由名以完整路径(含当前分组前缀)的 `/` 替换为 `.` 作为前缀, 再追加动作名;
      *   如分组前缀 `/index` 下注册 `/users`, `show` 路由名为 `index.users.show`
-     * - 路径、请求方法、重名与冲突校验全部复用 `add()` 的既有规则
+     * - 根资源 `/` 的路由名不加前导点, 直接使用动作名(如 `index`)
+     * - 路径、请求方法冲突由 `add()` 校验; 路由名唯一性由 `assertNamesUnique()` 在装配后统一校验
      *
      * @access public
      * @param string $path 资源路径
@@ -283,15 +285,18 @@ final class Router implements RoutingInterface {
      * @throws Exception
      */
     public function resource(string $path,string $controller): void {
+        $this->assertResourceController($controller,array(
+            'index','create','store','show','edit','update','destroy'
+        ));
         $base='/'.trim($path,'/');
         $name=$this->resourceNamePrefix($base);
-        $this->get($base,array($controller,'index'))->name($name.'.index');
-        $this->get($base.'/create',array($controller,'create'))->name($name.'.create');
-        $this->post($base,array($controller,'store'))->name($name.'.store');
-        $this->get($base.'/{id}',array($controller,'show'))->name($name.'.show');
-        $this->get($base.'/{id}/edit',array($controller,'edit'))->name($name.'.edit');
-        $this->match(array(Method::PUT,Method::PATCH),$base.'/{id}',array($controller,'update'))->name($name.'.update');
-        $this->delete($base.'/{id}',array($controller,'destroy'))->name($name.'.destroy');
+        $this->get($base,array($controller,'index'))->name($this->resourceRouteName($name,'index'));
+        $this->get($base.'/create',array($controller,'create'))->name($this->resourceRouteName($name,'create'));
+        $this->post($base,array($controller,'store'))->name($this->resourceRouteName($name,'store'));
+        $this->get($base.'/{id}',array($controller,'show'))->name($this->resourceRouteName($name,'show'));
+        $this->get($base.'/{id}/edit',array($controller,'edit'))->name($this->resourceRouteName($name,'edit'));
+        $this->match(array(Method::PUT,Method::PATCH),$base.'/{id}',array($controller,'update'))->name($this->resourceRouteName($name,'update'));
+        $this->delete($base.'/{id}',array($controller,'destroy'))->name($this->resourceRouteName($name,'destroy'));
     }
 
     /**
@@ -301,6 +306,7 @@ final class Router implements RoutingInterface {
      *   `GET {path}` => index, `POST {path}` => store, `GET {path}/{id}` => show,
      *   `PUT/PATCH {path}/{id}` => update, `DELETE {path}/{id}` => destroy
      * - 不含 create/edit 表单页
+     * - 注册前校验控制器存在、可实例化且动作方法为 public
      * - `{id}` 占位符与路由名规则同 {@see resource()}
      *
      * @access public
@@ -310,19 +316,51 @@ final class Router implements RoutingInterface {
      * @throws Exception
      */
     public function apiResource(string $path,string $controller): void {
+        $this->assertResourceController($controller,array(
+            'index','store','show','update','destroy'
+        ));
         $base='/'.trim($path,'/');
         $name=$this->resourceNamePrefix($base);
-        $this->get($base,array($controller,'index'))->name($name.'.index');
-        $this->post($base,array($controller,'store'))->name($name.'.store');
-        $this->get($base.'/{id}',array($controller,'show'))->name($name.'.show');
-        $this->match(array(Method::PUT,Method::PATCH),$base.'/{id}',array($controller,'update'))->name($name.'.update');
-        $this->delete($base.'/{id}',array($controller,'destroy'))->name($name.'.destroy');
+        $this->get($base,array($controller,'index'))->name($this->resourceRouteName($name,'index'));
+        $this->post($base,array($controller,'store'))->name($this->resourceRouteName($name,'store'));
+        $this->get($base.'/{id}',array($controller,'show'))->name($this->resourceRouteName($name,'show'));
+        $this->match(array(Method::PUT,Method::PATCH),$base.'/{id}',array($controller,'update'))->name($this->resourceRouteName($name,'update'));
+        $this->delete($base.'/{id}',array($controller,'destroy'))->name($this->resourceRouteName($name,'destroy'));
+    }
+
+    /**
+     * 校验资源控制器与动作方法
+     *
+     * @access private
+     * @param string $controller 控制器类名
+     * @param array<string> $actions 需要的动作方法
+     * @return void
+     * @throws Exception
+     */
+    private function assertResourceController(string $controller,array $actions): void {
+        if(!class_exists($controller))
+            throw new Exception('Class "'.$controller.'" not found.',-418,array(
+                'class'=>$controller
+            ));
+        $reflection=new ReflectionClass($controller);
+        if(!$reflection->isInstantiable())
+            throw new Exception('Route resource class must be instantiable.',-418,array(
+                'class'=>$controller
+            ));
+        foreach($actions as $action) {
+            if(!$reflection->hasMethod($action)||!$reflection->getMethod($action)->isPublic())
+                throw new Exception('Route resource action "'.$action.'" is missing or not public.',-418,array(
+                    'class'=>$controller,
+                    'action'=>$action
+                ));
+        }
     }
 
     /**
      * 生成资源路由名前缀
      *
      * - 以完整路径(含当前分组前缀)为准, 保证路径与路由名前缀一致
+     * - 根路径 `/` 返回空串, 由调用方直接使用动作名
      *
      * @access private
      * @param string $path 资源根路径
@@ -330,6 +368,18 @@ final class Router implements RoutingInterface {
      */
     private function resourceNamePrefix(string $path): string {
         return trim(str_replace('/','.',self::joinPath($this->prefix(),$path)),'.');
+    }
+
+    /**
+     * 生成资源动作路由名
+     *
+     * @access private
+     * @param string $prefix 资源名前缀
+     * @param string $action 动作名
+     * @return string
+     */
+    private function resourceRouteName(string $prefix,string $action): string {
+        return $prefix===''?$action:$prefix.'.'.$action;
     }
 
     /**
@@ -363,6 +413,8 @@ final class Router implements RoutingInterface {
      * - 类上的 `#[RouteGroup]` 提供统一前缀与中间件, 方法上的 `#[Route]` 声明子路径与命名
      * - 方法型短语糖 `#[Get]` / `#[Post]` 等位于 `base\Attribute\RouteMethod`, 继承 `#[Route]` 并一并识别
      * - 类上的 `#[Resource]` / `#[ApiResource]` 复用资源路由注册, 并与 `#[RouteGroup]` 组合
+     * - 资源注解可重复声明, 按类上的声明顺序注册; 注解本身不随继承传递
+     * - 带资源声明的控制器必须可实例化, 资源动作方法在装配期校验
      *
      * @access public
      * @param array<class-string> $classes 控制器类名列表
@@ -389,13 +441,18 @@ final class Router implements RoutingInterface {
                 $prefix=self::joinPath($prefix,$group->getPrefix());
                 $group_middlewares=array_merge($group_middlewares,$group->getMiddlewares());
             }
-            // 类级资源声明: 通过分组上下文复用 resource() / apiResource()
+            // 类级资源声明: 按类属性声明顺序收集, 允许同一控制器声明多个资源根
             $resources=array();
-            foreach($reflection->getAttributes(Resource::class) as $attribute)
-                $resources[]=$attribute->newInstance();
-            foreach($reflection->getAttributes(ApiResource::class) as $attribute)
-                $resources[]=$attribute->newInstance();
+            foreach($reflection->getAttributes() as $attribute) {
+                $attribute_class=$attribute->getName();
+                if($attribute_class===Resource::class||$attribute_class===ApiResource::class)
+                    $resources[]=$attribute->newInstance();
+            }
             if($resources!==array()) {
+                if(!$reflection->isInstantiable())
+                    throw new Exception('Route resource class must be instantiable.',-418,array(
+                        'class'=>$class
+                    ));
                 $attributes=array();
                 if($prefix!=='')
                     $attributes['prefix']=$prefix;

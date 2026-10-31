@@ -9,10 +9,12 @@ use Attribute;
  *
  * - 等价于在路由文件中调用 {@see \AdminService\Router\Router::apiResource()}
  * - 声明在控制器类上, 生成 index/store/show/update/destroy 五个动作, 不含 create/edit 表单页
+ * - 同一控制器可重复声明多个资源根, 按类上的声明顺序注册
+ * - 类级注解不随继承传递; 带资源声明的控制器必须可实例化
  * - 与 `#[RouteGroup]` 组合时, 分组前缀会与资源路径拼接
  * - `{id}` 占位符与路由名规则见 {@see \AdminService\Router\Router::apiResource()}
  */
-#[Attribute(Attribute::TARGET_CLASS)]
+#[Attribute(Attribute::TARGET_CLASS | Attribute::IS_REPEATABLE)]
 final class ApiResource {
 
     /**

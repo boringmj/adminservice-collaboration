@@ -7,6 +7,7 @@ use AdminService\Pipeline;
 use base\Attribute\Method;
 use base\Attribute\RouteParam;
 use Closure;
+use ReflectionException;
 use ReflectionFunction;
 use ReflectionFunctionAbstract;
 use ReflectionMethod;
@@ -359,6 +360,7 @@ final class RouteItem {
      * @access public
      * @return array<string,string> 占位符名 => 控制器形参名
      * @throws Exception 绑定引用了不存在的占位符或目标形参
+     * @throws ReflectionException 处理器无法反射
      */
     public function getBindings(): array {
         if($this->resolved_bindings!==null)
@@ -411,6 +413,7 @@ final class RouteItem {
      * @access private
      * @return ReflectionFunctionAbstract
      * @throws Exception 处理器无法反射
+     * @throws ReflectionException 处理器类或方法不存在
      */
     private function handlerReflection(): ReflectionFunctionAbstract {
         $handler=$this->handler;

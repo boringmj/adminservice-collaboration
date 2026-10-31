@@ -13,6 +13,7 @@ use Tests\Fixtures\FirstMiddleware;
 use Tests\Fixtures\GroupedController;
 use Tests\Fixtures\MiddlewareLog;
 use Tests\Fixtures\NoSlashGroupedController;
+use Tests\Fixtures\RouteBindingController;
 use Tests\Fixtures\RouteController;
 use Tests\Fixtures\SecondMiddleware;
 
@@ -374,6 +375,81 @@ class RouterTest extends TestCase {
         $this->assertNotNull($router->find('POST','/ping'));
         // 未声明路由的方法不注册
         $this->assertNull($router->find('GET','/ignored'));
+    }
+
+    /**
+     * 测试属性路由与参数级路由参数绑定
+     *
+     * - 路由级绑定支持多个参数
+     * - 参数级绑定支持多个参数
+     * - 同一占位符冲突时参数级覆盖路由级
+     *
+     * @return void
+     */
+    public function testAttributeRouteParameterBindings(): void {
+        $router=new Router();
+        $router->registerAttributes(array(RouteBindingController::class));
+        $found=$router->find('GET','/bind/route/Alice/Bob');
+        $this->assertNotNull($found);
+        $this->assertSame(array('first'=>'first_name','last'=>'last_name'),$found[0]->getBindings());
+        $found=$router->find('GET','/bind/param/Alice/Bob');
+        $this->assertNotNull($found);
+        $this->assertSame(array('first'=>'first_name','last'=>'last_name'),$found[0]->getBindings());
+        $found=$router->find('GET','/bind/override/Alice/Bob');
+        $this->assertNotNull($found);
+        $this->assertSame(array('first'=>'param_first','last'=>'param_last'),$found[0]->getBindings());
+        $found=$router->find('GET','/bind/mixed/Alice/Bob');
+        $this->assertNotNull($found);
+        $this->assertSame(array('first'=>'param_first','last'=>'route_last'),$found[0]->getBindings());
+    }
+
+    /**
+     * 测试路由配置中的参数绑定
+     *
+     * @return void
+     */
+    public function testRouteConfigParameterBindings(): void {
+        $router=new Router();
+        $item=$router->get('/cfg/{first}/{last}',array(RouteBindingController::class,'route'))
+            ->bind(array('first'=>'first_name','last'=>'last_name'));
+        $this->assertSame(array('first'=>'first_name','last'=>'last_name'),$item->getBindings());
+    }
+
+    /**
+     * 测试路由参数绑定引用不存在的占位符时直接报错
+     *
+     * @return void
+     */
+    public function testRouteParameterBindingRejectsUnknownParameter(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $router->get('/bad/{name}',array(RouteBindingController::class,'route'))
+            ->bind(array('missing'=>'first_name'));
+    }
+
+    /**
+     * 测试多个占位符绑定到同一形参时直接报错
+     *
+     * @return void
+     */
+    public function testRouteParameterBindingRejectsDuplicateTarget(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $router->get('/dup/{first}/{last}',array(RouteBindingController::class,'route'))
+            ->bind(array('first'=>'same','last'=>'same'));
+    }
+
+    /**
+     * 测试绑定目标不是处理器形参时报错
+     *
+     * @return void
+     */
+    public function testRouteParameterBindingRejectsUnknownHandlerParameter(): void {
+        $router=new Router();
+        $item=$router->get('/missing/{name}',array(RouteBindingController::class,'route'))
+            ->bind(array('name'=>'missing'));
+        $this->expectException(Exception::class);
+        $item->getBindings();
     }
 
     /**

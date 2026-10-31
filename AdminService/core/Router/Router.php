@@ -361,6 +361,7 @@ final class Router implements RoutingInterface {
                 foreach($method->getAttributes(Route::class) as $attribute) {
                     $route=$attribute->newInstance();
                     $item=$this->add(array($route->getMethod()),self::joinPath($prefix,$route->getPath()),array($class,$method->getName()));
+                    $item->bind($route->getBindings());
                     // 类级 #[RouteGroup] 的中间件归入分组层, 路由层只放 #[Route] 声明的
                     if($group_middlewares!==array())
                         $item->groupMiddleware($group_middlewares);

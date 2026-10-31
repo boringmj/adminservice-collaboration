@@ -206,6 +206,33 @@ class RouteCoordinatorTest extends TestCase {
     }
 
     /**
+     * 测试路由参数显式名称绑定
+     *
+     * - 支持参数级与路由配置级绑定
+     * - 支持同时绑定多个参数
+     * - 同一占位符冲突时参数级优先
+     * - 可选参数缺失时使用形参默认值
+     *
+     * @return void
+     */
+    public function testRouteParameterBindings(): void {
+        $this->useRoutes(
+            "\$router->get('/t/bind/param/{first}/{last}',array(\\Tests\\Fixtures\\RouteBindingController::class,'parameter'));".
+            "\$router->get('/t/bind/route/{first}/{last}',array(\\Tests\\Fixtures\\RouteBindingController::class,'route'))->bind(array('first'=>'first_name','last'=>'last_name'));".
+            "\$router->get('/t/bind/override/{first}/{last}',array(\\Tests\\Fixtures\\RouteBindingController::class,'override'))->bind(array('first'=>'route_first','last'=>'route_last'));".
+            "\$router->get('/t/bind/mixed/{first}/{last}',array(\\Tests\\Fixtures\\RouteBindingController::class,'mixed'))->bind(array('first'=>'route_first','last'=>'route_last'));".
+            "\$router->get('/t/bind/optional/{first?}/{last?}',array(\\Tests\\Fixtures\\RouteBindingController::class,'optional'));"
+        );
+        $this->assertSame('param:Alice,Bob',$this->dispatch('/t/bind/param/Alice/Bob'));
+        $this->assertSame('route:Alice,Bob',$this->dispatch('/t/bind/route/Alice/Bob'));
+        $this->assertSame('override:Alice,Bob,default-first,default-last',$this->dispatch('/t/bind/override/Alice/Bob'));
+        $this->assertSame('mixed:Alice,default-first,Bob',$this->dispatch('/t/bind/mixed/Alice/Bob'));
+        $this->assertSame('optional:first-default,last-default',$this->dispatch('/t/bind/optional'));
+        $this->assertSame('optional:Alice,last-default',$this->dispatch('/t/bind/optional/Alice'));
+        $this->assertSame('optional:Alice,Bob',$this->dispatch('/t/bind/optional/Alice/Bob'));
+    }
+
+    /**
      * 测试路由表在同一 Application 内复用
      *
      * - `Route` 每次 `run()` 重建, 但 `Router` 由应用级 `RouterFactory` 持有

@@ -11,6 +11,7 @@ use function is_array;
  *
  * - 用于在控制器方法上就近声明路由, 可重复声明多条(即同一处理器的多个路径)
  * - 路径中 `{name}`、`{name:约束}`、`{name?}` 为参数占位符, 可选参数须位于末尾
+ * - 路径参数默认按占位符名绑定控制器形参; `bind` 可声明路由级绑定, 参数级 `#[RouteParam]` 优先
  * - 分组/前缀能力见 {@see RouteGroup}; 跨控制器能力请走集中式路由文件
  */
 #[Attribute(Attribute::TARGET_METHOD|Attribute::IS_REPEATABLE)]
@@ -41,6 +42,12 @@ final class Route {
     private array $middlewares;
 
     /**
+     * 路由参数到控制器形参的绑定(占位符名 => 形参名)
+     * @var array<string,string>
+     */
+    private array $bindings;
+
+    /**
      * 构造方法
      *
      * @access public
@@ -48,17 +55,20 @@ final class Route {
      * @param string $path 路由路径
      * @param string|null $name 路由名
      * @param string|array<string|object>|object $middleware 路由级中间件(类名 / 实例 / 数组)
+     * @param array<string,string> $bind 路由参数到控制器形参的绑定(占位符名 => 形参名)
      */
     public function __construct(
         string $method,
         string $path,
         ?string $name=null,
-        string|array|object $middleware=array()
+        string|array|object $middleware=array(),
+        array $bind=array()
     ) {
         $this->method=$method;
         $this->path=$path;
         $this->name=$name;
         $this->middlewares=is_array($middleware)?$middleware:array($middleware);
+        $this->bindings=$bind;
     }
 
     /**
@@ -99,6 +109,16 @@ final class Route {
      */
     public function getMiddlewares(): array {
         return $this->middlewares;
+    }
+
+    /**
+     * 获取路由参数绑定
+     *
+     * @access public
+     * @return array<string,string> 占位符名 => 控制器形参名
+     */
+    public function getBindings(): array {
+        return $this->bindings;
     }
 
 }

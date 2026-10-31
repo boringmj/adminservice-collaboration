@@ -34,6 +34,7 @@ use function preg_replace;
 use function rtrim;
 use function str_contains;
 use function strlen;
+use function strtoupper;
 use function substr;
 
 /**

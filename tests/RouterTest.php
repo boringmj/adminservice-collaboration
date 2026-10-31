@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
 use AdminService\App;
@@ -701,6 +702,24 @@ class RouterTest extends TestCase {
         $this->assertNotNull($router->find('DELETE','/method-any'));
         $this->assertSame('GET',Method::GET->value);
         $this->assertSame('*',Method::ANY->value);
+    }
+
+    /**
+     * 测试请求方法归一化拒绝空字符串与非字符串
+     *
+     * @return void
+     */
+    public function testMethodNormalizeRejectsInvalidInput(): void {
+        $this->assertSame('GET',Method::normalize('get'));
+        $this->assertSame('GET',Method::normalize(Method::GET));
+        foreach(array('',123,null,array()) as $invalid) {
+            try {
+                Method::normalize($invalid);
+                $this->fail('非法请求方法应当抛 InvalidArgumentException');
+            } catch(InvalidArgumentException $e) {
+                $this->assertNotSame('',$e->getMessage());
+            }
+        }
     }
 
     /**

@@ -2,6 +2,9 @@
 
 namespace base\Attribute;
 
+use InvalidArgumentException;
+
+use function is_string;
 use function strtoupper;
 
 /**
@@ -57,7 +60,9 @@ enum Method: string {
     public static function normalize(mixed $method): string {
         if($method instanceof self)
             return $method->value;
-        return strtoupper((string)$method);
+        if(!is_string($method)||$method==='')
+            throw new InvalidArgumentException('Route method must be a non-empty string or Method enum.');
+        return strtoupper($method);
     }
 
 }

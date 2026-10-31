@@ -8,11 +8,12 @@ AdminService/uploads/
 .vscode/
 .phpunit.result.cache
 wiki/
-# 本地开发工具(不属于仓库内容, 不入库)
+# 本地开发工具
 tools/
-# 本地计划与评估文档(不属于仓库内容, 不入库)
-*-refactor-*.md
-*-review-*.md
+# 性能分析结果
+cachegrind/
+# 本地计划与评估文档
+plans/
 CODE-*.md
 TODO-*.md
 TEMP-*.md

@@ -2,6 +2,7 @@
 
 namespace AdminService;
 
+use Closure;
 use base\Container as ContainerContract;
 use base\RouteContextInterface;
 use ReflectionClass;
@@ -184,15 +185,15 @@ final class App {
     }
 
     /**
-     * 为抽象类或接口绑定实现类
+     * 为抽象类或接口绑定实现类或闭包工厂
      *
      * @access public
      * @param string $abstract 抽象类或接口名(或别名)
-     * @param string $concrete 实现类
+     * @param string|Closure $concrete 实现类或工厂
      * @return void
      * @throws Exception
      */
-    public static function bind(string $abstract,string $concrete): void {
+    public static function bind(string $abstract,string|Closure $concrete): void {
         self::getInstance()->bind($abstract,$concrete);
     }
 
@@ -214,12 +215,25 @@ final class App {
      *
      * @access public
      * @param string $abstract 抽象类或接口名
-     * @param string $concrete 实现类
+     * @param string|Closure $concrete 实现类或工厂
      * @return void
      * @throws Exception
      */
-    public static function singleton(string $abstract,string $concrete): void {
+    public static function singleton(string $abstract,string|Closure $concrete): void {
         self::getInstance()->singleton($abstract,$concrete);
+    }
+
+    /**
+     * 瞬态闭包工厂绑定: 每次解析都调用
+     *
+     * @access public
+     * @param string $abstract 抽象类或接口名(或任意绑定名)
+     * @param Closure $concrete 工厂
+     * @return void
+     * @throws Exception
+     */
+    public static function factory(string $abstract,Closure $concrete): void {
+        self::getInstance()->factory($abstract,$concrete);
     }
 
     /**

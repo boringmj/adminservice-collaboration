@@ -2,6 +2,7 @@
 
 namespace AdminService\Cache;
 
+use AdminService\Config;
 use AdminService\Config\Repository;
 use AdminService\Exception;
 use AdminService\Runtime;

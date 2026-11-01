@@ -360,6 +360,7 @@ final class Router implements RoutingInterface {
             throw new Exception('Class "'.$controller.'" not found.',-418,array(
                 'class'=>$controller
             ));
+        /** @var ReflectionClass<object> $reflection */
         $reflection=new ReflectionClass($controller);
         if(!$reflection->isInstantiable())
             throw new Exception('Route resource class must be instantiable.',-418,array(

@@ -4,6 +4,7 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
+use AdminService\Cache\CompileStore;
 use AdminService\Config\Repository;
 use AdminService\Router\RouterFactory;
 use Tests\Fixtures\RouteCacheController;
@@ -19,6 +20,7 @@ use function is_link;
 use function mkdir;
 use function rmdir;
 use function scandir;
+use function str_replace;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
@@ -164,6 +166,18 @@ class RouteCacheTest extends TestCase {
             }
         }
         @rmdir($path);
+    }
+
+    /**
+     * 测试: 未注入配置时 CompileStore 使用门面配置
+     *
+     * @return void
+     */
+    public function testCompileStoreFallsBackToFacadeConfig(): void {
+        $store=new CompileStore();
+
+        $this->assertContains($store->mode(),array('auto','always','off'));
+        $this->assertStringEndsWith('/cache/compile/routes.cache.php',str_replace('\\','/',$store->path('routes')));
     }
 
     /**

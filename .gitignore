@@ -3,6 +3,7 @@ composer.lock
 AdminService/data/
 AdminService/log/
 AdminService/uploads/
+AdminService/runtime/
 .env
 .idea/
 .vscode/

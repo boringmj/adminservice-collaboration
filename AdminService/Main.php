@@ -55,7 +55,9 @@ final class Main {
             $response->prepare($container->get(Request::class));
             $response->send();
         },false);
-        // 加载配置加载器 
+        // 先解析 runtime 根目录: 配置文件默认路径与后续缓存都依赖它, 且不能反向读取 Config
+        Runtime::path();
+        // 加载配置加载器
         $loader=new Loader(__DIR__.'/config');
         $config=new Repository($loader->load(),env_snapshot());
         // 时区由配置统一控制, 避免 CLI / HTTP / 测试环境各用一套

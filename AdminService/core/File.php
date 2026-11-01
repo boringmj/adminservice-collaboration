@@ -15,6 +15,7 @@ use function file_put_contents;
 use function floor;
 use function is_dir;
 use function is_file;
+use function is_string;
 use function json_decode;
 use function json_encode;
 use function json_last_error_msg;
@@ -97,8 +98,26 @@ final class File {
      * @throws \AdminService\Exception
      */
     public function init(?string $file_name=null): void {
-        if($file_name===null) {
-            $file_name_cycle=$this->config()->get("data.name_cycle");
+        $config=$this->config();
+        $is_cache=$file_name===null;
+        $base_path=$config->get("data.path");
+        $ext_name=$config->get("data.ext_name");
+        $dir_mode=$config->get("data.dir_mode");
+        if($is_cache) {
+            // 未指定文件名时是缓存: 默认走 cache.*, 缺少 cache 配置时回退旧 data.* 行为
+            $cache_path=$config->get("cache.path");
+            if(is_string($cache_path)&&$cache_path!=='')
+                $base_path=$cache_path;
+            $cache_ext=$config->get("cache.ext_name");
+            if(is_string($cache_ext)&&$cache_ext!=='')
+                $ext_name=$cache_ext;
+            $cache_mode=$config->get("cache.dir_mode");
+            if($cache_mode!==null)
+                $dir_mode=$cache_mode;
+            $file_name_cycle=$config->get("cache.name_cycle");
+            if($file_name_cycle===null)
+                $file_name_cycle=$config->get("data.name_cycle");
+            $file_name_cycle=(int)$file_name_cycle;
             if($file_name_cycle>0)
                 $file_name='cache_'.floor(time()/$file_name_cycle);
             else
@@ -106,11 +125,11 @@ final class File {
         }
         if(!preg_match('/^[a-zA-Z0-9_-]+$/',$file_name))
             throw new Exception('File name is invalid',self::ERROR_INVALID_NAME);
-        $this->file_path=$this->config()->get("data.path").'/'.$file_name.$this->config()->get("data.ext_name");
+        $this->file_path=$base_path.'/'.$file_name.$ext_name;
         // 补全目录; 创建失败时转成受控异常, 不把 warning 留给全局错误栈
         $dir=dirname($this->file_path);
         if(!is_dir($dir)) {
-            if(!@mkdir($dir,$this->config()->get("data.dir_mode"),true)&&!is_dir($dir))
+            if(!@mkdir($dir,$dir_mode,true)&&!is_dir($dir))
                 throw new Exception("File directory create failed: $dir, please check the path permission.",self::ERROR_DIRECTORY_FAILED,array(
                     'dir'=>$dir
                 ));

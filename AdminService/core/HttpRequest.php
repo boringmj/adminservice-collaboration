@@ -248,7 +248,7 @@ final class HttpRequest extends Request {
         if($this->file_form===null) {
             $save_dir=(string)$this->config()->get(
                 'request.default.upload.save.dir',
-                __DIR__.'/../uploads'
+                Runtime::path().'/uploads'
             );
             $this->file_form=new UploadFilesForm($save_dir,$this->raw_files);
         }

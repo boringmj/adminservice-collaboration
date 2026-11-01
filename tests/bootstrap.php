@@ -8,6 +8,7 @@ use AdminService\Config\Loader;
 use AdminService\Config\Repository;
 use AdminService\Container;
 use AdminService\Database\DatabaseConfig;
+use AdminService\Runtime;
 use base\Database\Db as BaseDb;
 
 /**
@@ -19,6 +20,8 @@ use base\Database\Db as BaseDb;
  * @return void
  */
 function load_framework_config(): void {
+    // 与 Main::init() 一致: runtime 根必须在其它配置之前解析
+    Runtime::path();
     $loader=new Loader(dirname(__DIR__).'/AdminService/config');
     $config=new Repository($loader->load(),\AdminService\env_snapshot());
     date_default_timezone_set((string)$config->get('app.timezone','Asia/Shanghai'));

@@ -215,6 +215,23 @@ return array(
 - 覆盖的类型跟着配置文件里那个值走:文件里是 `int` 就把 `.env` 的字符串转成 `int`(否则 `port` 会变成字符串),`bool` 按"false/null/0/空 → false,其余 → true"判定;两者对不上(如 `int` 项写了非数字)会在装配时抛异常,不会静默保留文件值
 - **部署前建议核对一遍**:`function.loader` 的条目是否都在、要写的目录是否可写 —— 这些是**事实**检查,不涉及"猜你的意图"(例如不该去查"某个大写键有没有被引用" —— `env()` 也会在代码里用、键还可能动态构造,那种静态推断必然误报)。`.env` 的语法错、路径键写错、类型不符已由装配期报错,不必再靠静态检查
 
+## 运行时目录
+
+运行期可写文件默认集中在 `AdminService/runtime`:
+
+```text
+AdminService/runtime/
+  cache/      # 可安全清理: 自动缓存与未来的配置/路由编译缓存
+  data/       # 持久数据
+  log/        # 日志
+  uploads/    # 上传文件
+```
+
+- runtime 根由 `.env` 的 `RUNTIME_PATH` 提供; 缺失、空值或非法值时使用默认 `AdminService/runtime`
+- `RUNTIME_PATH` 在配置装载前解析, 不依赖 `Config`; 不提供 `runtime.path` 配置键
+- `runtime/cache` 可清空; `runtime/data` / `runtime/log` / `runtime/uploads` 不可随意清空
+- runtime 不要放在 `public` 下, 避免被 Web 服务器直接暴露
+
 ## 未来
 
 我们将逐步构建出一个完善的轻量级快速响应框架,这可能需要非常久的时间\

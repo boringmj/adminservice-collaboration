@@ -2,16 +2,18 @@
 
 namespace AdminService\config;
 
+use AdminService\Runtime;
+
 // data 相关配置
 return array(
-    'path'=>__DIR__.'/../data', // 该目录需要可写权限, 如果目录不存在, 则请赋予其父目录可写权限, 系统会自动创建该目录
+    'path'=>Runtime::path().'/data', // 该目录需要可写权限, 如果目录不存在, 则请赋予其父目录可写权限, 系统会自动创建该目录
     'ext_name'=>'.data.json', // 文件扩展名
-    'dir_mode'=>0644, // 自动创建的目录权限(Windows下无效)
+    'dir_mode'=>0755, // 自动创建的目录权限(Windows下无效)
     /**
      * 自动生成的文件名的周期(单位: 秒)
-     * 
-     * 通过使用当前时间戳除以该值, 向下取整, 以此来生成文件名
-     * 该项仅在不指定文件名时生效, 如果填0, 则每次都会生成新的文件
+     *
+     * 已弃用: 未指定文件名的自动缓存改用 cache.name_cycle;
+     * 这里仅作为缺少 cache 配置时的兼容回退, 后续版本可能移除
      */
     'name_cycle'=>3600,
     'rule'=>array(

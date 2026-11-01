@@ -5,6 +5,7 @@ namespace AdminService\config;
 use base\Request;
 use AdminService\FormInput;
 use AdminService\JsonInput;
+use AdminService\Runtime;
 
 // request 相关配置
 return array(
@@ -18,7 +19,7 @@ return array(
                 'max_size'=>104857600 // 最大可计算哈希文件大小 (字节) (default: 100MB)
             ),
             'save'=>array(
-                'dir'=>__DIR__.'/../uploads', // 上传目录 (default: ../uploads)
+                'dir'=>Runtime::path().'/uploads', // 上传目录 (default: runtime/uploads)
                 'mode'=>0755 // 自动创建的目录权限(Windows下无效)
             )
         ),

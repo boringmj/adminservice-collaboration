@@ -13,14 +13,18 @@ use AdminService\Router\Router;
 use base\Attribute\Method;
 use Tests\Fixtures\AbstractResourceController;
 use Tests\Fixtures\ApiResourceController;
+use Tests\Fixtures\ExceptApiResourceController;
 use Tests\Fixtures\FirstMiddleware;
 use Tests\Fixtures\GroupedController;
+use Tests\Fixtures\InaccessibleResourceController;
 use Tests\Fixtures\InheritedResourceController;
 use Tests\Fixtures\MethodRouteController;
 use Tests\Fixtures\MiddlewareLog;
 use Tests\Fixtures\MultiApiResourceController;
 use Tests\Fixtures\MultiResourceController;
+use Tests\Fixtures\NoResourceActionController;
 use Tests\Fixtures\NoSlashGroupedController;
+use Tests\Fixtures\PartialResourceController;
 use Tests\Fixtures\ResourceController;
 use Tests\Fixtures\RouteBindingController;
 use Tests\Fixtures\RouteController;
@@ -481,15 +485,235 @@ class RouterTest extends TestCase {
     }
 
     /**
-     * 测试资源动作缺失时在装配期报错
+     * 测试资源路由默认按已有 public 动作自动裁剪
      *
      * @return void
      */
-    public function testResourceRejectsMissingAction(): void {
+    public function testResourceAutoPrunesMissingActions(): void {
+        $router=new Router();
+        $router->resource('/partial-api',ApiResourceController::class);
+        $this->assertCount(5,$router->getRoutes());
+        $this->assertNotNull($router->find('GET','/partial-api'));
+        $this->assertNotNull($router->find('GET','/partial-api/5'));
+        $this->assertFalse($router->has('partial-api.create'));
+        $this->assertFalse($router->has('partial-api.edit'));
+    }
+
+    /**
+     * 测试资源路由默认裁剪只保留已有动作
+     *
+     * @return void
+     */
+    public function testResourceAutoPrunesToAvailableActions(): void {
+        $router=new Router();
+        $router->resource('/partial-default',PartialResourceController::class);
+        $this->assertCount(2,$router->getRoutes());
+        $this->assertNotNull($router->find('GET','/partial-default'));
+        $this->assertNotNull($router->find('GET','/partial-default/5'));
+        $this->assertFalse($router->has('partial-default.create'));
+        $this->assertFalse($router->has('partial-default.destroy'));
+    }
+
+    /**
+     * 测试资源路由默认裁剪后没有可注册动作时报错
+     *
+     * @return void
+     */
+    public function testResourceAutoPruneRejectsNoActions(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('no actions');
+        $router->resource('/empty',NoResourceActionController::class);
+    }
+
+    /**
+     * 测试默认裁剪遇到非 public 标准动作时直接报错
+     *
+     * @return void
+     */
+    public function testResourceAutoPruneRejectsNonPublicAction(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('destroy');
+        $router->resource('/guarded',InaccessibleResourceController::class);
+    }
+
+    /**
+     * 测试 only 白名单模式及标准顺序归一化
+     *
+     * @return void
+     */
+    public function testResourceOnlyWhitelist(): void {
+        $router=new Router();
+        $router->resource('/only',ResourceController::class,only: array('show','index'));
+        $this->assertCount(2,$router->getRoutes());
+        $this->assertSame('index',$router->getRoutes()[0]->getHandler()[1]);
+        $this->assertSame('show',$router->getRoutes()[1]->getHandler()[1]);
+        $this->assertSame('/only',$router->url('only.index'));
+        $this->assertSame('/only/5',$router->url('only.show',array('id'=>5)));
+        $this->assertFalse($router->has('only.create'));
+    }
+
+    /**
+     * 测试 apiResource only 白名单
+     *
+     * @return void
+     */
+    public function testApiResourceOnlyWhitelist(): void {
+        $router=new Router();
+        $router->apiResource('/api-only',ApiResourceController::class,only: array('show','index'));
+        $this->assertCount(2,$router->getRoutes());
+        $this->assertSame('index',$router->getRoutes()[0]->getHandler()[1]);
+        $this->assertSame('show',$router->getRoutes()[1]->getHandler()[1]);
+        $this->assertSame('/api-only/5',$router->url('api-only.show',array('id'=>5)));
+        $this->assertFalse($router->has('api-only.store'));
+    }
+
+    /**
+     * 测试 only 白名单中缺失的动作在装配期报错
+     *
+     * @return void
+     */
+    public function testResourceOnlyRequiresActions(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('destroy');
+        $router->resource('/partial',PartialResourceController::class,only: array('index','destroy'));
+    }
+
+    /**
+     * 测试 only 中的非法动作名报错
+     *
+     * @return void
+     */
+    public function testResourceOnlyRejectsUnknownAction(): void {
         $router=new Router();
         $this->expectException(Exception::class);
         $this->expectExceptionMessage('create');
-        $router->resource('/broken',ApiResourceController::class);
+        $router->apiResource('/files',ApiResourceController::class,only: array('create'));
+    }
+
+    /**
+     * 测试 except 中的非法动作名报错
+     *
+     * @return void
+     */
+    public function testResourceExceptRejectsUnknownAction(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('create');
+        $router->apiResource('/files',ApiResourceController::class,except: array('create'));
+    }
+
+    /**
+     * 测试 except 从全量标准动作排除, 并保留标准顺序
+     *
+     * @return void
+     */
+    public function testResourceExceptFromFullStandard(): void {
+        $router=new Router();
+        $router->resource('/except',ResourceController::class,except: array('destroy','edit'));
+        $this->assertCount(5,$router->getRoutes());
+        $this->assertNotNull($router->find('GET','/except'));
+        $this->assertNotNull($router->find('GET','/except/5'));
+        $this->assertNull($router->find('GET','/except/5/edit'));
+        $this->assertNull($router->find('DELETE','/except/5'));
+        $this->assertFalse($router->has('except.edit'));
+        $this->assertFalse($router->has('except.destroy'));
+    }
+
+    /**
+     * 测试 except 排除后剩余动作缺失时在装配期报错
+     *
+     * @return void
+     */
+    public function testResourceExceptRequiresRemainingActions(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('create');
+        $router->resource('/partial',PartialResourceController::class,except: array('destroy'));
+    }
+
+    /**
+     * 测试 except 排除全部标准动作时报错
+     *
+     * @return void
+     */
+    public function testResourceExceptRejectsEmptyResult(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('no actions');
+        $router->apiResource('/files',ApiResourceController::class,except: array(
+            'index','store','show','update','destroy'
+        ));
+    }
+
+    /**
+     * 测试 only 与 except 不能同时非空
+     *
+     * @return void
+     */
+    public function testResourceOnlyAndExceptAreMutuallyExclusive(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('both');
+        $router->resource('/conflict',ResourceController::class,only: array('index'),except: array('destroy'));
+    }
+
+    /**
+     * 测试 only 与 except 互斥优先于动作名校验
+     *
+     * @return void
+     */
+    public function testResourceOnlyAndExceptMutualCheckPrecedesActionValidation(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('both');
+        $router->resource('/conflict',ResourceController::class,only: array('invalid'),except: array('destroy'));
+    }
+
+    /**
+     * 测试资源注解 only 白名单
+     *
+     * @return void
+     */
+    public function testResourceAttributeOnly(): void {
+        $router=new Router();
+        $router->registerAttributes(array(PartialResourceController::class));
+        $this->assertCount(2,$router->getRoutes());
+        $this->assertNotNull($router->find('GET','/partial'));
+        $this->assertNotNull($router->find('GET','/partial/5'));
+        $this->assertFalse($router->has('partial.create'));
+        $this->assertSame('/partial',$router->url('partial.index'));
+        $this->assertSame('/partial/5',$router->url('partial.show',array('id'=>5)));
+    }
+
+    /**
+     * 测试 API 资源注解 except 排除动作
+     *
+     * @return void
+     */
+    public function testApiResourceAttributeExcept(): void {
+        $router=new Router();
+        $router->registerAttributes(array(ExceptApiResourceController::class));
+        $this->assertCount(4,$router->getRoutes());
+        $this->assertNotNull($router->find('GET','/partial-api'));
+        $this->assertNotNull($router->find('GET','/partial-api/5'));
+        $this->assertNull($router->find('DELETE','/partial-api/5'));
+        $this->assertFalse($router->has('partial-api.destroy'));
+        $this->assertSame('/partial-api/5',$router->url('partial-api.show',array('id'=>5)));
+    }
+
+    /**
+     * 测试资源注解默认裁剪后无动作时报错
+     *
+     * @return void
+     */
+    public function testResourceAttributeRejectsNoActions(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('no actions');
+        $router->registerAttributes(array(NoResourceActionController::class));
     }
 
     /**

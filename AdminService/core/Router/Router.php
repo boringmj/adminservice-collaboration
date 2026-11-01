@@ -20,6 +20,7 @@ use function array_pop;
 use function class_exists;
 use function count;
 use function explode;
+use function gettype;
 use function implode;
 use function in_array;
 use function is_callable;
@@ -40,6 +41,18 @@ use function usort;
  * - 匹配与生成均不修改注册表, 同一实例可在多请求间复用
  */
 final class Router implements RoutingInterface {
+
+    /**
+     * resource() 标准动作及其注册顺序
+     * @var array<string>
+     */
+    private const RESOURCE_ACTIONS=array('index','create','store','show','edit','update','destroy');
+
+    /**
+     * apiResource() 标准动作及其注册顺序
+     * @var array<string>
+     */
+    private const API_RESOURCE_ACTIONS=array('index','store','show','update','destroy');
 
     /**
      * 已注册路由
@@ -266,12 +279,11 @@ final class Router implements RoutingInterface {
     /**
      * 注册 RESTful 资源路由
      *
-     * - 以 `$path` 为资源根路径, 批量生成以下路由:
-     *   `GET {path}` => index, `GET {path}/create` => create,
-     *   `POST {path}` => store, `GET {path}/{id}` => show,
-     *   `GET {path}/{id}/edit` => edit, `PUT/PATCH {path}/{id}` => update,
-     *   `DELETE {path}/{id}` => destroy
-     * - 注册前校验控制器存在、可实例化且动作方法为 public, 避免分发期才暴露配置错误
+     * - 默认按控制器已实现的 public 标准动作自动裁剪, 未实现的动作跳过
+     * - `$only` 非空时按白名单注册, 并校验所列动作均存在且为 public
+     * - `$except` 非空时从全量标准动作中排除, 并校验剩余动作均存在且为 public
+     * - `$only` 与 `$except` 不能同时非空; 过滤后的动作按标准顺序注册
+     * - 标准动作与顺序: index/create/store/show/edit/update/destroy
      * - `{id}` 是这里写入路径模板的占位符, 由请求路径匹配后按名注入, 不是额外全局参数
      * - 路由名以完整路径(含当前分组前缀)的 `/` 替换为 `.` 作为前缀, 再追加动作名;
      *   如分组前缀 `/index` 下注册 `/users`, `show` 路由名为 `index.users.show`
@@ -281,63 +293,53 @@ final class Router implements RoutingInterface {
      * @access public
      * @param string $path 资源路径
      * @param string $controller 控制器类名
+     * @param array<string> $only 仅注册的动作(白名单)
+     * @param array<string> $except 从全量标准动作中排除的动作
      * @return void
      * @throws Exception
      */
-    public function resource(string $path,string $controller): void {
-        $this->assertResourceController($controller,array(
-            'index','create','store','show','edit','update','destroy'
-        ));
-        $base='/'.trim($path,'/');
-        $name=$this->resourceNamePrefix($base);
-        $this->get($base,array($controller,'index'))->name($this->resourceRouteName($name,'index'));
-        $this->get($base.'/create',array($controller,'create'))->name($this->resourceRouteName($name,'create'));
-        $this->post($base,array($controller,'store'))->name($this->resourceRouteName($name,'store'));
-        $this->get($base.'/{id}',array($controller,'show'))->name($this->resourceRouteName($name,'show'));
-        $this->get($base.'/{id}/edit',array($controller,'edit'))->name($this->resourceRouteName($name,'edit'));
-        $this->match(array(Method::PUT,Method::PATCH),$base.'/{id}',array($controller,'update'))->name($this->resourceRouteName($name,'update'));
-        $this->delete($base.'/{id}',array($controller,'destroy'))->name($this->resourceRouteName($name,'destroy'));
+    public function resource(string $path,string $controller,array $only=array(),array $except=array()): void {
+        $actions=$this->resolveResourceActions($controller,self::RESOURCE_ACTIONS,$only,$except);
+        $this->registerResourceRoutes($path,$controller,$actions);
     }
 
     /**
      * 注册 RESTful API 资源路由
      *
-     * - 以 `$path` 为资源根路径, 批量生成以下路由:
-     *   `GET {path}` => index, `POST {path}` => store, `GET {path}/{id}` => show,
-     *   `PUT/PATCH {path}/{id}` => update, `DELETE {path}/{id}` => destroy
+     * - 默认按控制器已实现的 public 标准动作自动裁剪, 未实现的动作跳过
+     * - `$only` / `$except` 语义与 {@see resource()} 一致, 标准动作集合不含 create/edit
+     * - 标准动作与顺序: index/store/show/update/destroy
      * - 不含 create/edit 表单页
-     * - 注册前校验控制器存在、可实例化且动作方法为 public
      * - `{id}` 占位符与路由名规则同 {@see resource()}
      *
      * @access public
      * @param string $path 资源路径
      * @param string $controller 控制器类名
+     * @param array<string> $only 仅注册的动作(白名单)
+     * @param array<string> $except 从全量标准动作中排除的动作
      * @return void
      * @throws Exception
      */
-    public function apiResource(string $path,string $controller): void {
-        $this->assertResourceController($controller,array(
-            'index','store','show','update','destroy'
-        ));
-        $base='/'.trim($path,'/');
-        $name=$this->resourceNamePrefix($base);
-        $this->get($base,array($controller,'index'))->name($this->resourceRouteName($name,'index'));
-        $this->post($base,array($controller,'store'))->name($this->resourceRouteName($name,'store'));
-        $this->get($base.'/{id}',array($controller,'show'))->name($this->resourceRouteName($name,'show'));
-        $this->match(array(Method::PUT,Method::PATCH),$base.'/{id}',array($controller,'update'))->name($this->resourceRouteName($name,'update'));
-        $this->delete($base.'/{id}',array($controller,'destroy'))->name($this->resourceRouteName($name,'destroy'));
+    public function apiResource(string $path,string $controller,array $only=array(),array $except=array()): void {
+        $actions=$this->resolveResourceActions($controller,self::API_RESOURCE_ACTIONS,$only,$except);
+        $this->registerResourceRoutes($path,$controller,$actions);
     }
 
     /**
-     * 校验资源控制器与动作方法
+     * 解析资源最终动作集合
+     *
+     * - 默认模式按控制器已有 public 标准动作裁剪; 同名方法非 public 时直接报错
+     * - `$only` / `$except` 模式只校验最终保留的动作
      *
      * @access private
      * @param string $controller 控制器类名
-     * @param array<string> $actions 需要的动作方法
-     * @return void
+     * @param array<string> $standard_actions 当前资源类型的标准动作(固定顺序)
+     * @param array<string> $only 白名单
+     * @param array<string> $except 黑名单
+     * @return array<string>
      * @throws Exception
      */
-    private function assertResourceController(string $controller,array $actions): void {
+    private function resolveResourceActions(string $controller,array $standard_actions,array $only,array $except): array {
         if(!class_exists($controller))
             throw new Exception('Class "'.$controller.'" not found.',-418,array(
                 'class'=>$controller
@@ -347,12 +349,143 @@ final class Router implements RoutingInterface {
             throw new Exception('Route resource class must be instantiable.',-418,array(
                 'class'=>$controller
             ));
-        foreach($actions as $action) {
-            if(!$reflection->hasMethod($action)||!$reflection->getMethod($action)->isPublic())
-                throw new Exception('Route resource action "'.$action.'" is missing or not public.',-418,array(
-                    'class'=>$controller,
-                    'action'=>$action
+        if($only!==array()&&$except!==array())
+            throw new Exception('Route resource cannot specify both "only" and "except".',-418,array(
+                'class'=>$controller
+            ));
+        $only=$this->normalizeResourceActions($only,$standard_actions);
+        $except=$this->normalizeResourceActions($except,$standard_actions);
+        if($only!==array()) {
+            $this->assertResourceActions($reflection,$only);
+            return $only;
+        }
+        if($except!==array()) {
+            $actions=array();
+            foreach($standard_actions as $action) {
+                if(!in_array($action,$except,true))
+                    $actions[]=$action;
+            }
+            if($actions===array())
+                throw new Exception('Route resource has no actions to register.',-418,array(
+                    'class'=>$controller
                 ));
+            $this->assertResourceActions($reflection,$actions);
+            return $actions;
+        }
+        $actions=array();
+        foreach($standard_actions as $action) {
+            if(!$reflection->hasMethod($action))
+                continue;
+            $this->assertResourceAction($reflection,$action);
+            $actions[]=$action;
+        }
+        if($actions===array())
+            throw new Exception('Route resource has no actions to register.',-418,array(
+                'class'=>$controller
+            ));
+        return $actions;
+    }
+
+    /**
+     * 校验并归一化资源动作过滤列表
+     *
+     * @access private
+     * @param array<string> $actions 调用方传入的过滤列表
+     * @param array<string> $standard_actions 当前资源类型的标准动作
+     * @return array<string>
+     * @throws Exception 存在非标准动作时抛出
+     */
+    private function normalizeResourceActions(array $actions,array $standard_actions): array {
+        $selected=array();
+        foreach($actions as $action) {
+            if(!is_string($action)||$action===''||!in_array($action,$standard_actions,true))
+                throw new Exception('Invalid route resource action "'.(is_string($action)?$action:gettype($action)).'".',-418,array(
+                    'action'=>$action,
+                    'allowed'=>$standard_actions
+                ));
+            $selected[$action]=true;
+        }
+        $normalized=array();
+        foreach($standard_actions as $action) {
+            if(isset($selected[$action]))
+                $normalized[]=$action;
+        }
+        return $normalized;
+    }
+
+    /**
+     * 校验一组资源动作均存在且为 public
+     *
+     * @access private
+     * @param ReflectionClass<object> $reflection 控制器反射
+     * @param array<string> $actions 动作列表
+     * @return void
+     * @throws Exception
+     */
+    private function assertResourceActions(ReflectionClass $reflection,array $actions): void {
+        foreach($actions as $action)
+            $this->assertResourceAction($reflection,$action);
+    }
+
+    /**
+     * 校验单个资源动作存在且为 public
+     *
+     * @access private
+     * @param ReflectionClass<object> $reflection 控制器反射
+     * @param string $action 动作名
+     * @return void
+     * @throws Exception
+     */
+    private function assertResourceAction(ReflectionClass $reflection,string $action): void {
+        if(!$reflection->hasMethod($action)||!$reflection->getMethod($action)->isPublic())
+            throw new Exception('Route resource action "'.$action.'" is missing or not public.',-418,array(
+                'class'=>$reflection->getName(),
+                'action'=>$action
+            ));
+    }
+
+    /**
+     * 按最终动作集合注册资源路由
+     *
+     * @access private
+     * @param string $path 资源路径
+     * @param string $controller 控制器类名
+     * @param array<string> $actions 最终动作集合(已按标准顺序归一化)
+     * @return void
+     * @throws Exception
+     */
+    private function registerResourceRoutes(string $path,string $controller,array $actions): void {
+        $base='/'.trim($path,'/');
+        $name=$this->resourceNamePrefix($base);
+        foreach($actions as $action) {
+            switch($action) {
+                case 'index':
+                    $route=$this->get($base,array($controller,'index'));
+                    break;
+                case 'create':
+                    $route=$this->get($base.'/create',array($controller,'create'));
+                    break;
+                case 'store':
+                    $route=$this->post($base,array($controller,'store'));
+                    break;
+                case 'show':
+                    $route=$this->get($base.'/{id}',array($controller,'show'));
+                    break;
+                case 'edit':
+                    $route=$this->get($base.'/{id}/edit',array($controller,'edit'));
+                    break;
+                case 'update':
+                    $route=$this->match(array(Method::PUT,Method::PATCH),$base.'/{id}',array($controller,'update'));
+                    break;
+                case 'destroy':
+                    $route=$this->delete($base.'/{id}',array($controller,'destroy'));
+                    break;
+                default:
+                    throw new Exception('Invalid route resource action "'.$action.'".',-418,array(
+                        'action'=>$action
+                    ));
+            }
+            $route->name($this->resourceRouteName($name,$action));
         }
     }
 
@@ -414,7 +547,7 @@ final class Router implements RoutingInterface {
      * - 方法型短语糖 `#[Get]` / `#[Post]` 等位于 `base\Attribute\RouteMethod`, 继承 `#[Route]` 并一并识别
      * - 类上的 `#[Resource]` / `#[ApiResource]` 复用资源路由注册, 并与 `#[RouteGroup]` 组合
      * - 资源注解可重复声明, 按类上的声明顺序注册; 注解本身不随继承传递
-     * - 带资源声明的控制器必须可实例化, 资源动作方法在装配期校验
+     * - 带资源声明的控制器必须可实例化; 动作按注解的 only/except 或默认自动裁剪解析, 装配期校验
      *
      * @access public
      * @param array<class-string> $classes 控制器类名列表
@@ -461,9 +594,9 @@ final class Router implements RoutingInterface {
                 $this->group($attributes,function(Router $router) use ($resources,$class): void {
                     foreach($resources as $resource) {
                         if($resource instanceof ApiResource)
-                            $router->apiResource($resource->getPath(),$class);
+                            $router->apiResource($resource->getPath(),$class,$resource->getOnly(),$resource->getExcept());
                         else
-                            $router->resource($resource->getPath(),$class);
+                            $router->resource($resource->getPath(),$class,$resource->getOnly(),$resource->getExcept());
                     }
                 });
             }

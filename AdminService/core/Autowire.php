@@ -66,13 +66,13 @@ final class Autowire implements AutowireInterface {
 
     /**
      * 真实类名解析回调(签名: string $class => string)
-     * @var Closure|null
+     * @var (Closure(string):string)|null
      */
     private ?Closure $class_resolver=null;
 
     /**
      * 实例解析回调(签名: string $class => object)
-     * @var Closure|null
+     * @var (Closure(string,bool,array<mixed>):object)|null
      */
     private ?Closure $instance_resolver=null;
 
@@ -84,7 +84,7 @@ final class Autowire implements AutowireInterface {
 
     /**
      * 代理创建器回调(签名: string $class, array $args => DynamicProxy)
-     * @var Closure|null
+     * @var (Closure(string,array<mixed>):DynamicProxy)|null
      */
     private ?Closure $proxy_resolver=null;
 
@@ -92,7 +92,7 @@ final class Autowire implements AutowireInterface {
      * 延迟注入任务队列
      *
      * 任务只在最外层容器入口成功构建后执行; 任务内可以继续追加任务。
-     * @var array<int, Closure>
+     * @var array<int,Closure():void>
      */
     private array $deferred=array();
 
@@ -277,7 +277,7 @@ final class Autowire implements AutowireInterface {
      * @access protected
      * @param ?ReflectionType $type 反射类型实例
      * @param bool $allow_builtin 是否允许返回内置类型 
-     * @return string[] 类型名数组
+     * @return array<string> 类型名数组
      */
     private function reflectionTypeToArray(
         ?ReflectionType $type,
@@ -335,7 +335,7 @@ final class Autowire implements AutowireInterface {
      *
      * @access private
      * @param ReflectionType|null $type 反射类型
-     * @param string[] $type_array 已解析的非内置类型
+     * @param array<string> $type_array 已解析的非内置类型
      * @return bool
      */
     private function isProxyTypeCompatible(?ReflectionType $type,array $type_array): bool {
@@ -363,7 +363,7 @@ final class Autowire implements AutowireInterface {
      *
      * @access protected
      * @param ReflectionProperty|ReflectionParameter $parameter 反射参数实例
-     * @param ReflectionClass $ref 需要注入属性的反射类实例
+     * @param ReflectionClass<object> $ref 需要注入属性的反射类实例
      * @param ?string $explicit_class 显式标注的类名
      * @param AutowireMode $mode 注入模式
      * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
@@ -456,7 +456,7 @@ final class Autowire implements AutowireInterface {
      * @access private
      * @param ReflectionProperty $property 属性
      * @param object $instance 目标对象
-     * @param ReflectionClass $ref 目标对象的反射类
+     * @param ReflectionClass<object> $ref 目标对象的反射类
      * @param ?string $explicit_class 显式类名
      * @return void
      */
@@ -499,7 +499,7 @@ final class Autowire implements AutowireInterface {
      * @access private
      * @param ReflectionMethod $method Setter 方法
      * @param object $instance 目标对象
-     * @param ReflectionClass $ref 目标对象的反射类
+     * @param ReflectionClass<object> $ref 目标对象的反射类
      * @param ReflectionParameter $parameter Setter 的唯一形参
      * @param ?string $explicit_class 显式类名
      * @return void
@@ -544,7 +544,7 @@ final class Autowire implements AutowireInterface {
      * @access private
      * @param ReflectionMethod $method 目标方法
      * @param object $instance 目标对象
-     * @param ReflectionClass $ref 目标对象的反射类
+     * @param ReflectionClass<object> $ref 目标对象的反射类
      * @param ReflectionParameter $parameter 方法的唯一形参
      * @param ?string $explicit_class 显式类名
      * @return void
@@ -587,9 +587,9 @@ final class Autowire implements AutowireInterface {
      * 自动注入属性
      * 
      * @access protected
-     * @param ReflectionProperty[] $properties 需要注入属性的反射实例数组
+     * @param array<ReflectionProperty> $properties 需要注入属性的反射实例数组
      * @param object $instance 需要注入属性的对象实例
-     * @param ReflectionClass $ref 需要注入属性的反射类实例
+     * @param ReflectionClass<object> $ref 需要注入属性的反射类实例
      * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
      * @throws AutowireException
      * @return void
@@ -648,9 +648,9 @@ final class Autowire implements AutowireInterface {
      * 自动Setter注入
      * 
      * @access protected
-     * @param ReflectionMethod[] $methods 需要注入属性的反射实例数组
+     * @param array<ReflectionMethod> $methods 需要注入属性的反射实例数组
      * @param object $instance 需要注入属性的对象实例
-     * @param ReflectionClass $ref 需要注入属性的反射类实例
+     * @param ReflectionClass<object> $ref 需要注入属性的反射类实例
      * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
      * @throws AutowireException
      * @return void
@@ -757,9 +757,9 @@ final class Autowire implements AutowireInterface {
      *   该写法禁止 Proxy / Deferred, 新代码请使用 `#[AutowireLifecycle]`
      *
      * @access protected
-     * @param ReflectionMethod[] $methods 需要注入方法的反射实例数组
+     * @param array<ReflectionMethod> $methods 需要注入方法的反射实例数组
      * @param object $instance 需要注入方法的对象实例
-     * @param ReflectionClass $ref 需要注入方法的反射类实例
+     * @param ReflectionClass<object> $ref 需要注入方法的反射类实例
      * @param array<mixed> $flags 标识(请不要传入该参数,该参数主要用于防止依赖注入死循环)
      * @throws AutowireException
      * @return void

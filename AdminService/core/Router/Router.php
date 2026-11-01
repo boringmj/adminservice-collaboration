@@ -12,12 +12,12 @@ use AdminService\Exception;
 use AdminService\Pipeline;
 use ReflectionAttribute;
 use ReflectionClass;
+use ReflectionException;
 use ReflectionMethod;
 
 use function array_intersect;
 use function array_merge;
 use function array_pop;
-use function class_exists;
 use function count;
 use function explode;
 use function gettype;
@@ -308,7 +308,7 @@ final class Router implements RoutingInterface {
      *
      * @access public
      * @param string $path 资源路径
-     * @param string $controller 控制器类名
+     * @param class-string $controller 控制器类名
      * @param array<string> $only 仅注册的动作(白名单)
      * @param array<string> $except 从全量标准动作中排除的动作
      * @return void
@@ -330,7 +330,7 @@ final class Router implements RoutingInterface {
      *
      * @access public
      * @param string $path 资源路径
-     * @param string $controller 控制器类名
+     * @param class-string $controller 控制器类名
      * @param array<string> $only 仅注册的动作(白名单)
      * @param array<string> $except 从全量标准动作中排除的动作
      * @return void
@@ -348,7 +348,7 @@ final class Router implements RoutingInterface {
      * - `$only` / `$except` 模式只校验最终保留的动作
      *
      * @access private
-     * @param string $controller 控制器类名
+     * @param class-string $controller 控制器类名
      * @param array<string> $standard_actions 当前资源类型的标准动作(固定顺序)
      * @param array<string> $only 白名单
      * @param array<string> $except 黑名单
@@ -356,12 +356,7 @@ final class Router implements RoutingInterface {
      * @throws Exception
      */
     private function resolveResourceActions(string $controller,array $standard_actions,array $only,array $except): array {
-        if(!class_exists($controller))
-            throw new Exception('Class "'.$controller.'" not found.',-418,array(
-                'class'=>$controller
-            ));
-        /** @var ReflectionClass<object> $reflection */
-        $reflection=new ReflectionClass($controller);
+        $reflection=$this->reflectClass($controller);
         if(!$reflection->isInstantiable())
             throw new Exception('Route resource class must be instantiable.',-418,array(
                 'class'=>$controller
@@ -401,6 +396,24 @@ final class Router implements RoutingInterface {
                 'class'=>$controller
             ));
         return $actions;
+    }
+
+    /**
+     * 反射控制器类
+     *
+     * @access private
+     * @param class-string $class 类名
+     * @return ReflectionClass<object>
+     * @throws Exception 类不存在
+     */
+    private function reflectClass(string $class): ReflectionClass {
+        try {
+            return new ReflectionClass($class);
+        } catch(ReflectionException) {
+            throw new Exception('Class "'.$class.'" not found.',-418,array(
+                'class'=>$class
+            ));
+        }
     }
 
     /**
@@ -466,7 +479,7 @@ final class Router implements RoutingInterface {
      *
      * @access private
      * @param string $path 资源路径
-     * @param string $controller 控制器类名
+     * @param class-string $controller 控制器类名
      * @param array<string> $actions 最终动作集合(已按标准顺序归一化)
      * @return void
      * @throws Exception
@@ -578,11 +591,7 @@ final class Router implements RoutingInterface {
                 throw new Exception('Route attribute class must be a class-string.',-418,array(
                     'class'=>$class
                 ));
-            if(!class_exists($class))
-                throw new Exception('Class "'.$class.'" not found.',-418,array(
-                    'class'=>$class
-                ));
-            $reflection=new ReflectionClass($class);
+            $reflection=$this->reflectClass($class);
             // 类级声明: 路径前缀与分组中间件
             $prefix='';
             $group_middlewares=array();

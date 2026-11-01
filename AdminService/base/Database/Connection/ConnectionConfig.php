@@ -61,7 +61,7 @@ final class ConnectionConfig {
 
     /**
      * PDO 连接选项
-     * @var array
+     * @var array<int,mixed>
      */
     private array $options;
 

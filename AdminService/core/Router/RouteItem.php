@@ -475,7 +475,22 @@ final class RouteItem {
      * 导出为可缓存数组
      *
      * @access public
-     * @return array<string,mixed>
+     * @return array{
+     *     methods:array<string>,
+     *     path:string,
+     *     handler:mixed,
+     *     group_middlewares:array<array{middleware:string|object,priority:int}>,
+     *     route_middlewares:array<array{middleware:string|object,priority:int}>,
+     *     name:string|null,
+     *     bindings:array<string,string>,
+     *     resolved_bindings:array<string,string>,
+     *     pattern:string,
+     *     params:array<string>,
+     *     optional:array<string>,
+     *     constraints:array<string,string>,
+     *     literal_length:int,
+     *     controller_middlewares:array<string|object>|null
+     * }
      * @throws Exception 参数绑定或处理器无法解析
      */
     public function export(): array {

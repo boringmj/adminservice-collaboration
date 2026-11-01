@@ -26,7 +26,7 @@ final class ReflectionCache {
 
     /**
      * 缓存的反射类解析对象
-     * @var array<string,ReflectionClass>
+     * @var array<class-string,ReflectionClass<object>>
      */
     private array $classes=array();
 
@@ -51,7 +51,7 @@ final class ReflectionCache {
      * - 只缓存**顶层**查询(见 `ClassFinder::findDirectSubClassRecursive`): 递归内部的中间结果
      *   依赖"防环标识", 缓存它们会把一次带环的探索结果固化下来
      *
-     * @var array<string,string>
+     * @var array<string,class-string>
      */
     private array $sub_classes=array();
 
@@ -60,7 +60,7 @@ final class ReflectionCache {
      *
      * @access public
      * @param string $name 已解析的类名
-     * @return string|null
+     * @return class-string|null
      */
     public function getSubClass(string $name): ?string {
         return $this->sub_classes[$name]??null;
@@ -71,7 +71,7 @@ final class ReflectionCache {
      *
      * @access public
      * @param string $name 已解析的类名
-     * @param string $value 找到的可实例化实现类名
+     * @param class-string $value 找到的可实例化实现类名
      * @return void
      */
     public function setSubClass(string $name,string $value): void {
@@ -82,8 +82,8 @@ final class ReflectionCache {
      * 获取反射类对象(会缓存结果)
      *
      * @access public
-     * @param string $name 类名
-     * @return ReflectionClass
+     * @param class-string $name 类名
+     * @return ReflectionClass<object>
      * @throws ReflectionException
      */
     public function getClass(string $name): ReflectionClass {
@@ -97,7 +97,7 @@ final class ReflectionCache {
      *
      * @access public
      * @param object $object 对象
-     * @return ReflectionClass
+     * @return ReflectionClass<object>
      */
     public function getObject(object $object): ReflectionClass {
         return $this->getClass($object::class);

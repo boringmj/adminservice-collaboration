@@ -42,7 +42,7 @@ interface Container {
      *
      * @access public
      * @param object $object 对象
-     * @return ReflectionClass
+     * @return ReflectionClass<object>
      */
     public function getReflectionByObject(object $object): ReflectionClass;
 
@@ -92,7 +92,7 @@ interface Container {
      *
      * @access public
      * @param string $abstract 抽象类或接口名
-     * @param string|Closure $concrete 实现类或工厂
+     * @param class-string|Closure(Container):object $concrete 实现类或工厂
      * @return void
      * @throws \Exception
      */
@@ -119,7 +119,7 @@ interface Container {
      *
      * @access public
      * @param string $abstract 抽象类或接口名
-     * @param string|Closure $concrete 实现类或工厂
+     * @param class-string|Closure(Container):object $concrete 实现类或工厂
      * @return void
      * @throws \Exception
      */
@@ -134,7 +134,7 @@ interface Container {
      *
      * @access public
      * @param string $abstract 抽象类或接口名(或任意绑定名)
-     * @param Closure $concrete 工厂
+     * @param Closure(Container):object $concrete 工厂
      * @return void
      * @throws \Exception
      */
@@ -144,7 +144,7 @@ interface Container {
      * 批量绑定(抽象 → 实现类或闭包工厂)
      *
      * @access public
-     * @param array<string,string|Closure> $bindings 绑定表(键为抽象名, 值为实现类或工厂)
+     * @param array<string,class-string|Closure(Container):object> $bindings 绑定表(键为抽象名, 值为实现类或工厂)
      * @return void
      * @throws \Exception
      */

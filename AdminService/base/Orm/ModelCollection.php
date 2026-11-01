@@ -27,7 +27,7 @@ class ModelCollection implements Countable, IteratorAggregate {
 
     /**
      * 模型实例列表
-     * @var Model[]
+     * @var array<Model>
      */
     protected array $models;
 
@@ -35,7 +35,7 @@ class ModelCollection implements Countable, IteratorAggregate {
      * 构造方法
      *
      * @access public
-     * @param string $modelClass 模型类名
+     * @param class-string<Model> $modelClass 模型类名
      * @param array<Model> $models 模型实例列表
      */
     public function __construct(string $modelClass,array $models=array()) {
@@ -47,7 +47,7 @@ class ModelCollection implements Countable, IteratorAggregate {
      * 获取模型类名
      *
      * @access public
-     * @return string
+     * @return class-string<Model>
      */
     public function getModelClass(): string {
         return $this->modelClass;
@@ -57,7 +57,7 @@ class ModelCollection implements Countable, IteratorAggregate {
      * 获取全部模型实例
      *
      * @access public
-     * @return Model[]
+     * @return array<Model>
      */
     public function all(): array {
         return $this->models;
@@ -128,7 +128,7 @@ class ModelCollection implements Countable, IteratorAggregate {
      *
      * @access public
      * @param string $field 字段名
-     * @return array
+     * @return array<int|string,mixed>
      */
     public function pluck(string $field): array {
         return array_map(function($model) use ($field) {
@@ -295,7 +295,7 @@ class ModelCollection implements Countable, IteratorAggregate {
      * 转为数组(模型属性数组列表)
      *
      * @access public
-     * @return array
+     * @return array<int|string,array<string,mixed>>
      */
     public function toArray(): array {
         return array_map(function($model) {
@@ -307,7 +307,7 @@ class ModelCollection implements Countable, IteratorAggregate {
      * 获取迭代器
      *
      * @access public
-     * @return Traversable
+     * @return Traversable<int|string,Model>
      */
     public function getIterator(): Traversable {
         return new ArrayIterator($this->models);

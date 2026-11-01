@@ -92,7 +92,7 @@ final class App {
      * @template T of object
      * @param class-string<T> $__name 对象名（类名）
      * @param mixed ...$args 构造函数参数($args中不允许传入“__name”参数)
-     * @return T|object 返回指定类的实例
+     * @return T 返回指定类的实例
      * @throws Exception|\ReflectionException
      */
     public static function get(string $__name,...$args): object {
@@ -118,8 +118,9 @@ final class App {
      * 获取对象(容器中已有且未强制新建则复用)
      *
      * @access public
-     * @param string $name 对象名(类名或别名)
-     * @return object
+     * @template T of object
+     * @param class-string<T>|string $name 对象名(类名或别名)
+     * @return T
      * @throws Exception|\ReflectionException
      */
     public static function make(string $name): object {
@@ -135,8 +136,9 @@ final class App {
      * - 重建容器自身时两个自登记键同步指向新容器
      *
      * @access public
-     * @param string $name 对象名(类名或别名)
-     * @return object
+     * @template T of object
+     * @param class-string<T>|string $name 对象名(类名或别名)
+     * @return T
      * @throws Exception|\ReflectionException
      */
     public static function fresh(string $name): object {
@@ -149,9 +151,10 @@ final class App {
      * - 构造参数与属性依赖仍按 `make()` 解析并登记
      *
      * @access public
-     * @param string $__name 类名或别名
+     * @template T of object
+     * @param class-string<T>|string $__name 类名或别名
      * @param mixed ...$args 构造函数参数
-     * @return object
+     * @return T
      * @throws Exception|\ReflectionException
      */
     public static function build(string $__name,...$args): object {
@@ -162,9 +165,10 @@ final class App {
      * 新建对象(同 `build`, 保留旧名)
      *
      * @access public
-     * @param string $__name 类名或别名
+     * @template T of object
+     * @param class-string<T>|string $__name 类名或别名
      * @param mixed ...$args 构造函数参数
-     * @return object
+     * @return T
      * @throws Exception|\ReflectionException
      */
     public static function new(string $__name,...$args): object {
@@ -191,7 +195,7 @@ final class App {
      *
      * @access public
      * @param string $abstract 抽象类或接口名(或别名)
-     * @param string|Closure $concrete 实现类或工厂
+     * @param class-string|Closure(ContainerContract):object $concrete 实现类或工厂
      * @return void
      * @throws Exception
      */
@@ -219,7 +223,7 @@ final class App {
      *
      * @access public
      * @param string $abstract 抽象类或接口名
-     * @param string|Closure $concrete 实现类或工厂
+     * @param class-string|Closure(ContainerContract):object $concrete 实现类或工厂
      * @return void
      * @throws Exception
      */
@@ -234,7 +238,7 @@ final class App {
      *
      * @access public
      * @param string $abstract 抽象类或接口名(或任意绑定名)
-     * @param Closure $concrete 工厂
+     * @param Closure(ContainerContract):object $concrete 工厂
      * @return void
      * @throws Exception
      */
@@ -247,7 +251,7 @@ final class App {
      *
      * @access public
      * @param object $object 对象
-     * @return ReflectionClass
+     * @return ReflectionClass<object>
      */
     public static function getReflectionByObject(object $object): ReflectionClass {
         return self::getInstance()->getReflectionByObject($object);

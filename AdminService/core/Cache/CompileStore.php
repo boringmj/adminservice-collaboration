@@ -115,8 +115,8 @@ final class CompileStore {
      *
      * @access public
      * @param string $name 缓存名
-     * @param callable $fingerprint 源指纹回调(无参数, 返回字符串)
-     * @param callable $builder 构建回调(无参数)
+     * @param callable():string $fingerprint 源指纹回调(无参数, 返回字符串)
+     * @param callable():mixed $builder 构建回调(无参数)
      * @param string|null $context 配置上下文(用于零探测模式下识别配置切换)
      * @return mixed
      * @throws Exception 缓存名非法

@@ -51,14 +51,14 @@ final class ArgumentResolver implements ArgumentResolverInterface {
     private ReflectionCache $reflections;
 
     /**
-     * 实例解析回调(签名: array<string> $types => ?object)
-     * @var Closure|null
+     * 实例解析回调(签名: array<string> $types, ReflectionParameter|null $param => ?object)
+     * @var (Closure(array<string>,ReflectionParameter|null):?object)|null
      */
     private ?Closure $instance_resolver=null;
 
     /**
      * 配置取值回调(签名: string $key, mixed $default => mixed)
-     * @var Closure|null
+     * @var (Closure(string,mixed):mixed)|null
      */
     private ?Closure $value_resolver=null;
 
@@ -118,10 +118,10 @@ final class ArgumentResolver implements ArgumentResolverInterface {
      *   是否真正注入仍取决于形参上有没有显式 `#[Config]` —— **未标注**的控制器形参不会拿到配置值
      *
      * @access public
-     * @param ReflectionParameter[] $params 参数
+     * @param array<ReflectionParameter> $params 参数
      * @param array<mixed> $args 参数
      * @param bool $allow_config 是否允许 `#[Config]` 配置项注入
-     * @return array
+     * @return array<int|string,mixed>
      * @throws Exception
      * @throws ReflectionException
      */
@@ -382,7 +382,7 @@ final class ArgumentResolver implements ArgumentResolverInterface {
      *
      * @access public
      * @param array<string> $types 类型数组
-     * @return array
+     * @return array<string>
      */
     public function getStandardTypes(array $types): array {
         $result=array();

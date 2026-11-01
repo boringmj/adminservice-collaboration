@@ -87,7 +87,7 @@ final class Application {
      * - 安装容器到门面(重复调用不会重建已安装的容器, 语义幂等)
      *
      * @access public
-     * @param array<int|string,string> $classes 需要初始化的类
+     * @param array<int|string,class-string> $classes 需要初始化的类
      * @return static
      * @throws Exception
      */
@@ -147,9 +147,9 @@ final class Application {
      * 归一化绑定与别名
      *
      * @access private
-     * @param array<int|string,string> $classes 额外类
+     * @param array<int|string,class-string> $classes 额外类
      * @param Repository $config 配置仓储
-     * @return array{0:array<string,string>,1:array<string,string>} [绑定, 别名]
+     * @return array{0:array<string,class-string>,1:array<string,string>} [绑定, 别名]
      */
     private static function bindings(array $classes,Repository $config): array {
         $aliases=(array)$config->get('app.alias',array());
@@ -170,7 +170,7 @@ final class Application {
      * - 别名目标允许是另一个别名/绑定名(链式), 不要求它本身是类
      *
      * @access private
-     * @param array<string,string> $binds 绑定表
+     * @param array<string,class-string> $binds 绑定表
      * @param array<string,string> $aliases 别名表
      * @return void
      * @throws Exception 目标不存在

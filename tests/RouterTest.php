@@ -649,6 +649,18 @@ class RouterTest extends TestCase {
     }
 
     /**
+     * 测试资源控制器不存在时仍给出明确异常
+     *
+     * @return void
+     */
+    public function testResourceMissingControllerThrows(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Class "Tests\\Fixtures\\MissingResourceController" not found.');
+        $router->resource('/missing','Tests\\Fixtures\\MissingResourceController');
+    }
+
+    /**
      * 测试 only 与 except 不能同时非空
      *
      * @return void

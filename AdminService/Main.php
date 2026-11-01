@@ -232,7 +232,7 @@ final class Main {
      *
      * @access private
      * @param string $file 文件
-     * @return array<string,int>|null
+     * @return array{mtime:int,size:int}|null
      */
     private function statFile(string $file): ?array {
         if(!is_file($file))
@@ -248,7 +248,7 @@ final class Main {
      *
      * @access private
      * @param string $dir 目录
-     * @return array<string,int>|null
+     * @return array{mtime:int}|null
      */
     private function statDir(string $dir): ?array {
         if(!is_dir($dir))

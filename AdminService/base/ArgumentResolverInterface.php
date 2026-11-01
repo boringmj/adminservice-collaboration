@@ -24,10 +24,10 @@ interface ArgumentResolverInterface {
      * 整理和合并参数
      *
      * @access public
-     * @param ReflectionParameter[] $params 参数
+     * @param array<ReflectionParameter> $params 参数
      * @param array<mixed> $args 参数
      * @param bool $allow_config 是否允许 `#[Config]` 配置项注入
-     * @return array
+     * @return array<int|string,mixed>
      * @throws \Exception
      */
     public function merge(array $params,array $args,bool $allow_config=false): array;
@@ -66,7 +66,7 @@ interface ArgumentResolverInterface {
      *
      * @access public
      * @param array<string> $types 类型数组
-     * @return array
+     * @return array<string>
      */
     public function getStandardTypes(array $types): array;
 

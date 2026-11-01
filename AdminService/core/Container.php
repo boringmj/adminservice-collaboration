@@ -49,13 +49,13 @@ final class Container implements \base\Container {
      * - 参数解析器回调与嵌套公共入口据此解析依赖
      * - 进入构建时同步, 退出时恢复为上一层; 顶层调用为空数组, 嵌套公共入口沿用当前栈
      *
-     * @var array<mixed>
+     * @var array<int,string>
      */
     private array $build_flags=array();
 
     /**
      * 对象实例容器
-     * @var array
+     * @var array<string,object>
      */
     private array $container=array();
 
@@ -78,6 +78,7 @@ final class Container implements \base\Container {
 
     /**
      * 未被实例化的类容器(绑定表: 抽象名 → 实现类)
+     * @var array<string,class-string>
      */
     private array $class_container=array();
 
@@ -89,13 +90,13 @@ final class Container implements \base\Container {
 
     /**
      * 单例表(抽象名 → 真实类名)
-     * @var array<string,string>
+     * @var array<string,class-string>
      */
     private array $singleton_container=array();
 
     /**
      * 闭包工厂表(抽象名 → 工厂)
-     * @var array<string,Closure>
+     * @var array<string,Closure(Container):object>
      */
     private array $factory_container=array();
 
@@ -115,7 +116,7 @@ final class Container implements \base\Container {
      * 单例闭包首次解析出的真实类名(抽象名 → 类名)
      *
      * 用于在重新绑定时清理旧实现类上的自动缓存。
-     * @var array<string,string>
+     * @var array<string,class-string>
      */
     private array $factory_singleton_class=array();
 
@@ -391,7 +392,7 @@ final class Container implements \base\Container {
      * @access public
      * @param object $object 对象
      * @throws ReflectionException
-     * @return ReflectionClass
+     * @return ReflectionClass<object>
      */
      public function getReflectionByObject(object $object): ReflectionClass {
         return $this->reflections->getObject($object);
@@ -406,8 +407,8 @@ final class Container implements \base\Container {
      * - 语义与旧写法一致: 不存在的名字 → `Class "X" not found.`;接口/抽象类取得到反射, 由调用方判 `isInstantiable()`
      *
      * @access private
-     * @param string $name 类名(已解析别名/绑定后的真实名字)
-     * @return ReflectionClass
+     * @param class-string $name 类名(已解析别名/绑定后的真实名字)
+     * @return ReflectionClass<object>
      * @throws Exception 类不存在
      */
     private function getReflection(string $name): ReflectionClass {
@@ -666,7 +667,7 @@ final class Container implements \base\Container {
      *
      * @access public
      * @param string $abstract 抽象类或接口名
-     * @param string|Closure $concrete 实现类或工厂
+     * @param class-string|Closure(Container):object $concrete 实现类或工厂
      * @return void
      * @throws Exception
      */
@@ -731,7 +732,7 @@ final class Container implements \base\Container {
      *
      * @access public
      * @param string $abstract 抽象类或接口名
-     * @param string|Closure $concrete 实现类或工厂
+     * @param class-string|Closure(Container):object $concrete 实现类或工厂
      * @return void
      * @throws Exception
      */
@@ -753,7 +754,7 @@ final class Container implements \base\Container {
      *
      * @access public
      * @param string $abstract 抽象类或接口名(或任意绑定名)
-     * @param Closure $concrete 工厂
+     * @param Closure(Container):object $concrete 工厂
      * @return void
      * @throws Exception
      */
@@ -774,7 +775,7 @@ final class Container implements \base\Container {
      * 批量绑定(抽象 → 实现类或闭包工厂)
      *
      * @access public
-     * @param array<string,string|Closure> $bindings 绑定表(键为抽象名, 值为实现类或工厂)
+     * @param array<string,class-string|Closure(Container):object> $bindings 绑定表(键为抽象名, 值为实现类或工厂)
      * @return void
      * @throws Exception
      */

@@ -207,7 +207,7 @@ final class RouterFactory {
      *
      * @access private
      * @param string $path 路由文件或目录
-     * @param array<string,mixed> $stats 指纹表(引用)
+     * @param array<string,array{mtime:int,size?:int}|null> $stats 指纹表(引用)
      * @return void
      */
     private function collectPathStats(string $path,array &$stats): void {
@@ -229,7 +229,7 @@ final class RouterFactory {
      *
      * @access private
      * @param string $app_path 应用根目录
-     * @param array<string,mixed> $stats 指纹表(引用)
+     * @param array<string,array{mtime:int,size?:int}|null> $stats 指纹表(引用)
      * @return void
      */
     private function collectControllerStats(string $app_path,array &$stats): void {
@@ -259,7 +259,7 @@ final class RouterFactory {
      *
      * @access private
      * @param string $file 文件
-     * @param array<string,mixed> $stats 指纹表(引用)
+     * @param array<string,array{mtime:int,size?:int}|null> $stats 指纹表(引用)
      * @return void
      */
     private function collectFileStats(string $file,array &$stats): void {
@@ -274,7 +274,7 @@ final class RouterFactory {
      *
      * @access private
      * @param string $path 目录
-     * @return array<string,int>|null
+     * @return array{mtime:int}|null
      */
     private function stat(string $path): ?array {
         if(!is_dir($path))

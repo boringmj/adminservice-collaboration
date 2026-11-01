@@ -29,7 +29,7 @@ class DynamicProxy {
 
     /**
      * 目标类名
-     * @var string
+     * @var class-string<T>
      */
     protected string $__target;
 
@@ -41,7 +41,7 @@ class DynamicProxy {
 
     /**
      * 构造参数
-     * @var array
+     * @var array<int,mixed>
      */
     protected array $__args;
 
@@ -169,7 +169,7 @@ class DynamicProxy {
      * 获取目标类
      *
      * @access protected
-     * @return string
+     * @return class-string<T>
      * @throws Exception
      */
     protected function __getTargetClass(): string {

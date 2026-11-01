@@ -7,18 +7,15 @@ use base\ConfigInterface;
 
 use base\Response;
 use base\Route as BaseRoute;
-use base\Attribute\Middleware;
 use AdminService\Router\RouteItem;
 use AdminService\Router\Router;
 use AdminService\Router\RouterFactory;
-use ReflectionClass;
 use base\RouteContextInterface;
 use base\RoutingInterface;
 use ReflectionException;
 
 use function array_merge;
 use function array_key_exists;
-use function class_exists;
 use function count;
 use function implode;
 use function in_array;
@@ -176,56 +173,18 @@ final class Route extends BaseRoute {
             $this->request->setAttribute($name,$value);
         // 注册路由上下文(**请求级**对象): 控制器基类、视图路径推断与 App::getAppName 系列都从它取值
         App::instance(RouteContextInterface::class,RouteContext::fromHandler($handler,$params));
+        $controller_middlewares=$route->getCompiledControllerMiddlewares();
+        if($controller_middlewares===null)
+            $controller_middlewares=$route->compileControllerMiddlewares((array)$this->config()->get('middlewares.controller',array()));
         $middlewares=array_merge(
             $route->getGroupMiddlewares(),
             $route->getRouteMiddlewares(),
-            $this->controllerMiddlewares($handler)
+            $controller_middlewares
         );
         $response=App::get(Response::class);
         (new Pipeline($middlewares,$this->request))->then(function() use ($route,$handler,$response): void {
             $response->body($this->callHandler($route,$handler));
         });
-    }
-
-    /**
-     * 组装控制器级中间件
-     *
-     * - 来源: 配置(`middlewares.controller`) → 类上 `#[Middleware]` → 方法上 `#[Middleware]`
-     * - 三者**同级**: 按 `priority` 排序(数值大者靠外), 同优先级时按上述收集顺序
-     *
-     * @access private
-     * @param mixed $handler 处理器
-     * @return array<string|object>
-     */
-    private function controllerMiddlewares(mixed $handler): array {
-        $entries=Pipeline::normalize($this->config()->get('middlewares.controller',array()));
-        if(is_array($handler)&&count($handler)===2&&is_string($handler[0])&&class_exists($handler[0])) {
-            $reflection=new ReflectionClass($handler[0]);
-            $entries=array_merge($entries,self::middlewareEntries($reflection->getAttributes(Middleware::class)));
-            if($reflection->hasMethod($handler[1]))
-                $entries=array_merge($entries,self::middlewareEntries(
-                    $reflection->getMethod($handler[1])->getAttributes(Middleware::class)
-                ));
-        }
-        return Pipeline::order($entries);
-    }
-
-    /**
-     * 把中间件属性展开为中间件条目
-     *
-     * @access private
-     * @param array<\ReflectionAttribute> $attributes 属性集合
-     * @return array<array{middleware:string|object,priority:int}>
-     */
-    private static function middlewareEntries(array $attributes): array {
-        $entries=array();
-        foreach($attributes as $attribute) {
-            /** @var Middleware $declaration */
-            $declaration=$attribute->newInstance();
-            foreach($declaration->getMiddlewares() as $middleware)
-                $entries[]=array('middleware'=>$middleware,'priority'=>$declaration->getPriority());
-        }
-        return $entries;
     }
 
     /**

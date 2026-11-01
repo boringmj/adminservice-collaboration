@@ -7,9 +7,13 @@ use AdminService\Exception;
 use function basename;
 use function class_exists;
 use function dirname;
-use function glob;
 use function interface_exists;
+use function is_dir;
+use function is_file;
 use function rtrim;
+use function scandir;
+use function sort;
+use function str_ends_with;
 use function trait_exists;
 
 /**
@@ -38,7 +42,26 @@ final class AttributeScanner {
      */
     public function scan(string $appPath): array {
         $classes=array();
-        foreach((array)glob(rtrim($appPath,'/\\').'/*/controller/*.php') as $file) {
+        $root=rtrim($appPath,'/\\');
+        $files=array();
+        $apps=@scandir($root);
+        if($apps!==false) {
+            foreach($apps as $app) {
+                if($app==='.'||$app==='..')
+                    continue;
+                $controller=$root.'/'.$app.'/controller';
+                if(!is_dir($controller))
+                    continue;
+                $entries=@scandir($controller);
+                if($entries===false)
+                    continue;
+                foreach($entries as $entry)
+                    if(str_ends_with($entry,'.php')&&is_file($controller.'/'.$entry))
+                        $files[]=$controller.'/'.$entry;
+            }
+        }
+        sort($files);
+        foreach($files as $file) {
             $controller=basename($file,'.php');
             $app=basename(dirname($file,2));
             $class='app\\'.$app.'\\controller\\'.$controller;

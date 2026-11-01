@@ -23,6 +23,7 @@ use function explode;
 use function gettype;
 use function implode;
 use function in_array;
+use function is_array;
 use function is_callable;
 use function is_file;
 use function is_string;
@@ -30,6 +31,7 @@ use function ltrim;
 use function rtrim;
 use function sort;
 use function str_replace;
+use function strtoupper;
 use function trim;
 use function usort;
 
@@ -65,6 +67,18 @@ final class Router implements RoutingInterface {
      * @var array<string,RouteItem>|null
      */
     private ?array $named=null;
+
+    /**
+     * 按具体度排序后的路由(惰性构建, 注册后失效)
+     * @var array<RouteItem>|null
+     */
+    private ?array $sorted_cache=null;
+
+    /**
+     * 静态路径索引(惰性构建, 注册后失效)
+     * @var array<string,array<string,RouteItem>>|null
+     */
+    private ?array $static_index=null;
 
     /**
      * 最近命中的路由
@@ -206,6 +220,8 @@ final class Router implements RoutingInterface {
         $this->assertNoConflict($route);
         $this->routes[]=$route;
         $this->named=null;
+        $this->sorted_cache=null;
+        $this->static_index=null;
         return $route;
     }
 
@@ -628,7 +644,18 @@ final class Router implements RoutingInterface {
         $uri=self::normalizeUri($uri);
         // 未命中时 current() 必须回到 null: 否则调用方会读到上一次请求/上一次匹配的路由
         $this->current=null;
+        $method=strtoupper($method);
+        $static=$this->staticIndex()[$uri]??null;
+        if($static!==null) {
+            $route=$static[$method]??($static['*']??null);
+            if($route!==null) {
+                $this->current=$route;
+                return array($route,array());
+            }
+        }
         foreach($this->sortedRoutes() as $route) {
+            if($route->isStatic())
+                continue;
             if(!$route->matchesMethod($method))
                 continue;
             $params=$route->matchUri($uri);
@@ -691,6 +718,45 @@ final class Router implements RoutingInterface {
     }
 
     /**
+     * 导出已排序的路由表
+     *
+     * @access public
+     * @return array<array<string,mixed>>
+     * @throws Exception 路由项无法导出
+     */
+    public function export(): array {
+        $out=array();
+        foreach($this->sortedRoutes() as $route)
+            $out[]=$route->export();
+        return $out;
+    }
+
+    /**
+     * 从缓存数组恢复路由表
+     *
+     * @access public
+     * @param array<array<string,mixed>> $routes 路由数据(按排序顺序)
+     * @param bool $sorted 数据是否已按具体度排序
+     * @return void
+     * @throws Exception 路由数据非法或路由名重复
+     */
+    public function import(array $routes,bool $sorted=true): void {
+        $this->routes=array();
+        foreach($routes as $data) {
+            if(!is_array($data))
+                throw new Exception('Invalid compiled route.',-423);
+            $this->routes[]=RouteItem::fromArray($data);
+        }
+        $this->named=null;
+        $this->current=null;
+        $this->prefixStack=array();
+        $this->middlewareStack=array();
+        $this->sorted_cache=$sorted?$this->routes:null;
+        $this->static_index=null;
+        $this->assertNamesUnique();
+    }
+
+    /**
      * 按具体度排序的路由列表
      *
      * - 顺序: 静态路径 → 字面量更长者 → 参数更少者, 同级保持注册顺序
@@ -700,6 +766,8 @@ final class Router implements RoutingInterface {
      * @return array<RouteItem>
      */
     private function sortedRoutes(): array {
+        if($this->sorted_cache!==null)
+            return $this->sorted_cache;
         $routes=$this->routes;
         usort($routes,function(RouteItem $a,RouteItem $b): int {
             if($a->isStatic()!==$b->isStatic())
@@ -708,7 +776,34 @@ final class Router implements RoutingInterface {
                 return $b->getLiteralLength()<=>$a->getLiteralLength();
             return count($a->getParamNames())<=>count($b->getParamNames());
         });
-        return $routes;
+        return $this->sorted_cache=$routes;
+    }
+
+    /**
+     * 静态路径索引
+     *
+     * @access private
+     * @return array<string,array<string,RouteItem>>
+     */
+    private function staticIndex(): array {
+        if($this->static_index!==null)
+            return $this->static_index;
+        $index=array();
+        foreach($this->routes as $route) {
+            if(!$route->isStatic())
+                continue;
+            $path=$route->getPath();
+            $methods=$route->getMethods();
+            if($methods===array()||in_array('*',$methods,true)) {
+                $index[$path]['*']=$route;
+                continue;
+            }
+            foreach($methods as $method)
+                $index[$path][$method]=$route;
+            if(in_array('GET',$methods,true)&&!in_array('HEAD',$methods,true))
+                $index[$path]['HEAD']=$route;
+        }
+        return $this->static_index=$index;
     }
 
     /**

@@ -5,8 +5,10 @@ namespace AdminService\Router;
 use AdminService\Exception;
 use AdminService\Pipeline;
 use base\Attribute\Method;
+use base\Attribute\Middleware;
 use base\Attribute\RouteParam;
 use Closure;
+use ReflectionClass;
 use ReflectionException;
 use ReflectionFunction;
 use ReflectionFunctionAbstract;
@@ -18,6 +20,8 @@ use function array_merge;
 use function array_pop;
 use function array_reverse;
 use function array_slice;
+use function array_values;
+use function class_exists;
 use function count;
 use function explode;
 use function http_build_query;
@@ -103,6 +107,12 @@ final class RouteItem {
      * @var array<string,string>|null
      */
     private ?array $resolved_bindings=null;
+
+    /**
+     * 已编译的控制器级中间件
+     * @var array<string|object>|null
+     */
+    private ?array $compiled_controller_middlewares=null;
 
     /**
      * 编译后的匹配正则
@@ -405,6 +415,129 @@ final class RouteItem {
         }
         $this->resolved_bindings=$bindings;
         return $bindings;
+    }
+
+    /**
+     * 编译控制器级中间件
+     *
+     * - 结果同时包含配置项、类属性与方法属性, 已按优先级排序
+     * - 结果缓存在当前路由项上, 供后续请求直接取用
+     *
+     * @access public
+     * @param array<string,mixed> $configured 配置中的控制器级中间件
+     * @return array<string|object>
+     */
+    public function compileControllerMiddlewares(array $configured=array()): array {
+        if($this->compiled_controller_middlewares!==null)
+            return $this->compiled_controller_middlewares;
+        $entries=Pipeline::normalize($configured);
+        $handler=$this->handler;
+        if(is_array($handler)&&count($handler)===2&&is_string($handler[0])&&class_exists($handler[0])) {
+            $reflection=new ReflectionClass($handler[0]);
+            $entries=array_merge($entries,self::middlewareEntries($reflection->getAttributes(Middleware::class)));
+            if($reflection->hasMethod($handler[1]))
+                $entries=array_merge($entries,self::middlewareEntries(
+                    $reflection->getMethod($handler[1])->getAttributes(Middleware::class)
+                ));
+        }
+        return $this->compiled_controller_middlewares=Pipeline::order($entries);
+    }
+
+    /**
+     * 获取已编译的控制器级中间件
+     *
+     * @access public
+     * @return array<string|object>|null 尚未编译时返回 null
+     */
+    public function getCompiledControllerMiddlewares(): ?array {
+        return $this->compiled_controller_middlewares;
+    }
+
+    /**
+     * 把中间件属性展开为中间件条目
+     *
+     * @access private
+     * @param array<\ReflectionAttribute> $attributes 属性集合
+     * @return array<array{middleware:string|object,priority:int}>
+     */
+    private static function middlewareEntries(array $attributes): array {
+        $entries=array();
+        foreach($attributes as $attribute) {
+            /** @var Middleware $declaration */
+            $declaration=$attribute->newInstance();
+            foreach($declaration->getMiddlewares() as $middleware)
+                $entries[]=array('middleware'=>$middleware,'priority'=>$declaration->getPriority());
+        }
+        return $entries;
+    }
+
+    /**
+     * 导出为可缓存数组
+     *
+     * @access public
+     * @return array<string,mixed>
+     * @throws Exception 参数绑定或处理器无法解析
+     */
+    public function export(): array {
+        return array(
+            'methods'=>$this->methods,
+            'path'=>$this->path,
+            'handler'=>$this->handler,
+            'group_middlewares'=>$this->group_middlewares,
+            'route_middlewares'=>$this->route_middlewares,
+            'name'=>$this->name,
+            'bindings'=>$this->bindings,
+            'resolved_bindings'=>$this->getBindings(),
+            'pattern'=>$this->pattern,
+            'params'=>$this->params,
+            'optional'=>$this->optional,
+            'constraints'=>$this->constraints,
+            'literal_length'=>$this->literalLength,
+            'controller_middlewares'=>$this->compiled_controller_middlewares
+        );
+    }
+
+    /**
+     * 从缓存数组恢复
+     *
+     * @access public
+     * @param array<string,mixed> $data 缓存数据
+     * @return self
+     * @throws Exception 数据缺少必要字段
+     */
+    public static function fromArray(array $data): self {
+        if(!isset($data['path'])||!is_string($data['path'])||$data['path']===''
+            ||!array_key_exists('handler',$data))
+            throw new Exception('Invalid compiled route item.',-423);
+        $route=new self(
+            isset($data['methods'])&&is_array($data['methods'])?$data['methods']:array(),
+            $data['path'],
+            $data['handler']
+        );
+        if(isset($data['group_middlewares'])&&is_array($data['group_middlewares']))
+            $route->group_middlewares=$data['group_middlewares'];
+        if(isset($data['route_middlewares'])&&is_array($data['route_middlewares']))
+            $route->route_middlewares=$data['route_middlewares'];
+        $route->name=isset($data['name'])&&is_string($data['name'])?$data['name']:null;
+        if(isset($data['bindings'])&&is_array($data['bindings']))
+            $route->bindings=$data['bindings'];
+        $route->resolved_bindings=isset($data['resolved_bindings'])&&is_array($data['resolved_bindings'])
+            ?$data['resolved_bindings']
+            :null;
+        if(isset($data['pattern'])&&is_string($data['pattern'])&&$data['pattern']!=='')
+            $route->pattern=$data['pattern'];
+        if(isset($data['params'])&&is_array($data['params']))
+            $route->params=array_values($data['params']);
+        if(isset($data['optional'])&&is_array($data['optional']))
+            $route->optional=array_values($data['optional']);
+        if(isset($data['constraints'])&&is_array($data['constraints']))
+            $route->constraints=$data['constraints'];
+        if(array_key_exists('literal_length',$data))
+            $route->literalLength=(int)$data['literal_length'];
+        $route->compiled_controller_middlewares=isset($data['controller_middlewares'])&&is_array($data['controller_middlewares'])
+            ?$data['controller_middlewares']
+            :null;
+        return $route;
     }
 
     /**

@@ -2,6 +2,8 @@
 
 namespace AdminService;
 
+use AdminService\Cache\CompileStore;
+use AdminService\Config\Env;
 use AdminService\Config\Loader;
 use AdminService\Config\Repository;
 use base\Database\Db as BaseDb;
@@ -12,10 +14,28 @@ use AdminService\Database\DatabaseConfig;
 use ReflectionException;
 
 use function date_default_timezone_set;
+use function filemtime;
+use function filesize;
+use function in_array;
 use function is_array;
+use function is_dir;
+use function is_file;
+use function scandir;
+use function sort;
+use function str_ends_with;
 use function version_compare;
 
 final class Main {
+
+    /**
+     * 框架配置目录
+     */
+    private const CONFIG_DIR=__DIR__.'/config';
+
+    /**
+     * 项目 `.env` 路径
+     */
+    private const ENV_FILE=__DIR__.'/../.env';
 
     /**
      * 应用(引导 + 生命周期宿主)
@@ -57,9 +77,8 @@ final class Main {
         },false);
         // 先解析 runtime 根目录: 配置文件默认路径与后续缓存都依赖它, 且不能反向读取 Config
         Runtime::path();
-        // 加载配置加载器
-        $loader=new Loader(__DIR__.'/config');
-        $config=new Repository($loader->load(),env_snapshot());
+        // 配置优先走编译快照; 快照不可用时回退实时加载
+        $config=$this->loadConfig(env_snapshot());
         // 时区由配置统一控制, 避免 CLI / HTTP / 测试环境各用一套
         date_default_timezone_set((string)$config->get('app.timezone','Asia/Shanghai'));
         Config::setRepository($config);
@@ -76,6 +95,184 @@ final class Main {
         // 初始化完成
         Error::setInitialized(true);
         return $this;
+    }
+
+    /**
+     * 加载配置
+     *
+     * - 优先读取 `runtime/cache/compile/config.cache.php`
+     * - 未命中或快照非法时实时加载, 并尝试写入快照
+     *
+     * @access private
+     * @param Env $env `.env` 快照
+     * @return Repository
+     * @throws Exception
+     */
+    private function loadConfig(Env $env): Repository {
+        $store=$this->bootstrapStore($env);
+        $loader=new Loader(self::CONFIG_DIR);
+        $payload=$store->load('config',function() use($store,$env): string {
+            return $this->configFingerprint($store,$env);
+        },function() use($loader,$env): array {
+            $raw=$loader->load();
+            $repository=new Repository($raw,$env);
+            Application::validateConfig($repository);
+            return array(
+                'validated'=>true,
+                'raw'=>$raw,
+                'effective'=>$repository->all()
+            );
+        },$this->configContext($store,$env));
+        if(is_array($payload)
+            &&!empty($payload['validated'])
+            &&isset($payload['raw'],$payload['effective'])
+            &&is_array($payload['raw'])
+            &&is_array($payload['effective']))
+            return Repository::fromCompiled($payload['raw'],$payload['effective'],$env);
+        $store->invalidate('config');
+        return new Repository($loader->load(),$env);
+    }
+
+    /**
+     * 构造引导期编译缓存存储
+     *
+     * @access private
+     * @param Env $env `.env` 快照
+     * @return CompileStore
+     */
+    private function bootstrapStore(Env $env): CompileStore {
+        $enabled=$this->compileEnabled($env);
+        return new CompileStore(new Repository(array(
+            'app'=>array('debug'=>$this->compileDebug($env)),
+            'cache'=>array(
+                'path'=>Runtime::path().'/cache',
+                'compile'=>array(
+                    'enabled'=>$enabled,
+                    'mode'=>$this->compileMode($env),
+                    'config'=>$enabled
+                )
+            )
+        )));
+    }
+
+    /**
+     * 配置编译缓存是否启用
+     *
+     * @access private
+     * @param Env $env `.env` 快照
+     * @return bool
+     */
+    private function compileEnabled(Env $env): bool {
+        $value=$env->get('CACHE_COMPILE',true);
+        return $value!==false&&$value!=='0';
+    }
+
+    /**
+     * 配置编译缓存模式
+     *
+     * @access private
+     * @param Env $env `.env` 快照
+     * @return string auto / always / off
+     */
+    private function compileMode(Env $env): string {
+        if(!$this->compileEnabled($env))
+            return 'off';
+        $mode=$env->get('CACHE_COMPILE_MODE','auto');
+        return in_array($mode,array('auto','always','off'),true)?$mode:'auto';
+    }
+
+    /**
+     * 引导期调试开关
+     *
+     * @access private
+     * @param Env $env `.env` 快照
+     * @return bool
+     */
+    private function compileDebug(Env $env): bool {
+        return (bool)$env->get('APP_DEBUG',false);
+    }
+
+    /**
+     * 配置缓存上下文
+     *
+     * @access private
+     * @param CompileStore $store 编译缓存存储
+     * @param Env $env `.env` 快照
+     * @return string
+     */
+    private function configContext(CompileStore $store,Env $env): string {
+        return $store->hash(array(
+            'runtime'=>Runtime::path(),
+            'env'=>$env->all(),
+            'env_file'=>$this->statFile(self::ENV_FILE)
+        ));
+    }
+
+    /**
+     * 配置源指纹
+     *
+     * @access private
+     * @param CompileStore $store 编译缓存存储
+     * @param Env $env `.env` 快照
+     * @return string
+     */
+    private function configFingerprint(CompileStore $store,Env $env): string {
+        $stats=array(
+            'runtime'=>Runtime::path(),
+            'env_file'=>$this->statFile(self::ENV_FILE),
+            'config_dir'=>$this->statDir(self::CONFIG_DIR)
+        );
+        foreach($this->listPhpFiles(self::CONFIG_DIR) as $file)
+            $stats['file:'.$file]=$this->statFile($file);
+        return $store->hash(array('env'=>$env->all(),'files'=>$stats));
+    }
+
+    /**
+     * 文件指纹
+     *
+     * @access private
+     * @param string $file 文件
+     * @return array<string,int>|null
+     */
+    private function statFile(string $file): ?array {
+        if(!is_file($file))
+            return null;
+        return array(
+            'mtime'=>(int)@filemtime($file),
+            'size'=>(int)@filesize($file)
+        );
+    }
+
+    /**
+     * 目录指纹
+     *
+     * @access private
+     * @param string $dir 目录
+     * @return array<string,int>|null
+     */
+    private function statDir(string $dir): ?array {
+        if(!is_dir($dir))
+            return null;
+        return array('mtime'=>(int)@filemtime($dir));
+    }
+
+    /**
+     * 列出目录下的 PHP 文件
+     *
+     * @access private
+     * @param string $dir 目录
+     * @return array<string>
+     */
+    private function listPhpFiles(string $dir): array {
+        $entries=@scandir($dir);
+        if($entries===false)
+            return array();
+        $files=array();
+        foreach($entries as $entry)
+            if(str_ends_with($entry,'.php'))
+                $files[]=$dir.'/'.$entry;
+        sort($files);
+        return $files;
     }
 
     /**

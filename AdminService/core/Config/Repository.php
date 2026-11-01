@@ -48,6 +48,12 @@ final class Repository implements ConfigInterface {
     private ?Env $env=null;
 
     /**
+     * 是否来自已校验的编译快照
+     * @var bool
+     */
+    private bool $compiled=false;
+
+    /**
      * 构造方法
      *
      * - 含点的 env 键是路径键: 必须命中已存在的标量项, 否则抛 `ConfigException`(不静默跳过、不新建节点)
@@ -77,6 +83,36 @@ final class Repository implements ConfigInterface {
                     throw new ConfigException('配置项 "'.$key.'" 是数组节点, 覆盖值只能是标量',100909);
                 $this->writeNode($this->effective,$segments,$this->castEnvToFileType($key,$env_value,$found));
             }
+    }
+
+    /**
+     * 从已校验的编译快照恢复
+     *
+     * - `$configs` 是配置文件原值, `$effective` 是合并 `.env` 路径键后的生效值
+     * - 不重新执行目录扫描、文件加载或 env 合并
+     *
+     * @access public
+     * @param array<string,mixed> $configs 配置树原始值
+     * @param array<string,mixed> $effective 配置树生效值
+     * @param Env|null $env Env 实例
+     * @return self
+     */
+    public static function fromCompiled(array $configs,array $effective,?Env $env=null): self {
+        $repository=new self($configs,null,false);
+        $repository->effective=$effective;
+        $repository->env=$env;
+        $repository->compiled=true;
+        return $repository;
+    }
+
+    /**
+     * 是否来自已校验的编译快照
+     *
+     * @access public
+     * @return bool
+     */
+    public function isCompiled(): bool {
+        return $this->compiled;
     }
 
     /**

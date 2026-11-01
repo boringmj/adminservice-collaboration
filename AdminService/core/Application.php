@@ -99,23 +99,12 @@ final class Application {
         // 重复 init 时保留已有实例, 避免把同一应用内的缓存冲掉
         if(!$this->container->hasInstance(RouterFactory::class))
             $this->container->instance(RouterFactory::class,new RouterFactory());
-        // 获取配置文件中的别名(与绑定分表: 别名只描述"名字 → 名字")
-        $aliases=$this->config->get('app.alias',array());
-        // 获取配置文件中需要直接绑定到容器中的类(数值键为"绑定自身", 字符串键为"别名 → 类")
-        $binds=array();
-        $classes=array_merge($classes,$this->config->get('app.classes',array()));
-        foreach($classes as $alias=>$class) {
-            if(is_int($alias))
-                $binds[$class]=$class;
-            else
-                $binds[$alias]=$class;
-        }
-        // 遍历类是否存在
-        // - 别名目标允许是另一个别名/绑定名(链式), 不要求它本身是类
-        $known_names=array_merge(array_keys($binds),array_keys($aliases));
-        foreach(array_merge($binds,$aliases) as $class)
-            if(!in_array($class,$known_names,true)&&!class_exists($class)&&!interface_exists($class))
-                throw new Exception('Class "'.$class.'" not found.');
+        // 获取配置文件中的绑定与别名
+        $extra_classes=$classes;
+        [$binds,$aliases]=self::bindings($classes,$this->config);
+        // 编译快照已在装载期完成类存在性校验; 额外传入的类仍需现场校验
+        if(!($extra_classes===array()&&$this->config->isCompiled()))
+            self::validateBindings($binds,$aliases);
         // 设置是否允许标量参数静默转换(可在 config/app.php 中配置 app.param_cast)
         $this->container->setParamCast($this->config->get('app.param_cast',true));
         // 写入绑定表: 自身映射无意义(解析时原样返回), 直接跳过, 其余走 bind(含循环检测)
@@ -137,6 +126,60 @@ final class Application {
         Config::setRepository($this->config);
         $this->initialized=true;
         return $this;
+    }
+
+    /**
+     * 校验配置里的绑定与别名
+     *
+     * - 供配置编译快照在落盘前执行; 运行期编译快照可跳过重复校验
+     *
+     * @access public
+     * @param Repository $config 配置仓储
+     * @return void
+     * @throws Exception 绑定或别名目标不存在
+     */
+    public static function validateConfig(Repository $config): void {
+        [$binds,$aliases]=self::bindings(array(),$config);
+        self::validateBindings($binds,$aliases);
+    }
+
+    /**
+     * 归一化绑定与别名
+     *
+     * @access private
+     * @param array<int|string,string> $classes 额外类
+     * @param Repository $config 配置仓储
+     * @return array{0:array<string,string>,1:array<string,string>} [绑定, 别名]
+     */
+    private static function bindings(array $classes,Repository $config): array {
+        $aliases=(array)$config->get('app.alias',array());
+        $binds=array();
+        $classes=array_merge($classes,$config->get('app.classes',array()));
+        foreach($classes as $alias=>$class) {
+            if(is_int($alias))
+                $binds[$class]=$class;
+            else
+                $binds[$alias]=$class;
+        }
+        return array($binds,$aliases);
+    }
+
+    /**
+     * 校验绑定与别名目标
+     *
+     * - 别名目标允许是另一个别名/绑定名(链式), 不要求它本身是类
+     *
+     * @access private
+     * @param array<string,string> $binds 绑定表
+     * @param array<string,string> $aliases 别名表
+     * @return void
+     * @throws Exception 目标不存在
+     */
+    private static function validateBindings(array $binds,array $aliases): void {
+        $known_names=array_merge(array_keys($binds),array_keys($aliases));
+        foreach(array_merge($binds,$aliases) as $class)
+            if(!in_array($class,$known_names,true)&&!class_exists($class)&&!interface_exists($class))
+                throw new Exception('Class "'.$class.'" not found.');
     }
 
     /**

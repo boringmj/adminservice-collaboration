@@ -110,4 +110,25 @@ class RuntimeTest extends TestCase {
         $this->assertSame(0755,Config::get('cache.dir_mode'));
     }
 
+    /**
+     * 测试: 通用缓存与编译缓存配置键存在
+     *
+     * @return void
+     */
+    public function testCacheConfigDefaultsArePresent(): void {
+        $this->assertSame('default',Config::get('cache.default_pool'));
+        $this->assertSame(3600,Config::get('cache.default_ttl'));
+        $this->assertSame(1,Config::get('cache.gc_probability'));
+        $this->assertSame(100,Config::get('cache.gc_divisor'));
+        $this->assertSame(200,Config::get('cache.gc_max_files'));
+
+        $compile=Config::get('cache.compile');
+        $this->assertIsArray($compile);
+        $this->assertArrayHasKey('enabled',$compile);
+        $this->assertArrayHasKey('mode',$compile);
+        $this->assertArrayHasKey('config',$compile);
+        $this->assertArrayHasKey('route',$compile);
+        $this->assertArrayHasKey('container',$compile);
+    }
+
 }

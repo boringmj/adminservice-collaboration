@@ -8,6 +8,7 @@ use AdminService\Route;
 use AdminService\Cookie;
 use AdminService\Response;
 use AdminService\HttpRequest;
+use AdminService\Cache;
 use AdminService\Config\Repository;
 
 use function AdminService\env;
@@ -30,5 +31,6 @@ return array(
         \base\Response::class=>Response::class,
         \base\Request::class=>HttpRequest::class,
         \base\ConfigInterface::class=>Repository::class,
+        \base\CacheInterface::class=>Cache::class,
     )
 );

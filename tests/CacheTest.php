@@ -1,0 +1,516 @@
+<?php
+
+namespace Tests;
+
+use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
+
+use AdminService\Cache;
+use AdminService\Config\Repository;
+use AdminService\Container;
+use AdminService\Exception;
+use base\CacheInterface;
+use base\ConfigInterface;
+
+use function fclose;
+use function file_put_contents;
+use function fopen;
+use function function_exists;
+use function is_dir;
+use function is_file;
+use function is_link;
+use function mkdir;
+use function opcache_invalidate;
+use function rmdir;
+use function scandir;
+use function sys_get_temp_dir;
+use function time;
+use function uniqid;
+use function var_export;
+
+/**
+ * 通用缓存测试
+ *
+ * - 覆盖读写、TTL、版本指纹、原子计数、分池、损坏自愈
+ * - 覆盖自动 GC、单次扫描上限与旧 File(null) 周期文件回收
+ * - 覆盖编译缓存清理与容器注入
+ */
+class CacheTest extends TestCase {
+
+    /**
+     * 临时目录
+     * @var string
+     */
+    private string $dir;
+
+    /**
+     * 测试配置
+     * @var Repository
+     */
+    private Repository $config;
+
+    /**
+     * 每个用例前创建隔离目录
+     *
+     * @return void
+     */
+    protected function setUp(): void {
+        $this->dir=sys_get_temp_dir().'/adminservice_cache_'.uniqid('',true);
+        mkdir($this->dir,0755,true);
+        $this->config=$this->makeConfig();
+    }
+
+    /**
+     * 每个用例后清理临时目录
+     *
+     * @return void
+     */
+    protected function tearDown(): void {
+        $this->removePath($this->dir);
+    }
+
+    /**
+     * 构造缓存配置
+     *
+     * @param array<string,mixed> $overrides 覆盖项
+     * @return Repository
+     */
+    private function makeConfig(array $overrides=array()): Repository {
+        $cache=array_merge(array(
+            'path'=>$this->dir.'/cache',
+            'ext_name'=>'.data.json',
+            'dir_mode'=>0755,
+            'name_cycle'=>0,
+            'default_pool'=>'default',
+            'default_ttl'=>60,
+            'gc_probability'=>0,
+            'gc_divisor'=>100,
+            'gc_max_files'=>200,
+            'compile'=>array(
+                'enabled'=>true,
+                'mode'=>'auto',
+                'config'=>true,
+                'route'=>true,
+                'container'=>true
+            )
+        ),$overrides);
+        return new Repository(array('cache'=>$cache));
+    }
+
+    /**
+     * 递归删除临时目录(包含隐藏的临时文件与锁文件)
+     *
+     * @param string $path 文件或目录
+     * @return void
+     */
+    private function removePath(string $path): void {
+        if(is_link($path)||is_file($path)) {
+            @unlink($path);
+            return;
+        }
+        if(!is_dir($path))
+            return;
+        $entries=scandir($path);
+        if($entries!==false) {
+            foreach($entries as $entry) {
+                if($entry==='.'||$entry==='..')
+                    continue;
+                $this->removePath($path.'/'.$entry);
+            }
+        }
+        @rmdir($path);
+    }
+
+    /**
+     * 取缓存条目的真实路径
+     *
+     * @param Cache $cache 缓存
+     * @param string $key 键
+     * @return string
+     */
+    private function entryPath(Cache $cache,string $key): string {
+        $method=new ReflectionMethod(Cache::class,'entryPath');
+        $method->setAccessible(true);
+        return (string)$method->invoke($cache,$key);
+    }
+
+    /**
+     * 强制把条目改成已过期
+     *
+     * @param Cache $cache 缓存
+     * @param string $key 键
+     * @return string 条目路径
+     */
+    private function expireEntry(Cache $cache,string $key): string {
+        $path=$this->entryPath($cache,$key);
+        $entry=include $path;
+        $entry['expire']=time()-1;
+        file_put_contents($path,"<?php\n\nreturn ".var_export($entry,true).";\n");
+        if(function_exists('opcache_invalidate'))
+            @opcache_invalidate($path,true);
+        return $path;
+    }
+
+    /**
+     * 测试: 基础读写、显式 null 与幂等删除
+     *
+     * @return void
+     */
+    public function testSetGetAndExplicitNull(): void {
+        $cache=new Cache($this->config);
+
+        $this->assertTrue($cache->set('name','demo'));
+        $this->assertSame('demo',$cache->get('name'));
+
+        $this->assertTrue($cache->set('nullable',null));
+        $this->assertTrue($cache->has('nullable'));
+        $this->assertNull($cache->get('nullable','fallback'));
+
+        $this->assertFalse($cache->has('missing'));
+        $this->assertSame('fallback',$cache->get('missing','fallback'));
+
+        $this->assertTrue($cache->delete('nullable'));
+        $this->assertFalse($cache->has('nullable'));
+        $this->assertTrue($cache->delete('nullable'),'删除不存在的键应保持幂等');
+    }
+
+    /**
+     * 测试: TTL 过期后读取会删除文件并返回默认值
+     *
+     * @return void
+     */
+    public function testTtlExpiresAndDeletes(): void {
+        $cache=new Cache($this->config);
+        $cache->set('expire','value',60);
+        $path=$this->expireEntry($cache,'expire');
+
+        $this->assertSame('fallback',$cache->get('expire','fallback'));
+        $this->assertFileDoesNotExist($path);
+    }
+
+    /**
+     * 测试: remember 命中不回调, 版本变化时重建
+     *
+     * @return void
+     */
+    public function testRememberAndVersionInvalidation(): void {
+        $cache=new Cache($this->config);
+        $calls=0;
+
+        $first=$cache->remember('profile',60,function() use (&$calls): string {
+            $calls++;
+            return 'v1';
+        },'v1');
+        $second=$cache->remember('profile',60,function() use (&$calls): string {
+            $calls++;
+            return 'v1';
+        },'v1');
+
+        $this->assertSame('v1',$first);
+        $this->assertSame('v1',$second);
+        $this->assertSame(1,$calls,'命中时不应执行回调');
+
+        $third=$cache->remember('profile',60,function() use (&$calls): string {
+            $calls++;
+            return 'v2';
+        },'v2');
+        $this->assertSame('v2',$third);
+        $this->assertSame(2,$calls,'版本变化时应回源');
+        $this->assertFalse($cache->has('profile','v1'));
+        $this->assertTrue($cache->has('profile','v2'));
+    }
+
+    /**
+     * 测试: 原子自增/自减
+     *
+     * @return void
+     */
+    public function testIncrementAndDecrement(): void {
+        $cache=new Cache($this->config);
+
+        $this->assertSame(1,$cache->increment('hits'));
+        $this->assertSame(2,$cache->increment('hits'));
+        $this->assertSame(1,$cache->decrement('hits'));
+        $this->assertSame(1,$cache->get('hits'));
+
+        $this->assertSame(5,$cache->increment('other',5));
+        $this->assertSame(3,$cache->decrement('other',2));
+    }
+
+    /**
+     * 测试: 非整数缓存不能自增
+     *
+     * @return void
+     */
+    public function testIncrementRejectsNonInteger(): void {
+        $cache=new Cache($this->config);
+        $cache->set('text','abc');
+
+        $this->expectException(Exception::class);
+        $cache->increment('text');
+    }
+
+    /**
+     * 测试: 分池隔离, 清空一个池不影响另一个池
+     *
+     * @return void
+     */
+    public function testScopeIsolationAndClear(): void {
+        $cache=new Cache($this->config);
+        $auth=$cache->scope('auth');
+
+        $cache->set('key','default');
+        $auth->set('key','auth');
+
+        $this->assertSame('default',$cache->get('key'));
+        $this->assertSame('auth',$auth->get('key'));
+        $this->assertSame('default',$cache->pool());
+        $this->assertSame('auth',$auth->pool());
+
+        $this->assertTrue($cache->clear());
+        $this->assertFalse($cache->has('key'));
+        $this->assertTrue($auth->has('key'));
+    }
+
+    /**
+     * 测试: 损坏的缓存文件按未命中处理并自动删除
+     *
+     * @return void
+     */
+    public function testCorruptEntryIsDeleted(): void {
+        $cache=new Cache($this->config);
+        $cache->set('bad','value');
+        $path=$this->entryPath($cache,'bad');
+        file_put_contents($path,'<?php this is broken');
+        if(function_exists('opcache_invalidate'))
+            @opcache_invalidate($path,true);
+
+        $this->assertSame('fallback',$cache->get('bad','fallback'));
+        $this->assertFileDoesNotExist($path);
+
+        file_put_contents($path,'<?php return array("not_key"=>1);');
+        if(function_exists('opcache_invalidate'))
+            @opcache_invalidate($path,true);
+        $this->assertSame('fallback',$cache->get('bad','fallback'));
+        $this->assertFileDoesNotExist($path);
+    }
+
+    /**
+     * 测试: 对象走序列化路径且可完整读回
+     *
+     * @return void
+     */
+    public function testObjectIsSerializedAndRestored(): void {
+        $cache=new Cache($this->config);
+        $value=new CacheFixtureValue('demo',array('a'=>1));
+
+        $this->assertTrue($cache->set('object',$value));
+        $restored=$cache->get('object');
+
+        $this->assertInstanceOf(CacheFixtureValue::class,$restored);
+        $this->assertSame('demo',$restored->name);
+        $this->assertSame(array('a'=>1),$restored->data);
+
+        $entry=include $this->entryPath($cache,'object');
+        $this->assertTrue($entry['serialized']);
+    }
+
+    /**
+     * 测试: 无法序列化的值必须抛受控异常
+     *
+     * @return void
+     */
+    public function testUnsupportedValueThrows(): void {
+        $cache=new Cache($this->config);
+
+        $this->expectException(Exception::class);
+        $cache->set('closure',function(): void {
+        });
+    }
+
+    /**
+     * 测试: 嵌套资源必须被拒绝, 不能静默序列化
+     *
+     * @return void
+     */
+    public function testNestedResourceThrows(): void {
+        $cache=new Cache($this->config);
+        $handle=fopen('php://memory','r');
+        $this->expectException(Exception::class);
+        try {
+            $cache->set('resource',array('handle'=>$handle));
+        } finally {
+            fclose($handle);
+        }
+    }
+
+    /**
+     * 测试: 批量操作
+     *
+     * @return void
+     */
+    public function testMultipleOperations(): void {
+        $cache=new Cache($this->config);
+
+        $this->assertTrue($cache->setMultiple(array('a'=>1,'b'=>2)));
+        $this->assertSame(array('a'=>1,'b'=>2,'c'=>'fallback'),$cache->getMultiple(array('a','b','c'),'fallback'));
+        $this->assertTrue($cache->deleteMultiple(array('a','b')));
+        $this->assertFalse($cache->has('a'));
+        $this->assertFalse($cache->has('b'));
+    }
+
+    /**
+     * 测试: pull 读取后立即删除
+     *
+     * @return void
+     */
+    public function testPullRemovesEntry(): void {
+        $cache=new Cache($this->config);
+        $cache->set('token','abc');
+
+        $this->assertSame('abc',$cache->pull('token'));
+        $this->assertFalse($cache->has('token'));
+        $this->assertSame('fallback',$cache->pull('token','fallback'));
+    }
+
+    /**
+     * 测试: 单次 GC 受文件数上限保护
+     *
+     * @return void
+     */
+    public function testGcRespectsMaxFiles(): void {
+        $cache=new Cache($this->config);
+        foreach(array('a','b','c') as $key) {
+            $cache->set($key,$key);
+            $this->expireEntry($cache,$key);
+        }
+
+        $this->assertSame(1,$cache->gc(1),'只允许检查一个文件');
+        $this->assertSame(2,$cache->gc(0),'剩余两个过期文件应被清理');
+    }
+
+    /**
+     * 测试: GC 清理过期条目与旧 File(null) 周期文件
+     *
+     * @return void
+     */
+    public function testGcRemovesExpiredAndLegacyFiles(): void {
+        $config=$this->makeConfig(array('name_cycle'=>3600));
+        $cache=new Cache($config);
+        $cache->set('expired','value');
+        $cache->set('live','value');
+        $expired_path=$this->expireEntry($cache,'expired');
+        $live_path=$this->entryPath($cache,'live');
+
+        $current=(int)floor(time()/3600);
+        $root=$this->dir.'/cache';
+        $legacy_old=$root.'/cache_'.($current-2).'.data.json';
+        $legacy_current=$root.'/cache_'.$current.'.data.json';
+        file_put_contents($legacy_old,'{}');
+        file_put_contents($legacy_current,'{}');
+
+        $this->assertGreaterThanOrEqual(2,$cache->gc(0));
+        $this->assertFileDoesNotExist($expired_path);
+        $this->assertFileExists($live_path);
+        $this->assertFileDoesNotExist($legacy_old);
+        $this->assertFileExists($legacy_current);
+    }
+
+    /**
+     * 测试: 写入时按概率触发自动 GC
+     *
+     * @return void
+     */
+    public function testAutoGcRunsOnWrite(): void {
+        $config=$this->makeConfig(array('gc_probability'=>1,'gc_divisor'=>1));
+        $cache=new Cache($config);
+        $cache->set('expired','value');
+        $path=$this->expireEntry($cache,'expired');
+
+        $cache->set('trigger','value');
+        $this->assertFileDoesNotExist($path);
+    }
+
+    /**
+     * 测试: 编译缓存清理与全量清理
+     *
+     * @return void
+     */
+    public function testClearCompileAndClearAll(): void {
+        $cache=new Cache($this->config);
+        $compile=$this->dir.'/cache/compile';
+        mkdir($compile,0755,true);
+        $config_file=$compile.'/config.cache.php';
+        $route_file=$compile.'/routes.cache.php';
+        file_put_contents($config_file,'<?php return array();');
+        file_put_contents($route_file,'<?php return array();');
+
+        $this->assertTrue($cache->clearCompile('config'));
+        $this->assertFileDoesNotExist($config_file);
+        $this->assertFileExists($route_file);
+
+        $this->assertTrue($cache->clearCompile());
+        $this->assertFileDoesNotExist($route_file);
+        $this->assertTrue(is_dir($compile),'清空编译缓存后保留目录本身');
+
+        $cache->set('key','value');
+        $this->assertTrue($cache->clearAll());
+        $this->assertTrue(is_dir($this->dir.'/cache'),'全量清理后保留缓存根目录');
+        $this->assertFalse(is_dir($this->dir.'/cache/kv'));
+        $this->assertFalse(is_dir($this->dir.'/cache/compile'));
+    }
+
+    /**
+     * 测试: 非法键与非法池名必须被拒绝
+     *
+     * @return void
+     */
+    public function testInvalidKeyAndPoolAreRejected(): void {
+        $cache=new Cache($this->config);
+
+        try {
+            $cache->get('');
+            $this->fail('空键应抛异常');
+        } catch(Exception) {
+        }
+
+        $this->expectException(Exception::class);
+        $cache->scope('bad pool');
+    }
+
+    /**
+     * 测试: 容器可按契约注入缓存实现
+     *
+     * @return void
+     */
+    public function testContainerCanResolveCacheContract(): void {
+        $container=new Container();
+        $container->instance(Repository::class,$this->config);
+        $container->alias(ConfigInterface::class,Repository::class);
+        $container->alias(CacheInterface::class,Cache::class);
+
+        $cache=$container->get(CacheInterface::class);
+        $this->assertInstanceOf(Cache::class,$cache);
+        $this->assertSame('default',$cache->pool());
+    }
+
+}
+
+/**
+ * 缓存对象序列化测试值
+ */
+final class CacheFixtureValue {
+
+    /**
+     * 构造方法
+     *
+     * @param string $name 名称
+     * @param array<string,mixed> $data 数据
+     */
+    public function __construct(
+        public string $name,
+        public array $data=array()
+    ) {
+    }
+
+}

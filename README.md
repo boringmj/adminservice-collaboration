@@ -221,7 +221,7 @@ return array(
 
 ```text
 AdminService/runtime/
-  cache/      # 可安全清理: 自动缓存与未来的配置/路由编译缓存
+  cache/      # 可安全清理: kv/ 通用缓存、compile/ 编译缓存、File 周期缓存
   data/       # 持久数据
   log/        # 日志
   uploads/    # 上传文件
@@ -231,6 +231,30 @@ AdminService/runtime/
 - `RUNTIME_PATH` 在配置装载前解析, 不依赖 `Config`; 不提供 `runtime.path` 配置键
 - `runtime/cache` 可清空; `runtime/data` / `runtime/log` / `runtime/uploads` 不可随意清空
 - runtime 不要放在 `public` 下, 避免被 Web 服务器直接暴露
+
+### 缓存
+
+通用缓存的契约是 `base\CacheInterface`, 默认实现是 `AdminService\Cache`。容器已注册 `\base\CacheInterface => \AdminService\Cache`, 可直接注入:
+
+```php
+use base\CacheInterface;
+
+public function __construct(private CacheInterface $cache) {
+}
+
+$cache->set('user:1',$data,600);       // 10 分钟
+$cache->forever('site:name','demo');   // 永不过期
+$value=$cache->remember('stats',60,function(): array {
+    return array('visits'=>1);
+});
+```
+
+- 单键独立 TTL; `$ttl` 为 `null` 使用 `cache.default_ttl`, `<=0` 永不过期
+- `remember($key,$ttl,$callback,$version)` 支持版本指纹, 版本变化时立即回源
+- `scope('auth')` 分池; `clear()` 只清当前池
+- 写入时按 `cache.gc_probability / cache.gc_divisor` 概率触发 GC, 受 `cache.gc_max_files` 单次上限保护
+- `clearCompile()` 清理 `runtime/cache/compile`, `clearAll()` 清理整个 `runtime/cache`
+- 目录与配置说明见 `wiki/缓存.md`
 
 ## 未来
 

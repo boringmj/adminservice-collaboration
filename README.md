@@ -253,7 +253,7 @@ $value=$cache->remember('stats',60,function(): array {
 - `remember($key,$ttl,$callback,$version)` 支持版本指纹, 版本变化时立即回源
 - `scope('auth')` 分池; `clear()` 只清当前池
 - 写入时按 `cache.gc_probability / cache.gc_divisor` 概率触发 GC, 受 `cache.gc_max_files` 单次上限保护
-- `clearCompile()` 清理 `runtime/cache/compile`, `clearAll()` 清理整个 `runtime/cache`
+- 默认实现 `AdminService\Cache` 额外提供 `clearCompile()` / `clearAll()`; 需要清理系统编译缓存时按具体实现取用
 - 目录与配置说明见 `wiki/缓存.md`
 
 ## 未来

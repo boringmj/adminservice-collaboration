@@ -5,6 +5,8 @@ namespace AdminService\config;
 use AdminService\Runtime;
 
 use function AdminService\env;
+use function dirname;
+use function is_file;
 
 // cache 配置
 return array(
@@ -26,7 +28,7 @@ return array(
         'enabled'=>env('CACHE_COMPILE',true), // 编译缓存总开关
         'mode'=>env('CACHE_COMPILE_MODE','auto'), // auto(debug下按 skip_on_debug 跳过或校验/生产零探测) | always | off
         'skip_on_debug'=>env('CACHE_COMPILE_SKIP_ON_DEBUG','config'), // debug+auto 跳过的缓存名(config/route/container, 逗号分隔); 配置缓存自身只读 .env
-        'config'=>true, // 配置与引导预检编译缓存
+        'config'=>!is_file(dirname(__DIR__,2).'/.env'), // 存在 .env 时固定关闭, 避免缓存 .env 派生敏感值
         'route'=>true, // 路由表编译缓存
         'container'=>true // 容器 Autowire 与反射签名编译缓存
     )

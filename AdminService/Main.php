@@ -108,6 +108,11 @@ final class Main {
     private function loadConfig(Env $env): Repository {
         $store=$this->bootstrapStore($env);
         $loader=new Loader(self::CONFIG_DIR);
+        if(!$this->compileConfigEnabled($env)) {
+            // 存在 .env 时默认不生成配置快照, 并清理旧版本可能留下的快照
+            $store->invalidate('config');
+            return new Repository($loader->load(),$env);
+        }
         $payload=$store->load('config',function() use($store,$env): string {
             return $this->configFingerprint($store,$env);
         },function() use($loader,$env): array {
@@ -146,7 +151,7 @@ final class Main {
                 'compile'=>array(
                     'enabled'=>$enabled,
                     'mode'=>$this->compileMode($env),
-                    'config'=>$enabled,
+                    'config'=>$this->compileConfigEnabled($env),
                     'skip_on_debug'=>$this->compileSkipOnDebug($env)
                 )
             )
@@ -163,6 +168,19 @@ final class Main {
     private function compileEnabled(Env $env): bool {
         $value=$env->get('CACHE_COMPILE',true);
         return $value!==false&&$value!=='0';
+    }
+
+    /**
+     * 配置编译缓存是否启用
+     *
+     * - 存在 `.env` 时固定关闭, 避免配置快照物化敏感值
+     *
+     * @access private
+     * @param Env $env `.env` 快照
+     * @return bool
+     */
+    private function compileConfigEnabled(Env $env): bool {
+        return $this->compileEnabled($env)&&$env->path()==='';
     }
 
     /**

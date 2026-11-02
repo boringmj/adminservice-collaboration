@@ -254,7 +254,7 @@ $value=$cache->remember('stats',60,function(): array {
 - `scope('auth')` 分池; `clear()` 只清当前池
 - 写入时按 `cache.gc_probability / cache.gc_divisor` 概率触发 GC, 受 `cache.gc_max_files` 单次上限保护
 - 路由编译缓存已接入 `runtime/cache/compile/routes.cache.php`: `auto` 生产零探测、开发期按源文件指纹失效; 命中时跳过控制器扫描、属性反射与冲突检测
-- 配置编译缓存已接入 `runtime/cache/compile/config.cache.php`: 引导期优先读取，命中时跳过配置文件扫描与合并；由 `.env` 的 `CACHE_COMPILE` / `CACHE_COMPILE_MODE` 控制
+- 配置编译缓存已接入 `runtime/cache/compile/config.cache.php`: 引导期优先读取，命中时跳过配置文件扫描与合并；存在 `.env` 时固定关闭，避免缓存 `env()` 物化的敏感值
 - debug + `auto` 下默认只跳过配置编译缓存，路由编译缓存继续命中；可通过 `CACHE_COMPILE_SKIP_ON_DEBUG` 调整跳过名单
 - 默认实现 `AdminService\Cache` 额外提供 `clearCompile()` / `clearAll()`; 需要清理系统编译缓存时按具体实现取用
 - 目录与配置说明见 `wiki/缓存.md`

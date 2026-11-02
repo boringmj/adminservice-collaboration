@@ -210,6 +210,34 @@ class ConfigCacheTest extends TestCase {
     }
 
     /**
+     * 测试: 存在 .env 时 Main 默认关闭配置缓存并清理旧快照
+     *
+     * @return void
+     */
+    public function testMainDisablesConfigCacheWhenEnvFilePresent(): void {
+        $old_runtime=Runtime::path();
+        $dir=$this->tempDir();
+        try {
+            Runtime::setPath($dir.'/runtime');
+            $cache=$dir.'/runtime/cache/compile/config.cache.php';
+            mkdir($dir.'/runtime/cache/compile',0755,true);
+            file_put_contents($cache,'<?php return array();');
+
+            $method=new ReflectionMethod(Main::class,'loadConfig');
+            $method->setAccessible(true);
+            $main=new Main();
+            $config=$method->invoke($main,new Env("APP_DEBUG=false\n",'/tmp/.env'));
+
+            $this->assertInstanceOf(Repository::class,$config);
+            $this->assertFalse($config->isCompiled());
+            $this->assertFileDoesNotExist($cache,'存在 .env 时应清理旧配置快照');
+        } finally {
+            Runtime::setPath($old_runtime);
+            $this->removePath($dir);
+        }
+    }
+
+    /**
      * 测试: Main 在 debug + auto 下跳过配置缓存
      *
      * @return void

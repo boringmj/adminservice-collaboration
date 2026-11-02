@@ -810,7 +810,10 @@ final class Router implements RoutingInterface {
             }
             foreach($methods as $method)
                 $index[$path][$method]=$route;
-            if(in_array('GET',$methods,true)&&!in_array('HEAD',$methods,true))
+            // GET 只为 HEAD 兜底; 显式 HEAD 路由优先, 不能被后注册的 GET 覆盖
+            if(in_array('GET',$methods,true)
+                &&!in_array('HEAD',$methods,true)
+                &&!isset($index[$path]['HEAD']))
                 $index[$path]['HEAD']=$route;
         }
         return $this->static_index=$index;

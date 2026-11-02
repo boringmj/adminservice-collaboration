@@ -120,12 +120,14 @@ final class Main {
             $repository=new Repository($raw,$env);
             Application::validateConfig($repository);
             return array(
+                'version'=>1,
                 'validated'=>true,
                 'raw'=>$raw,
                 'effective'=>$repository->all()
             );
         },$this->configContext($store,$env));
         if(is_array($payload)
+            &&(int)($payload['version']??0)===1
             &&!empty($payload['validated'])
             &&isset($payload['raw'],$payload['effective'])
             &&is_array($payload['raw'])

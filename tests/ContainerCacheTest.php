@@ -4,7 +4,6 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
-use AdminService\Config;
 use AdminService\Config\Repository;
 use AdminService\Container;
 use AdminService\ContainerMetadata;
@@ -153,25 +152,32 @@ class ContainerCacheTest extends TestCase {
     }
 
     /**
+     * 测试: fork 共享容器元数据, 避免每次请求重新 include/stat
+     *
+     * @return void
+     */
+    public function testForkSharesContainerMetadata(): void {
+        $container=new Container();
+        $child=$container->fork();
+        $property=new \ReflectionProperty(Container::class,'metadata');
+        $property->setAccessible(true);
+
+        $this->assertSame($property->getValue($container),$property->getValue($child));
+    }
+
+    /**
      * 测试: 容器装配仍按元数据完成
      *
      * @return void
      */
     public function testContainerUsesMetadataWithoutBehaviorChange(): void {
-        $old=Config::repository();
-        try {
-            Config::setRepository($this->config);
-            $container=new Container();
-            $container->instance(\base\ConfigInterface::class,$this->config);
-            $consumer=$container->make(ConfigConsumer::class);
+        $container=new Container();
+        $container->instance(\base\ConfigInterface::class,$this->config);
+        $consumer=$container->make(ConfigConsumer::class);
 
-            $this->assertSame(3600,$consumer->cycle);
-            $this->assertSame('txt',$consumer->ext_name);
-            $this->assertFileExists($this->dir.'/cache/compile/container.cache.php');
-        } finally {
-            // Config 没有“清空仓库”的公开接口, 初始为空时恢复成空仓库, 避免临时配置泄漏
-            Config::setRepository($old??new Repository(array()));
-        }
+        $this->assertSame(3600,$consumer->cycle);
+        $this->assertSame('txt',$consumer->ext_name);
+        $this->assertFileExists($this->dir.'/cache/compile/container.cache.php');
     }
 
     /**

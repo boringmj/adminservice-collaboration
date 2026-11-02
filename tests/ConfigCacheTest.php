@@ -7,6 +7,7 @@ use ReflectionMethod;
 
 use AdminService\App;
 use AdminService\Application;
+use AdminService\Cache;
 use AdminService\Cache\CompileStore;
 use AdminService\Config;
 use AdminService\Config\Env;
@@ -322,6 +323,43 @@ class ConfigCacheTest extends TestCase {
 
             $this->assertNotSame($first,$second);
         } finally {
+            $this->removePath($dir);
+        }
+    }
+
+    /**
+     * 测试: 自定义 cache.path 时清理接口仍能清掉 runtime 配置快照
+     *
+     * @return void
+     */
+    public function testClearCompileCoversRuntimeConfigSnapshot(): void {
+        $old_runtime=Runtime::path();
+        $dir=$this->tempDir();
+        try {
+            Runtime::setPath($dir.'/runtime');
+            $runtime_file=$dir.'/runtime/cache/compile/config.cache.php';
+            mkdir(dirname($runtime_file),0755,true);
+            $config=new Repository(array(
+                'cache'=>array(
+                    'path'=>$dir.'/custom-cache',
+                    'compile'=>array('enabled'=>true)
+                )
+            ));
+            $cache=new Cache($config);
+
+            file_put_contents($runtime_file,'<?php return array();');
+            $this->assertTrue($cache->clearCompile('config'));
+            $this->assertFileDoesNotExist($runtime_file);
+
+            file_put_contents($runtime_file,'<?php return array();');
+            $this->assertTrue($cache->clearCompile());
+            $this->assertFileDoesNotExist($runtime_file);
+
+            file_put_contents($runtime_file,'<?php return array();');
+            $this->assertTrue($cache->clearAll());
+            $this->assertFileDoesNotExist($runtime_file);
+        } finally {
+            Runtime::setPath($old_runtime);
             $this->removePath($dir);
         }
     }

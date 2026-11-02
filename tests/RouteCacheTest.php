@@ -24,6 +24,7 @@ use function str_replace;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
+use function var_export;
 
 /**
  * 路由编译缓存测试
@@ -268,6 +269,32 @@ class RouteCacheTest extends TestCase {
      *
      * @return void
      */
+    public function testControllerSourceChangeRebuildsRouteCache(): void {
+        $class='RouteCacheTempController'.uniqid();
+        $controller_file=$this->dir.'/'.$class.'.php';
+        file_put_contents(
+            $controller_file,
+            "<?php\n\nnamespace Tests\\Fixtures;\n\nclass ".$class." {\n"
+            ."    public function index(): string { return 'ok'; }\n}\n"
+        );
+        clearstatcache(true,$controller_file);
+        $body='require_once '.var_export($controller_file,true).";\n"
+            .'$router->get(\'/temp\',array(\\Tests\\Fixtures\\'.$class.'::class,\'index\'))->name(\'temp\');';
+        $this->writeRoutes($body);
+
+        $config=$this->config(true,'always');
+        $first=(new RouterFactory())->get($config);
+        $this->assertSame(1,$GLOBALS['route_cache_builds']);
+        $this->assertNotNull($first->find('GET','/temp'));
+
+        file_put_contents($controller_file,"\n// changed\n",FILE_APPEND);
+        clearstatcache(true,$controller_file);
+
+        $second=(new RouterFactory())->get($config);
+        $this->assertSame(2,$GLOBALS['route_cache_builds'],'控制器文件变化应使路由缓存失效');
+        $this->assertNotNull($second->find('GET','/temp'));
+    }
+
     public function testZeroStatReusesCacheWhenSourceRemoved(): void {
         $this->writeRoutes();
         $config=$this->config(false,'auto');

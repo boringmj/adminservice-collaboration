@@ -175,7 +175,7 @@ final class Route extends BaseRoute {
         App::instance(RouteContextInterface::class,RouteContext::fromHandler($handler,$params));
         $controller_middlewares=$route->getCompiledControllerMiddlewares();
         if($controller_middlewares===null)
-            $controller_middlewares=$route->compileControllerMiddlewares((array)$this->config()->get('middlewares.controller',array()));
+            $controller_middlewares=$route->compileControllerMiddlewares($this->config()->get('middlewares.controller',array()));
         $middlewares=array_merge(
             $route->getGroupMiddlewares(),
             $route->getRouteMiddlewares(),

@@ -7,14 +7,18 @@ use base\ConfigInterface;
 use ReflectionClass;
 
 use function array_key_exists;
+use function count;
 use function is_array;
 use function is_dir;
+use function is_object;
 use function is_string;
 use function ksort;
 use function rtrim;
 use function scandir;
 use function sort;
 use function str_ends_with;
+use function str_starts_with;
+use function substr;
 
 /**
  * 应用级路由表提供器
@@ -73,22 +77,33 @@ final class RouterFactory {
         $store=new CompileStore($config);
         $context=$this->context($store,$config);
         $built=null;
-        $payload=$store->load('routes',function() use($store,$config): string {
-            return $this->fingerprint($store,$config);
-        },function() use($config,&$built): ?array {
+        $builder=function() use($config,&$built): ?array {
             $built=$this->build($config);
             try {
                 foreach($built->getRoutes() as $route)
-                    $route->compileControllerMiddlewares((array)$config->get('middlewares.controller',array()));
-                return array('sorted'=>true,'routes'=>$built->export());
+                    $route->compileControllerMiddlewares($config->get('middlewares.controller',array()));
+                return array(
+                    'version'=>1,
+                    'sorted'=>true,
+                    'routes'=>$built->export(),
+                    'sources'=>$this->handlerSources($built->getRoutes())
+                );
             } catch(\Throwable) {
                 // 路由含闭包/对象或绑定无法预解析时保持实时路由, 不写缓存
                 return null;
             }
-        },$context);
+        };
+        $payload=$store->load('routes',function() use($store,$config): string {
+            return $this->fingerprint($store,$config);
+        },$builder,$context);
         if($built!==null)
             return $built;
-        if(is_array($payload)&&isset($payload['routes'])&&is_array($payload['routes'])) {
+        $validate_sources=$store->shouldValidate();
+        if(is_array($payload)
+            &&(int)($payload['version']??0)===1
+            &&isset($payload['routes'])
+            &&is_array($payload['routes'])
+            &&(!$validate_sources||$this->sourcesMatch($payload['sources']??null))) {
             try {
                 $router=new Router();
                 $router->import($payload['routes'],!empty($payload['sorted']));
@@ -96,7 +111,15 @@ final class RouterFactory {
             } catch(\Throwable) {
                 $store->invalidate('routes');
             }
+        } elseif(is_array($payload)) {
+            // 旧缓存没有控制器源文件清单, 或路由处理器的类文件已变化
+            $store->invalidate('routes');
         }
+        $rebuilt=$builder();
+        if(is_array($rebuilt))
+            $store->save('routes',$this->fingerprint($store,$config),$rebuilt,$context);
+        if($built!==null)
+            return $built;
         return $this->build($config);
     }
 
@@ -197,6 +220,69 @@ final class RouterFactory {
             'middlewares.controller'=>$config->get('middlewares.controller',array()),
             'files'=>$stats
         ));
+    }
+
+    /**
+     * 收集路由处理器的控制器类文件指纹
+     *
+     * - 路由文件直接写 `array(Controller::class,'action')` 时, 控制器文件可能不在
+     *   `route.files` / `route.attributes` 范围内; 由缓存 payload 单独保存并在命中时校验
+     *
+     * @access private
+     * @param array<\AdminService\Router\RouteItem> $routes 路由列表
+     * @return array<string,array{mtime:int,size:int}|null>
+     */
+    private function handlerSources(array $routes): array {
+        $stats=array();
+        foreach($routes as $route) {
+            $handler=$route->getHandler();
+            $class=null;
+            if(is_array($handler)&&count($handler)===2) {
+                $target=$handler[0]??null;
+                if(is_string($target))
+                    $class=$target;
+                elseif(is_object($target))
+                    $class=$target::class;
+            } elseif(is_object($handler)) {
+                $class=$handler::class;
+            }
+            if(!is_string($class)||$class==='')
+                continue;
+            try {
+                $reflection=new ReflectionClass($class);
+                $file=$reflection->getFileName();
+                if(is_string($file))
+                    $this->collectFileStats($file,$stats);
+            } catch(\Throwable) {
+                $stats['missing_class:'.$class]=null;
+            }
+        }
+        ksort($stats);
+        return $stats;
+    }
+
+    /**
+     * 校验缓存里的处理器类文件清单
+     *
+     * @access private
+     * @param mixed $sources 缓存源文件清单
+     * @return bool
+     */
+    private function sourcesMatch(mixed $sources): bool {
+        if(!is_array($sources))
+            return false;
+        foreach($sources as $file=>$expected) {
+            if(!is_string($file)||!is_array($expected))
+                return false;
+            if(str_starts_with($file,'file:'))
+                $file=substr($file,5);
+            $stat=@stat($file);
+            if($stat===false
+                ||(int)$stat['mtime']!==(int)($expected['mtime']??-1)
+                ||(int)$stat['size']!==(int)($expected['size']??-1))
+                return false;
+        }
+        return true;
     }
 
     /**

@@ -90,7 +90,7 @@ final class App {
      *
      * @access public
      * @template T of object
-     * @param class-string<T> $__name 对象名（类名）
+     * @param class-string<T>|string $__name 对象名（类名或别名）
      * @param mixed ...$args 构造函数参数($args中不允许传入“__name”参数)
      * @return T 返回指定类的实例
      * @throws Exception|\ReflectionException

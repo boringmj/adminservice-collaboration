@@ -13,6 +13,7 @@ use function base64_decode;
 use function base64_encode;
 use function dirname;
 use function file_put_contents;
+use function filemtime;
 use function floor;
 use function fclose;
 use function flock;
@@ -39,6 +40,7 @@ use function serialize;
 use function sha1;
 use function str_ends_with;
 use function str_replace;
+use function str_starts_with;
 use function strlen;
 use function substr;
 use function time;
@@ -84,6 +86,7 @@ final class Cache implements CacheInterface {
     private const COMPILE_FILES=array(
         'config'=>'config.cache.php',
         'routes'=>'routes.cache.php',
+        'route'=>'routes.cache.php',
         'container'=>'container.cache.php'
     );
 
@@ -392,7 +395,9 @@ final class Cache implements CacheInterface {
                     if(!is_dir($path)||is_link($path))
                         continue;
                     $this->gcDirectory($path,$limit,$checked,$removed);
-                    $this->removeEmptyDirectories($path,$path);
+                    // limit 已用尽时不再遍历整个目录树做空目录清理
+                    if($checked<$limit)
+                        $this->removeEmptyDirectories($path,$path);
                 }
             }
         }
@@ -405,22 +410,33 @@ final class Cache implements CacheInterface {
      * 清理编译缓存
      *
      * @access public
-     * @param string|null $target 目标(`config` / `routes` / `container`); null = 全部编译缓存
+     * @param string|null $target 目标(`config` / `routes` / `route` / `container`); null = 全部编译缓存
      * @return bool
      * @throws Exception 目标名非法
      */
     public function clearCompile(?string $target=null): bool {
         $root=$this->compileRoot();
         if($target===null) {
-            if(!is_dir($root)||is_link($root))
-                return true;
-            return $this->removeDirectoryContents($root);
+            $ok=true;
+            if(is_dir($root)&&!is_link($root))
+                $ok=$this->removeDirectoryContents($root);
+            // 引导期配置快照固定写入 runtime; cache.path 改到别处时也要清掉它
+            $runtime=$this->runtimeCompileRoot();
+            if($runtime!==$root&&is_dir($runtime)&&!is_link($runtime))
+                $ok=$this->removeDirectoryContents($runtime)&&$ok;
+            return $ok;
         }
         if(!array_key_exists($target,self::COMPILE_FILES))
             throw new Exception('Cache compile target is invalid.',self::ERROR_INVALID_CLEAR_TARGET,array(
                 'target'=>$target
             ));
-        return $this->removeFile($root.'/'.self::COMPILE_FILES[$target]);
+        $ok=$this->removeFile($root.'/'.self::COMPILE_FILES[$target]);
+        if($target==='config') {
+            $runtime=$this->runtimeCompileRoot();
+            if($runtime!==$root)
+                $ok=$this->removeFile($runtime.'/config.cache.php')&&$ok;
+        }
+        return $ok;
     }
 
     /**
@@ -434,9 +450,14 @@ final class Cache implements CacheInterface {
      */
     public function clearAll(): bool {
         $root=$this->cacheRoot();
-        if(!is_dir($root)||is_link($root))
-            return true;
-        return $this->removeDirectoryContents($root);
+        $ok=true;
+        if(is_dir($root)&&!is_link($root))
+            $ok=$this->removeDirectoryContents($root);
+        // 配置快照是引导期例外, 即使 cache.path 自定义也要一并清理
+        $runtime=$this->runtimeCompileRoot();
+        if($runtime!==$this->compileRoot())
+            $ok=$this->removeFile($runtime.'/config.cache.php')&&$ok;
+        return $ok;
     }
 
     /**
@@ -812,6 +833,10 @@ final class Cache implements CacheInterface {
                 $this->gcDirectory($path,$limit,$checked,$removed);
                 continue;
             }
+            if($this->isAuxiliaryFile($entry)) {
+                $this->gcAuxiliaryFile($path,$removed);
+                continue;
+            }
             if(!is_file($path)||!str_ends_with($path,'.cache.php'))
                 continue;
             $checked++;
@@ -819,6 +844,48 @@ final class Cache implements CacheInterface {
             $this->readEntry($path,null,false);
             if($before&&!is_file($path))
                 $removed++;
+        }
+    }
+
+    /**
+     * 是否为锁文件或崩溃残留的临时文件
+     *
+     * @access private
+     * @param string $name 文件名
+     * @return bool
+     */
+    private function isAuxiliaryFile(string $name): bool {
+        return str_ends_with($name,'.lock')||str_starts_with($name,'.cachetmp_');
+    }
+
+    /**
+     * 清理超过一小时且未被占用的锁文件/临时文件
+     *
+     * - 锁文件可能被活动进程持有, 只在非阻塞 flock 成功时删除
+     * - 检查失败时保留文件, 不影响本次 GC
+     *
+     * @access private
+     * @param string $path 文件路径
+     * @param int $removed 已清理文件数(引用)
+     * @return void
+     */
+    private function gcAuxiliaryFile(string $path,int &$removed): void {
+        if(!is_file($path))
+            return;
+        $mtime=@filemtime($path);
+        if($mtime===false||$mtime>time()-3600)
+            return;
+        $handle=@fopen($path,'c');
+        if($handle===false)
+            return;
+        try {
+            if(!@flock($handle,LOCK_EX|LOCK_NB))
+                return;
+            @flock($handle,LOCK_UN);
+            if($this->removeFile($path))
+                $removed++;
+        } finally {
+            @fclose($handle);
         }
     }
 
@@ -988,6 +1055,18 @@ final class Cache implements CacheInterface {
      */
     private function compileRoot(): string {
         return $this->cacheRoot().'/compile';
+    }
+
+    /**
+     * Runtime 下的编译缓存根目录
+     *
+     * - `Main` 引导期无法读取 `cache.path`, 配置快照固定写在这里
+     *
+     * @access private
+     * @return string
+     */
+    private function runtimeCompileRoot(): string {
+        return rtrim(str_replace('\\','/',Runtime::path()),'/').'/cache/compile';
     }
 
     /**

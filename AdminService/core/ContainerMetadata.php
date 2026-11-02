@@ -58,6 +58,12 @@ final class ContainerMetadata {
     private CompileStore $store;
 
     /**
+     * 元数据缓存使用的配置契约
+     * @var ConfigInterface|null
+     */
+    private ?ConfigInterface $config=null;
+
+    /**
      * 是否已加载磁盘缓存
      * @var bool
      */
@@ -91,7 +97,29 @@ final class ContainerMetadata {
      */
     public function __construct(?ReflectionCache $reflections=null,?ConfigInterface $config=null) {
         $this->reflections=$reflections??new ReflectionCache();
+        $this->config=$config;
         $this->store=new CompileStore($config);
+    }
+
+    /**
+     * 更新元数据缓存使用的配置
+     *
+     * - 容器登记配置实例后调用, 避免容器缓存错误回落到全局门面配置
+     * - 配置对象变化时清空已加载的类元数据, 下次访问按新 cache.path 重新加载
+     *
+     * @access public
+     * @param ConfigInterface $config 配置契约
+     * @return void
+     */
+    public function setConfig(ConfigInterface $config): void {
+        if($this->config===$config)
+            return;
+        $this->flush();
+        $this->config=$config;
+        $this->store=new CompileStore($config);
+        $this->loaded=false;
+        $this->dirty=false;
+        $this->classes=array();
     }
 
     /**

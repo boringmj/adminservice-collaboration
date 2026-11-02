@@ -88,6 +88,17 @@ final class ArgumentResolver implements ArgumentResolverInterface {
     }
 
     /**
+     * 设置容器反射元数据缓存
+     *
+     * @access public
+     * @param ContainerMetadata $metadata 元数据缓存
+     * @return void
+     */
+    public function setMetadata(ContainerMetadata $metadata): void {
+        $this->metadata=$metadata;
+    }
+
+    /**
      * 设置实例解析回调
      *
      * @access public

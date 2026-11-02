@@ -37,6 +37,7 @@ interface CacheInterface {
      * @param int|null $ttl 过期秒数; null = 使用默认 TTL, <=0 = 永不过期
      * @param string|null $version 版本指纹; 读取时可选校验
      * @return bool
+     * @throws \AdminService\Exception 写入失败
      */
     public function set(string $key,mixed $value,?int $ttl=null,?string $version=null): bool;
 
@@ -134,6 +135,7 @@ interface CacheInterface {
      * @param iterable<string,mixed> $values 键值表
      * @param int|null $ttl 过期秒数
      * @return bool
+     * @throws \AdminService\Exception 写入失败
      */
     public function setMultiple(iterable $values,?int $ttl=null): bool;
 

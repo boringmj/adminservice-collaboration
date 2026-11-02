@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
 use AdminService\Cache;
+use AdminService\Cache\CompileStore;
 use AdminService\Config\Repository;
 use AdminService\Container;
 use AdminService\Exception;
@@ -25,6 +26,7 @@ use function rmdir;
 use function scandir;
 use function sys_get_temp_dir;
 use function time;
+use function touch;
 use function uniqid;
 use function var_export;
 
@@ -465,6 +467,60 @@ class CacheTest extends TestCase {
      *
      * @return void
      */
+    /**
+     * 测试: `.env` 的字符串 `0` 与布尔 false 一样关闭编译缓存
+     *
+     * @return void
+     */
+    public function testCompileStoreTreatsStringZeroAsDisabled(): void {
+        $config=$this->makeConfig(array(
+            'compile'=>array(
+                'enabled'=>'0',
+                'mode'=>'auto',
+                'config'=>true,
+                'route'=>true,
+                'container'=>true
+            )
+        ));
+        $store=new CompileStore($config);
+
+        $this->assertSame('off',$store->mode());
+        $this->assertFalse($store->enabled('route'));
+        $this->assertFalse($store->enabled('container'));
+    }
+
+    /**
+     * 测试: 清空接口兼容 `route` 别名
+     *
+     * @return void
+     */
+    public function testClearCompileAcceptsRouteAlias(): void {
+        $cache=new Cache($this->config);
+        $compile=$this->dir.'/cache/compile';
+        mkdir($compile,0755,true);
+        $route_file=$compile.'/routes.cache.php';
+        file_put_contents($route_file,'<?php return array();');
+
+        $this->assertTrue($cache->clearCompile('route'));
+        $this->assertFileDoesNotExist($route_file);
+    }
+
+    public function testGcRemovesStaleAuxiliaryFiles(): void {
+        $cache=new Cache($this->config);
+        $pool=$this->dir.'/cache/kv/default';
+        mkdir($pool,0755,true);
+        $lock=$pool.'/key.lock';
+        $tmp=$pool.'/.cachetmp_stale';
+        file_put_contents($lock,'');
+        file_put_contents($tmp,'');
+        touch($lock,time()-7200);
+        touch($tmp,time()-7200);
+
+        $this->assertGreaterThanOrEqual(2,$cache->gc(0));
+        $this->assertFileDoesNotExist($lock);
+        $this->assertFileDoesNotExist($tmp);
+    }
+
     public function testInvalidKeyAndPoolAreRejected(): void {
         $cache=new Cache($this->config);
 

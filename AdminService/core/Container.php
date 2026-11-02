@@ -5,6 +5,7 @@ namespace AdminService;
 use Closure;
 use ReflectionClass;
 use ReflectionParameter;
+use base\ConfigInterface;
 
 use function array_key_last;
 use function array_pop;
@@ -530,6 +531,10 @@ final class Container implements \base\Container {
      */
     public function fork(): static {
         $child=new static($this->reflections);
+        // 容器元数据与请求无关, 与反射缓存一样跨请求共享, 避免每次 fork 重复 include/stat
+        $child->metadata=$this->metadata;
+        $child->arguments->setMetadata($this->metadata);
+        $child->autowire->setMetadata($this->metadata);
         $child->parent=$this;
         $child->class_container=$this->class_container;
         $child->alias_container=$this->alias_container;
@@ -648,6 +653,9 @@ final class Container implements \base\Container {
         $real=$this->resolve($name);
         $this->container[$real]=$object;
         unset($this->resolved_container[$real]);
+        // 容器登记配置后, 容器元数据缓存跟随容器配置, 不再使用门面配置
+        if($object instanceof ConfigInterface)
+            $this->metadata->setConfig($object);
     }
 
     /**

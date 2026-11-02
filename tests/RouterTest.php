@@ -1453,4 +1453,34 @@ class RouterTest extends TestCase {
         $router->load(__DIR__.'/no-such-routes.php');
     }
 
+    /**
+     * 显式 HEAD 路由不能被后注册的 GET 兜底覆盖
+     *
+     * @return void
+     */
+    public function testExplicitHeadRouteKeepsPriorityOverGetFallback(): void {
+        $router=new Router();
+        $router->add(array('HEAD'),'/head-priority',array('C','head'));
+        $router->get('/head-priority',array('C','get'));
+
+        $this->assertSame(array('C','head'),$router->find('HEAD','/head-priority')[0]->getHandler());
+
+        $reverse=new Router();
+        $reverse->get('/head-priority',array('C','get'));
+        $reverse->add(array('HEAD'),'/head-priority',array('C','head'));
+        $this->assertSame(array('C','head'),$reverse->find('HEAD','/head-priority')[0]->getHandler());
+    }
+
+    /**
+     * 控制器中间件支持已实例化对象, 不能被强转数组后丢弃
+     *
+     * @return void
+     */
+    public function testControllerMiddlewareAcceptsObjectInstance(): void {
+        $middleware=new FirstMiddleware();
+        $route=new RouteItem(array('GET'),'/middleware-object',function(): void {});
+
+        $this->assertSame(array($middleware),$route->compileControllerMiddlewares($middleware));
+    }
+
 }

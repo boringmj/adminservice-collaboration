@@ -152,17 +152,24 @@ final class RouteItem {
      * @param string $path 路由路径
      * @param mixed $handler 处理器
      * @param mixed $middlewares 分组层中间件(类名 / 实例 / 数组 / 含 priority 的条目)
+     * @param bool $compile_pattern 是否立即编译匹配正则(从缓存恢复时可跳过)
      * @throws Exception 路径参数名重复或路径格式非法
      * @throws \InvalidArgumentException 请求方法不是非空字符串或 Method 枚举
      */
-    public function __construct(array $methods,string $path,mixed $handler,mixed $middlewares=array()) {
+    public function __construct(
+        array $methods,
+        string $path,
+        mixed $handler,
+        mixed $middlewares=array(),
+        bool $compile_pattern=true
+    ) {
         $this->methods=array();
         foreach($methods as $method)
             $this->methods[]=Method::normalize($method);
         $this->path=self::expandWildcard(self::normalizePath($path));
         $this->handler=$handler;
         $this->group_middlewares=Pipeline::normalize($middlewares);
-        $this->pattern=$this->compile();
+        $this->pattern=$compile_pattern?$this->compile():'';
     }
 
     /**
@@ -427,7 +434,7 @@ final class RouteItem {
      * @param array<string,mixed> $configured 配置中的控制器级中间件
      * @return array<string|object>
      */
-    public function compileControllerMiddlewares(array $configured=array()): array {
+    public function compileControllerMiddlewares(mixed $configured=array()): array {
         if($this->compiled_controller_middlewares!==null)
             return $this->compiled_controller_middlewares;
         $entries=Pipeline::normalize($configured);
@@ -524,10 +531,14 @@ final class RouteItem {
         if(!isset($data['path'])||!is_string($data['path'])||$data['path']===''
             ||!array_key_exists('handler',$data))
             throw new Exception('Invalid compiled route item.',-423);
+        if(!isset($data['pattern'])||!is_string($data['pattern'])||$data['pattern']==='')
+            throw new Exception('Invalid compiled route item.',-423);
         $route=new self(
             isset($data['methods'])&&is_array($data['methods'])?$data['methods']:array(),
             $data['path'],
-            $data['handler']
+            $data['handler'],
+            array(),
+            false
         );
         if(isset($data['group_middlewares'])&&is_array($data['group_middlewares']))
             $route->group_middlewares=$data['group_middlewares'];

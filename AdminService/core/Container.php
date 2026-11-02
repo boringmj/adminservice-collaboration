@@ -127,6 +127,12 @@ final class Container implements \base\Container {
     private ReflectionCache $reflections;
 
     /**
+     * 容器反射元数据缓存
+     * @var ContainerMetadata
+     */
+    private ContainerMetadata $metadata;
+
+    /**
      * 参数解析器(参数合并 / 类型校验 / 类型转换 / 类型标准化)
      * @var ArgumentResolver
      */
@@ -155,9 +161,10 @@ final class Container implements \base\Container {
      */
     public function __construct(?ReflectionCache $reflections=null) {
         $this->reflections=$reflections??new ReflectionCache();
-        $this->arguments=new ArgumentResolver($this->reflections);
+        $this->metadata=new ContainerMetadata($this->reflections);
+        $this->arguments=new ArgumentResolver($this->reflections,$this->metadata);
         $this->classes=new ClassFinder($this->reflections);
-        $this->autowire=new Autowire($this->reflections);
+        $this->autowire=new Autowire($this->reflections,$this->metadata);
         // 装配器: 类名解析 + 按类名装配实例 + 参数解析(生命周期方法注入) + 代理创建(注入容器)
         $this->autowire->setArgumentResolver($this->arguments);
         // 参数解析器: 配置项取值(接到"容器里登记的配置实例"; 组件因此既不依赖配置实现, 也不依赖配置门面)

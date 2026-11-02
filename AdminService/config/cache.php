@@ -23,7 +23,7 @@ return array(
     'gc_divisor'=>100, // 写时触发自动 GC 的概率分母(默认 1/100)
     'gc_max_files'=>200, // 单次自动 GC 最多检查文件数(<=0 表示不限制)
 
-    // 系统编译缓存(配置/路由已接入; 容器待接入)
+    // 系统编译缓存(配置/路由/容器已接入; 存在 .env 时配置缓存关闭)
     'compile'=>array(
         'enabled'=>env('CACHE_COMPILE',true), // 编译缓存总开关
         'mode'=>env('CACHE_COMPILE_MODE','auto'), // auto(debug下按 skip_on_debug 跳过或校验/生产零探测) | always | off

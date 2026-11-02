@@ -65,6 +65,12 @@ final class Autowire implements AutowireInterface {
     private ReflectionCache $reflections;
 
     /**
+     * 容器反射元数据缓存
+     * @var ContainerMetadata|null
+     */
+    private ?ContainerMetadata $metadata=null;
+
+    /**
      * 真实类名解析回调(签名: string $class => string)
      * @var (Closure(string):string)|null
      */
@@ -107,9 +113,11 @@ final class Autowire implements AutowireInterface {
      *
      * @access public
      * @param ReflectionCache|null $reflections 反射缓存(默认新建)
+     * @param ContainerMetadata|null $metadata 容器反射元数据缓存
      */
-    public function __construct(?ReflectionCache $reflections=null) {
+    public function __construct(?ReflectionCache $reflections=null,?ContainerMetadata $metadata=null) {
         $this->reflections=$reflections??new ReflectionCache();
+        $this->metadata=$metadata;
     }
 
     /**
@@ -259,6 +267,24 @@ final class Autowire implements AutowireInterface {
     public function autowire(object $instance,array &$flags=[]): void {
         // 获取对象的反射
         $ref=$this->reflections->getObject($instance);
+        if($this->metadata!==null) {
+            $meta=$this->metadata->getClass($ref->getName());
+            if($meta['properties']===array()&&$meta['setters']===array()&&$meta['methods']===array())
+                return;
+            $properties=array();
+            foreach($meta['properties'] as $name)
+                $properties[]=$ref->getProperty($name);
+            $setters=array();
+            foreach($meta['setters'] as $name)
+                $setters[]=$ref->getMethod($name);
+            $methods=array();
+            foreach($meta['methods'] as $name)
+                $methods[]=$ref->getMethod($name);
+            $this->autowireProperty($properties,$instance,$ref,$flags);
+            $this->autowireSetter($setters,$instance,$ref,$flags);
+            $this->autowireMethod($methods,$instance,$ref,$flags);
+            return;
+        }
         // 获取类的所有属性
         $properties=$ref->getProperties();
         // 自动注入属性

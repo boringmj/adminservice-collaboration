@@ -5,6 +5,7 @@ namespace AdminService;
 use ReflectionParameter;
 use ReflectionProperty;
 use ReflectionMethod;
+use ReflectionFunctionAbstract;
 use ReflectionException;
 use Closure;
 use base\ArgumentResolverInterface;
@@ -51,6 +52,12 @@ final class ArgumentResolver implements ArgumentResolverInterface {
     private ReflectionCache $reflections;
 
     /**
+     * 容器反射元数据缓存
+     * @var ContainerMetadata|null
+     */
+    private ?ContainerMetadata $metadata=null;
+
+    /**
      * 实例解析回调(签名: array<string> $types, ReflectionParameter|null $param => ?object)
      * @var (Closure(array<string>,ReflectionParameter|null):?object)|null
      */
@@ -73,9 +80,11 @@ final class ArgumentResolver implements ArgumentResolverInterface {
      *
      * @access public
      * @param ReflectionCache|null $reflections 反射缓存(默认新建)
+     * @param ContainerMetadata|null $metadata 容器反射元数据缓存
      */
-    public function __construct(?ReflectionCache $reflections=null) {
+    public function __construct(?ReflectionCache $reflections=null,?ContainerMetadata $metadata=null) {
         $this->reflections=$reflections??new ReflectionCache();
+        $this->metadata=$metadata;
     }
 
     /**
@@ -121,26 +130,59 @@ final class ArgumentResolver implements ArgumentResolverInterface {
      * @param array<ReflectionParameter> $params 参数
      * @param array<mixed> $args 参数
      * @param bool $allow_config 是否允许 `#[Config]` 配置项注入
+     * @param ReflectionFunctionAbstract|null $function 参数所属函数(用于命中编译元数据)
      * @return array<int|string,mixed>
      * @throws Exception
      * @throws ReflectionException
      */
-    public function merge(array $params,array $args,bool $allow_config=false): array {
+    public function merge(array $params,array $args,bool $allow_config=false,?ReflectionFunctionAbstract $function=null): array {
         $params_temp=array();
         $arg_count=0;
-        foreach($params as $param) {
-            $type=$param->getType();
-            $type=(string)$type;
-            // 将类型分割为数组
-            $types=explode('|',$type);
-            $types=$this->getStandardTypes($types);
-            // 获取参数名
-            $name=$param->getName();
-            if($param->allowsNull())
-                $types[]='NULL';
-            $types=array_unique($types);
+        $meta_list=null;
+        if($this->metadata!==null) {
+            if($function instanceof ReflectionMethod) {
+                $meta_list=$this->metadata->methodParams($function);
+            } elseif($function===null&&isset($params[0])&&$params[0] instanceof ReflectionParameter) {
+                $declaring=$params[0]->getDeclaringFunction();
+                if($declaring instanceof ReflectionMethod) {
+                    $declared=$declaring->getParameters();
+                    $same=count($declared)===count($params);
+                    if($same) {
+                        foreach($params as $index=>$param)
+                            if(!isset($declared[$index])||$declared[$index]->getName()!==$param->getName()) {
+                                $same=false;
+                                break;
+                            }
+                    }
+                    if($same)
+                        $meta_list=$this->metadata->methodParams($declaring);
+                }
+            }
+        }
+        foreach($params as $index=>$param) {
+            $meta=$meta_list[$index]??null;
+            if($meta!==null) {
+                $types=$meta['types'];
+                $name=$meta['name'];
+                $is_variadic=$meta['is_variadic'];
+                $allows_null=$meta['allows_null'];
+                $has_default=$meta['has_default'];
+                $default=$meta['default'];
+            } else {
+                $type=(string)$param->getType();
+                // 将类型分割为数组
+                $types=$this->getStandardTypes(explode('|',$type));
+                $name=$param->getName();
+                $allows_null=$param->allowsNull();
+                if($allows_null)
+                    $types[]='NULL';
+                $types=array_unique($types);
+                $is_variadic=$param->isVariadic();
+                $has_default=$param->isDefaultValueAvailable();
+                $default=$has_default?$param->getDefaultValue():null;
+            }
             // 判断参数类型是否为可变参数
-            if($param->isVariadic()) {
+            if($is_variadic) {
                 $numeric_args=array_values(array_filter($args,'is_numeric',ARRAY_FILTER_USE_KEY));
                 $assoc_args=array_filter($args,'is_string',ARRAY_FILTER_USE_KEY);
                 $temp_args=array_merge($numeric_args,$assoc_args);
@@ -200,9 +242,9 @@ final class ArgumentResolver implements ArgumentResolverInterface {
             }
             // 配置项注入(仅显式标注 #[Config] 的形参; 具名/顺位实参已在上方优先消费)
             if($allow_config) {
-                $config=$this->configAttribute($param);
+                $config=$meta!==null?$this->configFromMeta($meta['config']):$this->configAttribute($param);
                 if($config!==null) {
-                    $params_temp[]=$this->configValue($config,$types,$param->isDefaultValueAvailable()?$param->getDefaultValue():null);
+                    $params_temp[]=$this->configValue($config,$types,$has_default?$default:null);
                     continue;
                 }
             }
@@ -210,11 +252,11 @@ final class ArgumentResolver implements ArgumentResolverInterface {
             try {
                 $real_class=$this->resolveInstance($types,$param);
             } catch(CircularDependencyException $e) {
-                if($param->isDefaultValueAvailable()) {
-                    $params_temp[]=$param->getDefaultValue();
+                if($has_default) {
+                    $params_temp[]=$default;
                     continue;
                 }
-                if($param->allowsNull()) {
+                if($allows_null) {
                     $params_temp[]=null;
                     continue;
                 }
@@ -224,9 +266,9 @@ final class ArgumentResolver implements ArgumentResolverInterface {
                 $params_temp[]=$real_class;
                 continue;
             }
-            elseif($param->isDefaultValueAvailable())
-                $params_temp[]=$param->getDefaultValue();
-            else if($param->allowsNull())
+            elseif($has_default)
+                $params_temp[]=$default;
+            else if($allows_null)
                 $params_temp[]=null;
             else
                 throw new Exception('Parameter "'.$param->getName().'" of "'.$param.'" is not valid.',0,array(
@@ -406,7 +448,7 @@ final class ArgumentResolver implements ArgumentResolverInterface {
         $ref=$this->reflections->getMethodByObject($object,$method);
         $params=$ref->getParameters();
         // 框架在解析实参 → 显式标注的 #[Config] 一并生效(实参优先级更高)
-        return $ref->invokeArgs($object,$this->merge($params,$args,true));
+        return $ref->invokeArgs($object,$this->merge($params,$args,true,$ref));
     }
 
     /**
@@ -427,7 +469,7 @@ final class ArgumentResolver implements ArgumentResolverInterface {
         $ref=$this->reflections->getFunction($function);
         $params=$ref->getParameters();
         // 同 call(): 框架解析实参时, 显式标注的 #[Config] 生效
-        return $ref->invokeArgs($this->merge($params,$args,true));
+        return $ref->invokeArgs($this->merge($params,$args,true,$ref));
     }
 
     /**
@@ -444,6 +486,19 @@ final class ArgumentResolver implements ArgumentResolverInterface {
         if($attributes===array())
             return null;
         return $attributes[0]->newInstance();
+    }
+
+    /**
+     * 从编译元数据恢复 `#[Config]` 注解
+     *
+     * @access private
+     * @param array{key:string,has_default:bool,default:mixed}|null $meta 配置元数据
+     * @return Config|null
+     */
+    private function configFromMeta(?array $meta): ?Config {
+        if($meta===null)
+            return null;
+        return $meta['has_default']?new Config($meta['key'],$meta['default']):new Config($meta['key']);
     }
 
     /**

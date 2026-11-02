@@ -159,6 +159,44 @@ final class CompileStore {
     }
 
     /**
+     * 指定缓存当前是否可用
+     *
+     * @access public
+     * @param string $name 缓存名
+     * @return bool
+     * @throws Exception 缓存名非法
+     */
+    public function enabled(string $name): bool {
+        $name=$this->assertName($name);
+        $mode=$this->mode();
+        return $mode!=='off'&&$this->enabledFor($name)
+            &&!($mode==='auto'&&$this->skipOnDebug($name));
+    }
+
+    /**
+     * 直接保存编译缓存
+     *
+     * - 供需要增量维护单个缓存文件的组件使用
+     * - 不可导出或缓存关闭时不写入
+     *
+     * @access public
+     * @param string $name 缓存名
+     * @param string $fingerprint 源指纹
+     * @param mixed $payload 数据
+     * @param string|null $context 配置上下文
+     * @return bool
+     * @throws Exception 缓存名非法
+     */
+    public function save(string $name,string $fingerprint,mixed $payload,?string $context=null): bool {
+        $name=$this->assertName($name);
+        if(!$this->enabled($name))
+            return false;
+        if($payload===null||!$this->isExportable($payload))
+            return false;
+        return $this->write($this->path($name),$fingerprint,$payload,$context);
+    }
+
+    /**
      * 删除指定编译缓存
      *
      * @access public

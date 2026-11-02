@@ -10,7 +10,9 @@ use base\ConfigInterface;
 use Closure;
 
 use function array_key_exists;
+use function array_map;
 use function dirname;
+use function explode;
 use function file_put_contents;
 use function function_exists;
 use function in_array;
@@ -123,15 +125,17 @@ final class CompileStore {
      */
     public function load(string $name,callable $fingerprint,callable $builder,?string $context=null): mixed {
         $name=$this->assertName($name);
-        if($this->mode()==='off'||!$this->enabledFor($name))
+        $mode=$this->mode();
+        if($mode==='off'||!$this->enabledFor($name))
+            return $builder();
+        if($mode==='auto'&&$this->skipOnDebug($name))
             return $builder();
         $file=$this->path($name);
         $validate=$this->shouldValidate();
         $current=$validate?(string)$fingerprint():null;
-        if(is_file($file)) {
-            $cached=$this->read($file);
-            if($cached!==null
-                &&($context===null||$cached['context']===$context)
+        $cached=$this->read($file);
+        if($cached!==null) {
+            if(($context===null||$cached['context']===$context)
                 &&(!$validate||$cached['fingerprint']===$current))
                 return $cached['payload'];
             $this->removeFile($file);
@@ -225,6 +229,31 @@ final class CompileStore {
         if($mode==='off')
             return false;
         return (bool)$this->config()->get('app.debug',false);
+    }
+
+    /**
+     * debug + auto 模式下是否跳过指定缓存
+     *
+     * - `cache.compile.skip_on_debug` 支持逗号字符串、数组或布尔值
+     * - 默认只跳过 `config`; 路由与容器缓存继续按指纹校验
+     *
+     * @access private
+     * @param string $name 缓存名
+     * @return bool
+     */
+    private function skipOnDebug(string $name): bool {
+        if((bool)$this->config()->get('app.debug',false)===false)
+            return false;
+        $targets=$this->config()->get('cache.compile.skip_on_debug','config');
+        if($targets===true)
+            return true;
+        if($targets===false)
+            return false;
+        if(is_string($targets))
+            $targets=$targets===''?array():array_map('trim',explode(',',$targets));
+        if(!is_array($targets))
+            return false;
+        return in_array($name,$targets,true);
     }
 
     /**

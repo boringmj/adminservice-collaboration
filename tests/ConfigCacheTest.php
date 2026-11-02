@@ -125,6 +125,113 @@ class ConfigCacheTest extends TestCase {
     }
 
     /**
+     * 测试: debug + auto 默认跳过配置缓存, 但保留路由缓存
+     *
+     * @return void
+     */
+    public function testDebugAutoSkipsConfigButKeepsRouteCache(): void {
+        $dir=$this->tempDir();
+        try {
+            $config=new Repository(array(
+                'app'=>array('debug'=>true),
+                'cache'=>array(
+                    'path'=>$dir.'/cache',
+                    'dir_mode'=>0755,
+                    'compile'=>array(
+                        'enabled'=>true,
+                        'mode'=>'auto',
+                        'config'=>true,
+                        'route'=>true,
+                        'container'=>true
+                    )
+                )
+            ));
+            $store=new CompileStore($config);
+            $config_builds=0;
+            $route_builds=0;
+
+            $store->load('config',fn(): string => 'fp',function() use (&$config_builds): array {
+                $config_builds++;
+                return array('ok'=>true);
+            },'ctx');
+            $this->assertSame(1,$config_builds);
+            $this->assertFileDoesNotExist($dir.'/cache/compile/config.cache.php','debug + auto 默认不写配置缓存');
+
+            $store->load('routes',fn(): string => 'fp',function() use (&$route_builds): array {
+                $route_builds++;
+                return array('ok'=>true);
+            },'ctx');
+            $store->load('routes',fn(): string => 'fp',function() use (&$route_builds): array {
+                $route_builds++;
+                return array('ok'=>true);
+            },'ctx');
+            $this->assertSame(1,$route_builds,'路由缓存仍应在 debug 下命中');
+            $this->assertFileExists($dir.'/cache/compile/routes.cache.php');
+        } finally {
+            $this->removePath($dir);
+        }
+    }
+
+    /**
+     * 测试: 显式 always 覆盖 debug 跳过策略
+     *
+     * @return void
+     */
+    public function testAlwaysOverridesDebugSkip(): void {
+        $dir=$this->tempDir();
+        try {
+            $config=new Repository(array(
+                'app'=>array('debug'=>true),
+                'cache'=>array(
+                    'path'=>$dir.'/cache',
+                    'dir_mode'=>0755,
+                    'compile'=>array(
+                        'enabled'=>true,
+                        'mode'=>'always',
+                        'config'=>true,
+                        'skip_on_debug'=>array('config')
+                    )
+                )
+            ));
+            $store=new CompileStore($config);
+            $builds=0;
+            $store->load('config',fn(): string => 'fp',function() use (&$builds): array {
+                $builds++;
+                return array('ok'=>true);
+            },'ctx');
+
+            $this->assertSame(1,$builds);
+            $this->assertFileExists($dir.'/cache/compile/config.cache.php');
+        } finally {
+            $this->removePath($dir);
+        }
+    }
+
+    /**
+     * 测试: Main 在 debug + auto 下跳过配置缓存
+     *
+     * @return void
+     */
+    public function testMainSkipsConfigCacheInDebug(): void {
+        $old_runtime=Runtime::path();
+        $dir=$this->tempDir();
+        try {
+            Runtime::setPath($dir.'/runtime');
+            $method=new ReflectionMethod(Main::class,'loadConfig');
+            $method->setAccessible(true);
+            $main=new Main();
+            $config=$method->invoke($main,new Env("APP_DEBUG=true\n"));
+
+            $this->assertInstanceOf(Repository::class,$config);
+            $this->assertTrue($config->isCompiled());
+            $this->assertFileDoesNotExist($dir.'/runtime/cache/compile/config.cache.php');
+        } finally {
+            Runtime::setPath($old_runtime);
+            $this->removePath($dir);
+        }
+    }
+
+    /**
      * 测试: Main 从 runtime/cache/compile/config.cache.php 加载配置
      *
      * @return void
@@ -137,13 +244,14 @@ class ConfigCacheTest extends TestCase {
             $method=new ReflectionMethod(Main::class,'loadConfig');
             $method->setAccessible(true);
             $main=new Main();
+            $env=new Env("APP_DEBUG=false\n");
 
-            $first=$method->invoke($main,\AdminService\env_snapshot());
+            $first=$method->invoke($main,$env);
             $this->assertInstanceOf(Repository::class,$first);
             $this->assertTrue($first->isCompiled());
             $this->assertFileExists($dir.'/runtime/cache/compile/config.cache.php');
 
-            $second=$method->invoke($main,\AdminService\env_snapshot());
+            $second=$method->invoke($main,$env);
             $this->assertInstanceOf(Repository::class,$second);
             $this->assertTrue($second->isCompiled());
             $this->assertSame($first->get('app.timezone'),$second->get('app.timezone'));

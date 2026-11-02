@@ -24,7 +24,8 @@ return array(
     // 系统编译缓存(配置/路由已接入; 容器待接入)
     'compile'=>array(
         'enabled'=>env('CACHE_COMPILE',true), // 编译缓存总开关
-        'mode'=>env('CACHE_COMPILE_MODE','auto'), // auto(debug下校验指纹/生产零探测) | always | off
+        'mode'=>env('CACHE_COMPILE_MODE','auto'), // auto(debug下按 skip_on_debug 跳过或校验/生产零探测) | always | off
+        'skip_on_debug'=>env('CACHE_COMPILE_SKIP_ON_DEBUG','config'), // debug+auto 跳过的缓存名(config/route/container, 逗号分隔)
         'config'=>true, // 配置与引导预检编译缓存
         'route'=>true, // 路由表编译缓存
         'container'=>true // 容器 Autowire 与反射签名编译缓存

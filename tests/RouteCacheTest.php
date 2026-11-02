@@ -209,6 +209,24 @@ class RouteCacheTest extends TestCase {
     }
 
     /**
+     * 测试: debug + auto 下路由缓存仍可命中
+     *
+     * @return void
+     */
+    public function testDebugAutoStillUsesRouteCache(): void {
+        $this->writeRoutes();
+        $config=$this->config(true,'auto');
+
+        (new RouterFactory())->get($config);
+        $this->assertSame(1,$GLOBALS['route_cache_builds']);
+        $this->assertFileExists($this->dir.'/cache/compile/routes.cache.php');
+
+        $second=(new RouterFactory())->get($config);
+        $this->assertSame(1,$GLOBALS['route_cache_builds'],'debug 默认只跳过配置缓存, 路由缓存应继续命中');
+        $this->assertNotNull($second->find('GET','/cached'));
+    }
+
+    /**
      * 测试: 开发模式指纹变化后重建
      *
      * @return void

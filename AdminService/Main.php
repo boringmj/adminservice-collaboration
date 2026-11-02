@@ -13,16 +13,18 @@ use base\Route;
 use AdminService\Database\DatabaseConfig;
 use ReflectionException;
 
+use function array_filter;
+use function array_map;
+use function array_values;
 use function date_default_timezone_set;
-use function filemtime;
-use function filesize;
+use function explode;
 use function in_array;
 use function is_array;
-use function is_dir;
-use function is_file;
+use function is_string;
 use function scandir;
 use function sort;
 use function str_ends_with;
+use function trim;
 use function version_compare;
 
 final class Main {
@@ -31,11 +33,6 @@ final class Main {
      * 框架配置目录
      */
     private const CONFIG_DIR=__DIR__.'/config';
-
-    /**
-     * 项目 `.env` 路径
-     */
-    private const ENV_FILE=__DIR__.'/../.env';
 
     /**
      * 应用(引导 + 生命周期宿主)
@@ -149,7 +146,8 @@ final class Main {
                 'compile'=>array(
                     'enabled'=>$enabled,
                     'mode'=>$this->compileMode($env),
-                    'config'=>$enabled
+                    'config'=>$enabled,
+                    'skip_on_debug'=>$this->compileSkipOnDebug($env)
                 )
             )
         )));
@@ -193,6 +191,32 @@ final class Main {
     }
 
     /**
+     * debug 模式下跳过的编译缓存名
+     *
+     * - 字符串按逗号拆分; 布尔值表示全部跳过或不跳过
+     *
+     * @access private
+     * @param Env $env `.env` 快照
+     * @return array<string>
+     */
+    private function compileSkipOnDebug(Env $env): array {
+        $value=$env->get('CACHE_COMPILE_SKIP_ON_DEBUG','config');
+        if(is_array($value))
+            return array_values(array_filter($value,'is_string'));
+        if($value===true)
+            return array('config','route','container');
+        if($value===false)
+            return array();
+        $value=trim((string)$value);
+        if($value==='')
+            return array();
+        return array_values(array_filter(
+            array_map('trim',explode(',',$value)),
+            static fn(string $name): bool => $name!==''
+        ));
+    }
+
+    /**
      * 配置缓存上下文
      *
      * @access private
@@ -203,8 +227,7 @@ final class Main {
     private function configContext(CompileStore $store,Env $env): string {
         return $store->hash(array(
             'runtime'=>Runtime::path(),
-            'env'=>$env->all(),
-            'env_file'=>$this->statFile(self::ENV_FILE)
+            'env'=>$env->all()
         ));
     }
 
@@ -217,11 +240,7 @@ final class Main {
      * @return string
      */
     private function configFingerprint(CompileStore $store,Env $env): string {
-        $stats=array(
-            'runtime'=>Runtime::path(),
-            'env_file'=>$this->statFile(self::ENV_FILE),
-            'config_dir'=>$this->statDir(self::CONFIG_DIR)
-        );
+        $stats=array();
         foreach($this->listPhpFiles(self::CONFIG_DIR) as $file)
             $stats['file:'.$file]=$this->statFile($file);
         return $store->hash(array('env'=>$env->all(),'files'=>$stats));
@@ -235,25 +254,13 @@ final class Main {
      * @return array{mtime:int,size:int}|null
      */
     private function statFile(string $file): ?array {
-        if(!is_file($file))
+        $stat=@stat($file);
+        if($stat===false)
             return null;
         return array(
-            'mtime'=>(int)@filemtime($file),
-            'size'=>(int)@filesize($file)
+            'mtime'=>(int)$stat['mtime'],
+            'size'=>(int)$stat['size']
         );
-    }
-
-    /**
-     * 目录指纹
-     *
-     * @access private
-     * @param string $dir 目录
-     * @return array{mtime:int}|null
-     */
-    private function statDir(string $dir): ?array {
-        if(!is_dir($dir))
-            return null;
-        return array('mtime'=>(int)@filemtime($dir));
     }
 
     /**

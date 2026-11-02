@@ -7,11 +7,8 @@ use base\ConfigInterface;
 use ReflectionClass;
 
 use function array_key_exists;
-use function filemtime;
-use function filesize;
 use function is_array;
 use function is_dir;
-use function is_file;
 use function is_string;
 use function ksort;
 use function rtrim;
@@ -212,16 +209,11 @@ final class RouterFactory {
      */
     private function collectPathStats(string $path,array &$stats): void {
         if(is_dir($path)) {
-            $stats['dir:'.$path]=$this->stat($path);
             foreach($this->listPhpFiles($path) as $file)
                 $this->collectFileStats($file,$stats);
             return;
         }
-        if(is_file($path)) {
-            $this->collectFileStats($path,$stats);
-            return;
-        }
-        $stats['missing:'.$path]=null;
+        $this->collectFileStats($path,$stats);
     }
 
     /**
@@ -234,21 +226,17 @@ final class RouterFactory {
      */
     private function collectControllerStats(string $app_path,array &$stats): void {
         $root=rtrim($app_path,'/\\');
-        if($root===''||!is_dir($root)) {
-            if($root!=='')
-                $stats['missing:'.$root]=null;
+        if($root==='')
+            return;
+        $apps=@scandir($root);
+        if($apps===false) {
+            $stats['missing:'.$root]=null;
             return;
         }
-        $apps=@scandir($root);
-        if($apps===false)
-            return;
         foreach($apps as $app) {
             if($app==='.'||$app==='..')
                 continue;
             $controller=$root.'/'.$app.'/controller';
-            if(!is_dir($controller))
-                continue;
-            $stats['dir:'.$controller]=$this->stat($controller);
             foreach($this->listPhpFiles($controller) as $file)
                 $this->collectFileStats($file,$stats);
         }
@@ -263,23 +251,11 @@ final class RouterFactory {
      * @return void
      */
     private function collectFileStats(string $file,array &$stats): void {
-        $stats['file:'.$file]=is_file($file)?array(
-            'mtime'=>(int)@filemtime($file),
-            'size'=>(int)@filesize($file)
-        ):null;
-    }
-
-    /**
-     * 目录指纹
-     *
-     * @access private
-     * @param string $path 目录
-     * @return array{mtime:int}|null
-     */
-    private function stat(string $path): ?array {
-        if(!is_dir($path))
-            return null;
-        return array('mtime'=>(int)@filemtime($path));
+        $stat=@stat($file);
+        $stats['file:'.$file]=$stat===false?null:array(
+            'mtime'=>(int)$stat['mtime'],
+            'size'=>(int)$stat['size']
+        );
     }
 
     /**

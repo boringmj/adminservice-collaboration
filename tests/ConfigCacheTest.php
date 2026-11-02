@@ -211,7 +211,7 @@ class ConfigCacheTest extends TestCase {
     }
 
     /**
-     * 测试: 存在 .env 时 Main 默认关闭配置缓存并清理旧快照
+     * 测试: 存在 .env 时 Main 默认关闭配置缓存且不读取旧快照
      *
      * @return void
      */
@@ -231,7 +231,7 @@ class ConfigCacheTest extends TestCase {
 
             $this->assertInstanceOf(Repository::class,$config);
             $this->assertFalse($config->isValidated());
-            $this->assertFileDoesNotExist($cache,'存在 .env 时应清理旧配置快照');
+            $this->assertFileExists($cache,'存在 .env 时不读取旧配置快照，保留给显式清理入口');
         } finally {
             Runtime::setPath($old_runtime);
             $this->removePath($dir);

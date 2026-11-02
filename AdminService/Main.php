@@ -106,13 +106,12 @@ final class Main {
      * @throws Exception
      */
     private function loadConfig(Env $env): Repository {
-        $store=$this->bootstrapStore($env);
         $loader=new Loader(self::CONFIG_DIR);
         if(!$this->compileConfigEnabled($env)) {
-            // 存在 .env 时默认不生成配置快照, 并清理旧版本可能留下的快照
-            $store->invalidate('config');
+            // 存在 .env 时固定关闭配置快照; 旧快照不参与读取, 由显式清理入口处理
             return new Repository($loader->load(),$env);
         }
+        $store=$this->bootstrapStore($env);
         $payload=$store->load('config',function() use($store,$env): string {
             return $this->configFingerprint($store,$env);
         },function() use($loader,$env): array {

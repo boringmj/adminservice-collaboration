@@ -76,6 +76,12 @@ final class ContainerMetadata {
     private bool $dirty=false;
 
     /**
+     * 当前配置是否需要校验源文件(null = 尚未解析)
+     * @var bool|null
+     */
+    private ?bool $validate_sources=null;
+
+    /**
      * 已加载的类元数据
      *
      * @var array<string,array{
@@ -119,6 +125,7 @@ final class ContainerMetadata {
         $this->store=new CompileStore($config);
         $this->loaded=false;
         $this->dirty=false;
+        $this->validate_sources=null;
         $this->classes=array();
     }
 
@@ -177,7 +184,7 @@ final class ContainerMetadata {
         $files=null;
         if(isset($this->classes[$name])&&$this->validEntry($this->classes[$name])) {
             // 非校验模式直接信任已加载元数据, 不 stat 源文件
-            if(!$this->store->shouldValidate())
+            if(!$this->shouldValidate())
                 return $this->classes[$name];
             $files=$this->classFiles($reflection);
             if($this->classes[$name]['files']===$files)
@@ -188,6 +195,16 @@ final class ContainerMetadata {
         $this->classes[$name]=$this->build($reflection,$files);
         $this->dirty=true;
         return $this->classes[$name];
+    }
+
+    /**
+     * 当前配置是否需要校验源文件
+     *
+     * @access private
+     * @return bool
+     */
+    private function shouldValidate(): bool {
+        return $this->validate_sources??=$this->store->shouldValidate();
     }
 
     /**

@@ -154,6 +154,50 @@ class ContainerCacheTest extends TestCase {
     }
 
     /**
+     * 测试: 同一配置下复用源文件校验结果
+     *
+     * @return void
+     */
+    public function testMetadataCachesSourceValidationMode(): void {
+        $config=new class($this->dir.'/cache-spy') implements \base\ConfigInterface {
+            private string $cache_path;
+            public int $reads=0;
+
+            public function __construct(string $cache_path) {
+                $this->cache_path=$cache_path;
+            }
+
+            public function get(string $key,mixed $default=null): mixed {
+                $this->reads++;
+                return match($key) {
+                    'app.debug'=>true,
+                    'cache.path'=>$this->cache_path,
+                    'cache.compile.enabled'=>true,
+                    'cache.compile.mode'=>'always',
+                    'cache.compile.container'=>true,
+                    default=>$default
+                };
+            }
+
+            public function has(string $key): bool {
+                return false;
+            }
+
+            public function all(): array {
+                return array();
+            }
+        };
+
+        $metadata=new ContainerMetadata(new ReflectionCache(),$config);
+        $metadata->getClass(UserInfo::class);
+        $metadata->getClass(UserInfo::class);
+        $reads=$config->reads;
+        $metadata->getClass(UserInfo::class);
+
+        $this->assertSame($reads,$config->reads,'同一配置下不应重复解析源文件校验模式');
+    }
+
+    /**
      * 测试: auto + 非 debug 直接信任已加载元数据, 不探测源文件
      *
      * @return void

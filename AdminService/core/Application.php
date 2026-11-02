@@ -103,7 +103,7 @@ final class Application {
         $extra_classes=$classes;
         [$binds,$aliases]=self::bindings($classes,$this->config);
         // 编译快照已在装载期完成类存在性校验; 额外传入的类仍需现场校验
-        if(!($extra_classes===array()&&$this->config->isCompiled()))
+        if(!($extra_classes===array()&&$this->config->isValidated()))
             self::validateBindings($binds,$aliases);
         // 设置是否允许标量参数静默转换(可在 config/app.php 中配置 app.param_cast)
         $this->container->setParamCast($this->config->get('app.param_cast',true));

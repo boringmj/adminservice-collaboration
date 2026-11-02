@@ -132,7 +132,7 @@ final class Main {
             &&isset($payload['raw'],$payload['effective'])
             &&is_array($payload['raw'])
             &&is_array($payload['effective']))
-            return Repository::fromCompiled($payload['raw'],$payload['effective'],$env);
+            return Repository::fromValidated($payload['raw'],$payload['effective'],$env);
         $store->invalidate('config');
         return new Repository($loader->load(),$env);
     }

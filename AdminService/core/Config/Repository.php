@@ -48,10 +48,10 @@ final class Repository implements ConfigInterface {
     private ?Env $env=null;
 
     /**
-     * 是否来自已校验的编译快照
+     * 是否已完成绑定/别名校验
      * @var bool
      */
-    private bool $compiled=false;
+    private bool $validated=false;
 
     /**
      * 构造方法
@@ -86,7 +86,7 @@ final class Repository implements ConfigInterface {
     }
 
     /**
-     * 从已校验的编译快照恢复
+     * 从已校验的配置快照恢复
      *
      * - `$configs` 是配置文件原值, `$effective` 是合并 `.env` 路径键后的生效值
      * - 不重新执行目录扫描、文件加载或 env 合并
@@ -97,22 +97,22 @@ final class Repository implements ConfigInterface {
      * @param Env|null $env Env 实例
      * @return self
      */
-    public static function fromCompiled(array $configs,array $effective,?Env $env=null): self {
+    public static function fromValidated(array $configs,array $effective,?Env $env=null): self {
         $repository=new self($configs,null,false);
         $repository->effective=$effective;
         $repository->env=$env;
-        $repository->compiled=true;
+        $repository->validated=true;
         return $repository;
     }
 
     /**
-     * 是否来自已校验的编译快照
+     * 是否已完成绑定/别名校验
      *
      * @access public
      * @return bool
      */
-    public function isCompiled(): bool {
-        return $this->compiled;
+    public function isValidated(): bool {
+        return $this->validated;
     }
 
     /**

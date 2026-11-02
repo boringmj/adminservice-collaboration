@@ -44,15 +44,15 @@ class ConfigCacheTest extends TestCase {
      *
      * @return void
      */
-    public function testFromCompiledPreservesRawAndEffectiveValues(): void {
+    public function testFromValidatedPreservesRawAndEffectiveValues(): void {
         $env=new Env("APP_DEBUG=false\n");
         $raw=array('app'=>array('debug'=>true,'timezone'=>'UTC'));
         $effective=$raw;
         $effective['app']['debug']=false;
 
-        $config=Repository::fromCompiled($raw,$effective,$env);
+        $config=Repository::fromValidated($raw,$effective,$env);
 
-        $this->assertTrue($config->isCompiled());
+        $this->assertTrue($config->isValidated());
         $this->assertFalse($config->get('app.debug'));
         $this->assertTrue($config->config_raw('app.debug'));
         $this->assertSame('UTC',$config->get('app.timezone'));
@@ -73,7 +73,7 @@ class ConfigCacheTest extends TestCase {
             'classes'=>array(),
             'alias'=>array('cache.target'=>$target)
         ));
-        $config=Repository::fromCompiled($raw,$raw,new Env());
+        $config=Repository::fromValidated($raw,$raw,new Env());
         $old_config=Config::repository();
         $old_app=App::hasInstance()?App::getInstance():null;
 
@@ -230,7 +230,7 @@ class ConfigCacheTest extends TestCase {
             $config=$method->invoke($main,new Env("APP_DEBUG=false\n",'/tmp/.env'));
 
             $this->assertInstanceOf(Repository::class,$config);
-            $this->assertFalse($config->isCompiled());
+            $this->assertFalse($config->isValidated());
             $this->assertFileDoesNotExist($cache,'存在 .env 时应清理旧配置快照');
         } finally {
             Runtime::setPath($old_runtime);
@@ -254,7 +254,7 @@ class ConfigCacheTest extends TestCase {
             $config=$method->invoke($main,new Env("APP_DEBUG=true\n"));
 
             $this->assertInstanceOf(Repository::class,$config);
-            $this->assertTrue($config->isCompiled());
+            $this->assertTrue($config->isValidated());
             $this->assertFileDoesNotExist($dir.'/runtime/cache/compile/config.cache.php');
         } finally {
             Runtime::setPath($old_runtime);
@@ -279,12 +279,12 @@ class ConfigCacheTest extends TestCase {
 
             $first=$method->invoke($main,$env);
             $this->assertInstanceOf(Repository::class,$first);
-            $this->assertTrue($first->isCompiled());
+            $this->assertTrue($first->isValidated());
             $this->assertFileExists($dir.'/runtime/cache/compile/config.cache.php');
 
             $second=$method->invoke($main,$env);
             $this->assertInstanceOf(Repository::class,$second);
-            $this->assertTrue($second->isCompiled());
+            $this->assertTrue($second->isValidated());
             $this->assertSame($first->get('app.timezone'),$second->get('app.timezone'));
         } finally {
             Runtime::setPath($old_runtime);

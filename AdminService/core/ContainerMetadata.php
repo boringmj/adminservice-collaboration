@@ -30,7 +30,7 @@ use function str_replace;
  * 容器反射元数据缓存
  *
  * - 缓存类的自动装配成员名与方法参数描述符
- * - 单个类按自身、父类与 trait 源文件 stat 校验; 容器缓存文件由 `CompileStore` 管理
+ * - debug / always 按自身、父类与 trait 源文件 stat 校验; 生产 auto 直接信任已加载元数据
  * - 无注解类只记录空列表, 装配时不再扫描全部属性/方法
  * - 元数据先在内存累积, 由容器根构建结束后批量落盘
  *
@@ -174,11 +174,17 @@ final class ContainerMetadata {
         $this->load();
         $reflection=$this->reflections->getClass($class);
         $name=$reflection->getName();
-        $files=$this->classFiles($reflection);
-        if(isset($this->classes[$name])
-            &&$this->validEntry($this->classes[$name])
-            &&$this->classes[$name]['files']===$files)
-            return $this->classes[$name];
+        $files=null;
+        if(isset($this->classes[$name])&&$this->validEntry($this->classes[$name])) {
+            // 非校验模式直接信任已加载元数据, 不 stat 源文件
+            if(!$this->store->shouldValidate())
+                return $this->classes[$name];
+            $files=$this->classFiles($reflection);
+            if($this->classes[$name]['files']===$files)
+                return $this->classes[$name];
+        }
+        if($files===null)
+            $files=$this->classFiles($reflection);
         $this->classes[$name]=$this->build($reflection,$files);
         $this->dirty=true;
         return $this->classes[$name];

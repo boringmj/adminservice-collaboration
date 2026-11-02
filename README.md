@@ -255,7 +255,7 @@ $value=$cache->remember('stats',60,function(): array {
 - 写入时按 `cache.gc_probability / cache.gc_divisor` 概率触发 GC, 受 `cache.gc_max_files` 单次上限保护
 - 路由编译缓存已接入 `runtime/cache/compile/routes.cache.php`: `auto` 生产零探测、开发期按源文件指纹失效; 命中时跳过控制器扫描、属性反射与冲突检测
 - 配置编译缓存已接入 `runtime/cache/compile/config.cache.php`: 引导期优先读取，命中时跳过配置文件扫描与合并；存在 `.env` 时固定关闭，避免缓存 `env()` 物化的敏感值。引导期配置快照固定写在 runtime；即使自定义 `cache.path`，清理接口也会覆盖该快照
-- 容器编译缓存已接入 `runtime/cache/compile/container.cache.php`: 缓存属性/Setter/生命周期方法元数据与方法参数描述符，无注解类不再扫描全部反射成员
+- 容器编译缓存已接入 `runtime/cache/compile/container.cache.php`: `auto` 生产零探测，debug / `always` 按类自身、父类与 trait 源文件指纹校验；缓存属性/Setter/生命周期方法元数据与方法参数描述符，无注解类不再扫描全部反射成员
 - debug + `auto` 下默认只跳过配置编译缓存，路由/容器编译缓存继续命中；可通过 `CACHE_COMPILE_SKIP_ON_DEBUG` 调整跳过名单
 - 默认实现 `AdminService\Cache` 额外提供 `clearCompile()` / `clearAll()`; 需要清理系统编译缓存时按具体实现取用
 - 目录与配置说明见 `wiki/缓存.md`

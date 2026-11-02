@@ -13,6 +13,7 @@ use Tests\Fixtures\UserInfo;
 use Tests\Fixtures\UserProfile;
 
 use function array_column;
+use function file_put_contents;
 use function is_dir;
 use function is_file;
 use function is_link;
@@ -22,6 +23,7 @@ use function scandir;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
+use function var_export;
 
 /**
  * 容器反射元数据编译缓存测试
@@ -149,6 +151,86 @@ class ContainerCacheTest extends TestCase {
         $second=new ContainerMetadata(new ReflectionCache(),$this->config);
         $this->assertSame($expected,$second->getClass(UserInfo::class));
         $this->assertFileExists($this->dir.'/cache/compile/container.cache.php');
+    }
+
+    /**
+     * 测试: auto + 非 debug 直接信任已加载元数据, 不探测源文件
+     *
+     * @return void
+     */
+    public function testAutoProductionTrustsCachedMetadataWithoutSourceStat(): void {
+        $short='ContainerCacheTemp'.uniqid();
+        $class='Tests\\CacheTemp\\'.$short;
+        $source=$this->dir.'/'.$short.'.php';
+        file_put_contents(
+            $source,
+            "<?php\nnamespace Tests\\CacheTemp;\n\nuse base\\Attribute\\AutowireProperty;\n\nclass {$short} {\n    #[AutowireProperty(\\stdClass::class)]\n    public mixed \$dependency=null;\n}\n"
+        );
+        require $source;
+
+        $config=new Repository(array(
+            'app'=>array('debug'=>false),
+            'cache'=>array(
+                'path'=>$this->dir.'/cache-auto',
+                'compile'=>array(
+                    'enabled'=>true,
+                    'mode'=>'auto',
+                    'container'=>true
+                )
+            )
+        ));
+        $first=new ContainerMetadata(new ReflectionCache(),$config);
+        $first->getClass($class);
+        $first->flush();
+
+        $cache_file=$this->dir.'/cache-auto/compile/container.cache.php';
+        $cached=include $cache_file;
+        $cached['payload']['classes'][$class]['properties']=array('sentinel');
+        file_put_contents($cache_file,"<?php\n\nreturn ".var_export($cached,true).";\n");
+        unlink($source);
+
+        $second=new ContainerMetadata(new ReflectionCache(),$config);
+        $this->assertSame(array('sentinel'),$second->getClass($class)['properties']);
+    }
+
+    /**
+     * 测试: 校验模式在源文件变化后重建元数据
+     *
+     * @return void
+     */
+    public function testValidationModeRebuildsWhenSourceChanges(): void {
+        $short='ContainerCacheValidation'.uniqid();
+        $class='Tests\\CacheTemp\\'.$short;
+        $source=$this->dir.'/'.$short.'.php';
+        file_put_contents(
+            $source,
+            "<?php\nnamespace Tests\\CacheTemp;\n\nuse base\\Attribute\\AutowireProperty;\n\nclass {$short} {\n    #[AutowireProperty(\\stdClass::class)]\n    public mixed \$dependency=null;\n}\n"
+        );
+        require $source;
+
+        $config=new Repository(array(
+            'app'=>array('debug'=>false),
+            'cache'=>array(
+                'path'=>$this->dir.'/cache-validation',
+                'compile'=>array(
+                    'enabled'=>true,
+                    'mode'=>'always',
+                    'container'=>true
+                )
+            )
+        ));
+        $first=new ContainerMetadata(new ReflectionCache(),$config);
+        $first->getClass($class);
+        $first->flush();
+
+        $cache_file=$this->dir.'/cache-validation/compile/container.cache.php';
+        $cached=include $cache_file;
+        $cached['payload']['classes'][$class]['properties']=array('sentinel');
+        file_put_contents($cache_file,"<?php\n\nreturn ".var_export($cached,true).";\n");
+        file_put_contents($source,"\n",FILE_APPEND);
+
+        $second=new ContainerMetadata(new ReflectionCache(),$config);
+        $this->assertSame(array('dependency'),$second->getClass($class)['properties']);
     }
 
     /**

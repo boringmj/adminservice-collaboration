@@ -17,6 +17,8 @@ use AdminService\Runtime;
 use Tests\Fixtures\ConfigCacheAliasTarget;
 
 use function class_exists;
+use function clearstatcache;
+use function file_put_contents;
 use function is_dir;
 use function is_file;
 use function is_link;
@@ -257,6 +259,41 @@ class ConfigCacheTest extends TestCase {
             $this->assertSame($first->get('app.timezone'),$second->get('app.timezone'));
         } finally {
             Runtime::setPath($old_runtime);
+            $this->removePath($dir);
+        }
+    }
+
+    /**
+     * 测试: 配置源指纹能检测配置文件内容变化
+     *
+     * @return void
+     */
+    public function testConfigFingerprintDetectsFileChanges(): void {
+        $dir=$this->tempDir();
+        $config_dir=$dir.'/config';
+        mkdir($config_dir,0755,true);
+        $file=$config_dir.'/app.php';
+        file_put_contents($file,"<?php return array('a'=>1);");
+        clearstatcache(true,$file);
+        try {
+            $store=new CompileStore(new Repository(array(
+                'cache'=>array(
+                    'path'=>$dir.'/cache',
+                    'compile'=>array('enabled'=>true)
+                )
+            )));
+            $method=new ReflectionMethod(Main::class,'configFingerprint');
+            $method->setAccessible(true);
+            $main=new Main();
+            $env=new Env();
+
+            $first=$method->invoke($main,$store,$env,$config_dir);
+            file_put_contents($file,"<?php return array('a'=>12345);");
+            clearstatcache(true,$file);
+            $second=$method->invoke($main,$store,$env,$config_dir);
+
+            $this->assertNotSame($first,$second);
+        } finally {
             $this->removePath($dir);
         }
     }

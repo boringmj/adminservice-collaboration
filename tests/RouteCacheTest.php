@@ -82,9 +82,10 @@ class RouteCacheTest extends TestCase {
      * @param bool $debug 是否调试模式
      * @param string $mode 编译缓存模式
      * @param string|null $route_file 路由文件(null = 默认文件)
+     * @param array<string> $skip_on_debug debug + auto 跳过的缓存名
      * @return Repository
      */
-    private function config(bool $debug=true,string $mode='always',?string $route_file=null): Repository {
+    private function config(bool $debug=true,string $mode='always',?string $route_file=null,array $skip_on_debug=array('config')): Repository {
         return new Repository(array(
             'app'=>array(
                 'debug'=>$debug,
@@ -96,6 +97,7 @@ class RouteCacheTest extends TestCase {
                 'compile'=>array(
                     'enabled'=>true,
                     'mode'=>$mode,
+                    'skip_on_debug'=>$skip_on_debug,
                     'config'=>true,
                     'route'=>true,
                     'container'=>true
@@ -224,6 +226,23 @@ class RouteCacheTest extends TestCase {
         $second=(new RouterFactory())->get($config);
         $this->assertSame(1,$GLOBALS['route_cache_builds'],'debug 默认只跳过配置缓存, 路由缓存应继续命中');
         $this->assertNotNull($second->find('GET','/cached'));
+    }
+
+    /**
+     * 测试: 按公开名称 route 跳过路由缓存
+     *
+     * @return void
+     */
+    public function testDebugSkipRouteByPublicName(): void {
+        $this->writeRoutes();
+        $config=$this->config(true,'auto',null,array('route'));
+
+        (new RouterFactory())->get($config);
+        $this->assertSame(1,$GLOBALS['route_cache_builds']);
+        $this->assertFileDoesNotExist($this->dir.'/cache/compile/routes.cache.php');
+
+        (new RouterFactory())->get($config);
+        $this->assertSame(2,$GLOBALS['route_cache_builds'],'跳过路由缓存后每次都应实时装配');
     }
 
     /**

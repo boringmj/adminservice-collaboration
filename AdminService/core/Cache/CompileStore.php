@@ -10,7 +10,6 @@ use base\ConfigInterface;
 use Closure;
 
 use function array_key_exists;
-use function array_map;
 use function dirname;
 use function explode;
 use function file_put_contents;
@@ -250,10 +249,18 @@ final class CompileStore {
         if($targets===false)
             return false;
         if(is_string($targets))
-            $targets=$targets===''?array():array_map('trim',explode(',',$targets));
+            $targets=$targets===''?array():explode(',',$targets);
         if(!is_array($targets))
             return false;
-        return in_array($name,$targets,true);
+        $key=self::ENABLE_KEYS[$name]??$name;
+        foreach($targets as $target) {
+            if(!is_string($target))
+                continue;
+            $target=trim($target);
+            if($target!==''&&(self::ENABLE_KEYS[$target]??$target)===$key)
+                return true;
+        }
+        return false;
     }
 
     /**

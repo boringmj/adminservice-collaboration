@@ -237,11 +237,12 @@ final class Main {
      * @access private
      * @param CompileStore $store 编译缓存存储
      * @param Env $env `.env` 快照
+     * @param string|null $config_dir 配置目录(null = 框架配置目录)
      * @return string
      */
-    private function configFingerprint(CompileStore $store,Env $env): string {
+    private function configFingerprint(CompileStore $store,Env $env,?string $config_dir=null): string {
         $stats=array();
-        foreach($this->listPhpFiles(self::CONFIG_DIR) as $file)
+        foreach($this->listPhpFiles($config_dir??self::CONFIG_DIR) as $file)
             $stats['file:'.$file]=$this->statFile($file);
         return $store->hash(array('env'=>$env->all(),'files'=>$stats));
     }

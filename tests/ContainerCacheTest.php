@@ -105,7 +105,12 @@ class ContainerCacheTest extends TestCase {
         $this->assertSame('data.ext_name',$params[0]['config']['key']);
         $this->assertSame(array('string'),$params[0]['types']);
 
+        $cached=include $this->dir.'/cache/compile/container.cache.php';
+        $this->assertSame(array(),$cached['payload']['classes'],'首次加载不应因扫描单个类就写入类元数据');
+        $metadata->flush();
         $this->assertFileExists($this->dir.'/cache/compile/container.cache.php');
+        $cached=include $this->dir.'/cache/compile/container.cache.php';
+        $this->assertArrayHasKey(UserInfo::class,$cached['payload']['classes']);
     }
 
     /**
@@ -127,6 +132,7 @@ class ContainerCacheTest extends TestCase {
         ));
         $metadata=new ContainerMetadata(new ReflectionCache(),$config);
         $metadata->getClass(UserInfo::class);
+        $metadata->flush();
 
         $this->assertFileDoesNotExist($this->dir.'/cache-off/compile/container.cache.php');
     }
@@ -139,6 +145,7 @@ class ContainerCacheTest extends TestCase {
     public function testMetadataReloadsFromCache(): void {
         $first=new ContainerMetadata(new ReflectionCache(),$this->config);
         $expected=$first->getClass(UserInfo::class);
+        $first->flush();
 
         $second=new ContainerMetadata(new ReflectionCache(),$this->config);
         $this->assertSame($expected,$second->getClass(UserInfo::class));
@@ -160,9 +167,10 @@ class ContainerCacheTest extends TestCase {
 
             $this->assertSame(3600,$consumer->cycle);
             $this->assertSame('txt',$consumer->ext_name);
+            $this->assertFileExists($this->dir.'/cache/compile/container.cache.php');
         } finally {
-            if($old!==null)
-                Config::setRepository($old);
+            // Config 没有“清空仓库”的公开接口, 初始为空时恢复成空仓库, 避免临时配置泄漏
+            Config::setRepository($old??new Repository(array()));
         }
     }
 

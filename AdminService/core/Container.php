@@ -223,6 +223,19 @@ final class Container implements \base\Container {
     }
 
     /**
+     * 根构建结束后批量落盘容器反射元数据
+     *
+     * - 嵌套构建不落盘, 避免同一次对象图构建中反复重写整份缓存
+     *
+     * @access private
+     * @return void
+     */
+    private function flushMetadataIfRoot(): void {
+        if($this->build_flags===array())
+            $this->metadata->flush();
+    }
+
+    /**
      * 按类型列表取"容器里已登记的实例"
      *
      * - 类型名与"解析别名/绑定后的真实类名"都查一遍
@@ -456,6 +469,9 @@ final class Container implements \base\Container {
         } catch(\Throwable $e) {
             $this->rollbackRootContainer($snapshot,$resolved_snapshot,$singleton_snapshot);
             throw $e;
+        } finally {
+            if($is_root)
+                $this->flushMetadataIfRoot();
         }
     }
 
@@ -866,6 +882,9 @@ final class Container implements \base\Container {
         } catch(\Throwable $e) {
             $this->rollbackRootContainer($snapshot,$resolved_snapshot,$singleton_snapshot);
             throw $e;
+        } finally {
+            if($is_root)
+                $this->flushMetadataIfRoot();
         }
     }
 
@@ -902,6 +921,9 @@ final class Container implements \base\Container {
         } catch(\Throwable $e) {
             $this->rollbackRootContainer($snapshot,$resolved_snapshot,$singleton_snapshot);
             throw $e;
+        } finally {
+            if($is_root)
+                $this->flushMetadataIfRoot();
         }
     }
 
@@ -1122,6 +1144,8 @@ final class Container implements \base\Container {
             throw $e;
         } finally {
             $this->build_flags=$previous_flags;
+            if($is_root)
+                $this->flushMetadataIfRoot();
         }
     }
 
@@ -1136,13 +1160,17 @@ final class Container implements \base\Container {
      * @throws Exception|ReflectionException
      */
     public function exec_class_function(object|string $object,string $method,array $args=array()): mixed {
-        // 判断是否为类名
-        if(is_string($object)) {
-            // 如果是类名则通过自动依赖注入实例化一个对象
-            $object=$this->make($object);
+        try {
+            // 判断是否为类名
+            if(is_string($object)) {
+                // 如果是类名则通过自动依赖注入实例化一个对象
+                $object=$this->make($object);
+            }
+            // 参数合并与调用交给参数解析器
+            return $this->arguments->call($object,$method,$args);
+        } finally {
+            $this->flushMetadataIfRoot();
         }
-        // 参数合并与调用交给参数解析器
-        return $this->arguments->call($object,$method,$args);
     }
 
     /**
@@ -1155,13 +1183,17 @@ final class Container implements \base\Container {
      * @throws Exception|ReflectionException
      */
     public function exec_function(string|array|callable $function,array $args=array()): mixed {
-        if(is_array($function)) {
-            // 类方法调用
-            [$classOrObj,$method]=$function;
-            return $this->exec_class_function($classOrObj,$method,$args);
+        try {
+            if(is_array($function)) {
+                // 类方法调用
+                [$classOrObj,$method]=$function;
+                return $this->exec_class_function($classOrObj,$method,$args);
+            }
+            // 参数合并与调用交给参数解析器
+            return $this->arguments->callFunction($function,$args);
+        } finally {
+            $this->flushMetadataIfRoot();
         }
-        // 参数合并与调用交给参数解析器
-        return $this->arguments->callFunction($function,$args);
     }
 
 }

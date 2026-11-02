@@ -30,8 +30,9 @@ use function str_replace;
  * 容器反射元数据缓存
  *
  * - 缓存类的自动装配成员名与方法参数描述符
- * - 单个类按源文件 stat 校验; 容器缓存文件由 `CompileStore` 管理
+ * - 单个类按自身、父类与 trait 源文件 stat 校验; 容器缓存文件由 `CompileStore` 管理
  * - 无注解类只记录空列表, 装配时不再扫描全部属性/方法
+ * - 元数据先在内存累积, 由容器根构建结束后批量落盘
  *
  * @access public
  * @package AdminService
@@ -61,6 +62,12 @@ final class ContainerMetadata {
      * @var bool
      */
     private bool $loaded=false;
+
+    /**
+     * 是否有尚未落盘的元数据变更
+     * @var bool
+     */
+    private bool $dirty=false;
 
     /**
      * 已加载的类元数据
@@ -117,7 +124,7 @@ final class ContainerMetadata {
         if(!isset($this->classes[$class]['params'][$name])
             ||!is_array($this->classes[$class]['params'][$name])) {
             $this->classes[$class]['params'][$name]=$this->buildParams($method);
-            $this->save();
+            $this->dirty=true;
         }
         return $this->classes[$class]['params'][$name];
     }
@@ -145,7 +152,7 @@ final class ContainerMetadata {
             &&$this->classes[$name]['files']===$files)
             return $this->classes[$name];
         $this->classes[$name]=$this->build($reflection,$files);
-        $this->save();
+        $this->dirty=true;
         return $this->classes[$name];
     }
 
@@ -369,12 +376,18 @@ final class ContainerMetadata {
     }
 
     /**
-     * 保存容器编译缓存
+     * 将尚未落盘的元数据批量写入容器编译缓存
      *
-     * @access private
+     * - 由容器在根构建结束后调用, 避免每发现一个类就重写整份缓存
+     * - 直接使用 `ContainerMetadata` 时可手动调用
+     *
+     * @access public
      * @return void
      */
-    private function save(): void {
+    public function flush(): void {
+        if(!$this->dirty)
+            return;
+        $this->dirty=false;
         if(!$this->store->enabled('container'))
             return;
         $this->store->save('container',(string)self::VERSION,array(

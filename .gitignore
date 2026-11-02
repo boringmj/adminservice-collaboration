@@ -1,13 +1,10 @@
 vendor/
 composer.lock
-AdminService/data/
-AdminService/log/
-AdminService/uploads/
-AdminService/runtime/
 .env
 .idea/
 .vscode/
 .phpunit.result.cache
+AdminService/runtime/
 wiki/
 # 本地开发工具
 tools/

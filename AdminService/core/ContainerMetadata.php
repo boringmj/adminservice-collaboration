@@ -42,7 +42,7 @@ final class ContainerMetadata {
     /**
      * 缓存格式版本
      */
-    private const VERSION=1;
+    private const VERSION=2;
 
     /**
      * 反射缓存
@@ -66,7 +66,7 @@ final class ContainerMetadata {
      * 已加载的类元数据
      *
      * @var array<string,array{
-     *     file:array{mtime:int,size:int}|null,
+     *     files:array<string,array{mtime:int,size:int}>,
      *     properties:array<string>,
      *     setters:array<string>,
      *     methods:array<string>,
@@ -128,7 +128,7 @@ final class ContainerMetadata {
      * @access private
      * @param class-string $class 类名
      * @return array{
-     *     file:array{mtime:int,size:int}|null,
+     *     files:array<string,array{mtime:int,size:int}>,
      *     properties:array<string>,
      *     setters:array<string>,
      *     methods:array<string>,
@@ -139,12 +139,12 @@ final class ContainerMetadata {
         $this->load();
         $reflection=$this->reflections->getClass($class);
         $name=$reflection->getName();
-        $file=$this->classFileStat($reflection);
+        $files=$this->classFiles($reflection);
         if(isset($this->classes[$name])
             &&$this->validEntry($this->classes[$name])
-            &&$this->classes[$name]['file']===$file)
+            &&$this->classes[$name]['files']===$files)
             return $this->classes[$name];
-        $this->classes[$name]=$this->build($reflection,$file);
+        $this->classes[$name]=$this->build($reflection,$files);
         $this->save();
         return $this->classes[$name];
     }
@@ -180,9 +180,8 @@ final class ContainerMetadata {
      */
     private function validEntry(mixed $entry): bool {
         return is_array($entry)
-            &&array_key_exists('file',$entry)
-            &&($entry['file']===null||is_array($entry['file']))
-            &&isset($entry['properties'],$entry['setters'],$entry['methods'],$entry['params'])
+            &&isset($entry['files'],$entry['properties'],$entry['setters'],$entry['methods'],$entry['params'])
+            &&is_array($entry['files'])
             &&is_array($entry['properties'])
             &&is_array($entry['setters'])
             &&is_array($entry['methods'])
@@ -194,16 +193,16 @@ final class ContainerMetadata {
      *
      * @access private
      * @param ReflectionClass<object> $reflection 类反射
-     * @param array{mtime:int,size:int}|null $file 类文件指纹
+     * @param array<string,array{mtime:int,size:int}> $files 类及父类/ trait 文件指纹
      * @return array{
-     *     file:array{mtime:int,size:int}|null,
+     *     files:array<string,array{mtime:int,size:int}>,
      *     properties:array<string>,
      *     setters:array<string>,
      *     methods:array<string>,
      *     params:array<string,array<array<string,mixed>>>
      * }
      */
-    private function build(ReflectionClass $reflection,?array $file): array {
+    private function build(ReflectionClass $reflection,array $files): array {
         $properties=array();
         foreach($reflection->getProperties() as $property)
             if($this->hasAttribute($property,ConfigAttribute::class)
@@ -222,7 +221,7 @@ final class ContainerMetadata {
                 $methods[]=$name;
         }
         return array(
-            'file'=>$file,
+            'files'=>$files,
             'properties'=>$properties,
             'setters'=>$setters,
             'methods'=>$methods,
@@ -319,23 +318,54 @@ final class ContainerMetadata {
     }
 
     /**
-     * 类文件指纹
+     * 类及父类/trait 文件指纹
      *
      * @access private
      * @param ReflectionClass<object> $reflection 类反射
-     * @return array{mtime:int,size:int}|null
+     * @return array<string,array{mtime:int,size:int}>
      */
-    private function classFileStat(ReflectionClass $reflection): ?array {
+    private function classFiles(ReflectionClass $reflection): array {
+        $files=array();
+        for($current=$reflection;$current!==false;$current=$current->getParentClass()) {
+            $this->addFile($files,$current);
+            $this->addTraitFiles($files,$current);
+        }
+        return $files;
+    }
+
+    /**
+     * 加入类自身文件
+     *
+     * @access private
+     * @param array<string,array{mtime:int,size:int}> $files 文件指纹表
+     * @param ReflectionClass<object> $reflection 类反射
+     * @return void
+     */
+    private function addFile(array &$files,ReflectionClass $reflection): void {
         $file=$reflection->getFileName();
-        if(!is_string($file)||$file==='')
-            return null;
+        if(!is_string($file)||$file===''||isset($files[$file]))
+            return;
         $stat=@stat($file);
-        if($stat===false)
-            return null;
-        return array(
-            'mtime'=>(int)$stat['mtime'],
-            'size'=>(int)$stat['size']
-        );
+        if($stat!==false)
+            $files[$file]=array(
+                'mtime'=>(int)$stat['mtime'],
+                'size'=>(int)$stat['size']
+            );
+    }
+
+    /**
+     * 递归加入 trait 文件
+     *
+     * @access private
+     * @param array<string,array{mtime:int,size:int}> $files 文件指纹表
+     * @param ReflectionClass<object> $reflection 类反射
+     * @return void
+     */
+    private function addTraitFiles(array &$files,ReflectionClass $reflection): void {
+        foreach($reflection->getTraits() as $trait) {
+            $this->addFile($files,$trait);
+            $this->addTraitFiles($files,$trait);
+        }
     }
 
     /**

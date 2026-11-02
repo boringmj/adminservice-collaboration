@@ -10,6 +10,7 @@ use AdminService\Cache\CompileStore;
 use AdminService\Config\Repository;
 use AdminService\Container;
 use AdminService\Exception;
+use AdminService\Runtime;
 use base\CacheInterface;
 use base\ConfigInterface;
 
@@ -52,6 +53,12 @@ class CacheTest extends TestCase {
     private Repository $config;
 
     /**
+     * 用例前的 Runtime 路径
+     * @var string
+     */
+    private string $old_runtime;
+
+    /**
      * 每个用例前创建隔离目录
      *
      * @return void
@@ -59,6 +66,8 @@ class CacheTest extends TestCase {
     protected function setUp(): void {
         $this->dir=sys_get_temp_dir().'/adminservice_cache_'.uniqid('',true);
         mkdir($this->dir,0755,true);
+        $this->old_runtime=Runtime::path();
+        Runtime::setPath($this->dir.'/runtime');
         $this->config=$this->makeConfig();
     }
 
@@ -68,6 +77,7 @@ class CacheTest extends TestCase {
      * @return void
      */
     protected function tearDown(): void {
+        Runtime::setPath($this->old_runtime);
         $this->removePath($this->dir);
     }
 

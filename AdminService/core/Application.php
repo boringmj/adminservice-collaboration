@@ -218,16 +218,22 @@ final class Application {
      *
      * @access public
      * @param callable $callback 请求处理过程(接收请求级容器)
+     * @param bool $defer_metadata 是否延迟到响应发送后落盘容器元数据
      * @return mixed
      * @throws Exception
      */
-    public function handle(callable $callback): mixed {
+    public function handle(callable $callback,bool $defer_metadata=false): mixed {
         // 复用请求级容器前清空上一轮的实例(首个请求时为空)
         if($this->request_container!==null)
             $this->request_container->reset();
         // 请求级 scope: 实例表独立; 绑定/别名/单例为 fork 快照; 反射缓存共享
         $container=$this->container->fork();
         $this->request_container=$container;
+        // 容器元数据在请求处理期间只标脏, 结束时统一落盘
+        if($container instanceof Container)
+            $container->deferMetadataFlush();
+        if($defer_metadata&&$this->container instanceof Container)
+            $this->container->deferMetadataFlush();
         // 错误出口需要当前请求的 Response; 在请求开始时同步给错误处理器
         Error::setRequestContainer($container);
         // 请求开始时把 `Config::repository()` 当前返回的配置登记进请求容器(按实现类名, 与 `Application::init()` 一致):
@@ -236,14 +242,36 @@ final class Application {
         if($repository!==null)
             $container->instance(Repository::class,$repository);
         App::setInstance($container);
+        $completed=false;
         try {
             $this->bootRequest($container);
+            $completed=true;
             return $callback($container);
         } finally {
-            // 请求处理结束: 门面指针**收回应用级容器**, 避免"请求外的登记落进已废弃的请求容器"
+            // 正常 HTTP 请求把落盘推迟到响应发送后; 异常或普通调用在请求边界落盘
+            if(!$defer_metadata||!$completed)
+                $this->flushRequestMetadata();
+            // 门面指针**收回应用级容器**, 避免"请求外的登记落进已废弃的请求容器"
             // 响应在关停阶段才发送, 届时由 Application::requestContainer() 取请求级对象(不经门面)
             App::setInstance($this->container);
         }
+    }
+
+    /**
+     * 落盘当前请求积累的容器元数据
+     *
+     * - 应用级与请求级容器共享同一份元数据, 两次 flush 只有第一次会实际写入
+     *
+     * @access public
+     * @return bool 是否成功落盘
+     */
+    public function flushRequestMetadata(): bool {
+        $ok=true;
+        if($this->request_container instanceof Container)
+            $ok=$this->request_container->flushMetadata();
+        if($this->container instanceof Container)
+            $ok=$this->container->flushMetadata()&&$ok;
+        return $ok;
     }
 
     /**

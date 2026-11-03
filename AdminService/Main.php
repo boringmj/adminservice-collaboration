@@ -48,7 +48,11 @@ final class Main {
             $container=$this->application===null?App::getInstance():$this->application->requestContainer();
             $response=$container->get(Response::class);
             $response->prepare($container->get(Request::class));
-            $response->send();
+            try {
+                $response->send();
+            } finally {
+                $this->application?->flushRequestMetadata();
+            }
         },false);
         // 配置、缓存、容器与数据库装配由 Bootstrapper 统一完成
         $bootstrapper=new Bootstrapper();
@@ -80,7 +84,7 @@ final class Main {
             (new Pipeline($middlewares,App::get(Request::class)))->then(function(): void {
                 App::fresh(Route::class)->run();
             });
-        });
+        },true);
     }
 
 }

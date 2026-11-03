@@ -134,6 +134,12 @@ final class Container implements \base\Container {
     private ContainerMetadata $metadata;
 
     /**
+     * 是否延迟到请求结束统一落盘容器元数据
+     * @var bool
+     */
+    private bool $defer_metadata_flush=false;
+
+    /**
      * 参数解析器(参数合并 / 类型校验 / 类型转换 / 类型标准化)
      * @var ArgumentResolver
      */
@@ -224,16 +230,44 @@ final class Container implements \base\Container {
     }
 
     /**
+     * 延迟容器元数据落盘
+     *
+     * - 请求级容器在请求处理期间调用, 结束时用 flushMetadata() 统一落盘
+     *
+     * @access public
+     * @param bool $defer 是否延迟
+     * @return void
+     */
+    public function deferMetadataFlush(bool $defer=true): void {
+        $this->defer_metadata_flush=$defer;
+    }
+
+    /**
+     * 立即落盘容器元数据
+     *
+     * - 结束延迟模式并写入尚未落盘的元数据
+     *
+     * @access public
+     * @return bool 是否成功落盘(无脏数据也算成功)
+     */
+    public function flushMetadata(): bool {
+        $this->defer_metadata_flush=false;
+        return $this->metadata->flush();
+    }
+
+    /**
      * 根构建结束后批量落盘容器反射元数据
      *
      * - 嵌套构建不落盘, 避免同一次对象图构建中反复重写整份缓存
+     * - 延迟模式下只保留 dirty, 由 flushMetadata() 统一落盘
      *
      * @access private
      * @return void
      */
     private function flushMetadataIfRoot(): void {
-        if($this->build_flags===array())
-            $this->metadata->flush();
+        if($this->build_flags!==array()||$this->defer_metadata_flush)
+            return;
+        $this->metadata->flush();
     }
 
     /**
@@ -535,6 +569,7 @@ final class Container implements \base\Container {
         $child->metadata=$this->metadata;
         $child->arguments->setMetadata($this->metadata);
         $child->autowire->setMetadata($this->metadata);
+        $child->defer_metadata_flush=$this->defer_metadata_flush;
         $child->parent=$this;
         $child->class_container=$this->class_container;
         $child->alias_container=$this->alias_container;
@@ -564,6 +599,7 @@ final class Container implements \base\Container {
         $this->container=array();
         $this->resolved_container=array();
         $this->factory_singleton_class=array();
+        $this->defer_metadata_flush=false;
         $this->container[\base\Container::class]=$this;
         $this->container[static::class]=$this;
         // 丢弃未执行的延迟任务, 避免它们引用已被清空的实例

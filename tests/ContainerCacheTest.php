@@ -307,6 +307,26 @@ class ContainerCacheTest extends TestCase {
     }
 
     /**
+     * 回归: 延迟模式在请求结束前不写入已收集的类元数据
+     *
+     * @return void
+     */
+    public function testMetadataFlushCanBeDeferredToRequestEnd(): void {
+        $container=new Container();
+        $container->instance(\base\ConfigInterface::class,$this->config);
+        $container->deferMetadataFlush();
+
+        $container->make(ConfigConsumer::class);
+        $cache_file=$this->dir.'/cache/compile/container.cache.php';
+        $cached=include $cache_file;
+        $this->assertSame(array(),$cached['payload']['classes']);
+
+        $this->assertTrue($container->flushMetadata());
+        $cached=include $cache_file;
+        $this->assertArrayHasKey(ConfigConsumer::class,$cached['payload']['classes']);
+    }
+
+    /**
      * 递归删除临时目录
      *
      * @param string $path 文件或目录

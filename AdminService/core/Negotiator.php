@@ -173,6 +173,8 @@ final class Negotiator {
      * @return array<string>
      */
     private static function splitOutsideQuotes(string $value,string $delimiter): array {
+        if(!str_contains($value,'"')&&!str_contains($value,'\\'))
+            return explode($delimiter,$value);
         $parts=array();
         $current='';
         $quoted=false;

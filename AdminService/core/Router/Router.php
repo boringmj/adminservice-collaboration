@@ -831,6 +831,8 @@ final class Router implements RoutingInterface {
     /**
      * 导出已排序的路由表
      *
+     * - 懒加载模式下直接返回导入时保存的数据, 不保证补齐 RouteItem::export() 的固定键
+     *
      * @access public
      * @return array<array<string,mixed>>
      * @throws Exception 非懒加载模式下路由项无法导出

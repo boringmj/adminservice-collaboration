@@ -63,10 +63,34 @@ final class Router implements RoutingInterface {
     private array $routes=array();
 
     /**
+     * 未水合的编译路由数据(缓存导入时使用)
+     * @var array<array<string,mixed>>
+     */
+    private array $route_data=array();
+
+    /**
+     * 是否处于路由数据未水合状态
+     * @var bool
+     */
+    private bool $lazy=false;
+
+    /**
+     * 排序后的未水合路由索引
+     * @var array<int>|null
+     */
+    private ?array $sorted_data=null;
+
+    /**
      * 路由名索引(惰性构建, 注册后失效)
      * @var array<string,RouteItem>|null
      */
     private ?array $named=null;
+
+    /**
+     * 未水合路由的命名索引
+     * @var array<string,int>|null
+     */
+    private ?array $named_data=null;
 
     /**
      * 按具体度排序后的路由(惰性构建, 注册后失效)
@@ -216,6 +240,8 @@ final class Router implements RoutingInterface {
      * @throws \InvalidArgumentException 请求方法不是非空字符串或 Method 枚举
      */
     public function add(array $methods,string $path,mixed $handler): RouteItem {
+        if($this->lazy)
+            $this->hydrateAll();
         $route=new RouteItem($methods,self::joinPath($this->prefix(),$path),$handler,$this->groupMiddlewareEntries());
         $this->assertNoConflict($route);
         $this->routes[]=$route;
@@ -655,6 +681,8 @@ final class Router implements RoutingInterface {
         // 未命中时 current() 必须回到 null: 否则调用方会读到上一次请求/上一次匹配的路由
         $this->current=null;
         $method=strtoupper($method);
+        if($this->lazy)
+            return $this->findLazy($method,$uri);
         $static=$this->staticIndex()[$uri]??null;
         if($static!==null) {
             $route=$static[$method]??($static['*']??null);
@@ -678,6 +706,43 @@ final class Router implements RoutingInterface {
     }
 
     /**
+     * 未水合路由匹配
+     *
+     * - 静态索引直接定位；动态路由按排序索引遍历
+     * - 只有最终命中的路由才构造 RouteItem
+     *
+     * @access private
+     * @param string $method 请求方法
+     * @param string $uri 请求路径
+     * @return array{0:RouteItem,1:array<string,string>}|null
+     */
+    private function findLazy(string $method,string $uri): ?array {
+        $static=$this->staticIndexData()[$uri]??null;
+        if($static!==null) {
+            $index=$static[$method]??($static['*']??null);
+            if($index!==null) {
+                $route=$this->hydrateRoute($index);
+                $this->current=$route;
+                return array($route,array());
+            }
+        }
+        foreach($this->sortedRouteIndices() as $index) {
+            $data=$this->route_data[$index];
+            if(RouteItem::isStaticData($data['params']??array()))
+                continue;
+            if(!RouteItem::matchesMethodData($data['methods']??array(),$method))
+                continue;
+            $params=RouteItem::matchUriData((string)($data['pattern']??''),$data['params']??array(),$uri);
+            if($params===null)
+                continue;
+            $route=$this->hydrateRoute($index);
+            $this->current=$route;
+            return array($route,$params);
+        }
+        return null;
+    }
+
+    /**
      * 汇总某路径允许的请求方法
      *
      * - 供 405 响应生成 `Allow` 头使用
@@ -688,6 +753,8 @@ final class Router implements RoutingInterface {
      */
     public function allowedMethods(string $uri): array {
         $uri=self::normalizeUri($uri);
+        if($this->lazy)
+            return $this->allowedMethodsLazy($uri);
         $methods=array();
         foreach($this->routes as $route) {
             if($route->matchUri($uri)===null)
@@ -699,6 +766,29 @@ final class Router implements RoutingInterface {
                 if(!in_array($method,$methods,true))
                     $methods[]=$method;
             }
+        }
+        sort($methods);
+        return $methods;
+    }
+
+    /**
+     * 未水合路由的 405 方法汇总
+     *
+     * @access private
+     * @param string $uri 请求路径
+     * @return array<string>
+     */
+    private function allowedMethodsLazy(string $uri): array {
+        $methods=array();
+        foreach($this->route_data as $data) {
+            if(RouteItem::matchUriData((string)($data['pattern']??''),$data['params']??array(),$uri)===null)
+                continue;
+            $allowed=RouteItem::allowedMethodsData($data['methods']??array());
+            if($allowed===array())
+                return array();
+            foreach($allowed as $method)
+                if(!in_array($method,$methods,true))
+                    $methods[]=$method;
         }
         sort($methods);
         return $methods;
@@ -724,7 +814,10 @@ final class Router implements RoutingInterface {
      * @throws Exception 存在重名
      */
     public function assertNamesUnique(): void {
-        $this->nameIndex();
+        if($this->lazy)
+            $this->nameIndexData();
+        else
+            $this->nameIndex();
     }
 
     /**
@@ -735,6 +828,8 @@ final class Router implements RoutingInterface {
      * @throws Exception 路由项无法导出
      */
     public function export(): array {
+        if($this->lazy)
+            return $this->routeDataInOrder();
         $out=array();
         foreach($this->sortedRoutes() as $route)
             $out[]=$route->export();
@@ -747,22 +842,40 @@ final class Router implements RoutingInterface {
      * @access public
      * @param array<array<string,mixed>> $routes 路由数据(按排序顺序)
      * @param bool $sorted 数据是否已按具体度排序
+     * @param bool $lazy 是否延迟构造 RouteItem
      * @return void
      * @throws Exception 路由数据非法或路由名重复
      */
-    public function import(array $routes,bool $sorted=true): void {
+    public function import(array $routes,bool $sorted=true,bool $lazy=true): void {
         $this->routes=array();
-        foreach($routes as $data) {
-            if(!is_array($data))
-                throw new Exception('Invalid compiled route.',-423);
-            $this->routes[]=RouteItem::fromArray($data);
-        }
+        $this->route_data=array();
+        $this->lazy=false;
+        $this->sorted_data=null;
         $this->named=null;
+        $this->named_data=null;
         $this->current=null;
         $this->prefixStack=array();
         $this->middlewareStack=array();
-        $this->sorted_cache=$sorted?$this->routes:null;
+        $this->sorted_cache=null;
         $this->static_index=null;
+        if($lazy) {
+            foreach($routes as $data) {
+                if(!is_array($data))
+                    throw new Exception('Invalid compiled route.',-423);
+                RouteItem::validateData($data);
+                $this->route_data[]=$data;
+            }
+            $this->lazy=true;
+            if($sorted)
+                $this->sorted_data=$this->route_data===array()?array():range(0,count($this->route_data)-1);
+        } else {
+            foreach($routes as $data) {
+                if(!is_array($data))
+                    throw new Exception('Invalid compiled route.',-423);
+                $this->routes[]=RouteItem::fromArray($data);
+            }
+            $this->sorted_cache=$sorted?$this->routes:null;
+        }
         $this->assertNamesUnique();
     }
 
@@ -820,6 +933,109 @@ final class Router implements RoutingInterface {
     }
 
     /**
+     * 未水合静态路径索引
+     *
+     * @access private
+     * @return array<string,array<string,int>>
+     */
+    private function staticIndexData(): array {
+        if($this->static_index!==null)
+            return $this->static_index;
+        $index=array();
+        foreach($this->route_data as $position=>$data) {
+            if(!RouteItem::isStaticData($data['params']??array()))
+                continue;
+            $path=(string)($data['path']??'');
+            $methods=$data['methods']??array();
+            if($methods===array()||in_array('*',$methods,true)) {
+                $index[$path]['*']=$position;
+                continue;
+            }
+            foreach($methods as $method)
+                $index[$path][$method]=$position;
+            if(in_array('GET',$methods,true)
+                &&!in_array('HEAD',$methods,true)
+                &&!isset($index[$path]['HEAD']))
+                $index[$path]['HEAD']=$position;
+        }
+        return $this->static_index=$index;
+    }
+
+    /**
+     * 未水合路由的排序索引
+     *
+     * @access private
+     * @return array<int>
+     */
+    private function sortedRouteIndices(): array {
+        if($this->sorted_data!==null)
+            return $this->sorted_data;
+        if($this->route_data===array())
+            return $this->sorted_data=array();
+        $indices=range(0,count($this->route_data)-1);
+        usort($indices,function(int $ia,int $ib): int {
+            $a=$this->route_data[$ia];
+            $b=$this->route_data[$ib];
+            $a_static=RouteItem::isStaticData($a['params']??array());
+            $b_static=RouteItem::isStaticData($b['params']??array());
+            if($a_static!==$b_static)
+                return $a_static?-1:1;
+            $a_length=(int)($a['literal_length']??0);
+            $b_length=(int)($b['literal_length']??0);
+            if($a_length!==$b_length)
+                return $b_length<=>$a_length;
+            return count($a['params']??array())<=>count($b['params']??array());
+        });
+        return $this->sorted_data=$indices;
+    }
+
+    /**
+     * 按排序顺序返回未水合路由数据
+     *
+     * @access private
+     * @return array<array<string,mixed>>
+     */
+    private function routeDataInOrder(): array {
+        $out=array();
+        foreach($this->sortedRouteIndices() as $index)
+            $out[]=$this->route_data[$index];
+        return $out;
+    }
+
+    /**
+     * 水合单条路由
+     *
+     * @access private
+     * @param int $index 路由数据索引
+     * @return RouteItem
+     */
+    private function hydrateRoute(int $index): RouteItem {
+        return RouteItem::fromArray($this->route_data[$index]);
+    }
+
+    /**
+     * 水合全部路由
+     *
+     * @access private
+     * @return void
+     */
+    private function hydrateAll(): void {
+        if(!$this->lazy)
+            return;
+        $routes=array();
+        foreach($this->route_data as $data)
+            $routes[]=RouteItem::fromArray($data);
+        $this->routes=$routes;
+        $this->route_data=array();
+        $this->lazy=false;
+        $this->sorted_data=null;
+        $this->sorted_cache=null;
+        $this->named=null;
+        $this->named_data=null;
+        $this->static_index=null;
+    }
+
+    /**
      * 按路由名反向生成 URL
      *
      * @access public
@@ -829,6 +1045,14 @@ final class Router implements RoutingInterface {
      * @throws Exception 路由名不存在或缺少路径参数
      */
     public function url(string $name,array $params=array()): string {
+        if($this->lazy) {
+            $index=$this->nameIndexData();
+            if(!isset($index[$name]))
+                throw new Exception('Route name not found.',-411,array(
+                    'name'=>$name
+                ));
+            return $this->hydrateRoute($index[$name])->buildUri($params);
+        }
         $index=$this->nameIndex();
         if(!isset($index[$name]))
             throw new Exception('Route name not found.',-411,array(
@@ -846,6 +1070,8 @@ final class Router implements RoutingInterface {
      * @throws Exception 路由名重复
      */
     public function has(string $name): bool {
+        if($this->lazy)
+            return isset($this->nameIndexData()[$name]);
         return isset($this->nameIndex()[$name]);
     }
 
@@ -879,12 +1105,40 @@ final class Router implements RoutingInterface {
     }
 
     /**
+     * 构建未水合路由的命名索引
+     *
+     * @access private
+     * @return array<string,int>
+     * @throws Exception 存在重名
+     */
+    private function nameIndexData(): array {
+        if($this->named_data!==null)
+            return $this->named_data;
+        $index=array();
+        foreach($this->route_data as $position=>$data) {
+            $name=$data['name']??null;
+            if(!is_string($name)||$name==='')
+                continue;
+            if(isset($index[$name]))
+                throw new Exception('Duplicate route name.',-419,array(
+                    'name'=>$name,
+                    'path'=>(string)($data['path']??''),
+                    'exists'=>(string)($this->route_data[$index[$name]]['path']??'')
+                ));
+            $index[$name]=$position;
+        }
+        return $this->named_data=$index;
+    }
+
+    /**
      * 获取已注册路由
      *
      * @access public
      * @return array<RouteItem>
      */
     public function getRoutes(): array {
+        if($this->lazy)
+            $this->hydrateAll();
         return $this->routes;
     }
 

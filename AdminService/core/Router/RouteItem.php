@@ -182,12 +182,40 @@ final class RouteItem {
      * @return bool
      */
     public function matchesMethod(string $method): bool {
-        if($this->methods===array()||in_array('*',$this->methods,true))
+        return self::matchesMethodData($this->methods,$method);
+    }
+
+    /**
+     * 校验编译路由数据
+     *
+     * @access public
+     * @param array<string,mixed> $data 编译路由数据
+     * @return void
+     * @throws Exception 数据缺少必需字段
+     */
+    public static function validateData(array $data): void {
+        if(!isset($data['path'])||!is_string($data['path'])||$data['path']===''
+            ||!array_key_exists('handler',$data))
+            throw new Exception('Invalid compiled route item.',-423);
+        if(!isset($data['pattern'])||!is_string($data['pattern'])||$data['pattern']==='')
+            throw new Exception('Invalid compiled route item.',-423);
+    }
+
+    /**
+     * 按方法列表判断是否允许指定请求方法
+     *
+     * @access public
+     * @param array<string> $methods 方法列表
+     * @param string $method 请求方法
+     * @return bool
+     */
+    public static function matchesMethodData(array $methods,string $method): bool {
+        if($methods===array()||in_array('*',$methods,true))
             return true;
         $method=strtoupper($method);
-        if(in_array($method,$this->methods,true))
+        if(in_array($method,$methods,true))
             return true;
-        return $method==='HEAD'&&in_array('GET',$this->methods,true);
+        return $method==='HEAD'&&in_array('GET',$methods,true);
     }
 
     /**
@@ -200,9 +228,19 @@ final class RouteItem {
      * @return array<string>
      */
     public function allowedMethods(): array {
-        if($this->methods===array()||in_array('*',$this->methods,true))
+        return self::allowedMethodsData($this->methods);
+    }
+
+    /**
+     * 按方法列表汇总允许的方法
+     *
+     * @access public
+     * @param array<string> $methods 方法列表
+     * @return array<string>
+     */
+    public static function allowedMethodsData(array $methods): array {
+        if($methods===array()||in_array('*',$methods,true))
             return array();
-        $methods=$this->methods;
         if(in_array('GET',$methods,true)&&!in_array('HEAD',$methods,true))
             $methods[]='HEAD';
         return $methods;
@@ -216,17 +254,30 @@ final class RouteItem {
      * @return array<string,string>|null 匹配失败返回 null
      */
     public function matchUri(string $uri): ?array {
+        return self::matchUriData($this->pattern,$this->params,$uri);
+    }
+
+    /**
+     * 用编译正则匹配路径并提取参数
+     *
+     * @access public
+     * @param string $pattern 编译正则
+     * @param array<string> $params 参数名
+     * @param string $uri 请求路径
+     * @return array<string,string>|null
+     */
+    public static function matchUriData(string $pattern,array $params,string $uri): ?array {
         // 未参与匹配的可选参数为 null, 据此与「匹配到空值」区分
-        if(preg_match($this->pattern,$uri,$matches,PREG_UNMATCHED_AS_NULL)!==1)
+        if(preg_match($pattern,$uri,$matches,PREG_UNMATCHED_AS_NULL)!==1)
             return null;
-        $params=array();
-        foreach($this->params as $name) {
+        $out=array();
+        foreach($params as $name) {
             // 可选参数未提供时不注入, 交由控制器形参默认值生效
             if($matches[$name]===null)
                 continue;
-            $params[$name]=$matches[$name];
+            $out[$name]=$matches[$name];
         }
-        return $params;
+        return $out;
     }
 
     /**
@@ -236,7 +287,18 @@ final class RouteItem {
      * @return bool
      */
     public function isStatic(): bool {
-        return $this->params===array();
+        return self::isStaticData($this->params);
+    }
+
+    /**
+     * 按参数名列表判断是否为静态路径
+     *
+     * @access public
+     * @param array<string> $params 参数名
+     * @return bool
+     */
+    public static function isStaticData(array $params): bool {
+        return $params===array();
     }
 
     /**
@@ -528,11 +590,7 @@ final class RouteItem {
      * @throws Exception 数据缺少必要字段
      */
     public static function fromArray(array $data): self {
-        if(!isset($data['path'])||!is_string($data['path'])||$data['path']===''
-            ||!array_key_exists('handler',$data))
-            throw new Exception('Invalid compiled route item.',-423);
-        if(!isset($data['pattern'])||!is_string($data['pattern'])||$data['pattern']==='')
-            throw new Exception('Invalid compiled route item.',-423);
+        self::validateData($data);
         $route=new self(
             isset($data['methods'])&&is_array($data['methods'])?$data['methods']:array(),
             $data['path'],

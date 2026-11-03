@@ -308,9 +308,9 @@ $value=$cache->remember('stats',60,function(): array {
 - `remember($key,$ttl,$callback,$version)` 支持版本指纹, 版本变化时立即回源
 - `scope('auth')` 分池; `clear()` 只清当前池
 - 写入时按 `cache.gc_probability / cache.gc_divisor` 概率触发 GC, 受 `cache.gc_max_files` 单次上限保护
-- 路由编译缓存已接入 `runtime/cache/compile/routes.cache.php`: `auto` 生产零探测、开发期按源文件指纹失效; 命中时跳过控制器扫描、属性反射与冲突检测
+- 路由编译缓存已接入 `runtime/cache/compile/routes.cache.php`: `auto` 生产零探测、开发期按源文件指纹失效; 命中时跳过控制器扫描、属性反射与冲突检测；缓存命中时只保存路由数据，匹配命中后才构造一条 `RouteItem`，`getRoutes()` 才全量水合，`export()` 直接返回已保存的路由数据
 - 配置编译缓存已接入 `runtime/cache/compile/config.cache.php`: 引导期优先读取，命中时跳过配置文件扫描与合并；存在 `.env` 时固定关闭，避免缓存 `env()` 物化的敏感值。引导期配置快照固定写在 runtime；即使自定义 `cache.path`，清理接口也会覆盖该快照
-- 容器编译缓存已接入 `runtime/cache/compile/container.cache.php`: `auto` 生产零探测，debug / `always` 按类自身、父类与 trait 源文件指纹校验；缓存属性/Setter/生命周期方法元数据与方法参数描述符，无注解类不再扫描全部反射成员
+- 容器编译缓存已接入 `runtime/cache/compile/container.cache.php`: `auto` 生产零探测，debug / `always` 按类自身、父类与 trait 源文件指纹校验；缓存属性/Setter/生命周期方法元数据与方法参数描述符，无注解类不再扫描全部反射成员；命令行预热只覆盖构造函数、路由动作方法与中间件 `handle`，动态注入/生命周期方法首次解析时可能补写
 - debug + `auto` 下默认只跳过配置编译缓存，路由/容器编译缓存继续命中；可通过 `CACHE_COMPILE_SKIP_ON_DEBUG` 调整跳过名单
 - 默认实现 `AdminService\Cache` 额外提供 `clearCompile()` / `clearAll()`; 需要清理系统编译缓存时按具体实现取用
 - 编译缓存可由命令行检查与预热: `php console cache status`、`php console cache build`、`php console cache clear`; 详见 Wiki [命令行](https://github.com/boringmj/adminservice-collaboration/wiki/命令行)

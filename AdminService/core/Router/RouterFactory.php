@@ -111,7 +111,7 @@ final class RouterFactory {
         $reason=null;
         if(!$enabled) {
             $status='disabled';
-            $reason='route cache is disabled by configuration';
+            $reason='配置中已禁用路由缓存';
         } elseif(!$inspect['exists']) {
             $status='missing';
             $reason=$inspect['reason'];
@@ -125,18 +125,18 @@ final class RouterFactory {
                 ||!isset($payload['routes'])
                 ||!is_array($payload['routes'])) {
                 $status='corrupted';
-                $reason='route cache payload is invalid';
+                $reason='路由缓存内容无效';
             } elseif($inspect['context']!==$this->context($store,$config)) {
                 $status='stale';
-                $reason='route cache context changed';
+                $reason='路由缓存上下文已变化';
             } elseif($store->shouldValidate()
                 &&$inspect['fingerprint']!==$this->fingerprint($store,$config)) {
                 $status='stale';
-                $reason='route source files changed';
+                $reason='路由源文件已变化';
             } elseif($store->shouldValidate()
                 &&!$this->sourcesMatch($payload['sources']??null)) {
                 $status='stale';
-                $reason='route handler source files changed';
+                $reason='路由处理器源文件已变化';
             }
         }
         $inspect['status']=$status;

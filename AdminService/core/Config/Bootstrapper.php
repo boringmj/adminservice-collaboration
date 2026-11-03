@@ -246,26 +246,26 @@ final class Bootstrapper {
                 return array(
                     'status'=>'failed',
                     'path'=>$path,
-                    'reason'=>'config cache could not be removed'
+                    'reason'=>'无法删除配置缓存'
                 );
             return array(
                 'status'=>'skipped',
                 'path'=>$path,
-                'reason'=>'.env exists; config cache is disabled'
+                'reason'=>'.env 存在，配置缓存已禁用'
             );
         }
         if(!$store->enabled('config'))
             return array(
                 'status'=>'skipped',
                 'path'=>$path,
-                'reason'=>'config cache is disabled by configuration'
+                'reason'=>'配置中已禁用配置缓存'
             );
         $before=$force?null:$this->configCacheStatus($env)['status'];
         if($force&&!$store->invalidate('config'))
             return array(
                 'status'=>'failed',
                 'path'=>$path,
-                'reason'=>'config cache could not be removed'
+                'reason'=>'无法删除配置缓存'
             );
         $this->loadConfig($env,$force);
         $status=$this->configCacheStatus($env,$force);
@@ -296,7 +296,7 @@ final class Bootstrapper {
         $reason=null;
         if(!$enabled) {
             $status='disabled';
-            $reason=$env->path()!==''?'.env exists; config cache is disabled':'config cache is disabled by configuration';
+            $reason=$env->path()!==''?'.env 存在，配置缓存已禁用':'配置中已禁用配置缓存';
         } elseif(!$inspect['exists']) {
             $status='missing';
             $reason=$inspect['reason'];
@@ -305,14 +305,14 @@ final class Bootstrapper {
             $reason=$inspect['reason'];
         } elseif(!$this->validConfigPayload($inspect['payload'])) {
             $status='corrupted';
-            $reason='config cache payload is invalid';
+            $reason='配置缓存内容无效';
         } elseif($inspect['context']!==$this->configContext($store,$env)) {
             $status='stale';
-            $reason='config cache context changed';
+            $reason='配置缓存上下文已变化';
         } elseif($store->shouldValidate()
             &&$inspect['fingerprint']!==$this->configFingerprint($store,$env)) {
             $status='stale';
-            $reason='config source files changed';
+            $reason='配置源文件已变化';
         }
         return array(
             'status'=>$status,

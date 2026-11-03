@@ -270,14 +270,14 @@ final class Console {
         if($result['type']==='group') {
             $input=new Input($result['remaining'],array());
             foreach($input->options() as $name=>$value)
-                throw new InvalidArgumentException('Unknown option: --'.$name);
+                throw new InvalidArgumentException('未知选项(Unknown option): --'.$name);
             if($this->help!==null)
                 return $this->help->show(array($result['name']),$this->output);
             return self::EXIT_SUCCESS;
         }
-        $name=$result['name']===''?'(empty)':$result['name'];
-        $this->output->error('[ERROR] Unknown command: '.$name);
-        $this->output->error('Run "php console list" to view available commands.');
+        $name=$result['name']===''?'(空)':$result['name'];
+        $this->output->error('[ERROR] 未知命令(Unknown command): '.$name);
+        $this->output->error('运行 "php console list" 查看可用命令。');
         return self::EXIT_INVALID;
     }
 
@@ -303,7 +303,7 @@ final class Console {
         }
         foreach($input->options() as $name=>$value)
             if(!isset($allowed[$name]))
-                throw new InvalidArgumentException('Unknown option: --'.$name);
+                throw new InvalidArgumentException('未知选项(Unknown option): --'.$name);
     }
 
     /**
@@ -386,8 +386,8 @@ final class Console {
     private function renderException(Throwable $e,int $code=1): int {
         $this->output->error('[ERROR] '.$e->getMessage());
         if($this->verbose||$this->debugEnabled()) {
-            $this->output->error('Exception: '.$e::class);
-            $this->output->error('File: '.$e->getFile().':'.$e->getLine());
+            $this->output->error('异常(Exception): '.$e::class);
+            $this->output->error('文件(File): '.$e->getFile().':'.$e->getLine());
             $this->output->error($e->getTraceAsString());
         }
         return $code;

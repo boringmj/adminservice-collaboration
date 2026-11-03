@@ -117,17 +117,17 @@ final class ServerStartCommand extends AbstractCommand {
         if(preg_match('/^[0-9]+$/',(string)$port_raw)!==1
             ||(int)$port_raw<1
             ||(int)$port_raw>65535) {
-            $output->error('[ERROR] Invalid port: '.(string)$port_raw.' (expected 1..65535)');
+            $output->error('[ERROR] 端口无效(Invalid port): '.(string)$port_raw.' (应为 1..65535)');
             return self::INVALID;
         }
         $port=(int)$port_raw;
         if(!is_dir($docroot)) {
-            $output->error('[ERROR] Document root does not exist: '.$docroot);
+            $output->error('[ERROR] 文档根目录不存在(Document root does not exist): '.$docroot);
             return self::INVALID;
         }
         if($router!==null&&$router!==false) {
             if(!is_string($router)||!is_file($router)) {
-                $output->error('[ERROR] Router script does not exist: '.(string)$router);
+                $output->error('[ERROR] 路由脚本不存在(Router script does not exist): '.(string)$router);
                 return self::INVALID;
             }
         }
@@ -143,12 +143,12 @@ final class ServerStartCommand extends AbstractCommand {
             .' -t '.escapeshellarg($server_docroot);
         if($router!==null&&$router!==false)
             $command.=' '.escapeshellarg((string)$router);
-        $output->info('Server: http://'.$host.':'.$port);
-        $output->info('Document root: '.$docroot);
+        $output->info('服务地址(Server): http://'.$host.':'.$port);
+        $output->info('文档根目录(Document root): '.$docroot);
         $output->info('PHP: '.$php);
-        $output->info('Command: '.$command);
+        $output->info('命令(Command): '.$command);
         if($input->hasOption('dry-run')) {
-            $output->info('Dry run: server was not started.');
+            $output->info('试运行(Dry run): 服务未启动(server was not started)。');
             return self::SUCCESS;
         }
         $exit_code=0;

@@ -81,14 +81,14 @@ final class ListCommand extends AbstractCommand {
         $registry=$this->console->registry();
         $output->info('AdminService Console');
         $output->info('');
-        $output->info('Usage:');
+        $output->info('用法(Usage):');
         $output->info('  php console <command> [arguments] [options]');
         $output->info('  php console <group> [arguments] [options]');
         $output->info('');
         if($group!==null&&$group!=='') {
             $commands=$registry->groupCommands($group);
             if($commands===array()) {
-                $output->error('[ERROR] Unknown command group: '.$group);
+                $output->error('[ERROR] 未知命令分组(Unknown command group): '.$group);
                 return self::INVALID;
             }
             $this->renderGroup($output,$group,$commands);
@@ -99,7 +99,7 @@ final class ListCommand extends AbstractCommand {
             if(!str_contains($name,' '))
                 $root[]=$command;
         if($root!==array()) {
-            $output->info('Commands:');
+            $output->info('命令(Commands):');
             $this->renderCommands($output,$root);
             $output->info('');
         }
@@ -122,7 +122,7 @@ final class ListCommand extends AbstractCommand {
     private function renderGroup(Output $output,string $group,array $commands): void {
         $bin='bin/'.$group;
         $usage=is_file(dirname(__DIR__,4).'/'.$bin)?'php '.$bin:'php console '.$group;
-        $output->info('Group '.$group.':');
+        $output->info('分组(Group): '.$group);
         $output->info('  '.$usage.' [arguments] [options]');
         $this->renderCommands($output,$commands);
     }
@@ -147,7 +147,7 @@ final class ListCommand extends AbstractCommand {
                 $command->description()
             );
         }
-        $output->table(array('Command','Aliases','Shortcuts','Description'),$rows);
+        $output->table(array('命令(Command)','别名(Aliases)','快捷方式(Shortcuts)','描述(Description)'),$rows);
     }
 
     /**

@@ -189,7 +189,7 @@ final class ContainerMetadata {
         $reason=null;
         if(!$enabled) {
             $status='disabled';
-            $reason='container cache is disabled by configuration';
+            $reason='配置中已禁用容器缓存';
         } elseif(!$inspect['exists']) {
             $status='missing';
             $reason=$inspect['reason'];
@@ -203,23 +203,23 @@ final class ContainerMetadata {
                 ||!isset($payload['classes'])
                 ||!is_array($payload['classes'])) {
                 $status='corrupted';
-                $reason='container cache payload is invalid';
+                $reason='容器缓存内容无效';
             } elseif($inspect['context']!==$this->context()) {
                 $status='stale';
-                $reason='container cache context changed';
+                $reason='容器缓存上下文已变化';
             } elseif($inspect['fingerprint']!==(string)self::VERSION) {
                 $status='stale';
-                $reason='container cache version changed';
+                $reason='容器缓存版本已变化';
             } else {
                 foreach($payload['classes'] as $entry) {
                     if(!$this->validEntry($entry)) {
                         $status='corrupted';
-                        $reason='container cache entry is invalid';
+                        $reason='容器缓存条目无效';
                         break;
                     }
                     if($this->store->shouldValidate()&&!$this->entryFilesMatch($entry['files'])) {
                         $status='stale';
-                        $reason='container class source files changed';
+                        $reason='容器类源文件已变化';
                         break;
                     }
                 }

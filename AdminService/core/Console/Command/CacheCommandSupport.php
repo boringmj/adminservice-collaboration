@@ -37,14 +37,14 @@ final class CacheCommandSupport {
         if($input->hasOption('target')) {
             $target=$input->option('target');
             if(!is_string($target)||trim($target)==='')
-                throw new InvalidArgumentException('Cache target requires a value.');
+                throw new InvalidArgumentException('缓存目标需要值(Cache target requires a value).');
             return self::normalize($target);
         }
         $target=$input->argument(0);
         if($target===null)
             return null;
         if(trim($target)==='')
-            throw new InvalidArgumentException('Cache target requires a value.');
+            throw new InvalidArgumentException('缓存目标需要值(Cache target requires a value).');
         return self::normalize($target);
     }
 
@@ -63,7 +63,7 @@ final class CacheCommandSupport {
         if($target==='route')
             $target='routes';
         if(!array_key_exists($target,array('config'=>true,'routes'=>true,'container'=>true)))
-            throw new InvalidArgumentException('Cache target is invalid: '.$target);
+            throw new InvalidArgumentException('缓存目标无效(Cache target is invalid): '.$target);
         return $target;
     }
 

@@ -111,13 +111,13 @@ final class CacheStatusCommand extends AbstractCommand {
         $store=new CompileStore($this->config);
         $bootstrapper=$this->bootstrapper;
         $config_store=$bootstrapper->configStore($env);
-        $output->info('Runtime path: '.Runtime::path());
-        $output->info('Compile root: '.dirname($store->path('routes')));
+        $output->info('运行时路径(Runtime path): '.Runtime::path());
+        $output->info('编译根目录(Compile root): '.dirname($store->path('routes')));
         if(dirname($config_store->path('config'))!==dirname($store->path('routes')))
-            $output->info('Config compile root: '.dirname($config_store->path('config')));
-        $output->info('Mode: '.$store->mode());
+            $output->info('配置编译根目录(Config compile root): '.dirname($config_store->path('config')));
+        $output->info('模式(Mode): '.$store->mode());
         $output->info('app.debug: '.((bool)$this->config->get('app.debug',false)?'true':'false'));
-        $output->info('.env: '.(is_file($env->path())?'present':'absent'));
+        $output->info('环境文件(.env): '.(is_file($env->path())?'存在(present)':'不存在(absent)'));
         $output->info('');
         $rows=array();
         foreach($target===null?CacheCommandSupport::TARGETS:array($target) as $name) {
@@ -126,16 +126,34 @@ final class CacheStatusCommand extends AbstractCommand {
             $size=is_int($inspect['size']??null)?number_format($inspect['size']):'-';
             $rows[]=array(
                 $name,
-                isset($inspect['status'])?$inspect['status']:'unknown',
-                $this->enabled($name,$store,$bootstrapper,$env)?'yes':'no',
+                $this->statusLabel(isset($inspect['status'])?$inspect['status']:'unknown'),
+                $this->enabled($name,$store,$bootstrapper,$env)?'是(yes)':'否(no)',
                 $size,
                 $created,
                 (string)($inspect['path']??'-'),
                 (string)($inspect['reason']??'')
             );
         }
-        $output->table(array('Target','Status','Enabled','Size','Created','File','Note'),$rows);
+        $output->table(array('目标(Target)','状态(Status)','启用(Enabled)','大小(Size)','创建时间(Created)','文件(File)','备注(Note)'),$rows);
         return self::SUCCESS;
+    }
+
+    /**
+     * 状态显示名
+     *
+     * @access private
+     * @param string $status 内部状态
+     * @return string
+     */
+    private function statusLabel(string $status): string {
+        return match($status) {
+            'valid' => '有效(valid)',
+            'stale' => '过期(stale)',
+            'missing' => '缺失(missing)',
+            'corrupted' => '损坏(corrupted)',
+            'disabled' => '禁用(disabled)',
+            default => '未知(unknown)'
+        };
     }
 
     /**

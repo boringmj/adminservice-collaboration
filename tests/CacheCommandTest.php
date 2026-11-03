@@ -273,7 +273,7 @@ class CacheCommandTest extends TestCase {
         $output=Output::buffer();
         $this->assertSame(0,$command->execute(new Input(array('routes','--force')),$output));
         $this->assertFileExists($this->dir.'/cache/compile/routes.cache.php');
-        $this->assertStringContainsString('[BUILT] routes',$output->stdout());
+        $this->assertStringContainsString('[已构建(BUILT)] routes',$output->stdout());
     }
 
     /**

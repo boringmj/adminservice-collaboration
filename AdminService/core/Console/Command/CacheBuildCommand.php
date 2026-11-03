@@ -150,7 +150,18 @@ final class CacheBuildCommand extends AbstractCommand {
      * @return string
      */
     private function statusLabel(string $status): string {
-        return $status==='skipped'?'SKIP':strtoupper($status);
+        return match($status) {
+            'built' => '已构建(BUILT)',
+            'ready' => '已就绪(READY)',
+            'skipped' => '跳过(SKIP)',
+            'failed' => '失败(FAILED)',
+            'missing' => '缺失(MISSING)',
+            'stale' => '过期(STALE)',
+            'corrupted' => '损坏(CORRUPTED)',
+            'disabled' => '禁用(DISABLED)',
+            'valid' => '有效(VALID)',
+            default => strtoupper($status)
+        };
     }
 
     /**
@@ -183,7 +194,7 @@ final class CacheBuildCommand extends AbstractCommand {
         if(!$store->enabled('routes')) {
             return array(
                 'status'=>'skipped',
-                'reason'=>'route cache is disabled by configuration',
+                'reason'=>'配置中已禁用路由缓存',
                 'failure'=>false
             );
         }
@@ -192,7 +203,7 @@ final class CacheBuildCommand extends AbstractCommand {
         if($force&&!$store->invalidate('routes'))
             return array(
                 'status'=>'failed',
-                'reason'=>'route cache could not be removed',
+                'reason'=>'无法删除路由缓存',
                 'failure'=>true
             );
         $factory->get($this->config);
@@ -207,12 +218,12 @@ final class CacheBuildCommand extends AbstractCommand {
             if($store->writeFailed())
                 return array(
                     'status'=>'failed',
-                    'reason'=>'route cache could not be written',
+                    'reason'=>'无法写入路由缓存',
                     'failure'=>true
                 );
             return array(
                 'status'=>'skipped',
-                'reason'=>'route table contains non-exportable handlers',
+                'reason'=>'路由表包含不可导出的处理器',
                 'failure'=>false
             );
         }
@@ -235,7 +246,7 @@ final class CacheBuildCommand extends AbstractCommand {
         if(!$store->enabled('container')) {
             return array(
                 'status'=>'skipped',
-                'reason'=>'container cache is disabled by configuration',
+                'reason'=>'配置中已禁用容器缓存',
                 'failure'=>false
             );
         }
@@ -244,7 +255,7 @@ final class CacheBuildCommand extends AbstractCommand {
         if($force&&!$store->invalidate('container'))
             return array(
                 'status'=>'failed',
-                'reason'=>'container cache could not be removed',
+                'reason'=>'无法删除容器缓存',
                 'failure'=>true
             );
         $classes=$this->containerClasses();
@@ -253,16 +264,16 @@ final class CacheBuildCommand extends AbstractCommand {
         if($store->writeFailed())
             return array(
                 'status'=>'failed',
-                'reason'=>'container cache could not be written',
+                'reason'=>'无法写入容器缓存',
                 'failure'=>true
             );
         if($warm['failed']!==array())
             return array(
                 'status'=>'failed',
-                'reason'=>'container warm failed: '.implode(', ',$warm['failed']),
+                'reason'=>'容器预热失败: '.implode(', ',$warm['failed']),
                 'failure'=>true
             );
-        $warm_note=$warm['skipped']===array()?null:'skipped: '.implode(', ',$warm['skipped']);
+        $warm_note=$warm['skipped']===array()?null:'跳过: '.implode(', ',$warm['skipped']);
         if($inspect['status']==='valid')
             return array(
                 'status'=>($force||($before['status']??null)!=='valid')?'built':'ready',
@@ -272,7 +283,7 @@ final class CacheBuildCommand extends AbstractCommand {
         if($inspect['status']==='missing') {
             return array(
                 'status'=>'skipped',
-                'reason'=>$warm_note??'no container metadata was generated',
+                'reason'=>$warm_note??'未生成容器元数据',
                 'failure'=>false
             );
         }

@@ -272,7 +272,7 @@ class ConsoleTest extends TestCase {
         $output=Output::buffer();
         $console=new Console($app,$output);
         $this->assertSame(0,$console->run(array('console','cache')));
-        $this->assertStringContainsString('Group: cache',$output->stdout());
+        $this->assertStringContainsString('分组(Group): cache',$output->stdout());
         $this->assertStringContainsString('cache build',$output->stdout());
 
         $output=Output::buffer();
@@ -293,7 +293,7 @@ class ConsoleTest extends TestCase {
         $output=Output::buffer();
         $console=new Console($app,$output);
         $this->assertSame(0,$console->run(array('console','help','demo')));
-        $this->assertStringContainsString('Usage: php console demo [arguments] [options]',$output->stdout());
+        $this->assertStringContainsString('用法(Usage): php console demo [arguments] [options]',$output->stdout());
         $this->assertStringNotContainsString('php bin/demo',$output->stdout());
     }
 
@@ -324,6 +324,9 @@ class ConsoleTest extends TestCase {
         $console=new Console($app,$output);
         $this->assertSame(0,$console->run(array('console')));
         $this->assertStringContainsString('AdminService Console',$output->stdout());
+        $this->assertStringContainsString('用法(Usage):',$output->stdout());
+        $this->assertStringContainsString('命令(Commands):',$output->stdout());
+        $this->assertStringContainsString('命令(Command)',$output->stdout());
         $this->assertStringContainsString('cache status',$output->stdout());
     }
 

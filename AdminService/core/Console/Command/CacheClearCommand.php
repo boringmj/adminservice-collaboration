@@ -93,14 +93,14 @@ final class CacheClearCommand extends AbstractCommand {
         try {
             $ok=$cache->clearCompile($target);
         } catch(\Throwable $e) {
-            $output->error('[ERROR] Cache clear failed for '.CacheCommandSupport::label($target).': '.$e->getMessage());
+            $output->error('[ERROR] 缓存清理失败(Cache clear failed): '.CacheCommandSupport::label($target).': '.$e->getMessage());
             return self::FAILURE;
         }
         if(!$ok) {
-            $output->error('[ERROR] Cache clear failed for '.CacheCommandSupport::label($target));
+            $output->error('[ERROR] 缓存清理失败(Cache clear failed): '.CacheCommandSupport::label($target));
             return self::FAILURE;
         }
-        $output->info('Cache cleared: '.CacheCommandSupport::label($target));
+        $output->info('缓存已清理(Cache cleared): '.CacheCommandSupport::label($target));
         return self::SUCCESS;
     }
 

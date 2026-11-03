@@ -251,7 +251,7 @@ final class CompileStore {
             'reason'=>null
         );
         if(!$result['exists']) {
-            $result['reason']='cache file is missing';
+            $result['reason']='缓存文件不存在';
             return $result;
         }
         $size=@filesize($path);
@@ -259,20 +259,20 @@ final class CompileStore {
         $result['size']=$size===false?null:(int)$size;
         $result['mtime']=$mtime===false?null:(int)$mtime;
         if(!$load_payload) {
-            $result['reason']='cache payload was not loaded';
+            $result['reason']='缓存内容未加载';
             return $result;
         }
         try {
             $data=@include $path;
         } catch(\Throwable) {
-            $result['reason']='cache file can not be parsed';
+            $result['reason']='缓存文件无法解析';
             return $result;
         }
         if(!is_array($data)
             ||!isset($data['fingerprint'])
             ||!is_string($data['fingerprint'])
             ||!array_key_exists('payload',$data)) {
-            $result['reason']='cache file structure is invalid';
+            $result['reason']='缓存文件结构无效';
             return $result;
         }
         $result['fingerprint']=$data['fingerprint'];

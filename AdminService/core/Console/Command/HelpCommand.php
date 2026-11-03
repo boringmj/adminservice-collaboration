@@ -91,8 +91,8 @@ final class HelpCommand extends AbstractCommand {
         if($tokens===array()) {
             $output->info('AdminService Console');
             $output->info('');
-            $output->info('Usage: php console <command> [arguments] [options]');
-            $output->info('Run "php console list" to view all commands.');
+            $output->info('用法(Usage): php console <command> [arguments] [options]');
+            $output->info('运行 "php console list" 查看全部命令。');
             return self::SUCCESS;
         }
         $result=$registry->resolve($tokens);
@@ -102,15 +102,15 @@ final class HelpCommand extends AbstractCommand {
             $usage=is_file(dirname(__DIR__,4).'/'.$bin)
                 ?'php '.$bin
                 :'php console '.$result['name'];
-            $output->info('Group: '.$result['name']);
-            $output->info('Usage: '.$usage.' [arguments] [options]');
+            $output->info('分组(Group): '.$result['name']);
+            $output->info('用法(Usage): '.$usage.' [arguments] [options]');
             $output->info('');
             foreach($commands as $command)
                 $output->info('  '.$command->name().'  '.$command->description());
             return self::SUCCESS;
         }
         if($result['type']!=='command'||$result['command']===null) {
-            $output->error('[ERROR] Unknown command: '.implode(' ',$tokens));
+            $output->error('[ERROR] 未知命令(Unknown command): '.implode(' ',$tokens));
             return self::INVALID;
         }
         $command=$result['command'];
@@ -123,12 +123,12 @@ final class HelpCommand extends AbstractCommand {
         foreach($registry->shortcuts() as $shortcut=>$target)
             if($target===$name)
                 $shortcuts[]=$shortcut;
-        $output->info('Command: '.$name);
-        $output->info('Description: '.$command->description());
-        $output->info('Usage: php console '.$command->usage());
-        $output->info('Aliases: '.($aliases===array()?'(none)':implode(', ',$aliases)));
-        $output->info('Shortcuts: '.($shortcuts===array()?'(none)':implode(', ',$shortcuts)));
-        $output->info('Value options: '.($command->valueOptions()===array()?'(none)':implode(', ',$command->valueOptions())));
+        $output->info('命令(Command): '.$name);
+        $output->info('描述(Description): '.$command->description());
+        $output->info('用法(Usage): php console '.$command->usage());
+        $output->info('别名(Aliases): '.($aliases===array()?'(无)':implode(', ',$aliases)));
+        $output->info('快捷方式(Shortcuts): '.($shortcuts===array()?'(无)':implode(', ',$shortcuts)));
+        $output->info('带值选项(Value options): '.($command->valueOptions()===array()?'(无)':implode(', ',$command->valueOptions())));
         return self::SUCCESS;
     }
 

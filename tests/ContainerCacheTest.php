@@ -307,6 +307,27 @@ class ContainerCacheTest extends TestCase {
     }
 
     /**
+     * 测试: 预热可以只收集构造函数和指定动作方法
+     *
+     * @return void
+     */
+    public function testWarmCanLimitMethodsToActionList(): void {
+        $metadata=new ContainerMetadata(new ReflectionCache(),$this->config);
+        $result=$metadata->warm(
+            array(ConfigConsumer::class),
+            array(ConfigConsumer::class=>array('methodParamInjected'=>true))
+        );
+
+        $this->assertSame(array(),$result['failed']);
+        $cache_file=$this->dir.'/cache/compile/container.cache.php';
+        $cached=include $cache_file;
+        $params=$cached['payload']['classes'][ConfigConsumer::class]['params'];
+        $this->assertArrayHasKey('__construct',$params);
+        $this->assertArrayHasKey('methodParamInjected',$params);
+        $this->assertArrayNotHasKey('setLogPath',$params);
+    }
+
+    /**
      * 回归: 延迟模式在请求结束前不写入已收集的类元数据
      *
      * @return void

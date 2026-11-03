@@ -25,6 +25,7 @@ use function explode;
 use function interface_exists;
 use function is_array;
 use function is_string;
+use function ltrim;
 use function stat;
 use function str_replace;
 
@@ -253,14 +254,16 @@ final class ContainerMetadata {
     /**
      * 预热类元数据
      *
-     * - 为指定类及其公共方法的参数描述符生成缓存, 完成后统一落盘
+     * - 为指定类的构造函数和指定方法生成参数描述符缓存, 完成后统一落盘
+     * - `$methods` 为 null 时保留旧的“全部 public 方法”预热行为
      * - 无法加载的类名会被跳过, 由调用方决定是否视为失败
      *
      * @access public
      * @param array<int,class-string> $classes 类名
+     * @param array<string,array<string,bool>>|null $methods 类 => 方法名集合(null = 全部 public 方法)
      * @return array{skipped:array<int,string>,failed:array<int,string>}
      */
-    public function warm(array $classes): array {
+    public function warm(array $classes,?array $methods=null): array {
         $skipped=array();
         $failed=array();
         foreach($classes as $class) {
@@ -276,9 +279,19 @@ final class ContainerMetadata {
                 $constructor=$reflection->getConstructor();
                 if($constructor!==null)
                     $this->methodParams($constructor);
-                foreach($reflection->getMethods() as $method)
-                    if($method->isPublic())
-                        $this->methodParams($method);
+                if($methods===null) {
+                    foreach($reflection->getMethods() as $method)
+                        if($method->isPublic())
+                            $this->methodParams($method);
+                } else {
+                    foreach(($methods[$class]??$methods[ltrim($class,'\\')]??array()) as $name=>$enabled) {
+                        if(!$enabled)
+                            continue;
+                        $name=(string)$name;
+                        if($reflection->hasMethod($name))
+                            $this->methodParams($reflection->getMethod($name));
+                    }
+                }
             } catch(\Throwable) {
                 // 单个类预热失败不阻断其余类; 由调用方汇总并决定是否失败
                 $failed[]=$class;

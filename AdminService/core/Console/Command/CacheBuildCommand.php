@@ -21,6 +21,7 @@ use function implode;
 use function in_array;
 use function is_array;
 use function is_object;
+use function ltrim;
 use function is_string;
 use function strtoupper;
 
@@ -38,6 +39,12 @@ final class CacheBuildCommand extends AbstractCommand {
      * @var Bootstrapper
      */
     private Bootstrapper $bootstrapper;
+
+    /**
+     * 需要预热的动作方法(类 => 方法集合)
+     * @var array<string,array<string,bool>>
+     */
+    private array $container_methods=array();
 
     /**
      * 配置
@@ -258,8 +265,9 @@ final class CacheBuildCommand extends AbstractCommand {
                 'reason'=>'无法删除容器缓存',
                 'failure'=>true
             );
+        $this->container_methods=array();
         $classes=$this->containerClasses();
-        $warm=$metadata->warm($classes);
+        $warm=$metadata->warm($classes,$this->container_methods);
         $inspect=$metadata->inspect();
         if($store->writeFailed())
             return array(
@@ -306,8 +314,13 @@ final class CacheBuildCommand extends AbstractCommand {
         $this->addClasses($classes,(array)$this->config->get('app.alias',array()));
         $middlewares=$this->config->get('middlewares',array());
         if(is_array($middlewares)) {
-            $this->addClasses($classes,(array)($middlewares['request']??array()));
-            $this->addClasses($classes,(array)($middlewares['controller']??array()));
+            foreach(array('request','controller') as $group) {
+                $entries=(array)($middlewares[$group]??array());
+                $this->addClasses($classes,$entries);
+                foreach($entries as $entry)
+                    if(is_string($entry))
+                        $this->addWarmMethod($entry,'handle');
+            }
         }
         $attributes=(array)$this->config->get('route.attributes',array());
         $this->addClasses($classes,(array)($attributes['classes']??array()));
@@ -321,15 +334,46 @@ final class CacheBuildCommand extends AbstractCommand {
             $handler=$route->getHandler();
             if(is_array($handler)&&count($handler)>=2) {
                 $target=$handler[0]??null;
-                if(is_string($target))
+                $method=$handler[1]??null;
+                if(is_string($target)) {
                     $this->addClasses($classes,array($target));
-                elseif(is_object($target))
+                    if(is_string($method))
+                        $this->addWarmMethod($target,$method);
+                } elseif(is_object($target)) {
                     $this->addClasses($classes,array($target::class));
+                    if(is_string($method))
+                        $this->addWarmMethod($target::class,$method);
+                }
             } elseif(is_object($handler)) {
                 $this->addClasses($classes,array($handler::class));
+                $this->addWarmMethod($handler::class,'__invoke');
+            }
+            foreach($route->getMiddlewares() as $middleware) {
+                if(is_string($middleware)) {
+                    $this->addClasses($classes,array($middleware));
+                    $this->addWarmMethod($middleware,'handle');
+                } elseif(is_object($middleware)) {
+                    $this->addClasses($classes,array($middleware::class));
+                    $this->addWarmMethod($middleware::class,'handle');
+                }
             }
         }
         return array_values(array_unique($classes));
+    }
+
+    /**
+     * 记录需要预热的动作方法
+     *
+     * @access private
+     * @param string $class 类名
+     * @param string $method 方法名
+     * @return void
+     */
+    private function addWarmMethod(string $class,string $method): void {
+        $class=ltrim($class,'\\');
+        if($class===''||$method==='')
+            return;
+        $this->container_methods[$class][$method]=true;
     }
 
     /**

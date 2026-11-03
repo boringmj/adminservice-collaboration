@@ -16,7 +16,6 @@ use function array_values;
 use function date_default_timezone_set;
 use function dirname;
 use function explode;
-use function filemtime;
 use function in_array;
 use function is_array;
 use function is_string;
@@ -148,8 +147,7 @@ final class Bootstrapper {
      * @throws Exception
      */
     public function loadConfig(Env $env,bool $force=false,bool $use_cache=true): Repository {
-        $manifest=$use_cache?$this->configManifest($env):null;
-        $loader=new Loader($this->config_dir,$manifest,$manifest!==null);
+        $loader=new Loader($this->config_dir);
         if(!$use_cache||!$this->compileConfigEnabled($env)) {
             // 存在 .env 时固定关闭配置快照; 旧快照不参与读取, 由显式清理入口处理
             return new Repository($loader->load(),$env);
@@ -174,34 +172,6 @@ final class Bootstrapper {
             return Repository::fromValidated($payload['raw'],$payload['effective'],$env);
         $store->invalidate('config');
         return new Repository($loader->load(),$env);
-    }
-
-    /**
-     * 读取或生成配置文件名清单缓存
-     *
-     * - 清单只含文件名, 不包含配置值, 因此 `.env` 存在、配置值缓存关闭时仍可复用
-     * - 清单按配置目录 mtime 失效; `auto` 模式下由 `CompileStore` 的校验策略决定是否比对指纹
-     *
-     * @access private
-     * @param Env $env `.env` 快照
-     * @return array<string>|null
-     * @throws Exception
-     */
-    private function configManifest(Env $env): ?array {
-        if(!$this->compileEnabled($env))
-            return null;
-        $store=$this->configStore($env);
-        $dir=$this->config_dir;
-        $payload=$store->load('config_manifest',function() use($store,$dir): string {
-            $mtime=@filemtime($dir);
-            return $store->hash(array(
-                'dir'=>$dir,
-                'mtime'=>$mtime===false?0:$mtime
-            ));
-        },function() use($dir): array {
-            return (new Loader($dir))->manifest();
-        });
-        return is_array($payload)?$payload:null;
     }
 
     /**

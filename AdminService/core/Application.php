@@ -2,7 +2,6 @@
 
 namespace AdminService;
 
-use AdminService\Cache\CompileStore;
 use AdminService\Config\Repository;
 use AdminService\Router\RouterFactory;
 use base\AbstractSession;
@@ -105,7 +104,7 @@ final class Application {
         [$binds,$aliases]=self::bindings($classes,$this->config);
         // 编译快照已在装载期完成类存在性校验; 额外传入的类仍需现场校验
         if(!($extra_classes===array()&&$this->config->isValidated()))
-            $this->validateBindingsCached($binds,$aliases);
+            self::validateBindings($binds,$aliases);
         // 设置是否允许标量参数静默转换(可在 config/app.php 中配置 app.param_cast)
         $this->container->setParamCast($this->config->get('app.param_cast',true));
         // 写入绑定表: 自身映射无意义(解析时原样返回), 直接跳过, 其余走 bind(含循环检测)
@@ -181,31 +180,6 @@ final class Application {
         foreach(array_merge($binds,$aliases) as $class)
             if(!in_array($class,$known_names,true)&&!class_exists($class)&&!interface_exists($class))
                 throw new Exception('Class "'.$class.'" not found.');
-    }
-
-    /**
-     * 缓存正向绑定校验结果
-     *
-     * - 只缓存"全部存在"的结果; 校验失败不写缓存, 保留 fail-fast
-     * - 指纹包含绑定/别名与 PHP 版本; 部署变更仍应清理编译缓存
-     *
-     * @access private
-     * @param array<string,class-string> $binds 绑定表
-     * @param array<string,string> $aliases 别名表
-     * @return void
-     * @throws Exception 目标不存在
-     */
-    private function validateBindingsCached(array $binds,array $aliases): void {
-        $store=new CompileStore($this->config);
-        $fingerprint=$store->hash(array(
-            'bindings'=>$binds,
-            'aliases'=>$aliases,
-            'php'=>PHP_VERSION
-        ));
-        $store->load('bindings',static fn(): string=>$fingerprint,function() use($binds,$aliases): array {
-            self::validateBindings($binds,$aliases);
-            return array('validated'=>true);
-        });
     }
 
     /**

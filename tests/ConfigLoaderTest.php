@@ -145,40 +145,6 @@ class ConfigLoaderTest extends TestCase {
     }
 
     /**
-     * 测试: 清单只返回配置文件名, 不加载文件内容
-     *
-     * @return void
-     */
-    public function testManifestListsConfigFiles(): void {
-        $dir=$this->makeDir(array(
-            'log.php'=>"<?php return array('path'=>'/log');",
-            'app.php'=>"<?php return array('debug'=>false);",
-            'note.txt'=>'ignored',
-        ));
-        try {
-            $this->assertSame(array('app','log'),(new Loader($dir))->manifest());
-        } finally {
-            $this->removeDir($dir);
-        }
-    }
-
-    /**
-     * 测试: 信任清单时跳过逐文件预检查, 但缺失文件仍在加载时抛异常
-     *
-     * @return void
-     */
-    public function testTrustedManifestStillRejectsMissingFile(): void {
-        $dir=$this->makeDir(array('app.php'=>"<?php return array('a'=>1);"));
-        try {
-            $this->expectException(ConfigException::class);
-            $this->expectExceptionMessageMatches('/清单里的配置文件不存在/');
-            (new Loader($dir,array('app.php','missing'),true))->load();
-        } finally {
-            $this->removeDir($dir);
-        }
-    }
-
-    /**
      * 测试: 名字不合规的配置文件抛异常(它没法作为配置项的第一层)
      *
      * - 带 `.` 的名字(如 `app.local.php`)按点分键取不到, 因此不允许

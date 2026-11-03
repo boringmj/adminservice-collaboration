@@ -4,6 +4,7 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
+use AdminService\Exception;
 use AdminService\Router\Router;
 use ReflectionProperty;
 use Tests\Fixtures\ConcreteService;
@@ -130,5 +131,106 @@ class RouterLazyImportTest extends TestCase {
         $this->assertCount(3,$this->property($router,'routes'));
         $this->assertFalse($this->property($router,'lazy'));
         $this->assertSame(array(ConcreteService::class,'execute'),$router->find('GET','/static')[0]->getHandler());
+    }
+
+    /**
+     * 测试: 懒加载导入与 eager 导入使用相同的路径/方法规范化
+     *
+     * @return void
+     */
+    public function testLazyImportNormalizesRouteData(): void {
+        $router=new Router();
+        $router->get('/normalized',array(ConcreteService::class,'execute'));
+        $routes=$router->export();
+        $routes[0]['methods']=array('get');
+        $routes[0]['path']='/normalized/';
+
+        $eager=new Router();
+        $eager->import($routes,true,false);
+        $lazy=new Router();
+        $lazy->import($routes,true);
+
+        $this->assertNotNull($eager->find('GET','/normalized'));
+        $this->assertNotNull($lazy->find('GET','/normalized'));
+    }
+
+    /**
+     * 测试: 懒加载导入拒绝非法的 methods/params 类型
+     *
+     * @return void
+     */
+    public function testLazyImportRejectsInvalidMethods(): void {
+        $routes=$this->exportedRoutes();
+        $routes[0]['methods']='GET';
+
+        $this->expectException(Exception::class);
+        (new Router())->import($routes,true);
+    }
+
+    /**
+     * 测试: 懒加载导入拒绝非法的 params 类型
+     *
+     * @return void
+     */
+    public function testLazyImportRejectsInvalidParams(): void {
+        $routes=$this->exportedRoutes();
+        $routes[0]['params']='id';
+
+        $this->expectException(Exception::class);
+        (new Router())->import($routes,true);
+    }
+
+    /**
+     * 测试: 空路由名在 eager/lazy 导入下行为一致
+     *
+     * @return void
+     */
+    public function testLazyImportKeepsEmptyRouteNameConsistent(): void {
+        $router=new Router();
+        $router->get('/empty-name',array(ConcreteService::class,'execute'))->name('');
+        $routes=$router->export();
+
+        $eager=new Router();
+        $eager->import($routes,true,false);
+        $lazy=new Router();
+        $lazy->import($routes,true);
+
+        $this->assertTrue($eager->has(''));
+        $this->assertSame($eager->has(''),$lazy->has(''));
+        $this->assertSame($eager->url(''),$lazy->url(''));
+    }
+
+    /**
+     * 测试: 未排序导入时静态路由优先于参数路由
+     *
+     * @return void
+     */
+    public function testUnsortedImportMatchesLiteralBeforeParameter(): void {
+        $router=new Router();
+        $router->get('/user/{id}',array(ConcreteService::class,'execute'))->name('show');
+        $router->get('/user/create',array(ConcreteService::class,'execute'))->name('create');
+        $routes=$router->export();
+
+        $router=new Router();
+        $router->import(array_reverse($routes),false);
+
+        $this->assertSame('/user/create',$router->find('GET','/user/create')[0]->getPath());
+        $this->assertSame(array('id'=>'42'),$router->find('GET','/user/42')[1]);
+    }
+
+    /**
+     * 测试: 懒加载导入后继续注册路由会先水合已有数据
+     *
+     * @return void
+     */
+    public function testAddAfterLazyImportHydratesExistingRoutes(): void {
+        $router=new Router();
+        $router->import($this->exportedRoutes(),true);
+        $router->get('/added',array(ConcreteService::class,'execute'))->name('added');
+
+        $this->assertFalse($this->property($router,'lazy'));
+        $this->assertCount(4,$router->getRoutes());
+        $this->assertNotNull($router->find('GET','/static'));
+        $this->assertNotNull($router->find('GET','/added'));
     }
 }

@@ -28,6 +28,7 @@ use function http_build_query;
 use function implode;
 use function in_array;
 use function is_array;
+use function is_numeric;
 use function is_object;
 use function is_string;
 use function ltrim;
@@ -191,14 +192,75 @@ final class RouteItem {
      * @access public
      * @param array<string,mixed> $data 编译路由数据
      * @return void
-     * @throws Exception 数据缺少必需字段
+     * @throws Exception 数据字段非法
      */
     public static function validateData(array $data): void {
+        self::normalizeData($data);
+    }
+
+    /**
+     * 规范化编译路由数据
+     *
+     * - 路径和方法与 RouteItem::__construct() 使用同一套规范化规则
+     * - 懒加载导入必须先经过此方法, 避免原始数据直接进入匹配
+     *
+     * @access public
+     * @param array<string,mixed> $data 编译路由数据
+     * @return array<string,mixed>
+     * @throws Exception 数据字段非法
+     */
+    public static function normalizeData(array $data): array {
         if(!isset($data['path'])||!is_string($data['path'])||$data['path']===''
             ||!array_key_exists('handler',$data))
             throw new Exception('Invalid compiled route item.',-423);
         if(!isset($data['pattern'])||!is_string($data['pattern'])||$data['pattern']==='')
             throw new Exception('Invalid compiled route item.',-423);
+        $data['path']=self::expandWildcard(self::normalizePath($data['path']));
+        $methods=array();
+        if(array_key_exists('methods',$data)) {
+            if(!is_array($data['methods']))
+                throw new Exception('Invalid compiled route item.',-423);
+            foreach($data['methods'] as $method) {
+                if(!is_string($method)&&!($method instanceof Method))
+                    throw new Exception('Invalid compiled route item.',-423);
+                try {
+                    $methods[]=Method::normalize($method);
+                } catch(\InvalidArgumentException) {
+                    throw new Exception('Invalid compiled route item.',-423);
+                }
+            }
+        }
+        $data['methods']=$methods;
+        foreach(array('params','optional') as $key) {
+            if(!array_key_exists($key,$data))
+                continue;
+            if(!is_array($data[$key]))
+                throw new Exception('Invalid compiled route item.',-423);
+            foreach($data[$key] as $value)
+                if(!is_string($value))
+                    throw new Exception('Invalid compiled route item.',-423);
+            $data[$key]=array_values($data[$key]);
+        }
+        if(array_key_exists('name',$data)
+            &&$data['name']!==null
+            &&!is_string($data['name']))
+            throw new Exception('Invalid compiled route item.',-423);
+        if(array_key_exists('literal_length',$data)) {
+            if(!is_numeric($data['literal_length']))
+                throw new Exception('Invalid compiled route item.',-423);
+            $data['literal_length']=(int)$data['literal_length'];
+        }
+        foreach(array('group_middlewares','route_middlewares','bindings','constraints') as $key) {
+            if(array_key_exists($key,$data)&&!is_array($data[$key]))
+                throw new Exception('Invalid compiled route item.',-423);
+        }
+        foreach(array('resolved_bindings','controller_middlewares') as $key) {
+            if(array_key_exists($key,$data)
+                &&$data[$key]!==null
+                &&!is_array($data[$key]))
+                throw new Exception('Invalid compiled route item.',-423);
+        }
+        return $data;
     }
 
     /**
@@ -587,10 +649,10 @@ final class RouteItem {
      * @access public
      * @param array<string,mixed> $data 缓存数据
      * @return self
-     * @throws Exception 数据缺少必要字段
+     * @throws Exception 数据字段非法
      */
     public static function fromArray(array $data): self {
-        self::validateData($data);
+        $data=self::normalizeData($data);
         $route=new self(
             isset($data['methods'])&&is_array($data['methods'])?$data['methods']:array(),
             $data['path'],

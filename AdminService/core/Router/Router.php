@@ -28,6 +28,7 @@ use function is_callable;
 use function is_file;
 use function is_string;
 use function ltrim;
+use function range;
 use function rtrim;
 use function sort;
 use function str_replace;
@@ -103,6 +104,12 @@ final class Router implements RoutingInterface {
      * @var array<string,array<string,RouteItem>>|null
      */
     private ?array $static_index=null;
+
+    /**
+     * 未水合静态路径索引
+     * @var array<string,array<string,int>>|null
+     */
+    private ?array $static_index_data=null;
 
     /**
      * 最近命中的路由
@@ -248,6 +255,7 @@ final class Router implements RoutingInterface {
         $this->named=null;
         $this->sorted_cache=null;
         $this->static_index=null;
+        $this->static_index_data=null;
         return $route;
     }
 
@@ -847,6 +855,7 @@ final class Router implements RoutingInterface {
      * @throws Exception 路由数据非法或路由名重复
      */
     public function import(array $routes,bool $sorted=true,bool $lazy=true): void {
+        // 懒加载数据会直接参与匹配, 必须先按构造 RouteItem 的规则规范化
         $this->routes=array();
         $this->route_data=array();
         $this->lazy=false;
@@ -858,12 +867,12 @@ final class Router implements RoutingInterface {
         $this->middlewareStack=array();
         $this->sorted_cache=null;
         $this->static_index=null;
+        $this->static_index_data=null;
         if($lazy) {
             foreach($routes as $data) {
                 if(!is_array($data))
                     throw new Exception('Invalid compiled route.',-423);
-                RouteItem::validateData($data);
-                $this->route_data[]=$data;
+                $this->route_data[]=RouteItem::normalizeData($data);
             }
             $this->lazy=true;
             if($sorted)
@@ -939,8 +948,8 @@ final class Router implements RoutingInterface {
      * @return array<string,array<string,int>>
      */
     private function staticIndexData(): array {
-        if($this->static_index!==null)
-            return $this->static_index;
+        if($this->static_index_data!==null)
+            return $this->static_index_data;
         $index=array();
         foreach($this->route_data as $position=>$data) {
             if(!RouteItem::isStaticData($data['params']??array()))
@@ -958,7 +967,7 @@ final class Router implements RoutingInterface {
                 &&!isset($index[$path]['HEAD']))
                 $index[$path]['HEAD']=$position;
         }
-        return $this->static_index=$index;
+        return $this->static_index_data=$index;
     }
 
     /**
@@ -1033,6 +1042,7 @@ final class Router implements RoutingInterface {
         $this->named=null;
         $this->named_data=null;
         $this->static_index=null;
+        $this->static_index_data=null;
     }
 
     /**
@@ -1117,7 +1127,7 @@ final class Router implements RoutingInterface {
         $index=array();
         foreach($this->route_data as $position=>$data) {
             $name=$data['name']??null;
-            if(!is_string($name)||$name==='')
+            if(!is_string($name))
                 continue;
             if(isset($index[$name]))
                 throw new Exception('Duplicate route name.',-419,array(

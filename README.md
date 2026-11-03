@@ -25,15 +25,69 @@
     composer install --optimize-autoloader --no-dev
     ```
 
-1. 启动 [php webserver](https://www.php.net/manual/zh/features.commandline.webserver.php), 框架提供了简单的快捷启动脚本
+1. 启动开发服务器, 框架提供统一命令行入口
 
     ```bash
-    // 需要配置php环境变量且php>=5.4.0
-    php start
+    // 需要配置 php 环境变量且 php>=8.2.0
+    php console server start
+    // 也可以使用快捷命令或分组启动器
+    php console start
+    php bin/server start
     ```
 
 1. 访问 `localhost:8000`, 至此,您已经可以正常进行开发了\
 如果您需要更多帮助,可以前往 [Wiki](https://github.com/boringmj/adminservice-collaboration/wiki/准备), 在那里有更加详细的教程和文档
+
+## 命令行
+
+统一入口是项目根目录的 `console`。无参数执行 `php console` 时展示命令列表, 不会启动 Web 服务。
+
+```bash
+php console list                 # 列出全部命令
+php console list cache           # 查看 cache 分组
+php console cache                # 查看 cache 分组帮助
+php console help server start    # 查看指定命令帮助
+php console server start         # 启动 PHP 内置 Web 服务
+php console cache status         # 查看编译缓存状态
+php console cache build          # 预热编译缓存
+php console cache build --force  # 强制重建编译缓存
+php console cache clear          # 清理编译缓存
+```
+
+`bin/<组名>` 是薄启动器, 只把组名转发给根 `console`:
+
+```bash
+php bin/server start             # 等价于 php console server start
+php bin/cache status             # 等价于 php console cache status
+php bin/cache                    # 等价于 php console cache, 展示组帮助
+```
+
+命令路径支持空格和冒号两种写法, 也支持命令别名与根级快捷绑定:
+
+```bash
+php console server:start         # server start
+php console serve                # server start 的别名
+php console start                # config/console.php 中的快捷绑定
+php console cache:build          # cache build
+```
+
+自定义命令使用显式登记, 不扫描目录。推荐放在 `AdminService/app/{app}/command/`, 并在 `AdminService/config/console.php` 的 `commands` 中登记类名:
+
+```php
+'commands'=>array(
+    \app\demo\command\HelloCommand::class,
+),
+```
+
+命令类需实现 `base\CommandInterface`(通常继承 `base\AbstractCommand`), 业务逻辑放在 `execute(Input $input,Output $output): int`。命令通过 `valueOptions()` 声明需要接收值的选项, 通过 `booleanOptions()` 声明布尔选项; 未知选项与缺少值会返回退出码 `2`。内置命令与自定义命令都复用 `AdminService\Config\Bootstrapper`, 不会注册 HTTP 错误出口, 也不发送 HTTP 响应。完整说明见 Wiki [命令行](https://github.com/boringmj/adminservice-collaboration/wiki/命令行)。
+
+### 编译缓存命令
+
+- `cache status [all|config|routes|container]` 显示状态: `disabled` / `missing` / `valid` / `stale` / `corrupted`; 查询本身不会创建配置快照。
+- `cache build` / `cache clear` 只操作 `runtime/cache/compile`, 不会清理 `runtime/cache/kv` 业务缓存池。
+- 存在 `.env` 时配置编译缓存固定关闭; `cache build config` 会清理旧快照并输出 `[SKIP]`, 这是预期的安全行为。
+- `cache build routes` / `cache build container` 可预热路由与容器编译缓存; 路由包含闭包、对象处理器等不可导出结构时输出 `[SKIP]` 并回退实时装配。
+- `--force` / `-f` 只影响本次命令的构建, 不修改 `.env` 或配置文件。
 
 ## 从旧版升级
 
@@ -42,6 +96,7 @@
 - `404` / `405` 固定返回 `text/plain`, 不再参与内容协商; 自动 `OPTIONS` 会列入 `Allow`。
 - 自动注入的 `bool proxy` 第二参数迁移为 `AutowireMode`; `#[AutowireMethod]` 不再承担生命周期语义, 请改用 `#[AutowireLifecycle]`。旧写法保留一个版本的过渡兼容。
 - 旧版约定式路由已移除, 改用显式路由或控制器属性路由。
+- 旧根目录 `start` 脚本已移除, 请改用 `php console server start`、`php console start` 或 `php bin/server start`; 完整命令见 Wiki [命令行](https://github.com/boringmj/adminservice-collaboration/wiki/命令行)。
 - 完整破坏性变更与迁移说明见 Wiki [新旧版本调整](https://github.com/boringmj/adminservice-collaboration/wiki/新旧版本调整)。
 
 ## 路由
@@ -258,6 +313,7 @@ $value=$cache->remember('stats',60,function(): array {
 - 容器编译缓存已接入 `runtime/cache/compile/container.cache.php`: `auto` 生产零探测，debug / `always` 按类自身、父类与 trait 源文件指纹校验；缓存属性/Setter/生命周期方法元数据与方法参数描述符，无注解类不再扫描全部反射成员
 - debug + `auto` 下默认只跳过配置编译缓存，路由/容器编译缓存继续命中；可通过 `CACHE_COMPILE_SKIP_ON_DEBUG` 调整跳过名单
 - 默认实现 `AdminService\Cache` 额外提供 `clearCompile()` / `clearAll()`; 需要清理系统编译缓存时按具体实现取用
+- 编译缓存可由命令行检查与预热: `php console cache status`、`php console cache build`、`php console cache clear`; 详见 Wiki [命令行](https://github.com/boringmj/adminservice-collaboration/wiki/命令行)
 - 目录与配置说明见 `wiki/缓存.md`
 
 ## 未来

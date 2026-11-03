@@ -1,0 +1,14 @@
+<?php
+/**
+ * cache 分组薄启动器
+ *
+ * - 等价于 `php console cache ...`
+ * - 不注册命令、不解析选项、不承载业务逻辑
+ */
+
+$group='cache';
+$args=isset($argv)&&is_array($argv)?$argv:array('console');
+$args[0]=dirname(__DIR__).'/console';
+array_splice($args,1,0,array($group));
+$argv=$args;
+require dirname(__DIR__).'/console';

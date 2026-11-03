@@ -3,17 +3,16 @@
 namespace Tests;
 
 use PHPUnit\Framework\TestCase;
-use ReflectionMethod;
 
 use AdminService\App;
 use AdminService\Application;
 use AdminService\Cache;
 use AdminService\Cache\CompileStore;
 use AdminService\Config;
+use AdminService\Config\Bootstrapper;
 use AdminService\Config\Env;
 use AdminService\Config\Repository;
 use AdminService\Container;
-use AdminService\Main;
 use AdminService\Runtime;
 use Tests\Fixtures\ConfigCacheAliasTarget;
 
@@ -35,7 +34,7 @@ use function unlink;
  *
  * - 编译快照保留原始配置与生效配置
  * - 编译配置跳过 `Application::init()` 的别名目标强加载
- * - `Main` 使用 `runtime/cache/compile/config.cache.php`
+ * - `Bootstrapper` 使用 `runtime/cache/compile/config.cache.php`
  */
 class ConfigCacheTest extends TestCase {
 
@@ -211,11 +210,11 @@ class ConfigCacheTest extends TestCase {
     }
 
     /**
-     * 测试: 存在 .env 时 Main 默认关闭配置缓存且不读取旧快照
+     * 测试: 存在 .env 时 Bootstrapper 默认关闭配置缓存且不读取旧快照
      *
      * @return void
      */
-    public function testMainDisablesConfigCacheWhenEnvFilePresent(): void {
+    public function testBootstrapperDisablesConfigCacheWhenEnvFilePresent(): void {
         $old_runtime=Runtime::path();
         $dir=$this->tempDir();
         try {
@@ -224,10 +223,8 @@ class ConfigCacheTest extends TestCase {
             mkdir($dir.'/runtime/cache/compile',0755,true);
             file_put_contents($cache,'<?php return array();');
 
-            $method=new ReflectionMethod(Main::class,'loadConfig');
-            $method->setAccessible(true);
-            $main=new Main();
-            $config=$method->invoke($main,new Env("APP_DEBUG=false\n",'/tmp/.env'));
+            $bootstrapper=new Bootstrapper();
+            $config=$bootstrapper->loadConfig(new Env("APP_DEBUG=false\n",'/tmp/.env'));
 
             $this->assertInstanceOf(Repository::class,$config);
             $this->assertFalse($config->isValidated());
@@ -239,19 +236,17 @@ class ConfigCacheTest extends TestCase {
     }
 
     /**
-     * 测试: Main 在 debug + auto 下跳过配置缓存
+     * 测试: Bootstrapper 在 debug + auto 下跳过配置缓存
      *
      * @return void
      */
-    public function testMainSkipsConfigCacheInDebug(): void {
+    public function testBootstrapperSkipsConfigCacheInDebug(): void {
         $old_runtime=Runtime::path();
         $dir=$this->tempDir();
         try {
             Runtime::setPath($dir.'/runtime');
-            $method=new ReflectionMethod(Main::class,'loadConfig');
-            $method->setAccessible(true);
-            $main=new Main();
-            $config=$method->invoke($main,new Env("APP_DEBUG=true\n"));
+            $bootstrapper=new Bootstrapper();
+            $config=$bootstrapper->loadConfig(new Env("APP_DEBUG=true\n"));
 
             $this->assertInstanceOf(Repository::class,$config);
             $this->assertTrue($config->isValidated());
@@ -263,26 +258,24 @@ class ConfigCacheTest extends TestCase {
     }
 
     /**
-     * 测试: Main 从 runtime/cache/compile/config.cache.php 加载配置
+     * 测试: Bootstrapper 从 runtime/cache/compile/config.cache.php 加载配置
      *
      * @return void
      */
-    public function testMainLoadsConfigCache(): void {
+    public function testBootstrapperLoadsConfigCache(): void {
         $old_runtime=Runtime::path();
         $dir=$this->tempDir();
         try {
             Runtime::setPath($dir.'/runtime');
-            $method=new ReflectionMethod(Main::class,'loadConfig');
-            $method->setAccessible(true);
-            $main=new Main();
+            $bootstrapper=new Bootstrapper();
             $env=new Env("APP_DEBUG=false\n");
 
-            $first=$method->invoke($main,$env);
+            $first=$bootstrapper->loadConfig($env);
             $this->assertInstanceOf(Repository::class,$first);
             $this->assertTrue($first->isValidated());
             $this->assertFileExists($dir.'/runtime/cache/compile/config.cache.php');
 
-            $second=$method->invoke($main,$env);
+            $second=$bootstrapper->loadConfig($env);
             $this->assertInstanceOf(Repository::class,$second);
             $this->assertTrue($second->isValidated());
             $this->assertSame($first->get('app.timezone'),$second->get('app.timezone'));
@@ -311,15 +304,13 @@ class ConfigCacheTest extends TestCase {
                     'compile'=>array('enabled'=>true)
                 )
             )));
-            $method=new ReflectionMethod(Main::class,'configFingerprint');
-            $method->setAccessible(true);
-            $main=new Main();
+            $bootstrapper=new Bootstrapper();
             $env=new Env();
 
-            $first=$method->invoke($main,$store,$env,$config_dir);
+            $first=$bootstrapper->configFingerprint($store,$env,$config_dir);
             file_put_contents($file,"<?php return array('a'=>12345);");
             clearstatcache(true,$file);
-            $second=$method->invoke($main,$store,$env,$config_dir);
+            $second=$bootstrapper->configFingerprint($store,$env,$config_dir);
 
             $this->assertNotSame($first,$second);
         } finally {

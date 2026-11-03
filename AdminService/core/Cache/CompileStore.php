@@ -13,6 +13,8 @@ use function array_key_exists;
 use function dirname;
 use function explode;
 use function file_put_contents;
+use function filemtime;
+use function filesize;
 use function function_exists;
 use function in_array;
 use function is_array;
@@ -76,6 +78,18 @@ final class CompileStore {
     private ?ConfigInterface $config=null;
 
     /**
+     * 是否忽略 debug 跳过名单(命令行 `--force` 专用)
+     * @var bool
+     */
+    private bool $force=false;
+
+    /**
+     * 最近一次写入是否失败
+     * @var bool
+     */
+    private bool $write_failed=false;
+
+    /**
      * 构造方法
      *
      * @access public
@@ -86,13 +100,50 @@ final class CompileStore {
     }
 
     /**
+     * 设置本次实例是否忽略 debug 跳过名单
+     *
+     * - 只影响当前 `CompileStore` 实例, 不修改全局配置
+     * - 不绕过 `enabled=false` 或 `mode=off`
+     *
+     * @access public
+     * @param bool $force 是否强制
+     * @return self
+     */
+    public function force(bool $force=true): self {
+        $this->force=$force;
+        return $this;
+    }
+
+    /**
+     * 最近一次实际写入是否失败
+     *
+     * - 供 CLI 区分“不可导出”和“目录不可写”
+     *
+     * @access public
+     * @return bool
+     */
+    public function writeFailed(): bool {
+        return $this->write_failed;
+    }
+
+    /**
      * 取配置契约实例
      *
-     * @access private
+     * @access public
      * @return ConfigInterface
      */
-    private function config(): ConfigInterface {
+    public function config(): ConfigInterface {
         return $this->config??Config::repository()??new Repository(array());
+    }
+
+    /**
+     * 当前实例是否处于强制模式
+     *
+     * @access public
+     * @return bool
+     */
+    public function forceEnabled(): bool {
+        return $this->force;
     }
 
     /**
@@ -124,10 +175,11 @@ final class CompileStore {
      */
     public function load(string $name,callable $fingerprint,callable $builder,?string $context=null): mixed {
         $name=$this->assertName($name);
+        $this->write_failed=false;
         $mode=$this->mode();
         if($mode==='off'||!$this->enabledFor($name))
             return $builder();
-        if($mode==='auto'&&$this->skipOnDebug($name))
+        if($mode==='auto'&&!$this->force&&$this->skipOnDebug($name))
             return $builder();
         $file=$this->path($name);
         $validate=$this->shouldValidate();
@@ -159,6 +211,79 @@ final class CompileStore {
     }
 
     /**
+     * 只读检查编译缓存文件
+     *
+     * - 不删除损坏文件, 不触发重建, 仅返回文件与结构信息
+     * - 供命令行 `cache status` 等诊断入口使用
+     *
+     * @access public
+     * @param string $name 缓存名
+     * @param bool $load_payload 是否加载并解析 payload
+     * @return array{
+     *     name:string,
+     *     path:string,
+     *     exists:bool,
+     *     size:int|null,
+     *     mtime:int|null,
+     *     created_at:int|null,
+     *     fingerprint:string|null,
+     *     context:string|null,
+     *     payload:mixed,
+     *     valid:bool,
+     *     reason:string|null
+     * }
+     * @throws Exception 缓存名非法
+     */
+    public function inspect(string $name,bool $load_payload=true): array {
+        $name=$this->assertName($name);
+        $path=$this->path($name);
+        $result=array(
+            'name'=>$name,
+            'path'=>$path,
+            'exists'=>is_file($path),
+            'size'=>null,
+            'mtime'=>null,
+            'created_at'=>null,
+            'fingerprint'=>null,
+            'context'=>null,
+            'payload'=>null,
+            'valid'=>false,
+            'reason'=>null
+        );
+        if(!$result['exists']) {
+            $result['reason']='cache file is missing';
+            return $result;
+        }
+        $size=@filesize($path);
+        $mtime=@filemtime($path);
+        $result['size']=$size===false?null:(int)$size;
+        $result['mtime']=$mtime===false?null:(int)$mtime;
+        if(!$load_payload) {
+            $result['reason']='cache payload was not loaded';
+            return $result;
+        }
+        try {
+            $data=@include $path;
+        } catch(\Throwable) {
+            $result['reason']='cache file can not be parsed';
+            return $result;
+        }
+        if(!is_array($data)
+            ||!isset($data['fingerprint'])
+            ||!is_string($data['fingerprint'])
+            ||!array_key_exists('payload',$data)) {
+            $result['reason']='cache file structure is invalid';
+            return $result;
+        }
+        $result['fingerprint']=$data['fingerprint'];
+        $result['context']=isset($data['context'])&&is_string($data['context'])?$data['context']:null;
+        $result['created_at']=isset($data['created_at'])&&is_int($data['created_at'])?$data['created_at']:null;
+        $result['payload']=$data['payload'];
+        $result['valid']=true;
+        return $result;
+    }
+
+    /**
      * 指定缓存当前是否可用
      *
      * @access public
@@ -170,7 +295,7 @@ final class CompileStore {
         $name=$this->assertName($name);
         $mode=$this->mode();
         return $mode!=='off'&&$this->enabledFor($name)
-            &&!($mode==='auto'&&$this->skipOnDebug($name));
+            &&!($mode==='auto'&&!$this->force&&$this->skipOnDebug($name));
     }
 
     /**
@@ -189,6 +314,7 @@ final class CompileStore {
      */
     public function save(string $name,string $fingerprint,mixed $payload,?string $context=null): bool {
         $name=$this->assertName($name);
+        $this->write_failed=false;
         if(!$this->enabled($name))
             return false;
         if($payload===null||!$this->isExportable($payload))
@@ -367,6 +493,7 @@ final class CompileStore {
      * @return bool
      */
     private function write(string $file,string $fingerprint,mixed $payload,?string $context=null): bool {
+        $this->write_failed=false;
         try {
             $dir=dirname($file);
             $this->ensureDirectory($dir);
@@ -379,18 +506,19 @@ final class CompileStore {
             $tmp=$dir.'/.cachetmp_'.str_replace('.','',uniqid('',true));
             $written=@file_put_contents($tmp,$content);
             if($written===false)
-                return $this->writeFailed($tmp);
+                return $this->cleanupFailedWrite($tmp);
             if($written<strlen($content))
-                return $this->writeFailed($tmp);
+                return $this->cleanupFailedWrite($tmp);
             if(!@rename($tmp,$file)) {
                 @unlink($file);
                 if(!@rename($tmp,$file))
-                    return $this->writeFailed($tmp);
+                    return $this->cleanupFailedWrite($tmp);
             }
             if(function_exists('opcache_invalidate'))
                 @opcache_invalidate($file,true);
             return true;
         } catch(\Throwable) {
+            $this->write_failed=true;
             return false;
         }
     }
@@ -402,7 +530,8 @@ final class CompileStore {
      * @param string $tmp 临时文件
      * @return false
      */
-    private function writeFailed(string $tmp): bool {
+    private function cleanupFailedWrite(string $tmp): bool {
+        $this->write_failed=true;
         @unlink($tmp);
         return false;
     }

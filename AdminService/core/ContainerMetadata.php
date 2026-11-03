@@ -20,7 +20,9 @@ use function array_key_exists;
 use function array_map;
 use function array_unique;
 use function array_values;
+use function class_exists;
 use function explode;
+use function interface_exists;
 use function is_array;
 use function is_string;
 use function stat;
@@ -56,6 +58,12 @@ final class ContainerMetadata {
      * @var CompileStore
      */
     private CompileStore $store;
+
+    /**
+     * store 是否由构造方注入
+     * @var bool
+     */
+    private bool $store_injected=false;
 
     /**
      * 元数据缓存使用的配置契约
@@ -100,11 +108,13 @@ final class ContainerMetadata {
      * @access public
      * @param ReflectionCache|null $reflections 反射缓存
      * @param ConfigInterface|null $config 配置契约(null = 使用门面配置)
+     * @param CompileStore|null $store 编译缓存存储(null = 按配置新建)
      */
-    public function __construct(?ReflectionCache $reflections=null,?ConfigInterface $config=null) {
+    public function __construct(?ReflectionCache $reflections=null,?ConfigInterface $config=null,?CompileStore $store=null) {
         $this->reflections=$reflections??new ReflectionCache();
         $this->config=$config;
-        $this->store=new CompileStore($config);
+        $this->store_injected=$store!==null;
+        $this->store=$store??new CompileStore($config);
     }
 
     /**
@@ -122,7 +132,8 @@ final class ContainerMetadata {
             return;
         $this->flush();
         $this->config=$config;
-        $this->store=new CompileStore($config);
+        if(!$this->store_injected)
+            $this->store=new CompileStore($config);
         $this->loaded=false;
         $this->dirty=false;
         $this->validate_sources=null;
@@ -162,6 +173,123 @@ final class ContainerMetadata {
             $this->dirty=true;
         }
         return $this->classes[$class]['params'][$name];
+    }
+
+    /**
+     * 只读检查容器元数据缓存状态
+     *
+     * @access public
+     * @return array<string,mixed>
+     * @throws Exception
+     */
+    public function inspect(): array {
+        $enabled=$this->store->enabled('container');
+        $inspect=$this->store->inspect('container',$enabled);
+        $status='valid';
+        $reason=null;
+        if(!$enabled) {
+            $status='disabled';
+            $reason='container cache is disabled by configuration';
+        } elseif(!$inspect['exists']) {
+            $status='missing';
+            $reason=$inspect['reason'];
+        } elseif(!$inspect['valid']) {
+            $status='corrupted';
+            $reason=$inspect['reason'];
+        } else {
+            $payload=$inspect['payload'];
+            if(!is_array($payload)
+                ||(int)($payload['version']??0)!==self::VERSION
+                ||!isset($payload['classes'])
+                ||!is_array($payload['classes'])) {
+                $status='corrupted';
+                $reason='container cache payload is invalid';
+            } elseif($inspect['context']!==$this->context()) {
+                $status='stale';
+                $reason='container cache context changed';
+            } elseif($inspect['fingerprint']!==(string)self::VERSION) {
+                $status='stale';
+                $reason='container cache version changed';
+            } else {
+                foreach($payload['classes'] as $entry) {
+                    if(!$this->validEntry($entry)) {
+                        $status='corrupted';
+                        $reason='container cache entry is invalid';
+                        break;
+                    }
+                    if($this->store->shouldValidate()&&!$this->entryFilesMatch($entry['files'])) {
+                        $status='stale';
+                        $reason='container class source files changed';
+                        break;
+                    }
+                }
+            }
+        }
+        $inspect['status']=$status;
+        $inspect['reason']=$reason;
+        return $inspect;
+    }
+
+    /**
+     * 校验条目记录的类源文件指纹
+     *
+     * @access private
+     * @param array<string,array{mtime:int,size:int}> $files 文件指纹
+     * @return bool
+     */
+    private function entryFilesMatch(array $files): bool {
+        foreach($files as $file=>$expected) {
+            if(!is_string($file)||!is_array($expected))
+                return false;
+            $stat=@stat($file);
+            if($stat===false
+                ||($expected['mtime']??null)!==(int)$stat['mtime']
+                ||($expected['size']??null)!==(int)$stat['size'])
+                return false;
+        }
+        return true;
+    }
+
+    /**
+     * 预热类元数据
+     *
+     * - 为指定类及其公共方法的参数描述符生成缓存, 完成后统一落盘
+     * - 无法加载的类名会被跳过, 由调用方决定是否视为失败
+     *
+     * @access public
+     * @param array<int,class-string> $classes 类名
+     * @return array{skipped:array<int,string>,failed:array<int,string>}
+     */
+    public function warm(array $classes): array {
+        $skipped=array();
+        $failed=array();
+        foreach($classes as $class) {
+            if(!is_string($class)||$class==='')
+                continue;
+            if(!class_exists($class)&&!interface_exists($class)) {
+                $skipped[]=$class;
+                continue;
+            }
+            try {
+                $reflection=$this->reflections->getClass($class);
+                $this->getClass($class);
+                $constructor=$reflection->getConstructor();
+                if($constructor!==null)
+                    $this->methodParams($constructor);
+                foreach($reflection->getMethods() as $method)
+                    if($method->isPublic())
+                        $this->methodParams($method);
+            } catch(\Throwable) {
+                // 单个类预热失败不阻断其余类; 由调用方汇总并决定是否失败
+                $failed[]=$class;
+                continue;
+            }
+        }
+        $this->flush();
+        return array(
+            'skipped'=>$skipped,
+            'failed'=>$failed
+        );
     }
 
     /**
@@ -433,18 +561,22 @@ final class ContainerMetadata {
      * - 直接使用 `ContainerMetadata` 时可手动调用
      *
      * @access public
-     * @return void
+     * @return bool 是否成功落盘(无脏数据也算成功)
      */
-    public function flush(): void {
+    public function flush(): bool {
         if(!$this->dirty)
-            return;
-        $this->dirty=false;
-        if(!$this->store->enabled('container'))
-            return;
-        $this->store->save('container',(string)self::VERSION,array(
+            return true;
+        if(!$this->store->enabled('container')) {
+            $this->dirty=false;
+            return false;
+        }
+        $ok=$this->store->save('container',(string)self::VERSION,array(
             'version'=>self::VERSION,
             'classes'=>$this->classes
         ),$this->context());
+        if($ok)
+            $this->dirty=false;
+        return $ok;
     }
 
     /**

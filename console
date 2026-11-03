@@ -1,0 +1,17 @@
+<?php
+
+namespace AdminService;
+
+use function is_file;
+
+$autoload_path=__DIR__.'/vendor/autoload.php';
+
+if(!is_file($autoload_path)) {
+    fwrite(STDERR,"Error: Unable to complete autoload!\n");
+    exit(1);
+}
+
+require_once $autoload_path;
+
+$console=new Console();
+exit($console->run($argv??array()));

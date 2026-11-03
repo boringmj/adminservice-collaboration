@@ -154,6 +154,16 @@ final class Repository implements ConfigInterface {
     }
 
     /**
+     * 获取构造时绑定的 env 快照
+     *
+     * @access public
+     * @return Env|null
+     */
+    public function envSnapshot(): ?Env {
+        return $this->env;
+    }
+
+    /**
      * 判断配置项是否存在
      *
      * @access public

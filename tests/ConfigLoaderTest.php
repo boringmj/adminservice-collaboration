@@ -210,7 +210,7 @@ class ConfigLoaderTest extends TestCase {
     }
 
     /**
-     * 测试: 仓库真实的 `config/` 走加载器 —— 12 个文件、第一层是文件名、`env()` 已在配置文件里生效
+     * 测试: 仓库真实的 `config/` 走加载器 —— 13 个文件、第一层是文件名、`env()` 已在配置文件里生效
      *
      * - 守的是"配置文件本身没毛病": 名字合规、每个都返回数组, 否则 `load()` 会抛异常
      *
@@ -220,8 +220,8 @@ class ConfigLoaderTest extends TestCase {
         $root=dirname(__DIR__);
         $loader=new Loader($root.'/AdminService/config');
         $configs=$loader->load();
-        $this->assertCount(12,$configs,'本仓库有 12 个配置文件');
-        $this->assertSame(array('app','cache','cookie','data','database','function','log','middlewares','request','response','route','session'),array_keys($configs),'第一层就是配置文件名');
+        $this->assertCount(13,$configs,'本仓库有 13 个配置文件');
+        $this->assertSame(array('app','cache','console','cookie','data','database','function','log','middlewares','request','response','route','session'),array_keys($configs),'第一层就是配置文件名');
         // 这里**直接**走 Loader, 不经 tests/bootstrap.php 的 load_test_config(),
         // 因此 `app.debug` 反映的是本机真实 `.env` 的 `APP_DEBUG` —— 只断言"类型对"(bool),
         // 不断言具体值, 免得用例依赖某台机器的 `.env`

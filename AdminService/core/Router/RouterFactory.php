@@ -49,6 +49,22 @@ final class RouterFactory {
     private ?ConfigInterface $config=null;
 
     /**
+     * 可选的编译缓存存储(命令行动态检查 / 预热时注入)
+     * @var CompileStore|null
+     */
+    private ?CompileStore $store=null;
+
+    /**
+     * 构造方法
+     *
+     * @access public
+     * @param CompileStore|null $store 编译缓存存储(null = 按当前配置新建)
+     */
+    public function __construct(?CompileStore $store=null) {
+        $this->store=$store;
+    }
+
+    /**
      * 获取路由表(首次或配置对象替换时装配)
      *
      * @access public
@@ -66,6 +82,91 @@ final class RouterFactory {
     }
 
     /**
+     * 实时装配路由表
+     *
+     * - 不读取或写入路由编译缓存, 供容器预热时收集处理器类
+     *
+     * @access public
+     * @param ConfigInterface $config 当前配置
+     * @return Router
+     * @throws \AdminService\Exception
+     */
+    public function live(ConfigInterface $config): Router {
+        return $this->build($config);
+    }
+
+    /**
+     * 只读检查路由缓存状态
+     *
+     * @access public
+     * @param ConfigInterface $config 当前配置
+     * @return array<string,mixed>
+     * @throws \AdminService\Exception
+     */
+    public function inspect(ConfigInterface $config): array {
+        $store=$this->storeFor($config);
+        $enabled=$store->enabled('routes');
+        $inspect=$store->inspect('routes',$enabled);
+        $status='valid';
+        $reason=null;
+        if(!$enabled) {
+            $status='disabled';
+            $reason='route cache is disabled by configuration';
+        } elseif(!$inspect['exists']) {
+            $status='missing';
+            $reason=$inspect['reason'];
+        } elseif(!$inspect['valid']) {
+            $status='corrupted';
+            $reason=$inspect['reason'];
+        } else {
+            $payload=$inspect['payload'];
+            if(!is_array($payload)
+                ||(int)($payload['version']??0)!==1
+                ||!isset($payload['routes'])
+                ||!is_array($payload['routes'])) {
+                $status='corrupted';
+                $reason='route cache payload is invalid';
+            } elseif($inspect['context']!==$this->context($store,$config)) {
+                $status='stale';
+                $reason='route cache context changed';
+            } elseif($store->shouldValidate()
+                &&$inspect['fingerprint']!==$this->fingerprint($store,$config)) {
+                $status='stale';
+                $reason='route source files changed';
+            } elseif($store->shouldValidate()
+                &&!$this->sourcesMatch($payload['sources']??null)) {
+                $status='stale';
+                $reason='route handler source files changed';
+            }
+        }
+        $inspect['status']=$status;
+        $inspect['reason']=$reason;
+        return $inspect;
+    }
+
+    /**
+     * 取适用于当前配置的缓存存储
+     *
+     * - 注入 store 在配置对象切换后不能继续沿用旧 cache.path / 开关
+     * - 新建 store 时保留注入实例的 force 标记
+     *
+     * @access private
+     * @param ConfigInterface $config 当前配置
+     * @return CompileStore
+     */
+    private function storeFor(ConfigInterface $config): CompileStore {
+        if($this->store===null)
+            return new CompileStore($config);
+        if($this->store->config()===$config)
+            return $this->store;
+        $store=new CompileStore($config);
+        if($this->store->forceEnabled())
+            $store->force(true);
+        $this->store=$store;
+        return $store;
+    }
+
+    /**
      * 从编译缓存恢复或实时装配
      *
      * @access private
@@ -74,7 +175,7 @@ final class RouterFactory {
      * @throws \AdminService\Exception
      */
     private function loadOrBuild(ConfigInterface $config): Router {
-        $store=new CompileStore($config);
+        $store=$this->storeFor($config);
         $context=$this->context($store,$config);
         $built=null;
         $builder=function() use($config,&$built): ?array {

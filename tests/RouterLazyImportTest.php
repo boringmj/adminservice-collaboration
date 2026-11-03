@@ -233,4 +233,25 @@ class RouterLazyImportTest extends TestCase {
         $this->assertNotNull($router->find('GET','/static'));
         $this->assertNotNull($router->find('GET','/added'));
     }
+
+    /**
+     * 测试: 空路由名重名在 eager/lazy 导入下都被拒绝
+     *
+     * @return void
+     */
+    public function testDuplicateEmptyRouteNamesRejectedInBothModes(): void {
+        $router=new Router();
+        $router->get('/a',array(ConcreteService::class,'execute'))->name('');
+        $router->get('/b',array(ConcreteService::class,'execute'))->name('');
+        $routes=$router->export();
+
+        foreach(array(false,true) as $lazy) {
+            try {
+                (new Router())->import($routes,true,$lazy);
+                $this->fail('重复空路由名应被拒绝');
+            } catch(Exception $e) {
+                $this->assertSame('Duplicate route name.',$e->getMessage());
+            }
+        }
+    }
 }

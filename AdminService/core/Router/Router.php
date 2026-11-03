@@ -716,7 +716,7 @@ final class Router implements RoutingInterface {
     /**
      * 未水合路由匹配
      *
-     * - 静态索引直接定位；动态路由按排序索引遍历
+     * - 静态索引直接定位; 动态路由按排序索引遍历
      * - 只有最终命中的路由才构造 RouteItem
      *
      * @access private
@@ -833,7 +833,7 @@ final class Router implements RoutingInterface {
      *
      * @access public
      * @return array<array<string,mixed>>
-     * @throws Exception 路由项无法导出
+     * @throws Exception 非懒加载模式下路由项无法导出
      */
     public function export(): array {
         if($this->lazy)

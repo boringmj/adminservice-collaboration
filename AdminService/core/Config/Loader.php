@@ -50,6 +50,12 @@ final class Loader {
     private ?array $files=null;
 
     /**
+     * 是否信任显式清单(跳过逐文件 is_file 预检查)
+     * @var bool
+     */
+    private bool $trusted_manifest=false;
+
+    /**
      * 本次实际加载的配置文件
      * @var array<string>
      */
@@ -61,10 +67,12 @@ final class Loader {
      * @access public
      * @param string $dir 配置目录
      * @param array<string>|null $files 显式文件清单(条目为配置目录下的**文件名**, 带不带 `.php` 都可); 传 null 则扫描目录
+     * @param bool $trusted_manifest 是否信任清单(跳过逐文件 is_file 预检查; 缺失文件仍会在 include 时抛错)
      */
-    public function __construct(string $dir,?array $files=null) {
+    public function __construct(string $dir,?array $files=null,bool $trusted_manifest=false) {
         $this->dir=rtrim($dir,'/\\');
         $this->files=$files;
+        $this->trusted_manifest=$trusted_manifest;
     }
 
     /**
@@ -83,7 +91,9 @@ final class Loader {
             $name=basename($file,'.php');
             if(preg_match('/^[a-zA-Z0-9_]+$/',$name)!==1)
                 throw new ConfigException('配置文件 "'.$file.'" 的名字不符合规范: 只允许字母、数字、下划线',100910);
-            $value=include $file;
+            $value=$this->trusted_manifest?@include $file:include $file;
+            if($value===false&&!is_file($file))
+                throw new ConfigException('清单里的配置文件不存在: '.$file,100912);
             if(!is_array($value))
                 throw new ConfigException('配置文件 "'.$file.'" 没有返回数组(实际 '.gettype($value).')',100911);
             $configs[$name]=$value;
@@ -103,6 +113,22 @@ final class Loader {
     }
 
     /**
+     * 扫描并返回配置文件名清单(不含目录, 不含 `.php` 后缀)
+     *
+     * - 只做目录枚举, 不加载文件内容; 供上层缓存清单后走显式清单路径
+     *
+     * @access public
+     * @return array<string>
+     * @throws ConfigException 配置目录无法扫描
+     */
+    public function manifest(): array {
+        $files=array();
+        foreach($this->sourceFiles() as $path)
+            $files[]=basename($path,'.php');
+        return $files;
+    }
+
+    /**
      * 列出待加载的文件
      *
      * - 显式清单走这条路时**不扫目录**(清单来自上层, 见 `__construct()`)
@@ -117,7 +143,7 @@ final class Loader {
             $out=array();
             foreach($this->files as $file) {
                 $path=$this->dir.'/'.(str_ends_with($file,'.php')?$file:$file.'.php');
-                if(!is_file($path))
+                if(!$this->trusted_manifest&&!is_file($path))
                     throw new ConfigException('清单里的配置文件不存在: '.$path,100912);
                 $out[]=$path;
             }

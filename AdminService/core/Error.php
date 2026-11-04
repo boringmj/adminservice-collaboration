@@ -166,6 +166,55 @@ final class Error extends BaseError {
     }
 
     /**
+     * 复位错误处理器状态
+     *
+     * - 清空已收集错误与当前请求引用, 允许下一次请求重新开始
+     * - 不注销 PHP 处理器; 处理器本身是进程级资源
+     *
+     * @access public
+     * @return void
+     */
+    public static function reset(): void {
+        self::$errors=array();
+        self::$handled=false;
+        self::$request_container=null;
+        self::$request_context=null;
+    }
+
+    /**
+     * 请求开始
+     *
+     * - 清空上一请求的错误; 重置单次错误处理闩锁
+     * - 注入请求容器与请求上下文, 供请求内错误出口使用
+     *
+     * @access public
+     * @param ContainerContract|null $container 请求级容器
+     * @param RequestContext|null $context 请求上下文
+     * @return void
+     */
+    public static function beginRequest(?ContainerContract $container=null,?RequestContext $context=null): void {
+        self::$errors=array();
+        self::$handled=false;
+        self::$request_container=$container;
+        self::$request_context=$context;
+    }
+
+    /**
+     * 请求结束
+     *
+     * - 释放请求容器 / 上下文与已收集错误引用
+     * - 错误出口已经渲染时也可安全调用; 不重置 `$handled`, 避免同一 shutdown 重复渲染
+     *
+     * @access public
+     * @return void
+     */
+    public static function endRequest(): void {
+        self::$request_container=null;
+        self::$request_context=null;
+        self::$errors=array();
+    }
+
+    /**
      * 错误出口使用的容器
      *
      * - 优先当前请求级容器; 尚未处理过请求时回退应用级容器
@@ -186,7 +235,18 @@ final class Error extends BaseError {
     private static $normalExitCallback=null;
 
     /**
-     * 标记是否已经处理过错误
+     * 是否已注册 PHP 错误 / 异常 / shutdown 处理器
+     *
+     * - 处理器是进程级资源, 只注册一次
+     * - 每个请求只复位错误状态, 不重复注册处理器
+     * @var bool
+     */
+    private static bool $registered=false;
+
+    /**
+     * 标记当前请求是否已经处理过错误
+     *
+     * - 由 `beginRequest()` 复位; 不再作为进程级永久闩锁
      * @var bool
      */
     private static $handled=false;
@@ -225,15 +285,16 @@ final class Error extends BaseError {
      * @return void
      */
     public static function register(?callable $normalExitCallback=null,bool $initialized=false): void {
-        // 如果已经处理过错误，则不再注册
-        if(self::$handled)
+        // 回调与初始化状态可随入口更新; PHP 处理器只注册一次
+        self::$initialized=$initialized;
+        self::$normalExitCallback=$normalExitCallback;
+        if(self::$registered)
             return;
+        self::$registered=true;
         // 自定义处理器需要收到所有未被 @ 抑制的错误:
         // error_reporting 保持 E_ALL, 原生显示关闭, 由错误页统一决定是否输出
         error_reporting(E_ALL);
         ini_set('display_errors','0');
-        self::$initialized=$initialized;
-        self::$normalExitCallback=$normalExitCallback;
         // 注册错误处理器(非致命错误)
         set_error_handler(array(self::class,'handleError'),E_ALL);
         // 注册异常处理器

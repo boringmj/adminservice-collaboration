@@ -678,6 +678,23 @@ final class Container implements \base\Container {
     }
 
     /**
+     * 判断"实例是否只登记在当前容器"
+     *
+     * - 与 `hasInstance()` 的区别: 不回落父容器
+     * - 请求级装配用它区分"本请求已注入"与"父容器残留的请求对象"
+     *
+     * @access public
+     * @param string $name 名称(类名 / 接口名 / 别名)
+     * @return bool
+     */
+    public function hasLocalInstance(string $name): bool {
+        if(isset($this->container[$name]))
+            return true;
+        $real=$this->resolve($name);
+        return $real!==$name&&isset($this->container[$real]);
+    }
+
+    /**
      * 登记一个已实例化对象(按真实类名存储)
      *
      * @access public

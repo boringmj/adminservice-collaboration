@@ -15,7 +15,6 @@ use AdminService\Container;
 use AdminService\Error;
 use AdminService\Exception as ContainerException;
 use AdminService\RouteContext;
-use ReflectionProperty;
 
 /**
  * 生命周期分层(应用级 / 请求级 scope)用例
@@ -166,9 +165,8 @@ class ScopeTest extends TestCase {
         $application=new Application();
         try {
             $application->handle(function() use ($application): void {
-                $property=new ReflectionProperty(Error::class,'request_container');
-                $property->setAccessible(true);
-                $this->assertSame($application->requestContainer(),$property->getValue());
+                $this->assertSame($application->requestContext(),Error::requestContext());
+                $this->assertSame($application->requestContainer(),$application->requestContext()?->container());
             });
         } finally {
             Error::setRequestContainer(null);

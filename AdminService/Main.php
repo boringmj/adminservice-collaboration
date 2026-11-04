@@ -54,6 +54,7 @@ final class Main {
                 $response->send();
             } finally {
                 $this->application?->flushRequestMetadata();
+                $this->application?->endRequest();
             }
         },false);
         // 配置、缓存、容器与数据库装配由 Bootstrapper 统一完成

@@ -34,12 +34,17 @@ final class Config {
      * 设置当前配置存储实例
      *
      * - 如果容器已经就绪,该方法会同步登记配置存储实例到容器
+     * - 请求内禁止替换整份配置仓储: 静态仓储是应用级对象, 替换会泄漏到后续请求;
+     *   请求内请使用 `Config::setValue()` 或通过请求容器注入请求级配置
      *
      * @access public
      * @param Repository $repository 配置存储
      * @return void
+     * @throws ConfigException 在请求上下文内调用
      */
     public static function setRepository(Repository $repository): void {
+        if(ContextStorage::current()!==null)
+            throw new ConfigException('请求内不允许替换配置仓储; 请使用 Config::setValue() 或请求级配置注入',100907);
         self::$repository=$repository;
         // 只按实现类名登记
         if(App::hasInstance())

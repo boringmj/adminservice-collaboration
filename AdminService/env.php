@@ -3,12 +3,7 @@
 namespace AdminService;
 
 use AdminService\Config\Env;
-
-use function dirname;
-use function getenv;
-use function is_file;
-use function is_string;
-use function trim;
+use AdminService\Config\EnvSnapshot;
 
 /**
  * 读取 `.env` 配置项
@@ -26,8 +21,9 @@ use function trim;
  *  3. `.env` 的**语法错误抛 `ConfigException`**(由 `Env` 承担): 缺 `=`、空键、引号未闭合这些是内容
  *     正确性问题, 不能让一份写坏的 `.env` 静默生效
  *  4. 类型只转 bool / null, 数字保持字符串 —— 要数字请显式 `(int)env('DB_PORT', 3306)`
- *  5. 进程级缓存: 首次调用解析一次并留在函数内 `static`(见 `env_snapshot()`)。`env()` 会在容器建立
- *     **之前**被调用, 没有别的可取之处; 这是本函数唯一的状态, 且只缓存"不可变快照"
+ *  5. 进程级缓存: 首次调用解析一次并留在 `EnvSnapshot` 中。`env()` 会在容器建立
+ *     **之前**被调用, 没有别的可取之处; 这是本函数唯一的状态, 且只缓存"不可变快照";
+ *     需要重新读取时调用 `env_reset()`
  *
  * @param string $key 键(**大小写敏感**; 如 `DB_HOST` / `app.debug`)
  * @param mixed $default 默认值(键缺失时返回它)
@@ -47,14 +43,17 @@ function env(string $key,mixed $default=null): mixed {
  * @return Env
  */
 function env_snapshot(): Env {
-    static $env=null;
-    if($env===null) {
-        $file=getenv('ADMINSERVICE_TEST_ENV_FILE');
-        if(!is_string($file)||trim($file)==='')
-            // 本文件位于 `AdminService/` 下(比 `common/` 浅一层), 故只上溯一层到项目根
-            $file=dirname(__DIR__).'/.env';
-        // 环境文件不存在是正常情况(仓库里不入库), 按空处理
-        $env=is_file($file)?Env::fromFile($file):new Env();
-    }
-    return $env;
+    return EnvSnapshot::get();
+}
+
+/**
+ * 清除进程级 `.env` 快照缓存
+ *
+ * - 测试、CLI 子进程或自定义入口需要重新读取环境文件时调用
+ * - 不影响已经构建完成的 `Config\Repository`; 需要重新装配配置时请显式替换配置仓储
+ *
+ * @return void
+ */
+function env_reset(): void {
+    EnvSnapshot::reset();
 }

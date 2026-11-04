@@ -65,15 +65,6 @@ class RouteCoordinatorTest extends TestCase {
     }
 
     /**
-     * 每个测试前登记全新的请求与响应实例
-     * @return void
-     */
-    protected function setUp(): void {
-        App::instance(Request::class,new HttpRequest());
-        App::instance(Response::class,new HttpResponse());
-    }
-
-    /**
      * 每个测试后清理临时文件并恢复配置
      * @return void
      */
@@ -184,15 +175,17 @@ class RouteCoordinatorTest extends TestCase {
      * @return mixed 控制器返回值
      */
     private function dispatch(string $uri,string $method='GET',array $query=array(),array $headers=array()): mixed {
-        App::instance(Request::class,new HttpRequest(array(
-            'server'=>array(
-                'REQUEST_URI'=>$uri,
-                'REQUEST_METHOD'=>$method
-            ),
-            'query'=>$query,
-            'headers'=>$headers
-        )));
-        App::instance(Response::class,new HttpResponse());
+        $this->main()->application()->seedRequest(
+            new HttpRequest(array(
+                'server'=>array(
+                    'REQUEST_URI'=>$uri,
+                    'REQUEST_METHOD'=>$method
+                ),
+                'query'=>$query,
+                'headers'=>$headers
+            )),
+            new HttpResponse()
+        );
         $this->main()->run();
         return $this->response()->body();
     }

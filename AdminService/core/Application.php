@@ -42,10 +42,34 @@ final class Application {
     private ?ContainerContract $request_container=null;
 
     /**
-     * 当前(最近一次)请求上下文
+     * 当前活动请求上下文(嵌套 handle 时指向内层)
      * @var RequestContext|null
      */
     private ?RequestContext $request_context=null;
+
+    /**
+     * 最近一次请求上下文(关停阶段响应出口使用)
+     * @var RequestContext|null
+     */
+    private ?RequestContext $last_request_context=null;
+
+    /**
+     * 下一次请求使用的 Request 种子(测试 / 自定义入口)
+     * @var Request|null
+     */
+    private ?Request $request_seed=null;
+
+    /**
+     * 下一次请求使用的 Response 种子(测试 / 自定义入口)
+     * @var Response|null
+     */
+    private ?Response $response_seed=null;
+
+    /**
+     * 下一次请求使用的 Session 种子(测试 / 自定义入口)
+     * @var AbstractSession|null
+     */
+    private ?AbstractSession $session_seed=null;
 
     /**
      * 配置仓储(装配与请求期都要读它; 构造期定下, 之后不再变)
@@ -220,7 +244,8 @@ final class Application {
      *   绑定/别名/单例表是 fork 时的快照, 反射缓存共享
      * - 进入请求作用域时把门面指针指向请求级容器; 请求结束收回应用级容器 —— 响应出口在关停阶段
      *   经 `Application::requestContainer()` 取请求级对象, 不依赖门面指针
-     * - 请求级装配: 每请求新建请求 / 响应 / 会话;若容器(含父容器)已有登记则沿用, 便于测试与自定义入口注入
+     * - 请求级装配: 每请求只在请求容器本地新建请求 / 响应 / 会话; 父容器已有登记一律不复用;
+     *   测试 / 自定义入口用 `seedRequest()` 注入下一次请求的种子对象
      *
      * @access public
      * @param callable $callback 请求处理过程(接收请求级容器)
@@ -229,8 +254,12 @@ final class Application {
      * @throws Exception
      */
     public function handle(callable $callback,bool $defer_metadata=false): mixed {
-        // 复用请求级容器前清空上一轮的实例(首个请求时为空)
-        if($this->request_container!==null)
+        $previous_context=$this->request_context;
+        $previous_last=$this->last_request_context;
+        $previous_instance=App::hasInstance()?App::getInstance():null;
+        $is_nested=$previous_context!==null;
+        // 顶层请求开始时回收上一轮请求容器; 嵌套 handle 不能清掉外层正在使用的容器
+        if(!$is_nested&&$this->request_container!==null)
             $this->request_container->reset();
         // 请求级 scope: 实例表独立; 绑定/别名/单例为 fork 快照; 反射缓存共享
         $container=$this->container->fork();
@@ -241,7 +270,7 @@ final class Application {
         if($defer_metadata&&$this->container instanceof Container)
             $this->container->deferMetadataFlush();
         // 错误出口需要当前请求的 Response; 在请求开始时同步给错误处理器
-        Error::setRequestContainer($container);
+        Error::beginRequest($container);
         // 请求开始时把 `Config::repository()` 当前返回的配置登记进请求容器(按实现类名, 与 `Application::init()` 一致):
         // 应用级容器里登记的可能已经被 `Config::setRepository()/set()` 换成新的了, 只靠父容器会让请求内的组件读到旧配置
         $repository=$this->config();
@@ -250,20 +279,29 @@ final class Application {
         App::setInstance($container);
         $completed=false;
         try {
-            $this->request_context=$this->bootRequest($container);
-            Error::setRequestContext($this->request_context);
+            $context=$this->bootRequest($container);
+            $this->request_context=$context;
+            $this->last_request_context=$context;
+            Error::setRequestContext($context);
             $completed=true;
             return ContextStorage::run(
-                $this->request_context,
+                $context,
                 fn()=> $callback($container)
             );
         } finally {
             // 正常 HTTP 请求把落盘推迟到响应发送后; 异常或普通调用在请求边界落盘
             if(!$defer_metadata||!$completed)
                 $this->flushRequestMetadata();
-            // 门面指针**收回应用级容器**, 避免"请求外的登记落进已废弃的请求容器"
-            // 响应在关停阶段才发送, 届时由 Application::requestContainer() 取请求级对象(不经门面)
-            App::setInstance($this->container);
+            // 嵌套请求结束后恢复外层上下文; 顶层保留 last_request_context 供关停阶段响应出口使用
+            $this->request_context=$previous_context;
+            if($is_nested) {
+                $this->last_request_context=$previous_last;
+                $this->request_container=$previous_last?->container()??$this->request_container;
+                Error::setRequestContainer($previous_last?->container());
+                Error::setRequestContext($previous_last);
+            }
+            // 门面指针**收回应用级容器**(嵌套时回到外层请求容器), 避免"请求外的登记落进已废弃的请求容器"
+            App::setInstance($previous_instance??$this->container);
         }
     }
 
@@ -293,23 +331,71 @@ final class Application {
      * @return ContainerContract
      */
     public function requestContainer(): ContainerContract {
-        return $this->request_container??$this->container;
+        return $this->request_context?->container()
+            ??$this->last_request_context?->container()
+            ??$this->request_container
+            ??$this->container;
     }
 
     /**
      * 获取当前(最近一次)请求上下文
      *
+     * - 请求回调内返回活动上下文; 顶层请求结束后返回最近一次上下文供关停阶段使用
+     *
      * @access public
      * @return RequestContext|null
      */
     public function requestContext(): ?RequestContext {
-        return $this->request_context;
+        return $this->request_context??$this->last_request_context;
+    }
+
+    /**
+     * 为下一次请求注入种子对象
+     *
+     * - 只供测试 / 自定义入口使用; 种子在请求装配后立即清空
+     * - 不通过应用级容器登记请求对象, 避免父容器残留被请求复用
+     *
+     * @access public
+     * @param Request|null $request 请求对象
+     * @param Response|null $response 响应对象
+     * @param AbstractSession|null $session 会话对象
+     * @return static
+     */
+    public function seedRequest(
+        ?Request $request=null,
+        ?Response $response=null,
+        ?AbstractSession $session=null
+    ): static {
+        if($request!==null)
+            $this->request_seed=$request;
+        if($response!==null)
+            $this->response_seed=$response;
+        if($session!==null)
+            $this->session_seed=$session;
+        return $this;
+    }
+
+    /**
+     * 结束当前请求并释放请求级引用
+     *
+     * - 供常驻 worker 在响应发送后显式调用; FPM 进程结束时可省略
+     * - 不清空应用级容器
+     *
+     * @access public
+     * @return void
+     */
+    public function endRequest(): void {
+        $this->request_context=null;
+        $this->last_request_context=null;
+        $this->request_container=null;
+        Error::endRequest();
     }
 
     /**
      * 请求级装配(请求 / 响应 / 会话)
      *
-     * - 已登记则沿用(测试或自定义入口可预先 `App::instance()` 注入, 用于控制请求内容)
+     * - 只认请求容器本地登记; 父容器里的请求对象不复用
+     * - 测试 / 自定义入口通过 `seedRequest()` 注入种子对象, 种子装配后立即清空
      * - 会话: 未开启原生会话时用内存驱动;`session.start` 为真时调用驱动的 `init()`
      *
      * @access private
@@ -318,27 +404,43 @@ final class Application {
      * @throws Exception
      */
     private function bootRequest(ContainerContract $container): RequestContext {
-        if($container->hasInstance(Request::class))
-            $request=$container->get(Request::class);
-        else {
-            $request=$container->build(Request::class);
+        // 请求对象只在请求容器本地构建; 父容器里的 Request/Response/Session 一律不复用
+        $request=$this->request_seed;
+        $this->request_seed=null;
+        if($request===null) {
+            if($this->hasLocalInstance($container,Request::class))
+                $request=$container->get(Request::class);
+            else {
+                $request=$container->build(Request::class);
+                $container->instance(Request::class,$request);
+            }
+        } else
             $container->instance(Request::class,$request);
-        }
-        if($container->hasInstance(Response::class))
-            $response=$container->get(Response::class);
-        else {
-            $response=$container->build(Response::class,container:$container);
+        $response=$this->response_seed;
+        $this->response_seed=null;
+        if($response===null) {
+            if($this->hasLocalInstance($container,Response::class))
+                $response=$container->get(Response::class);
+            else {
+                $response=$container->build(Response::class,container:$container);
+                $container->instance(Response::class,$response);
+            }
+        } else
             $container->instance(Response::class,$response);
-        }
-        if($container->hasInstance(AbstractSession::class))
-            $session=$container->get(AbstractSession::class);
-        else {
-            /** @var AbstractSession $session */
-            $session=$container->build($this->config()->get('session.class',ArraySession::class));
-            if($this->config()->get('session.start',false))
-                $session->init();
+        $session=$this->session_seed;
+        $this->session_seed=null;
+        if($session===null) {
+            if($this->hasLocalInstance($container,AbstractSession::class))
+                $session=$container->get(AbstractSession::class);
+            else {
+                /** @var AbstractSession $session */
+                $session=$container->build($this->config()->get('session.class',ArraySession::class));
+                if($this->config()->get('session.start',false))
+                    $session->init();
+                $container->instance(AbstractSession::class,$session);
+            }
+        } else
             $container->instance(AbstractSession::class,$session);
-        }
         $context=new RequestContext(
             $container,
             $request,
@@ -348,6 +450,22 @@ final class Application {
         );
         $container->instance(RequestContext::class,$context);
         return $context;
+    }
+
+    /**
+     * 判断实例是否只登记在请求容器本地
+     *
+     * - 自定义容器契约没有本地判定时退化为 `hasInstance()`
+     *
+     * @access private
+     * @param ContainerContract $container 请求容器
+     * @param string $name 名称
+     * @return bool
+     */
+    private function hasLocalInstance(ContainerContract $container,string $name): bool {
+        if($container instanceof Container)
+            return $container->hasLocalInstance($name);
+        return $container->hasInstance($name);
     }
 
 }

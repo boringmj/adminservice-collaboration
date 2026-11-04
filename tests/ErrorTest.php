@@ -47,7 +47,7 @@ class ErrorTest extends TestCase {
      * @return void
      */
     protected function setUp(): void {
-        Error::setRequestContainer(null);
+        Error::reset();
     }
 
     /**
@@ -55,9 +55,8 @@ class ErrorTest extends TestCase {
      * @return void
      */
     protected function tearDown(): void {
-        self::setErrors(array());
+        Error::reset();
         Error::setContainer(null);
-        Error::setRequestContainer(null);
     }
 
     /**
@@ -65,7 +64,7 @@ class ErrorTest extends TestCase {
      * @return void
      */
     public function testAtSuppressedWarningIsNotCollected(): void {
-        self::setErrors(array());
+        Error::reset();
         $previous=error_reporting(E_ALL);
         set_error_handler(array(Error::class,'handleError'),E_ALL);
         try {
@@ -82,7 +81,7 @@ class ErrorTest extends TestCase {
      * @return void
      */
     public function testNormalWarningIsCollected(): void {
-        self::setErrors(array());
+        Error::reset();
         $previous=error_reporting(E_ALL);
         set_error_handler(array(Error::class,'handleError'),E_ALL);
         try {

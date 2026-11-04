@@ -64,19 +64,19 @@ final class Router implements RoutingInterface {
     private array $routes=array();
 
     /**
-     * 未水合的编译路由数据(缓存导入时使用)
+     * 缓存的编译路由数据(缓存导入时使用)
      * @var array<array<string,mixed>>
      */
     private array $route_data=array();
 
     /**
-     * 是否处于路由数据未水合状态
+     * 是否处于路由数据未实例化状态
      * @var bool
      */
     private bool $lazy=false;
 
     /**
-     * 排序后的未水合路由索引
+     * 排序后的缓存路由索引
      * @var array<int>|null
      */
     private ?array $sorted_data=null;
@@ -88,7 +88,7 @@ final class Router implements RoutingInterface {
     private ?array $named=null;
 
     /**
-     * 未水合路由的命名索引
+     * 缓存路由的命名索引
      * @var array<string,int>|null
      */
     private ?array $named_data=null;
@@ -106,7 +106,7 @@ final class Router implements RoutingInterface {
     private ?array $static_index=null;
 
     /**
-     * 未水合静态路径索引
+     * 缓存静态路径索引
      * @var array<string,array<string,int>>|null
      */
     private ?array $static_index_data=null;
@@ -248,7 +248,7 @@ final class Router implements RoutingInterface {
      */
     public function add(array $methods,string $path,mixed $handler): RouteItem {
         if($this->lazy)
-            $this->hydrateAll();
+            $this->instantiateAllRoutes();
         $route=new RouteItem($methods,self::joinPath($this->prefix(),$path),$handler,$this->groupMiddlewareEntries());
         $this->assertNoConflict($route);
         $this->routes[]=$route;
@@ -714,7 +714,7 @@ final class Router implements RoutingInterface {
     }
 
     /**
-     * 未水合路由匹配
+     * 缓存路由匹配
      *
      * - 静态索引直接定位; 动态路由按排序索引遍历
      * - 只有最终命中的路由才构造 RouteItem
@@ -729,7 +729,7 @@ final class Router implements RoutingInterface {
         if($static!==null) {
             $index=$static[$method]??($static['*']??null);
             if($index!==null) {
-                $route=$this->hydrateRoute($index);
+                $route=$this->instantiateRoute($index);
                 $this->current=$route;
                 return array($route,array());
             }
@@ -743,7 +743,7 @@ final class Router implements RoutingInterface {
             $params=RouteItem::matchUriData((string)($data['pattern']??''),$data['params']??array(),$uri);
             if($params===null)
                 continue;
-            $route=$this->hydrateRoute($index);
+            $route=$this->instantiateRoute($index);
             $this->current=$route;
             return array($route,$params);
         }
@@ -780,7 +780,7 @@ final class Router implements RoutingInterface {
     }
 
     /**
-     * 未水合路由的 405 方法汇总
+     * 缓存路由的 405 方法汇总
      *
      * @access private
      * @param string $uri 请求路径
@@ -944,7 +944,7 @@ final class Router implements RoutingInterface {
     }
 
     /**
-     * 未水合静态路径索引
+     * 缓存静态路径索引
      *
      * @access private
      * @return array<string,array<string,int>>
@@ -973,7 +973,7 @@ final class Router implements RoutingInterface {
     }
 
     /**
-     * 未水合路由的排序索引
+     * 缓存路由的排序索引
      *
      * @access private
      * @return array<int>
@@ -1001,7 +1001,7 @@ final class Router implements RoutingInterface {
     }
 
     /**
-     * 按排序顺序返回未水合路由数据
+     * 按排序顺序返回缓存路由数据
      *
      * @access private
      * @return array<array<string,mixed>>
@@ -1014,23 +1014,23 @@ final class Router implements RoutingInterface {
     }
 
     /**
-     * 水合单条路由
+     * 实例化单条路由
      *
      * @access private
      * @param int $index 路由数据索引
      * @return RouteItem
      */
-    private function hydrateRoute(int $index): RouteItem {
+    private function instantiateRoute(int $index): RouteItem {
         return RouteItem::fromArray($this->route_data[$index]);
     }
 
     /**
-     * 水合全部路由
+     * 实例化全部路由
      *
      * @access private
      * @return void
      */
-    private function hydrateAll(): void {
+    private function instantiateAllRoutes(): void {
         if(!$this->lazy)
             return;
         $routes=array();
@@ -1063,7 +1063,7 @@ final class Router implements RoutingInterface {
                 throw new Exception('Route name not found.',-411,array(
                     'name'=>$name
                 ));
-            return $this->hydrateRoute($index[$name])->buildUri($params);
+            return $this->instantiateRoute($index[$name])->buildUri($params);
         }
         $index=$this->nameIndex();
         if(!isset($index[$name]))
@@ -1117,7 +1117,7 @@ final class Router implements RoutingInterface {
     }
 
     /**
-     * 构建未水合路由的命名索引
+     * 构建缓存路由的命名索引
      *
      * @access private
      * @return array<string,int>
@@ -1150,7 +1150,7 @@ final class Router implements RoutingInterface {
      */
     public function getRoutes(): array {
         if($this->lazy)
-            $this->hydrateAll();
+            $this->instantiateAllRoutes();
         return $this->routes;
     }
 

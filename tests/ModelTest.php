@@ -22,7 +22,7 @@ use Tests\Fixtures\FakePdo;
 /**
  * ORM 测试
  *
- * - 验证 Model + ModelQueryBuilder + ModelCollection 的查询/水合/CRUD
+ * - 验证 Model + ModelQueryBuilder + ModelCollection 的查询/映射/CRUD
  */
 class ModelTest extends TestCase {
 

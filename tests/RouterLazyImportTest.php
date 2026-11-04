@@ -13,7 +13,7 @@ use Tests\Fixtures\ConcreteService;
  * 路由缓存懒加载测试
  *
  * - 缓存导入不立即构造全部 RouteItem
- * - find() 只水合命中的路由
+ * - find() 只实例化命中的路由
  * - getRoutes()/export()/url()/405 保持原行为
  */
 class RouterLazyImportTest extends TestCase {
@@ -45,7 +45,7 @@ class RouterLazyImportTest extends TestCase {
     }
 
     /**
-     * 测试: 懒加载导入后只水合命中路由
+     * 测试: 懒加载导入后只实例化命中路由
      *
      * @return void
      */
@@ -60,7 +60,7 @@ class RouterLazyImportTest extends TestCase {
         $found=$router->find('GET','/static');
         $this->assertNotNull($found);
         $this->assertSame(array(ConcreteService::class,'execute'),$found[0]->getHandler());
-        $this->assertCount(0,$this->property($router,'routes'),'find 只水合命中路由, 不应填满 routes');
+        $this->assertCount(0,$this->property($router,'routes'),'find 只实例化命中路由, 不应填满 routes');
 
         $found=$router->find('GET','/user/42');
         $this->assertSame(array('id'=>'42'),$found[1]);
@@ -90,11 +90,11 @@ class RouterLazyImportTest extends TestCase {
     }
 
     /**
-     * 测试: getRoutes 才水合全部, 并恢复普通路径
+     * 测试: getRoutes 才实例化全部, 并恢复普通路径
      *
      * @return void
      */
-    public function testGetRoutesHydratesAll(): void {
+    public function testGetRoutesInstantiatesAll(): void {
         $router=new Router();
         $router->import($this->exportedRoutes(),true);
 
@@ -219,11 +219,11 @@ class RouterLazyImportTest extends TestCase {
     }
 
     /**
-     * 测试: 懒加载导入后继续注册路由会先水合已有数据
+     * 测试: 懒加载导入后继续注册路由会先实例化已有数据
      *
      * @return void
      */
-    public function testAddAfterLazyImportHydratesExistingRoutes(): void {
+    public function testAddAfterLazyImportInstantiatesExistingRoutes(): void {
         $router=new Router();
         $router->import($this->exportedRoutes(),true);
         $router->get('/added',array(ConcreteService::class,'execute'))->name('added');

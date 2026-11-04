@@ -25,7 +25,7 @@ use function strtolower;
  *
  * - 代表数据库中的一行记录, 纯数据职责
  * - 查询通过静态入口(如 Model::query() / Model::where())委托给 ModelQueryBuilder
- * - 行与对象的转换(水合)由构建器与 newFromRow 完成
+ * - 行与对象的映射由构建器与 newFromRow 完成
  * - 关系: 通过 hasMany/hasOne/belongsTo 声明, $model->relation 惰性加载
  *
  * @method static ModelQueryBuilder from(string|\base\Database\Sql\Definition\Table $table, ?string $alias=null)

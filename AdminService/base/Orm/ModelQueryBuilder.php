@@ -29,7 +29,7 @@ use function substr;
 /**
  * 模型查询构建器
  *
- * - 包装 DBAL 查询对象, 为模型提供链式查询与结果水合
+ * - 包装 DBAL 查询对象, 为模型提供链式查询与结果映射
  * - 终端操作: get() 返回模型集合, first()/find() 返回单个模型
  */
 class ModelQueryBuilder {

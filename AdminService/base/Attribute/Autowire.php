@@ -70,15 +70,4 @@ class Autowire {
         return $this->mode;
     }
 
-    /**
-     * 是否注入动态代理
-     *
-     * @access public
-     * @deprecated 使用 {@see getMode()} 判断 `AutowireMode::Proxy`
-     * @return bool
-     */
-    public function getProxy(): bool {
-        return $this->mode===AutowireMode::Proxy;
-    }
-
 }

@@ -72,6 +72,12 @@ final class Config {
      * @return Repository|null
      */
     public static function repository(): ?Repository {
+        $context=ContextStorage::current();
+        if($context!==null) {
+            $config=$context->config();
+            if($config instanceof Repository)
+                return $config;
+        }
         return self::$repository;
     }
 
@@ -82,7 +88,7 @@ final class Config {
      * @return bool
      */
     public static function hasRepository(): bool {
-        return self::$repository!==null;
+        return self::repository()!==null;
     }
 
     /**
@@ -92,7 +98,8 @@ final class Config {
      * @return array<string,mixed>
      */
     public static function all(): array {
-        return self::$repository===null?array():self::$repository->all();
+        $repository=self::repository();
+        return $repository===null?array():$repository->all();
     }
 
     /**
@@ -106,7 +113,8 @@ final class Config {
      * @return mixed
      */
     public static function get(string $key,mixed $default=null): mixed {
-        return self::$repository===null?$default:self::$repository->get($key,$default);
+        $repository=self::repository();
+        return $repository===null?$default:$repository->get($key,$default);
     }
 
     /**
@@ -121,9 +129,10 @@ final class Config {
      * @throws ConfigException 尚未装配配置, 或该配置项不存在
      */
     public static function setValue(string $key,mixed $value): void {
-        if(self::$repository===null)
+        $repository=self::repository();
+        if($repository===null)
             throw new ConfigException('配置存储尚未就绪, 无法就地改配置项',100906);
-        self::$repository->put($key,$value);
+        $repository->put($key,$value);
     }
 
     /**
@@ -137,7 +146,8 @@ final class Config {
      * @return mixed
      */
     public static function config_raw(string $key,mixed $default=null): mixed {
-        return self::$repository===null?$default:self::$repository->config_raw($key,$default);
+        $repository=self::repository();
+        return $repository===null?$default:$repository->config_raw($key,$default);
     }
 
     /**
@@ -151,7 +161,8 @@ final class Config {
      * @return mixed
      */
     public static function env(string $key,mixed $default=null): mixed {
-        return self::$repository===null?$default:self::$repository->env($key,$default);
+        $repository=self::repository();
+        return $repository===null?$default:$repository->env($key,$default);
     }
 
     /**
@@ -162,7 +173,8 @@ final class Config {
      * @return bool
      */
     public static function has(string $key): bool {
-        return self::$repository!==null&&self::$repository->has($key);
+        $repository=self::repository();
+        return $repository!==null&&$repository->has($key);
     }
 
 }

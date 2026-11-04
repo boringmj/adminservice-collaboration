@@ -12,6 +12,7 @@ use function file_put_contents;
 use function getenv;
 use function is_file;
 use function putenv;
+use function str_replace;
 use function sys_get_temp_dir;
 use function tempnam;
 use function unlink;
@@ -39,6 +40,38 @@ class EnvSnapshotTest extends TestCase {
             $this->assertSame('one',env('KEY'),'未复位前应继续使用旧快照');
             env_reset();
             $this->assertSame('two',env('KEY'));
+        } finally {
+            if($previous===false)
+                putenv('ADMINSERVICE_TEST_ENV_FILE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_FILE='.$previous);
+            env_reset();
+            Runtime::reset();
+            if(is_file($file))
+                unlink($file);
+        }
+    }
+
+    /**
+     * 测试: Runtime::reload 重新读取 env 并重算路径
+     *
+     * @return void
+     */
+    public function testRuntimeReloadReadsNewEnvPath(): void {
+        $file=tempnam(sys_get_temp_dir(),'env_runtime_');
+        $previous=getenv('ADMINSERVICE_TEST_ENV_FILE');
+        $path_a=str_replace('\\','/',sys_get_temp_dir().'/runtime_a');
+        $path_b=str_replace('\\','/',sys_get_temp_dir().'/runtime_b');
+        try {
+            file_put_contents($file,"RUNTIME_PATH={$path_a}\n");
+            putenv('ADMINSERVICE_TEST_ENV_FILE='.$file);
+            env_reset();
+            Runtime::reset();
+            $this->assertSame($path_a,Runtime::path());
+
+            file_put_contents($file,"RUNTIME_PATH={$path_b}\n");
+            $this->assertSame($path_a,Runtime::path(),'未 reload 前应继续使用旧缓存');
+            $this->assertSame($path_b,Runtime::reload());
         } finally {
             if($previous===false)
                 putenv('ADMINSERVICE_TEST_ENV_FILE');

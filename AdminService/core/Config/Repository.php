@@ -116,6 +116,19 @@ final class Repository implements ConfigInterface {
     }
 
     /**
+     * 派生请求级配置副本
+     *
+     * - 配置树按值复制；请求内 `put()` 只修改副本
+     * - Env 快照是不可变对象，仍共享
+     *
+     * @access public
+     * @return self
+     */
+    public function fork(): self {
+        return clone $this;
+    }
+
+    /**
      * 获取配置项实际生效值
      *
      * @access public

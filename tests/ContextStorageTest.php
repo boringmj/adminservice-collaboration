@@ -13,6 +13,7 @@ use AdminService\FiberContextStorage;
 use AdminService\HttpRequest;
 use AdminService\RequestContext;
 use AdminService\Response;
+use AdminService\Router\Router;
 use AdminService\SequentialContextStorage;
 use AdminService\Container;
 use base\Container as ContainerContract;
@@ -142,6 +143,44 @@ class ContextStorageTest extends TestCase {
         $this->assertSame($a,$observed['a']);
         $this->assertSame($b,$observed['b']);
         $this->assertNull($storage->current());
+    }
+
+    /**
+     * 测试: Router 最近命中路由按执行流隔离
+     *
+     * @return void
+     */
+    public function testRouterCurrentIsIsolatedByContext(): void {
+        $router=new Router();
+        $router->get('/a',array('C','a'))->name('a');
+        $router->get('/b',array('C','b'))->name('b');
+        $context_a=$this->context(new Container());
+        $context_b=$this->context(new Container());
+
+        $fiber_a=new Fiber(function() use ($router,$context_a): void {
+            ContextStorage::run($context_a,function() use ($router): void {
+                $router->find('GET','/a');
+                Fiber::suspend();
+                $this->assertSame('a',$router->current()?->getName());
+                $router->resetCurrent();
+                $this->assertNull($router->current());
+            });
+        });
+        $fiber_b=new Fiber(function() use ($router,$context_b): void {
+            ContextStorage::run($context_b,function() use ($router): void {
+                $router->find('GET','/b');
+                Fiber::suspend();
+                $this->assertSame('b',$router->current()?->getName());
+                $router->resetCurrent();
+                $this->assertNull($router->current());
+            });
+        });
+
+        $fiber_a->start();
+        $fiber_b->start();
+        $fiber_a->resume();
+        $fiber_b->resume();
+        $this->assertNull($router->current());
     }
 
     /**

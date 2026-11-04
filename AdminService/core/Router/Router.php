@@ -8,6 +8,7 @@ use base\Attribute\Resource;
 use base\Attribute\Route;
 use base\Attribute\RouteGroup;
 use base\RoutingInterface;
+use AdminService\ContextStorage;
 use AdminService\Exception;
 use AdminService\Pipeline;
 use ReflectionAttribute;
@@ -18,6 +19,7 @@ use ReflectionMethod;
 use function array_intersect;
 use function array_merge;
 use function array_pop;
+use function class_exists;
 use function count;
 use function explode;
 use function gettype;
@@ -31,6 +33,7 @@ use function ltrim;
 use function range;
 use function rtrim;
 use function sort;
+use function spl_object_id;
 use function str_replace;
 use function strtoupper;
 use function trim;
@@ -112,10 +115,13 @@ final class Router implements RoutingInterface {
     private ?array $static_index_data=null;
 
     /**
-     * 最近命中的路由
-     * @var RouteItem|null
+     * 各执行流最近命中的路由
+     *
+     * - 键为请求上下文 / Fiber / 主流程标识
+     * - 共享 Router 只保留只读路由表，请求态不串流
+     * @var array<string,RouteItem>
      */
-    private ?RouteItem $current=null;
+    private array $current_by_context=array();
 
     /**
      * 分组前缀栈
@@ -687,7 +693,7 @@ final class Router implements RoutingInterface {
     public function find(string $method,string $uri): ?array {
         $uri=self::normalizeUri($uri);
         // 未命中时 current() 必须回到 null: 否则调用方会读到上一次请求/上一次匹配的路由
-        $this->current=null;
+        $this->resetCurrent();
         $method=strtoupper($method);
         if($this->lazy)
             return $this->findLazy($method,$uri);
@@ -695,7 +701,7 @@ final class Router implements RoutingInterface {
         if($static!==null) {
             $route=$static[$method]??($static['*']??null);
             if($route!==null) {
-                $this->current=$route;
+                $this->setCurrent($route);
                 return array($route,array());
             }
         }
@@ -707,7 +713,7 @@ final class Router implements RoutingInterface {
             $params=$route->matchUri($uri);
             if($params===null)
                 continue;
-            $this->current=$route;
+            $this->setCurrent($route);
             return array($route,$params);
         }
         return null;
@@ -730,7 +736,7 @@ final class Router implements RoutingInterface {
             $index=$static[$method]??($static['*']??null);
             if($index!==null) {
                 $route=$this->instantiateRoute($index);
-                $this->current=$route;
+                $this->setCurrent($route);
                 return array($route,array());
             }
         }
@@ -744,7 +750,7 @@ final class Router implements RoutingInterface {
             if($params===null)
                 continue;
             $route=$this->instantiateRoute($index);
-            $this->current=$route;
+            $this->setCurrent($route);
             return array($route,$params);
         }
         return null;
@@ -809,20 +815,46 @@ final class Router implements RoutingInterface {
      * @return RouteItem|null
      */
     public function current(): ?RouteItem {
-        return $this->current;
+        return $this->current_by_context[$this->currentKey()]??null;
     }
 
     /**
      * 清除最近命中的路由
      *
      * - 请求结束或常驻 worker 回收请求态时调用
-     * - 路由表本身仍可复用; 只清请求相关的匹配结果
+     * - 只清当前执行流; 路由表本身仍可复用
      *
      * @access public
      * @return void
      */
     public function resetCurrent(): void {
-        $this->current=null;
+        unset($this->current_by_context[$this->currentKey()]);
+    }
+
+    /**
+     * 写入当前执行流最近命中的路由
+     *
+     * @access private
+     * @param RouteItem $route 路由
+     * @return void
+     */
+    private function setCurrent(RouteItem $route): void {
+        $this->current_by_context[$this->currentKey()]=$route;
+    }
+
+    /**
+     * 当前执行流标识
+     *
+     * @access private
+     * @return string
+     */
+    private function currentKey(): string {
+        $context=ContextStorage::current();
+        if($context!==null)
+            return 'context:'.spl_object_id($context);
+        if(class_exists(\Fiber::class,false)&&($fiber=\Fiber::getCurrent())!==null)
+            return 'fiber:'.spl_object_id($fiber);
+        return 'main';
     }
 
     /**
@@ -879,7 +911,7 @@ final class Router implements RoutingInterface {
         $this->sorted_data=null;
         $this->named=null;
         $this->named_data=null;
-        $this->current=null;
+        $this->current_by_context=array();
         $this->prefixStack=array();
         $this->middlewareStack=array();
         $this->sorted_cache=null;

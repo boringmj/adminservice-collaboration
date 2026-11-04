@@ -133,6 +133,30 @@ class ApplicationLifecycleTest extends TestCase {
     }
 
     /**
+     * 测试: 请求内 setValue 只修改请求配置副本
+     *
+     * @return void
+     */
+    public function testRequestConfigChangesDoNotLeak(): void {
+        $application=new Application();
+        $outside=Config::repository();
+        $inside=null;
+
+        $application->handle(function() use (&$inside): void {
+            $inside=Config::repository();
+            Config::setValue('app.debug',true);
+            $this->assertTrue((bool)Config::get('app.debug'));
+        });
+        $this->assertNotSame($outside,$inside);
+
+        $application->handle(function(): void {
+            $this->assertFalse((bool)Config::get('app.debug'));
+            Config::setValue('app.debug',true);
+        });
+        $this->assertFalse((bool)Config::get('app.debug'),'请求内修改不得泄漏到应用级配置');
+    }
+
+    /**
      * 测试: 请求内禁止替换整份配置仓储
      *
      * @return void

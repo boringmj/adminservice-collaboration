@@ -13,9 +13,12 @@ use function is_dir;
 use function is_object;
 use function is_string;
 use function ksort;
+use function md5;
 use function rtrim;
 use function scandir;
+use function serialize;
 use function sort;
+use function spl_object_hash;
 use function str_ends_with;
 use function str_starts_with;
 use function substr;
@@ -25,8 +28,8 @@ use function substr;
  *
  * - 路由文件 / `#[Route]` 属性声明只装配一次, 后续**同一 Application/进程内**复用同一个 `Router`;
  *   默认 HTTP 入口每请求新建 `Main`, 因此不会跨请求复用
- * - 以**配置对象身份**作为失效条件: 运行期 `Config::setRepository()` 换了一整份配置时重建;
- *   同一份配置对象内的值变更不触发重建(路由配置按引导期处理)
+ * - 以**路由相关配置指纹**作为失效条件: 配置对象身份变化但值相同仍复用;
+ *   路由配置值变化时重建(请求级配置副本不会导致每请求重建)
  * - 编译缓存按源文件指纹失效; 生产零探测模式只读取 `compile/routes.cache.php`
  * - 缓存包含处理器与中间件声明, 这些声明必须与请求无关: 优先用类名; 已实例化对象不得持有请求状态;
  *   闭包不得捕获请求对象
@@ -47,6 +50,12 @@ final class RouterFactory {
      * @var ConfigInterface|null
      */
     private ?ConfigInterface $config=null;
+
+    /**
+     * 当前路由表对应的路由配置指纹
+     * @var string|null
+     */
+    private ?string $route_key=null;
 
     /**
      * 可选的编译缓存存储(命令行动态检查 / 预热时注入)
@@ -73,11 +82,13 @@ final class RouterFactory {
      * @throws \AdminService\Exception
      */
     public function get(ConfigInterface $config): Router {
-        if($this->router!==null&&$this->config===$config)
+        $route_key=$this->routeKey($config);
+        if($this->router!==null&&$this->route_key===$route_key)
             return $this->router;
         $router=$this->loadOrBuild($config);
         $this->router=$router;
         $this->config=$config;
+        $this->route_key=$route_key;
         return $router;
     }
 
@@ -93,6 +104,29 @@ final class RouterFactory {
     public function reset(): void {
         $this->router=null;
         $this->config=null;
+        $this->route_key=null;
+    }
+
+    /**
+     * 计算路由配置指纹
+     *
+     * - 请求级配置副本与共享配置值相同时复用路由表
+     * - 路由配置或编译缓存模式变化时重建
+     * - 含不可序列化对象时回退对象身份，避免静默复用错误路由表
+     *
+     * @access private
+     * @param ConfigInterface $config 配置
+     * @return string
+     */
+    private function routeKey(ConfigInterface $config): string {
+        try {
+            return md5(serialize(array(
+                $config->get('route',array()),
+                $config->get('cache.compile',array())
+            )));
+        } catch(\Throwable) {
+            return 'object:'.spl_object_hash($config);
+        }
     }
 
     /**

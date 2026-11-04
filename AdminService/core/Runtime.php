@@ -10,6 +10,7 @@ use function preg_match;
 use function rtrim;
 use function str_replace;
 use function trim;
+use function AdminService\env_reset;
 use function AdminService\env_snapshot;
 
 /**
@@ -74,6 +75,23 @@ final class Runtime {
      */
     public static function reset(): void {
         self::$path=null;
+    }
+
+    /**
+     * 重新读取环境快照并重算 runtime 路径
+     *
+     * - 常驻进程运行期修改 `.env` / `RUNTIME_PATH` 后使用
+     * - 只负责 env 快照与路径缓存；已构建的 Config\Repository 仍需调用方重新装配
+     *
+     * @access public
+     * @param Env|null $env 指定 env 快照(null = 重新读取进程级 `.env`)
+     * @return string 新的 runtime 根目录
+     */
+    public static function reload(?Env $env=null): string {
+        if($env===null)
+            env_reset();
+        self::$path=null;
+        return self::path($env);
     }
 
     /**

@@ -234,6 +234,12 @@ final class Application {
      * @return Repository
      */
     public function config(): Repository {
+        $context=ContextStorage::current();
+        if($context!==null) {
+            $config=$context->config();
+            if($config instanceof Repository)
+                return $config;
+        }
         if($this->initialized)
             return Config::repository()??$this->config;
         return $this->config;
@@ -276,11 +282,10 @@ final class Application {
             $this->container->deferMetadataFlush();
         // 错误出口需要当前请求的 Response; 在请求开始时同步给错误处理器
         Error::beginRequest($container);
-        // 请求开始时把 `Config::repository()` 当前返回的配置登记进请求容器(按实现类名, 与 `Application::init()` 一致):
-        // 应用级容器里登记的可能已经被 `Config::setRepository()/set()` 换成新的了, 只靠父容器会让请求内的组件读到旧配置
+        // 请求开始时复制一份应用级配置: 请求内 setValue 只修改副本, 不泄漏到后续请求
         $repository=$this->config();
         if($repository!==null)
-            $container->instance(Repository::class,$repository);
+            $container->instance(Repository::class,$repository->fork());
         App::setInstance($container);
         $completed=false;
         try {
@@ -295,9 +300,14 @@ final class Application {
                     try {
                         return $callback($container);
                     } finally {
-                        // 请求回调结束后立即释放当前执行流的事务会话;
+                        // 请求回调结束后立即释放当前执行流的事务会话与路由命中态;
                         // 响应发送阶段不应再持有数据库事务
                         BaseDb::releaseCurrentSessions();
+                        if($container->hasInstance(Router::class)) {
+                            $router=$container->get(Router::class);
+                            if($router instanceof Router)
+                                $router->resetCurrent();
+                        }
                     }
                 }
             );
@@ -428,6 +438,10 @@ final class Application {
      * @throws Exception
      */
     private function bootRequest(ContainerContract $container): RequestContext {
+        // 请求配置以请求容器本地副本为准; 未注入时回退应用级配置
+        $config=$this->hasLocalInstance($container,Repository::class)
+            ?$container->get(Repository::class)
+            :$this->config();
         // 请求对象只在请求容器本地构建; 父容器里的 Request/Response/Session 一律不复用
         $request=$this->request_seed;
         $this->request_seed=null;
@@ -458,8 +472,8 @@ final class Application {
                 $session=$container->get(AbstractSession::class);
             else {
                 /** @var AbstractSession $session */
-                $session=$container->build($this->config()->get('session.class',ArraySession::class));
-                if($this->config()->get('session.start',false))
+                $session=$container->build($config->get('session.class',ArraySession::class));
+                if($config->get('session.start',false))
                     $session->init();
                 $container->instance(AbstractSession::class,$session);
             }
@@ -470,7 +484,7 @@ final class Application {
             $request,
             $response,
             $session,
-            $this->config()
+            $config
         );
         $container->instance(RequestContext::class,$context);
         return $context;

@@ -3,6 +3,7 @@
 namespace AdminService;
 
 use AdminService\Config\Bootstrapper;
+use base\Container as ContainerContract;
 use base\Request;
 use base\Response;
 use base\Route;
@@ -82,10 +83,10 @@ final class Main {
      */
     public function run(): void {
         // 由应用承载请求处理: 每请求一个请求级容器(fork/reset 与门面指针切换都在 Application::handle() 内)
-        $this->application()->handle(function(): void {
+        $this->application()->handle(function(ContainerContract $container): void {
             $middlewares=Pipeline::order(Pipeline::normalize($this->application()->config()->get('middlewares.request',array())));
-            (new Pipeline($middlewares,App::get(Request::class)))->then(function(): void {
-                App::fresh(Route::class)->run();
+            (new Pipeline($middlewares,$container->get(Request::class),$container))->then(function() use ($container): void {
+                $container->fresh(Route::class)->run();
             });
         },true);
     }

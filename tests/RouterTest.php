@@ -6,7 +6,9 @@ use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
 use AdminService\App;
+use AdminService\Container;
 use AdminService\Exception;
+use AdminService\HttpRequest;
 use AdminService\Pipeline;
 use AdminService\Router\RouteItem;
 use AdminService\Router\Router;
@@ -933,7 +935,7 @@ class RouterTest extends TestCase {
      */
     public function testPipelineOrder(): void {
         MiddlewareLog::clear();
-        $pipeline=new Pipeline(array(FirstMiddleware::class,SecondMiddleware::class));
+        $pipeline=new Pipeline(array(FirstMiddleware::class,SecondMiddleware::class),null,App::getInstance());
         $pipeline->then(function(): void {
             MiddlewareLog::$calls[]='core';
         });
@@ -949,11 +951,27 @@ class RouterTest extends TestCase {
      */
     public function testEmptyPipeline(): void {
         MiddlewareLog::clear();
-        $pipeline=new Pipeline();
+        $pipeline=new Pipeline(array(),null,App::getInstance());
         $pipeline->then(function(): void {
             MiddlewareLog::$calls[]='core';
         });
         $this->assertSame(array('core'),MiddlewareLog::$calls);
+    }
+
+    /**
+     * 测试: 管道使用显式容器, 不依赖 App 当前指针
+     *
+     * @return void
+     */
+    public function testPipelineRunsWithExplicitContainer(): void {
+        MiddlewareLog::clear();
+        $container=new Container();
+        $request=new HttpRequest(array('query'=>array()));
+        $pipeline=new Pipeline(array(FirstMiddleware::class),$request,$container);
+        $pipeline->then(function(): void {
+            MiddlewareLog::$calls[]='core';
+        });
+        $this->assertSame(array('first','core','first:after'),MiddlewareLog::$calls);
     }
 
     /**

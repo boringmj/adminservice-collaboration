@@ -324,28 +324,6 @@ final class App {
     }
 
     /**
-     * 获取当前控制器名称
-     *
-     * @access public
-     * @return string|null
-     * @throws Exception
-     */
-    public static function getControllerName(): ?string {
-        return self::routeContext()?->controllerName();
-    }
-
-    /**
-     * 获取当前方法名称
-     *
-     * @access public
-     * @return string|null
-     * @throws Exception
-     */
-    public static function getMethodName(): ?string {
-        return self::routeContext()?->methodName();
-    }
-
-    /**
      * 当前请求的路由上下文(**请求级**对象; 未分发时为 null)
      *
      * @access private

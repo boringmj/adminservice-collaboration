@@ -5,8 +5,8 @@ namespace AdminService\Database;
 use AdminService\Config\Repository;
 use base\ConfigInterface;
 
+use base\Container as ContainerContract;
 use base\Database\DatabaseConfigInterface;
-use AdminService\App;
 use AdminService\Config;
 
 use function is_array;
@@ -16,7 +16,7 @@ use function is_string;
  * 数据库配置(契约 `base\Database\DatabaseConfigInterface` 的框架实现)
  *
  * - 读 `config/database.php` 的 `database.connections.<连接名>` 与 `database.middlewares`
- * - 中间件类名经容器解析(`App::get`), 因此中间件可以依赖注入
+ * - 中间件类名经注入的容器解析, 因此中间件可以依赖注入
  *
  * @access public
  * @package AdminService
@@ -30,6 +30,12 @@ final class DatabaseConfig implements DatabaseConfigInterface {
      * @var ConfigInterface|null
      */
     private ?ConfigInterface $config=null;
+
+    /**
+     * 容器契约(中间件解析用; 直接 new 时可为空)
+     * @var ContainerContract|null
+     */
+    private ?ContainerContract $container=null;
 
     /**
      * 取配置契约实例
@@ -49,9 +55,11 @@ final class DatabaseConfig implements DatabaseConfigInterface {
      *
      * @access public
      * @param ConfigInterface|null $config 配置契约实例(未注入时回落门面当前那份)
+     * @param ContainerContract|null $container 容器契约(中间件解析用)
      */
-    public function __construct(?ConfigInterface $config=null) {
+    public function __construct(?ConfigInterface $config=null,?ContainerContract $container=null) {
         $this->config=$config;
+        $this->container=$container;
     }
 
     /**
@@ -88,7 +96,9 @@ final class DatabaseConfig implements DatabaseConfigInterface {
     public function resolveMiddleware(string|object $middleware): object {
         if(!is_string($middleware))
             return $middleware;
-        return App::get($middleware);
+        if($this->container!==null)
+            return $this->container->get($middleware);
+        return new $middleware();
     }
 
 }

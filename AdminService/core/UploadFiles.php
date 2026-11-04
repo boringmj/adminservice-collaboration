@@ -2,10 +2,10 @@
 
 namespace AdminService;
 
-use AdminService\App;
 use AdminService\Exception;
 use AdminService\UploadFile;
 use base\AbstractUploadFiles;
+use base\Container as ContainerContract;
 
 use function array_keys;
 use function array_map;
@@ -43,6 +43,12 @@ final class UploadFiles extends AbstractUploadFiles {
     protected string $hash_algo='';
 
     /**
+     * 请求级容器(用于构建 UploadFile)
+     * @var ContainerContract|null
+     */
+    private ?ContainerContract $container=null;
+
+    /**
      * 构造方法
      *
      * - 只解析文件列表, 不触碰上传目录(目录由存储方在保存时准备)
@@ -51,12 +57,19 @@ final class UploadFiles extends AbstractUploadFiles {
      * @param string $dir 上传目录
      * @param array<string,mixed> $files 上传文件列表
      * @param array<string,mixed> $rules 上传规则(对应配置`request.default.upload`)
+     * @param ContainerContract|null $container 请求级容器
      */
-    public function __construct(string $dir,array $files,array $rules=array()) {
+    public function __construct(
+        string $dir,
+        array $files,
+        array $rules=array(),
+        ?ContainerContract $container=null
+    ) {
         $this->max_size=$rules['max_size']??104857600;
         $this->name_rule=$rules['name_rule']??'/[^a-zA-Z\.0-9_\-]/';
         $this->ext_rule=$rules['ext_rule']??'/[^0-9a-z-]/';
         $this->hash_algo=$rules['hash']['algo']??'sha1';
+        $this->container=$container;
         parent::__construct($dir,$files);
     }
 
@@ -131,16 +144,18 @@ final class UploadFiles extends AbstractUploadFiles {
                 '',
                 $file_name
             );
-            $this->addFile(App::new(
-                UploadFile::class,
-                name:$file_name,
-                type:$mime_type,
-                size:$file_size,
-                extension:$safe_ext,
-                path:$tmp_file,
-                confirm_dir:$this->dir,
-                hash_algo:$this->hash_algo
-            ));
+            $arguments=array(
+                'name'=>$file_name,
+                'type'=>$mime_type,
+                'size'=>$file_size,
+                'extension'=>$safe_ext,
+                'path'=>$tmp_file,
+                'confirm_dir'=>$this->dir,
+                'hash_algo'=>$this->hash_algo
+            );
+            $this->addFile($this->container!==null
+                ? $this->container->build(UploadFile::class,...$arguments)
+                : new UploadFile(...$arguments));
 
         }
     }

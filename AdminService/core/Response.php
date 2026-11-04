@@ -359,10 +359,11 @@ final class Response extends BaseResponse {
         $config=is_array($types)?($types[$type]??[]):[];
         $class=$config['class']??Http::class;
         // 处理器需要写入本实例: 显式传入; 请求级容器负责解析处理器依赖
-        if($this->container!==null)
-            $this->container->build($class,response:$this,config:$config)->handle();
+        $container=$this->container??ContextStorage::current()?->container();
+        if($container!==null)
+            $container->build($class,response:$this,config:$config)->handle();
         else
-            App::new($class,response:$this,config:$config)->handle();
+            (new $class(response:$this,config:$config))->handle();
         // 合并该内容类型登记的Header
         $this->headers($config['headers']??[]);
         return $this->return_content??'';

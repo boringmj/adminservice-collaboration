@@ -2,6 +2,7 @@
 
 namespace AdminService;
 
+use base\Container as ContainerContract;
 use base\Request;
 
 use function array_key_exists;
@@ -16,9 +17,9 @@ use function usort;
  * 中间件管道
  *
  * - 按声明顺序包裹执行, 最先声明的中间件在最外层
- * - 中间件经容器实例化, 支持构造函数依赖注入; 容器中已登记实例时直接取用
+ * - 中间件经注入容器实例化, 支持构造函数依赖注入; 容器中已登记实例时直接取用
  * - 只负责执行与层内排序, 不关心层间顺序(请求 / 分组 / 路由 / 控制器由调用方组装)
- * - 请求对象显式传入, 缺省取容器中的当前请求
+ * - 请求对象显式传入; 缺省从注入容器或当前请求上下文取请求
  */
 final class Pipeline {
 
@@ -35,15 +36,31 @@ final class Pipeline {
     private Request $request;
 
     /**
+     * 请求级容器
+     * @var ContainerContract
+     */
+    private ContainerContract $container;
+
+    /**
      * 构造方法
      *
      * @access public
      * @param array<string|object> $middlewares 中间件列表(类名或实例)
      * @param Request|null $request 请求对象(null 时取容器中的当前请求)
+     * @param ContainerContract|null $container 请求级容器(null 时取当前请求上下文)
+     * @throws Exception 没有容器或请求时
      */
-    public function __construct(array $middlewares=array(),?Request $request=null) {
+    public function __construct(
+        array $middlewares=array(),
+        ?Request $request=null,
+        ?ContainerContract $container=null
+    ) {
+        $container??=ContextStorage::current()?->container();
+        if($container===null)
+            throw new Exception('Pipeline 需要容器: 请传入容器或经 Application::handle() 执行');
         $this->middlewares=$middlewares;
-        $this->request=$request??App::get(Request::class);
+        $this->container=$container;
+        $this->request=$request??$container->get(Request::class);
     }
 
     /**
@@ -120,7 +137,7 @@ final class Pipeline {
     /**
      * 将单个中间件包裹到下一层处理器外层
      *
-     * - 参数按名注入, 与 {@see \AdminService\App::exec_class_function} 约定一致
+     * - 参数按名注入, 与容器 `exec_class_function()` 约定一致
      *
      * @access private
      * @param string|object $middleware 中间件(类名或实例)
@@ -129,8 +146,8 @@ final class Pipeline {
      */
     private function wrap(string|object $middleware,callable $next): callable {
         return function() use ($middleware,$next): void {
-            $instance=is_object($middleware)?$middleware:App::get($middleware);
-            App::exec_class_function($instance,'handle',array(
+            $instance=is_object($middleware)?$middleware:$this->container->get($middleware);
+            $this->container->exec_class_function($instance,'handle',array(
                 'request'=>$this->request,
                 'next'=>$next
             ));

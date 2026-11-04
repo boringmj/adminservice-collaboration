@@ -4,6 +4,7 @@ namespace AdminService;
 use AdminService\Config\Repository;
 use base\Attribute\AutowireProperty;
 use base\ConfigInterface;
+use base\Container as ContainerContract;
 
 use base\Response;
 use base\Route as BaseRoute;
@@ -39,6 +40,27 @@ final class Route extends BaseRoute {
      */
     #[AutowireProperty(ConfigInterface::class)]
     private ?ConfigInterface $config=null;
+
+    /**
+     * 请求级容器(容器装配时注入; 直接 new 时回落当前上下文)
+     * @var ContainerContract|null
+     */
+    #[AutowireProperty(ContainerContract::class)]
+    private ?ContainerContract $container=null;
+
+    /**
+     * 取请求级容器
+     *
+     * @access private
+     * @return ContainerContract
+     * @throws Exception
+     */
+    private function container(): ContainerContract {
+        $container=$this->container??ContextStorage::current()?->container();
+        if($container===null)
+            throw new Exception('Route 需要容器: 请经容器构建或传入请求上下文');
+        return $container;
+    }
 
     /**
      * 取配置契约实例
@@ -96,7 +118,7 @@ final class Route extends BaseRoute {
      * @throws Exception|ReflectionException
      */
     private function methodNotAllowed(array $allowed): void {
-        HttpError::methodNotAllowed($allowed)->apply(App::get(Response::class));
+        HttpError::methodNotAllowed($allowed)->apply($this->container()->get(Response::class));
     }
 
     /**
@@ -110,7 +132,7 @@ final class Route extends BaseRoute {
      * @throws Exception|ReflectionException
      */
     private function options(array $allowed): void {
-        $response=App::get(Response::class);
+        $response=$this->container()->get(Response::class);
         $response->header('Allow',implode(', ',$allowed));
         $response->status(204);
         $response->body('');
@@ -126,7 +148,7 @@ final class Route extends BaseRoute {
      * @throws Exception|ReflectionException
      */
     private function notFound(): void {
-        HttpError::notFound()->apply(App::get(Response::class));
+        HttpError::notFound()->apply($this->container()->get(Response::class));
     }
 
     /**
@@ -134,7 +156,7 @@ final class Route extends BaseRoute {
      *
      * - 优先复用应用容器里的 `RouterFactory`; 独立使用 `Route`(没有应用容器)时退回局部提供器
      * - 同一配置对象只装配一次; 配置对象被替换时由 `RouterFactory` 重建
-     * - 仍登记到当前请求容器, 供运行时(控制器/视图)反向生成 URL: App::get(Router::class)->url(...)
+     * - 仍登记到当前请求容器, 供运行时(控制器/视图)反向生成 URL
      * - 同时以 `base\RoutingInterface` 暴露同一实例, 控制器只依赖契约
      *
      * @access private
@@ -144,12 +166,13 @@ final class Route extends BaseRoute {
     private function router(): Router {
         if($this->router!==null)
             return $this->router;
-        $factory=App::hasInstance()&&App::getInstance()->hasInstance(RouterFactory::class)
-            ? App::get(RouterFactory::class)
+        $container=$this->container();
+        $factory=$container->hasInstance(RouterFactory::class)
+            ? $container->get(RouterFactory::class)
             : new RouterFactory();
         $this->router=$factory->get($this->config());
-        App::instance(Router::class,$this->router);
-        App::instance(RoutingInterface::class,$this->router);
+        $container->instance(Router::class,$this->router);
+        $container->instance(RoutingInterface::class,$this->router);
         return $this->router;
     }
 
@@ -172,7 +195,8 @@ final class Route extends BaseRoute {
         foreach($params as $name=>$value)
             $this->request->setAttribute($name,$value);
         // 注册路由上下文(**请求级**对象): 控制器基类、视图路径推断与 App::getAppName 系列都从它取值
-        App::instance(RouteContextInterface::class,RouteContext::fromHandler($handler,$params));
+        $container=$this->container();
+        $container->instance(RouteContextInterface::class,RouteContext::fromHandler($handler,$params));
         $controller_middlewares=$route->getCompiledControllerMiddlewares();
         if($controller_middlewares===null)
             $controller_middlewares=$route->compileControllerMiddlewares($this->config()->get('middlewares.controller',array()));
@@ -181,8 +205,8 @@ final class Route extends BaseRoute {
             $route->getRouteMiddlewares(),
             $controller_middlewares
         );
-        $response=App::get(Response::class);
-        (new Pipeline($middlewares,$this->request))->then(function() use ($route,$handler,$response): void {
+        $response=$container->get(Response::class);
+        (new Pipeline($middlewares,$this->request,$container))->then(function() use ($route,$handler,$response): void {
             $response->body($this->callHandler($route,$handler));
         });
     }
@@ -199,13 +223,14 @@ final class Route extends BaseRoute {
      * @throws Exception|ReflectionException
      */
     private function callHandler(RouteItem $route,mixed $handler): mixed {
+        $container=$this->container();
         if(is_array($handler)&&count($handler)===2) {
             // 控制器实例属**请求级**对象: 每请求新建;`fresh()` 会按处理器类名登记, 供控制器助手按类名取用
             if(is_string($handler[0]))
-                $handler[0]=App::fresh($handler[0]);
-            return App::exec_class_function($handler[0],$handler[1],$this->controllerArgs($route));
+                $handler[0]=$container->fresh($handler[0]);
+            return $container->exec_class_function($handler[0],$handler[1],$this->controllerArgs($route));
         }
-        return App::exec_function($handler,$this->controllerArgs($route));
+        return $container->exec_function($handler,$this->controllerArgs($route));
     }
 
     /**

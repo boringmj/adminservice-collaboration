@@ -96,7 +96,7 @@ final class Bootstrapper {
         ConfigFacade::setRepository($config);
         $this->loadFunction($config);
         $this->application=(new Application(null,$config))->init();
-        BaseDb::setConfig(new DatabaseConfig($config));
+        BaseDb::setConfig(new DatabaseConfig($config,$this->application->container()));
         $this->config=$config;
         return $this->application;
     }

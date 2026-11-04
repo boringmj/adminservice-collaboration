@@ -4,6 +4,7 @@ namespace AdminService;
 use AdminService\Config\Repository;
 use base\Attribute\AutowireProperty;
 use base\ConfigInterface;
+use base\Container as ContainerContract;
 
 use base\AbstractUploadFilesForm;
 
@@ -23,6 +24,32 @@ class UploadFilesForm extends AbstractUploadFilesForm {
      */
     #[AutowireProperty(ConfigInterface::class)]
     private ?ConfigInterface $config=null;
+
+    /**
+     * 请求级容器(用于构建 UploadFiles)
+     * @var ContainerContract|null
+     */
+    private ?ContainerContract $container=null;
+
+    /**
+     * 构造方法
+     *
+     * @access public
+     * @param string $dir 上传目录
+     * @param array<string,mixed> $files 上传文件列表
+     * @param ContainerContract|null $container 请求级容器
+     * @param ConfigInterface|null $config 配置契约实例
+     */
+    public function __construct(
+        string $dir,
+        array $files,
+        ?ContainerContract $container=null,
+        ?ConfigInterface $config=null
+    ) {
+        $this->container=$container;
+        $this->config=$config;
+        parent::__construct($dir,$files);
+    }
 
     /**
      * 取配置契约实例
@@ -55,7 +82,7 @@ class UploadFilesForm extends AbstractUploadFilesForm {
             if($this->hasNestedFiles($file))
                 $this->parseNested((string)$name,array(),$file,$dir,$rules);
             else
-                $this->form_files[$name]=App::new(UploadFiles::class,$dir,$file,$rules);
+                $this->form_files[$name]=$this->buildFiles($dir,$file,$rules);
         }
     }
 
@@ -116,7 +143,28 @@ class UploadFilesForm extends AbstractUploadFilesForm {
         $field=$prefix;
         foreach($path as $key)
             $field.='['.$key.']';
-        $this->form_files[$field]=App::new(UploadFiles::class,$dir,$file,$rules);
+        $this->form_files[$field]=$this->buildFiles($dir,$file,$rules);
+    }
+
+    /**
+     * 构建上传文件列表
+     *
+     * @access private
+     * @param string $dir 上传目录
+     * @param array<string,mixed> $file 上传字段
+     * @param array<string,mixed> $rules 上传规则
+     * @return UploadFiles
+     */
+    private function buildFiles(string $dir,array $file,array $rules): UploadFiles {
+        if($this->container!==null)
+            return $this->container->build(
+                UploadFiles::class,
+                dir:$dir,
+                files:$file,
+                rules:$rules,
+                container:$this->container
+            );
+        return new UploadFiles($dir,$file,$rules);
     }
 
 }

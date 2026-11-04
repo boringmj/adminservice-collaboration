@@ -60,7 +60,11 @@ final class Error extends BaseError {
      * @return ConfigInterface|null
      */
     private static function config(): ?ConfigInterface {
-        if(self::$request_context!==null)
+        $context=ContextStorage::current();
+        if($context!==null)
+            return $context->config();
+        // 关停阶段的错误出口在上下文弹出后仍需使用最近请求的配置
+        if(self::$handled&&self::$request_context!==null)
             return self::$request_context->config();
         $container=self::$container;
         if($container!==null&&$container->hasInstance(ConfigInterface::class))
@@ -223,7 +227,11 @@ final class Error extends BaseError {
      * @return ContainerContract|null
      */
     private static function responseContainer(): ?ContainerContract {
-        if(self::$request_context!==null)
+        $context=ContextStorage::current();
+        if($context!==null)
+            return $context->container();
+        // 关停阶段的错误出口在上下文弹出后仍需使用最近请求的响应容器
+        if(self::$handled&&self::$request_context!==null)
             return self::$request_context->container();
         return self::$request_container??self::$container;
     }

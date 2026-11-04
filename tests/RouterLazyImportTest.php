@@ -45,6 +45,30 @@ class RouterLazyImportTest extends TestCase {
     }
 
     /**
+     * eager 导出的固定键
+     *
+     * @return array<int,string>
+     */
+    private function exportKeys(): array {
+        return array(
+            'methods',
+            'path',
+            'handler',
+            'group_middlewares',
+            'route_middlewares',
+            'name',
+            'bindings',
+            'resolved_bindings',
+            'pattern',
+            'params',
+            'optional',
+            'constraints',
+            'literal_length',
+            'controller_middlewares'
+        );
+    }
+
+    /**
      * 测试: 懒加载导入后只实例化命中路由
      *
      * @return void
@@ -86,7 +110,45 @@ class RouterLazyImportTest extends TestCase {
         $this->assertTrue($router->has('store'));
         $this->assertFalse($router->has('missing'));
 
-        $this->assertSame($routes,$router->export(),'懒加载导出应与原始导出一致');
+        $exported=$router->export();
+        $this->assertSame($routes,$exported,'懒加载导出应与原始导出一致');
+        $this->assertSame($this->exportKeys(),array_keys($exported[0]));
+    }
+
+    /**
+     * 测试: 懒加载导出保留最小数据的键集合, 不实例化路由
+     *
+     * @return void
+     */
+    public function testLazyExportKeepsMinimalDataWithoutInstantiating(): void {
+        $minimal=array(
+            'path'=>'/minimal',
+            'handler'=>array(ConcreteService::class,'execute'),
+            'pattern'=>'#^/minimal$#'
+        );
+        $router=new Router();
+        $router->import(array($minimal),true);
+
+        $this->assertSame(array(array(
+            'path'=>'/minimal',
+            'handler'=>array(ConcreteService::class,'execute'),
+            'pattern'=>'#^/minimal$#',
+            'methods'=>array()
+        )),$router->export());
+        $this->assertCount(0,$this->property($router,'routes'));
+        $this->assertTrue($this->property($router,'lazy'));
+    }
+
+    /**
+     * 测试: eager 导出使用固定键集合
+     *
+     * @return void
+     */
+    public function testEagerExportUsesCanonicalKeys(): void {
+        $router=new Router();
+        $router->get('/canonical',array(ConcreteService::class,'execute'))->name('canonical');
+
+        $this->assertSame($this->exportKeys(),array_keys($router->export()[0]));
     }
 
     /**
@@ -102,6 +164,7 @@ class RouterLazyImportTest extends TestCase {
         $this->assertFalse($this->property($router,'lazy'));
         $this->assertCount(0,$this->property($router,'route_data'));
         $this->assertSame(array(ConcreteService::class,'execute'),$router->find('GET','/user/7')[0]->getHandler());
+        $this->assertSame($this->exportKeys(),array_keys($router->export()[0]));
     }
 
     /**

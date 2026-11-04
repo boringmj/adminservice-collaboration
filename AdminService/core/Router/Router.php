@@ -831,7 +831,9 @@ final class Router implements RoutingInterface {
     /**
      * 导出已排序的路由表
      *
-     * - 懒加载模式下直接返回导入时保存的数据, 不保证补齐 RouteItem::export() 的固定键
+     * - 懒加载模式返回 `import()` 时规范化后的路由数据, 不实例化 `RouteItem`, 也不补齐可选键;
+     *   返回键集合取决于导入数据, 需要固定结构时先调用 `getRoutes()` 或使用 eager 导入
+     * - 非懒加载模式返回 `RouteItem::export()` 的固定结构
      *
      * @access public
      * @return array<array<string,mixed>>

@@ -3,6 +3,7 @@
 namespace base\Attribute;
 
 use Attribute;
+use InvalidArgumentException;
 
 use function is_array;
 
@@ -54,10 +55,10 @@ class Route {
      * @access public
      * @param string|Method $method 请求方法(传 `Method::ANY` 或 `*` 表示不限)
      * @param string $path 路由路径
-     * @param string|null $name 路由名
+     * @param string|null $name 路由名(不能为空字符串)
      * @param string|array<string|object>|object $middleware 路由级中间件(类名 / 实例 / 数组)
      * @param array<string,string> $bind 路由参数到控制器形参的绑定(占位符名 => 形参名)
-     * @throws \InvalidArgumentException 请求方法不是非空字符串或 Method 枚举
+     * @throws InvalidArgumentException 请求方法不是非空字符串或 Method 枚举, 或路由名为空字符串
      */
     public function __construct(
         string|Method $method,
@@ -66,6 +67,8 @@ class Route {
         string|array|object $middleware=array(),
         array $bind=array()
     ) {
+        if($name==='')
+            throw new InvalidArgumentException('Route name must not be empty.');
         $this->method=Method::normalize($method);
         $this->path=$path;
         $this->name=$name;

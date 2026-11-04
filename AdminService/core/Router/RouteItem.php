@@ -243,7 +243,7 @@ final class RouteItem {
         }
         if(array_key_exists('name',$data)
             &&$data['name']!==null
-            &&!is_string($data['name']))
+            &&(!is_string($data['name'])||$data['name']===''))
             throw new Exception('Invalid compiled route item.',-423);
         if(array_key_exists('literal_length',$data)) {
             if(!is_numeric($data['literal_length']))
@@ -711,10 +711,15 @@ final class RouteItem {
      * 设置路由名
      *
      * @access public
-     * @param string $name 路由名
+     * @param string $name 路由名(不能为空字符串)
      * @return static
+     * @throws Exception 路由名为空字符串
      */
     public function name(string $name): static {
+        if($name==='')
+            throw new Exception('Route name must not be empty.',-424,array(
+                'path'=>$this->path
+            ));
         $this->name=$name;
         return $this;
     }

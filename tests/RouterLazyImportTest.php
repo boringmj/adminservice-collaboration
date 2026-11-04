@@ -181,23 +181,22 @@ class RouterLazyImportTest extends TestCase {
     }
 
     /**
-     * 测试: 空路由名在 eager/lazy 导入下行为一致
+     * 测试: eager/lazy 导入都拒绝空路由名
      *
      * @return void
      */
-    public function testLazyImportKeepsEmptyRouteNameConsistent(): void {
-        $router=new Router();
-        $router->get('/empty-name',array(ConcreteService::class,'execute'))->name('');
-        $routes=$router->export();
+    public function testImportRejectsEmptyRouteNameInBothModes(): void {
+        $routes=$this->exportedRoutes();
+        $routes[0]['name']='';
 
-        $eager=new Router();
-        $eager->import($routes,true,false);
-        $lazy=new Router();
-        $lazy->import($routes,true);
-
-        $this->assertTrue($eager->has(''));
-        $this->assertSame($eager->has(''),$lazy->has(''));
-        $this->assertSame($eager->url(''),$lazy->url(''));
+        foreach(array(false,true) as $lazy) {
+            try {
+                (new Router())->import($routes,true,$lazy);
+                $this->fail('空路由名应被拒绝');
+            } catch(Exception $e) {
+                $this->assertSame('Invalid compiled route item.',$e->getMessage());
+            }
+        }
     }
 
     /**
@@ -235,20 +234,18 @@ class RouterLazyImportTest extends TestCase {
     }
 
     /**
-     * 测试: 空路由名重名在 eager/lazy 导入下都被拒绝
+     * 测试: 重复路由名在 eager/lazy 导入下都被拒绝
      *
      * @return void
      */
-    public function testDuplicateEmptyRouteNamesRejectedInBothModes(): void {
-        $router=new Router();
-        $router->get('/a',array(ConcreteService::class,'execute'))->name('');
-        $router->get('/b',array(ConcreteService::class,'execute'))->name('');
-        $routes=$router->export();
+    public function testDuplicateRouteNamesRejectedInBothModes(): void {
+        $routes=$this->exportedRoutes();
+        $routes[1]['name']=$routes[0]['name'];
 
         foreach(array(false,true) as $lazy) {
             try {
                 (new Router())->import($routes,true,$lazy);
-                $this->fail('重复空路由名应被拒绝');
+                $this->fail('重复路由名应被拒绝');
             } catch(Exception $e) {
                 $this->assertSame('Duplicate route name.',$e->getMessage());
             }

@@ -13,6 +13,7 @@ use AdminService\Router\Router;
 use base\Attribute\Method;
 use Tests\Fixtures\AbstractResourceController;
 use Tests\Fixtures\ApiResourceController;
+use Tests\Fixtures\EmptyRouteNameController;
 use Tests\Fixtures\ExceptApiResourceController;
 use Tests\Fixtures\FirstMiddleware;
 use Tests\Fixtures\GroupedController;
@@ -1349,6 +1350,46 @@ class RouterTest extends TestCase {
     }
 
     /**
+     * 测试显式空路由名在设置时被拒绝
+     *
+     * @return void
+     */
+    public function testEmptyRouteNameThrows(): void {
+        $router=new Router();
+        $route=$router->get('/empty-name',array('C','x'));
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Route name must not be empty.');
+        $route->name('');
+    }
+
+    /**
+     * 测试省略路由名仍表示未命名
+     *
+     * @return void
+     */
+    public function testOmittedRouteNameRemainsUnnamed(): void {
+        $router=new Router();
+        $route=$router->get('/unnamed',array('C','x'));
+
+        $this->assertNull($route->getName());
+        $this->assertFalse($router->has(''));
+    }
+
+    /**
+     * 测试属性路由的显式空名在装配期被拒绝
+     *
+     * @return void
+     */
+    public function testEmptyRouteNameAttributeThrows(): void {
+        $router=new Router();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Route name must not be empty.');
+        $router->registerAttributes(array(EmptyRouteNameController::class));
+    }
+
+    /**
      * 测试反向生成校验参数约束
      * @return void
      */
@@ -1425,6 +1466,28 @@ class RouterTest extends TestCase {
         $router->load($file);
         unlink($file);
         $this->assertNotNull($router->find('GET','/from-file'));
+    }
+
+    /**
+     * 测试路由文件中的显式空名被拒绝
+     * @return void
+     */
+    public function testLoadRouteFileRejectsEmptyRouteName(): void {
+        $file=tempnam(sys_get_temp_dir(),'route_');
+        file_put_contents(
+            $file,
+            "<?php\nreturn function(\\AdminService\\Router\\Router \$router): void {\n"
+            ."    \$router->get('/empty-name',array('C','file'))->name('');\n"
+            ."};\n"
+        );
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Route name must not be empty.');
+        try {
+            $router->load($file);
+        } finally {
+            unlink($file);
+        }
     }
 
     /**

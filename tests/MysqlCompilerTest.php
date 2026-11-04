@@ -355,6 +355,8 @@ class MysqlCompilerTest extends TestCase {
     public function testWhereNullValue(): void {
         $statement=$this->compile(Query::select()->from('users')->where('deleted_at',null));
         $this->assertSame('SELECT * FROM `users` WHERE `deleted_at` IS NULL',$statement->getSql());
+        $statement=$this->compile(Query::select()->from('users')->where('deleted_at',null,'=='));
+        $this->assertSame('SELECT * FROM `users` WHERE `deleted_at` IS NULL',$statement->getSql());
         $statement=$this->compile(Query::select()->from('users')->where('deleted_at',null,'!='));
         $this->assertSame('SELECT * FROM `users` WHERE `deleted_at` IS NOT NULL',$statement->getSql());
     }

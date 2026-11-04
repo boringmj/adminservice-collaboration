@@ -16,6 +16,12 @@ final class Operator {
     public const EQ='=';
 
     /**
+     * 等于(兼容别名, 保留 == 写法)
+     * @var string
+     */
+    public const EQ_ALT='==';
+
+    /**
      * 不等于
      * @var string
      */

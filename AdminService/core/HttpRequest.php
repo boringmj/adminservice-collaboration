@@ -8,6 +8,7 @@ use base\ConfigInterface;
 use base\Request;
 use base\AbstractInputProcessor;
 use base\Container as ContainerContract;
+use base\RuntimePathInterface;
 
 use function array_key_exists;
 use function array_merge;
@@ -63,6 +64,12 @@ final class HttpRequest extends Request {
      * @var ContainerContract|null
      */
     protected ?ContainerContract $container=null;
+
+    /**
+     * 运行时路径解析器(未注入时回落静态 Runtime)
+     * @var RuntimePathInterface|null
+     */
+    private ?RuntimePathInterface $runtime_path=null;
 
     /**
      * 请求头数据
@@ -141,11 +148,18 @@ final class HttpRequest extends Request {
      * @param array<string,mixed> $sources 输入源
      * @param ContainerContract|null $container 容器契约
      * @param ConfigInterface|null $config 配置契约实例(未注入时回落门面当前那份)
+     * @param RuntimePathInterface|null $runtime_path 运行时路径解析器
      */
-    public function __construct(array $sources=array(),?ContainerContract $container=null,?ConfigInterface $config=null) {
+    public function __construct(
+        array $sources=array(),
+        ?ContainerContract $container=null,
+        ?ConfigInterface $config=null,
+        ?RuntimePathInterface $runtime_path=null
+    ) {
         $this->config=$config;
         // 容器由容器构建时注入(输入处理器因此可依赖注入);直接 new 时为 null
         $this->container=$container;
+        $this->runtime_path=$runtime_path;
         $this->headers=(new Data(self::parseHeaders($sources)))
             ->setCaseSensitive(false)->resetKey();
         $this->query=new Data($sources['query']??$_GET??array());
@@ -248,7 +262,7 @@ final class HttpRequest extends Request {
         if($this->file_form===null) {
             $save_dir=(string)$this->config()->get(
                 'request.default.upload.save.dir',
-                Runtime::path().'/uploads'
+                ($this->runtime_path?->path()??Runtime::path()).'/uploads'
             );
             $this->file_form=$this->container!==null
                 ? $this->container->build(

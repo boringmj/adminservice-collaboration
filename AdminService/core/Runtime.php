@@ -5,7 +5,6 @@ namespace AdminService;
 use AdminService\Config\Env;
 
 use function dirname;
-use function getenv;
 use function is_string;
 use function preg_match;
 use function rtrim;
@@ -17,8 +16,7 @@ use function AdminService\env_snapshot;
  * Runtime 路径解析器
  *
  * - 职责: 在配置缓存之前确定可写运行时根目录, 供 `config/*.php` 与运行时组件使用
- * - 来源: 环境变量 `ADMINSERVICE_TEST_RUNTIME`(测试专用) 或 `.env` 的 `RUNTIME_PATH`;
- *   缺失、空值或非法值时回落到 `AdminService/runtime`
+ * - 来源: `.env` 的 `RUNTIME_PATH`; 缺失、空值或非法值时回落到 `AdminService/runtime`
  * - 约束: 不依赖 `Config` / 容器 / 配置缓存; 进程内缓存默认解析结果
  * - 测试或自定义入口可用 `setPath()` / `reset()` 控制
  *
@@ -27,11 +25,6 @@ use function AdminService\env_snapshot;
  * @version 1.0.0
  */
 final class Runtime {
-
-    /**
-     * 测试入口覆盖 runtime 根目录的环境变量
-     */
-    private const TEST_RUNTIME_ENV='ADMINSERVICE_TEST_RUNTIME';
 
     /**
      * 已解析的 runtime 根目录
@@ -84,16 +77,14 @@ final class Runtime {
     }
 
     /**
-     * 解析 runtime 根目录(测试环境变量优先)
+     * 从 env 快照解析 runtime 根目录
      *
      * @access private
      * @param Env $env env 快照
      * @return string
      */
     private static function resolve(Env $env): string {
-        $path=getenv(self::TEST_RUNTIME_ENV);
-        if(!is_string($path)||trim($path)==='')
-            $path=$env->get('RUNTIME_PATH','');
+        $path=$env->get('RUNTIME_PATH','');
         if(!is_string($path)||trim($path)==='')
             $path=dirname(__DIR__).'/runtime';
         return self::normalize($path);

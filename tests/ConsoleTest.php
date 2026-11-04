@@ -19,6 +19,9 @@ use Tests\Fixtures\command\FailCommand;
 use Tests\Fixtures\command\GreetCommand;
 
 use function array_slice;
+use function clearstatcache;
+use function file_get_contents;
+use function file_put_contents;
 use function getenv;
 use function implode;
 use function is_array;
@@ -65,10 +68,10 @@ class ConsoleTest extends TestCase {
     private string $config_cache_path='';
 
     /**
-     * 子进程测试使用的临时 runtime
+     * 子进程测试使用的临时工作区
      * @var string|null
      */
-    private ?string $runtime_dir=null;
+    private ?string $workspace_dir=null;
 
     /**
      * 保存测试环境
@@ -95,9 +98,9 @@ class ConsoleTest extends TestCase {
             Config::setRepository($this->old_config);
         if($this->old_container!==null)
             App::setInstance($this->old_container);
-        if($this->runtime_dir!==null) {
-            $this->removeDirectory($this->runtime_dir);
-            $this->runtime_dir=null;
+        if($this->workspace_dir!==null) {
+            $this->removeDirectory($this->workspace_dir);
+            $this->workspace_dir=null;
         }
         parent::tearDown();
     }
@@ -349,30 +352,58 @@ class ConsoleTest extends TestCase {
     }
 
     /**
-     * 创建子进程测试使用的临时 runtime
+     * 创建子进程测试使用的临时工作区
      *
-     * @return string 已规范化的临时 runtime 路径
+     * @return array{runtime:string,env:string}
      */
-    private function processRuntime(): string {
-        $path=str_replace('\\','/',sys_get_temp_dir()).'/adminservice_console_'.uniqid('',true);
-        if(!mkdir($path,0700,true))
-            $this->fail('Unable to create temporary runtime directory.');
-        $this->runtime_dir=$path;
-        return $path;
+    private function processWorkspace(): array {
+        $root=str_replace('\\','/',sys_get_temp_dir()).'/adminservice_console_'.uniqid('',true);
+        if(!mkdir($root,0700,true))
+            $this->fail('Unable to create temporary workspace.');
+        $this->workspace_dir=$root;
+        $runtime=$root.'/runtime';
+        $env=$root.'/env';
+        $content="APP_DEBUG=false\n"
+            ."CACHE_COMPILE=true\n"
+            ."CACHE_COMPILE_MODE=always\n"
+            ."RUNTIME_PATH=".$runtime."\n";
+        if(file_put_contents($env,$content)===false)
+            $this->fail('Unable to create temporary env file.');
+        return array(
+            'runtime'=>$runtime,
+            'env'=>$env
+        );
     }
 
     /**
-     * 构造子进程环境, 注入测试专用 runtime
+     * 构造子进程环境, 注入测试环境文件
      *
-     * @param string $runtime 临时 runtime 路径
+     * @param string $env_file 临时环境文件路径
      * @return array<string,string>
      */
-    private function processEnvironment(string $runtime): array {
+    private function processEnvironment(string $env_file): array {
         $env=getenv();
         if(!is_array($env))
             $env=array();
-        $env['ADMINSERVICE_TEST_RUNTIME']=$runtime;
+        $env['ADMINSERVICE_TEST_ENV_FILE']=$env_file;
         return $env;
+    }
+
+    /**
+     * 读取项目编译缓存文件快照
+     *
+     * @param string $dir 编译缓存目录
+     * @return array<string,string|null>
+     */
+    private function compileSnapshot(string $dir): array {
+        clearstatcache(true);
+        $snapshot=array();
+        foreach(array('config','routes','container') as $name) {
+            $path=$dir.'/'.$name.'.cache.php';
+            $contents=is_file($path)?file_get_contents($path):null;
+            $snapshot[$name]=$contents===false?null:$contents;
+        }
+        return $snapshot;
     }
 
     /**
@@ -433,14 +464,18 @@ class ConsoleTest extends TestCase {
     /**
      * 测试入口子进程与 bin 启动器
      *
-     * - 子进程使用临时 runtime, 运行期产物不写入项目默认 runtime
+     * - 子进程使用受控环境文件与临时 runtime, 不依赖本地 `.env`
+     * - 运行期产物不写入项目默认 runtime
      *
      * @return void
      */
     public function testConsoleAndBinSubprocesses(): void {
         $root=dirname(__DIR__);
-        $runtime=$this->processRuntime();
-        $env=$this->processEnvironment($runtime);
+        $workspace=$this->processWorkspace();
+        $runtime=$workspace['runtime'];
+        $env=$this->processEnvironment($workspace['env']);
+        $project_compile=Runtime::path().'/cache/compile';
+        $project_snapshot=$this->compileSnapshot($project_compile);
 
         $list=$this->process(array(PHP_BINARY,$root.'/console','list'),$root,$env);
         $this->assertSame(0,$list['code'],$list['stderr']);
@@ -460,6 +495,8 @@ class ConsoleTest extends TestCase {
         $server=$this->process(array(PHP_BINARY,$root.'/bin/server','start','--dry-run'),$root.'/tests',$env);
         $this->assertSame(0,$server['code'],$server['stderr']);
         $this->assertStringContainsString('Dry run',$server['stdout']);
+
+        $this->assertSame($project_snapshot,$this->compileSnapshot($project_compile),'子进程不应写入项目默认 compile 缓存');
     }
 
     /**

@@ -5,7 +5,10 @@ namespace AdminService;
 use AdminService\Config\Env;
 
 use function dirname;
+use function getenv;
 use function is_file;
+use function is_string;
+use function trim;
 
 /**
  * 读取 `.env` 配置项
@@ -13,7 +16,8 @@ use function is_file;
  * - 定位: 供 `config/*.php` **在配置装配期**取值用(那些文件里 `use function AdminService\env;` 后即可裸调)
  * - 与 `Config::get()` 的分工: `Config::get()` 读的是**生效配置**(会被 `.env` 的路径键覆盖);
  *   `env()` 读的是 `.env` 文件**本身**, 因此可以在配置文件里用
- * - 只认 `.env` 文件, **不读进程环境变量**
+ * - 配置值只从环境文件读取, **不读进程环境变量**; 测试入口可用
+ *   `ADMINSERVICE_TEST_ENV_FILE` 指定替代环境文件
  *
  *  1. **键名大小写敏感**: 不含点的键(约定的全大写蛇形, 如 `DB_HOST`)是"值来源";含点的键是"路径键",
  *     由 `Config\Repository` 按路径覆盖同名配置项 —— 解析口径见 `Env`
@@ -34,7 +38,7 @@ function env(string $key,mixed $default=null): mixed {
 }
 
 /**
- * 取本次进程的 `.env` 快照(与 `env()` 用的是**同一份**, 不会二次解析)
+ * 取本次进程的环境文件快照(与 `env()` 用的是**同一份**, 不会二次解析)
  *
  * - 用途: `Config\Repository` 在**装载期**套"路径键覆盖"时要一次拿到整份 `.env`;
  *   `env()` 的缓存不可见, 因此提供本只读入口
@@ -45,9 +49,11 @@ function env(string $key,mixed $default=null): mixed {
 function env_snapshot(): Env {
     static $env=null;
     if($env===null) {
-        // 本文件位于 `AdminService/` 下(比 `common/` 浅一层), 故只上溯一层到项目根
-        $file=dirname(__DIR__).'/.env';
-        // `.env` 不存在是正常情况(仓库里不入库), 按空处理
+        $file=getenv('ADMINSERVICE_TEST_ENV_FILE');
+        if(!is_string($file)||trim($file)==='')
+            // 本文件位于 `AdminService/` 下(比 `common/` 浅一层), 故只上溯一层到项目根
+            $file=dirname(__DIR__).'/.env';
+        // 环境文件不存在是正常情况(仓库里不入库), 按空处理
         $env=is_file($file)?Env::fromFile($file):new Env();
     }
     return $env;

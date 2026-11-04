@@ -19,13 +19,21 @@ use Tests\Fixtures\command\FailCommand;
 use Tests\Fixtures\command\GreetCommand;
 
 use function array_slice;
-use function file_get_contents;
+use function getenv;
 use function implode;
-use function is_file;
 use function is_array;
+use function is_dir;
+use function is_file;
+use function mkdir;
 use function proc_close;
 use function proc_open;
+use function rmdir;
+use function scandir;
+use function str_replace;
 use function stream_get_contents;
+use function sys_get_temp_dir;
+use function uniqid;
+use function unlink;
 
 /**
  * 命令行基础设施与入口测试
@@ -57,6 +65,12 @@ class ConsoleTest extends TestCase {
     private string $config_cache_path='';
 
     /**
+     * 子进程测试使用的临时 runtime
+     * @var string|null
+     */
+    private ?string $runtime_dir=null;
+
+    /**
      * 保存测试环境
      *
      * @return void
@@ -81,6 +95,10 @@ class ConsoleTest extends TestCase {
             Config::setRepository($this->old_config);
         if($this->old_container!==null)
             App::setInstance($this->old_container);
+        if($this->runtime_dir!==null) {
+            $this->removeDirectory($this->runtime_dir);
+            $this->runtime_dir=null;
+        }
         parent::tearDown();
     }
 
@@ -331,20 +349,72 @@ class ConsoleTest extends TestCase {
     }
 
     /**
+     * 创建子进程测试使用的临时 runtime
+     *
+     * @return string 已规范化的临时 runtime 路径
+     */
+    private function processRuntime(): string {
+        $path=str_replace('\\','/',sys_get_temp_dir()).'/adminservice_console_'.uniqid('',true);
+        if(!mkdir($path,0700,true))
+            $this->fail('Unable to create temporary runtime directory.');
+        $this->runtime_dir=$path;
+        return $path;
+    }
+
+    /**
+     * 构造子进程环境, 注入测试专用 runtime
+     *
+     * @param string $runtime 临时 runtime 路径
+     * @return array<string,string>
+     */
+    private function processEnvironment(string $runtime): array {
+        $env=getenv();
+        if(!is_array($env))
+            $env=array();
+        $env['ADMINSERVICE_TEST_RUNTIME']=$runtime;
+        return $env;
+    }
+
+    /**
+     * 递归删除目录
+     *
+     * @param string $dir 目录
+     * @return void
+     */
+    private function removeDirectory(string $dir): void {
+        if(!is_dir($dir))
+            return;
+        $items=scandir($dir);
+        if($items===false)
+            return;
+        foreach($items as $item) {
+            if($item==='.'||$item==='..')
+                continue;
+            $path=$dir.'/'.$item;
+            if(is_dir($path))
+                $this->removeDirectory($path);
+            else
+                @unlink($path);
+        }
+        @rmdir($dir);
+    }
+
+    /**
      * 子进程运行命令
      *
      * @param array<int,string> $command 命令数组
      * @param string $cwd 工作目录
+     * @param array<string,string>|null $env 子进程环境(null = 继承)
      * @return array{code:int,stdout:string,stderr:string}
      */
-    private function process(array $command,string $cwd): array {
+    private function process(array $command,string $cwd,?array $env=null): array {
         $descriptors=array(
             0=>array('pipe','r'),
             1=>array('pipe','w'),
             2=>array('pipe','w')
         );
         $pipes=array();
-        $process=proc_open($command,$descriptors,$pipes,$cwd);
+        $process=proc_open($command,$descriptors,$pipes,$cwd,$env);
         if(!is_resource($process))
             $this->fail('Unable to start subprocess.');
         fclose($pipes[0]);
@@ -363,21 +433,31 @@ class ConsoleTest extends TestCase {
     /**
      * 测试入口子进程与 bin 启动器
      *
+     * - 子进程使用临时 runtime, 运行期产物不写入项目默认 runtime
+     *
      * @return void
      */
     public function testConsoleAndBinSubprocesses(): void {
         $root=dirname(__DIR__);
-        $list=$this->process(array(PHP_BINARY,$root.'/console','list'),$root);
+        $runtime=$this->processRuntime();
+        $env=$this->processEnvironment($runtime);
+
+        $list=$this->process(array(PHP_BINARY,$root.'/console','list'),$root,$env);
         $this->assertSame(0,$list['code'],$list['stderr']);
         $this->assertStringContainsString('AdminService Console',$list['stdout']);
 
-        $console=$this->process(array(PHP_BINARY,$root.'/console','cache','status','--target=config'),$root);
-        $bin=$this->process(array(PHP_BINARY,$root.'/bin/cache','status','--target=config'),$root);
+        $build=$this->process(array(PHP_BINARY,$root.'/bin/cache','build','--target=routes','--force'),$root,$env);
+        $this->assertSame(0,$build['code'],$build['stderr']);
+        $this->assertFileExists($runtime.'/cache/compile/routes.cache.php');
+
+        $console=$this->process(array(PHP_BINARY,$root.'/console','cache','status','--target=config'),$root,$env);
+        $bin=$this->process(array(PHP_BINARY,$root.'/bin/cache','status','--target=config'),$root,$env);
         $this->assertSame(0,$console['code'],$console['stderr']);
         $this->assertSame(0,$bin['code'],$bin['stderr']);
         $this->assertSame($console['stdout'],$bin['stdout']);
+        $this->assertStringContainsString('运行时路径(Runtime path): '.$runtime,$console['stdout']);
 
-        $server=$this->process(array(PHP_BINARY,$root.'/bin/server','start','--dry-run'),$root.'/tests');
+        $server=$this->process(array(PHP_BINARY,$root.'/bin/server','start','--dry-run'),$root.'/tests',$env);
         $this->assertSame(0,$server['code'],$server['stderr']);
         $this->assertStringContainsString('Dry run',$server['stdout']);
     }

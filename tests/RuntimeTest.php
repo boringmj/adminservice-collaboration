@@ -9,6 +9,8 @@ use AdminService\Config\Env;
 use AdminService\Runtime;
 
 use function dirname;
+use function getenv;
+use function putenv;
 use function str_replace;
 use function sys_get_temp_dir;
 use function uniqid;
@@ -19,6 +21,7 @@ use function uniqid;
  * - runtime 根必须在配置加载前可用
  * - 配置默认路径必须派生自同一个 runtime 根
  * - 允许测试/自定义入口通过 setPath() 覆盖, 结束后恢复
+ * - 测试入口环境变量优先于 `.env` 的 RUNTIME_PATH
  */
 class RuntimeTest extends TestCase {
 
@@ -65,6 +68,28 @@ class RuntimeTest extends TestCase {
     public function testRuntimePathUsesEnvValue(): void {
         $env=new Env("RUNTIME_PATH=/tmp/runtime/");
         $this->assertSame('/tmp/runtime',Runtime::path($env));
+    }
+
+    /**
+     * 测试: 测试入口环境变量优先于 `.env` 的 RUNTIME_PATH
+     *
+     * @return void
+     */
+    public function testTestRuntimeOverrideTakesPrecedence(): void {
+        $name='ADMINSERVICE_TEST_RUNTIME';
+        $old=getenv($name);
+        $path=sys_get_temp_dir().'/runtime_override_'.uniqid('',true);
+        putenv($name.'='.$path.'/');
+        try {
+            $env=new Env('RUNTIME_PATH=/tmp/from-env');
+            $this->assertSame(str_replace('\\','/',$path),Runtime::path($env));
+        } finally {
+            if($old===false)
+                putenv($name);
+            else
+                putenv($name.'='.$old);
+            Runtime::reset();
+        }
     }
 
     /**

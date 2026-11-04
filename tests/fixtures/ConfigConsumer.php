@@ -43,8 +43,8 @@ class ConfigConsumer {
      * 标量转换: 配置里是 int, 目标类型是 string
      * @var string
      */
-    #[Config('data.name_cycle')]
-    public string $cycle_as_string='';
+    #[Config('data.dir_mode')]
+    public string $dir_mode_as_string='';
 
     /**
      * Setter 注入(方法唯一的形参收到配置值)
@@ -56,17 +56,17 @@ class ConfigConsumer {
      * 构造形参注入
      * @var int
      */
-    public int $cycle;
+    public int $dir_mode;
 
     /**
      * 构造方法
      *
-     * @param int $cycle 周期(由配置注入)
+     * @param int $dir_mode 目录权限(由配置注入)
      */
     public function __construct(
-        #[Config('data.name_cycle',default:0)] int $cycle=0
+        #[Config('data.dir_mode',default:0)] int $dir_mode=0
     ) {
-        $this->cycle=$cycle;
+        $this->dir_mode=$dir_mode;
     }
 
     /**

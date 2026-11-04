@@ -10,11 +10,9 @@ use function is_file;
 
 // cache 配置
 return array(
-    // 既有项(兼容 File 自动缓存与基础路径)
+    // 基础路径
     'path'=>Runtime::path().'/cache', // 缓存根目录(可安全清理; 默认放在 runtime 下)
-    'ext_name'=>'.data.json', // File 自动生成缓存文件的后缀
     'dir_mode'=>0755, // 自动创建缓存目录权限(Windows下无效)
-    'name_cycle'=>3600, // File 自动生成缓存文件的周期(单位: 秒)
 
     // 通用 KV 缓存
     'default_pool'=>'default', // 默认缓存池名(只允许字母、数字、下划线、短横线)

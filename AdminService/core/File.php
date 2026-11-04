@@ -12,19 +12,15 @@ use function array_keys;
 use function dirname;
 use function file_get_contents;
 use function file_put_contents;
-use function floor;
 use function is_dir;
 use function is_file;
-use function is_string;
 use function json_decode;
 use function json_encode;
 use function json_last_error_msg;
 use function mkdir;
 use function preg_match;
 use function strlen;
-use function time;
 use function unlink;
-use function AdminService\common\uuid;
 
 
 final class File {
@@ -80,11 +76,11 @@ final class File {
      * 构造方法(如果有传入路径,则将会自动初始化)
      *
      * @access public
-     * @param string|null $file_name 文件名称(不含扩展名和多余的路径)
+     * @param string $file_name 文件名称(不含扩展名和多余的路径)
      * @throws \AdminService\Exception
      * @param ConfigInterface|null $config 配置契约实例(未注入时回落门面当前那份)
      */
-    public function __construct(?string $file_name=null,?ConfigInterface $config=null) {
+    public function __construct(string $file_name,?ConfigInterface $config=null) {
         $this->config=$config;
         $this->init($file_name);
     }
@@ -93,36 +89,15 @@ final class File {
      * 初始化方法
      *
      * @access public
-     * @param string|null $file_name 文件名称(不含扩展名和多余的路径)
+     * @param string $file_name 文件名称(不含扩展名和多余的路径)
      * @return void
      * @throws \AdminService\Exception
      */
-    public function init(?string $file_name=null): void {
+    public function init(string $file_name): void {
         $config=$this->config();
-        $is_cache=$file_name===null;
         $base_path=$config->get("data.path");
         $ext_name=$config->get("data.ext_name");
         $dir_mode=$config->get("data.dir_mode");
-        if($is_cache) {
-            // 未指定文件名时是缓存: 默认走 cache.*, 缺少 cache 配置时回退旧 data.* 行为
-            $cache_path=$config->get("cache.path");
-            if(is_string($cache_path)&&$cache_path!=='')
-                $base_path=$cache_path;
-            $cache_ext=$config->get("cache.ext_name");
-            if(is_string($cache_ext)&&$cache_ext!=='')
-                $ext_name=$cache_ext;
-            $cache_mode=$config->get("cache.dir_mode");
-            if($cache_mode!==null)
-                $dir_mode=$cache_mode;
-            $file_name_cycle=$config->get("cache.name_cycle");
-            if($file_name_cycle===null)
-                $file_name_cycle=$config->get("data.name_cycle");
-            $file_name_cycle=(int)$file_name_cycle;
-            if($file_name_cycle>0)
-                $file_name='cache_'.floor(time()/$file_name_cycle);
-            else
-                $file_name='cache_'.uuid();
-        }
         if(!preg_match('/^[a-zA-Z0-9_-]+$/',$file_name))
             throw new Exception('File name is invalid',self::ERROR_INVALID_NAME);
         $this->file_path=$base_path.'/'.$file_name.$ext_name;

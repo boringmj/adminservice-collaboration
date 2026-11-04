@@ -46,7 +46,7 @@ class ConfigInjectionTest extends TestCase {
         $consumer=App::make(ConfigConsumer::class);
         $this->assertSame(Config::get('data.ext_name'),$consumer->ext_name);
         // 配置里是 int, 目标是 string: 按既有标量规则转换
-        $this->assertSame((string)Config::get('data.name_cycle'),$consumer->cycle_as_string);
+        $this->assertSame((string)Config::get('data.dir_mode'),$consumer->dir_mode_as_string);
     }
 
     /**
@@ -81,7 +81,7 @@ class ConfigInjectionTest extends TestCase {
     public function testConstructorParamInjection(): void {
         /** @var ConfigConsumer $consumer */
         $consumer=App::make(ConfigConsumer::class);
-        $this->assertSame((int)Config::get('data.name_cycle'),$consumer->cycle);
+        $this->assertSame((int)Config::get('data.dir_mode'),$consumer->dir_mode);
     }
 
     /**

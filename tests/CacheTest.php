@@ -35,7 +35,7 @@ use function var_export;
  * 通用缓存测试
  *
  * - 覆盖读写、TTL、版本指纹、原子计数、分池、损坏自愈
- * - 覆盖自动 GC、单次扫描上限与旧 File(null) 周期文件回收
+ * - 覆盖自动 GC 与单次扫描上限
  * - 覆盖编译缓存清理与容器注入
  */
 class CacheTest extends TestCase {
@@ -90,9 +90,7 @@ class CacheTest extends TestCase {
     private function makeConfig(array $overrides=array()): Repository {
         $cache=array_merge(array(
             'path'=>$this->dir.'/cache',
-            'ext_name'=>'.data.json',
             'dir_mode'=>0755,
-            'name_cycle'=>0,
             'default_pool'=>'default',
             'default_ttl'=>60,
             'gc_probability'=>0,
@@ -402,30 +400,20 @@ class CacheTest extends TestCase {
     }
 
     /**
-     * 测试: GC 清理过期条目与旧 File(null) 周期文件
+     * 测试: GC 清理过期条目
      *
      * @return void
      */
-    public function testGcRemovesExpiredAndLegacyFiles(): void {
-        $config=$this->makeConfig(array('name_cycle'=>3600));
-        $cache=new Cache($config);
+    public function testGcRemovesExpiredEntries(): void {
+        $cache=new Cache($this->config);
         $cache->set('expired','value');
         $cache->set('live','value');
         $expired_path=$this->expireEntry($cache,'expired');
         $live_path=$this->entryPath($cache,'live');
 
-        $current=(int)floor(time()/3600);
-        $root=$this->dir.'/cache';
-        $legacy_old=$root.'/cache_'.($current-2).'.data.json';
-        $legacy_current=$root.'/cache_'.$current.'.data.json';
-        file_put_contents($legacy_old,'{}');
-        file_put_contents($legacy_current,'{}');
-
-        $this->assertGreaterThanOrEqual(2,$cache->gc(0));
+        $this->assertGreaterThanOrEqual(1,$cache->gc(0));
         $this->assertFileDoesNotExist($expired_path);
         $this->assertFileExists($live_path);
-        $this->assertFileDoesNotExist($legacy_old);
-        $this->assertFileExists($legacy_current);
     }
 
     /**

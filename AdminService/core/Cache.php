@@ -14,7 +14,6 @@ use function base64_encode;
 use function dirname;
 use function file_put_contents;
 use function filemtime;
-use function floor;
 use function fclose;
 use function flock;
 use function fopen;
@@ -30,7 +29,6 @@ use function is_string;
 use function mkdir;
 use function opcache_invalidate;
 use function preg_match;
-use function preg_quote;
 use function random_int;
 use function rename;
 use function rmdir;
@@ -369,7 +367,7 @@ final class Cache implements CacheInterface {
     /**
      * 触发一次增量垃圾回收
      *
-     * - 只清理 KV 缓存与旧 `File(null)` 周期文件, 不动编译缓存
+     * - 只清理 KV 缓存, 不动编译缓存
      * - `$max_files` 限制单次检查文件数, 避免大目录阻塞请求
      *
      * @access public
@@ -401,8 +399,6 @@ final class Cache implements CacheInterface {
                 }
             }
         }
-        if($checked<$limit)
-            $removed+=$this->gcLegacy($limit,$checked);
         return $removed;
     }
 
@@ -442,7 +438,7 @@ final class Cache implements CacheInterface {
     /**
      * 清空整个缓存目录
      *
-     * - 包括所有 KV 池、编译缓存与旧 `File(null)` 周期文件
+     * - 包括所有 KV 池与编译缓存
      * - 只保留 `cache.path` 目录本身
      *
      * @access public
@@ -887,47 +883,6 @@ final class Cache implements CacheInterface {
         } finally {
             @fclose($handle);
         }
-    }
-
-    /**
-     * 清理旧 `File(null)` 周期文件
-     *
-     * - 保留当前周期与上一周期, 避免跨周期边界误删
-     *
-     * @access private
-     * @param int $limit 本次检查上限
-     * @param int $checked 已检查文件数(引用)
-     * @return int 清理数
-     */
-    private function gcLegacy(int $limit,int &$checked): int {
-        $cycle=(int)$this->config()->get('cache.name_cycle',0);
-        if($cycle<=0)
-            $cycle=(int)$this->config()->get('data.name_cycle',0);
-        if($cycle<=0)
-            return 0;
-        $ext=$this->config()->get('cache.ext_name','.data.json');
-        if(!is_string($ext)||$ext==='')
-            $ext=$this->config()->get('data.ext_name','.data.json');
-        $root=$this->cacheRoot();
-        $entries=@scandir($root);
-        if($entries===false)
-            return 0;
-        $current=(int)floor(time()/$cycle);
-        $pattern='/^cache_(\d+)'.preg_quote((string)$ext,'/').'$/';
-        $removed=0;
-        foreach($entries as $entry) {
-            if($checked>=$limit)
-                break;
-            if($entry==='.'||$entry==='..')
-                continue;
-            $path=$root.'/'.$entry;
-            if(is_link($path)||!is_file($path)||preg_match($pattern,$entry,$matches)!==1)
-                continue;
-            $checked++;
-            if((int)$matches[1]<$current-1&&$this->removeFile($path))
-                $removed++;
-        }
-        return $removed;
     }
 
     /**

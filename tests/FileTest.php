@@ -54,8 +54,7 @@ class FileTest extends TestCase {
             'data'=>array(
                 'path'=>$this->dir,
                 'ext_name'=>'.data.json',
-                'dir_mode'=>0755,
-                'name_cycle'=>0
+                'dir_mode'=>0755
             )
         ));
     }
@@ -198,8 +197,7 @@ class FileTest extends TestCase {
             'data'=>array(
                 'path'=>$blocked,
                 'ext_name'=>'.data.json',
-                'dir_mode'=>0755,
-                'name_cycle'=>0
+                'dir_mode'=>0755
             )
         ));
         $this->expectException(Exception::class);
@@ -218,8 +216,7 @@ class FileTest extends TestCase {
             'data'=>array(
                 'path'=>$this->dir,
                 'ext_name'=>'',
-                'dir_mode'=>0755,
-                'name_cycle'=>0
+                'dir_mode'=>0755
             )
         ));
         try {
@@ -247,76 +244,16 @@ class FileTest extends TestCase {
     }
 
     /**
-     * 测试: 未指定文件名时写入 cache.path
+     * 测试: 显式文件名只写入 data.path
      *
      * @return void
      */
-    public function testAutoFileUsesCachePath(): void {
-        $cache=$this->dir.'/cache';
-        $config=new Repository(array(
-            'data'=>array(
-                'path'=>$this->dir,
-                'ext_name'=>'.data.json',
-                'dir_mode'=>0755,
-                'name_cycle'=>3600
-            ),
-            'cache'=>array(
-                'path'=>$cache,
-                'ext_name'=>'.cache.json',
-                'dir_mode'=>0755,
-                'name_cycle'=>0
-            )
-        ));
-        $file=new File(null,$config);
-        $property=new ReflectionProperty(File::class,'file_path');
-        $property->setAccessible(true);
-        $path=(string)$property->getValue($file);
-
-        $this->assertStringStartsWith($cache.'/cache_',$path);
-        $this->assertStringEndsWith('.cache.json',$path);
-        $this->assertTrue(is_dir($cache),'构造时应创建缓存目录');
-    }
-
-    /**
-     * 测试: 指定文件名仍写入 data.path, 不受 cache.path 影响
-     *
-     * @return void
-     */
-    public function testExplicitFileKeepsDataPath(): void {
-        $cache=$this->dir.'/cache';
-        $config=new Repository(array(
-            'data'=>array(
-                'path'=>$this->dir,
-                'ext_name'=>'.data.json',
-                'dir_mode'=>0755,
-                'name_cycle'=>3600
-            ),
-            'cache'=>array(
-                'path'=>$cache,
-                'ext_name'=>'.cache.json',
-                'dir_mode'=>0755,
-                'name_cycle'=>0
-            )
-        ));
-        $file=new File('explicit',$config);
+    public function testExplicitFileUsesDataPath(): void {
+        $file=new File('explicit',$this->config);
         $property=new ReflectionProperty(File::class,'file_path');
         $property->setAccessible(true);
 
         $this->assertSame($this->dir.'/explicit.data.json',$property->getValue($file));
-    }
-
-    /**
-     * 测试: 缺少 cache 配置时回退旧的 data.path 行为
-     *
-     * @return void
-     */
-    public function testAutoFileFallsBackToDataPathWithoutCacheConfig(): void {
-        $file=new File(null,$this->config);
-        $property=new ReflectionProperty(File::class,'file_path');
-        $property->setAccessible(true);
-        $path=(string)$property->getValue($file);
-
-        $this->assertStringStartsWith($this->dir.'/cache_',$path);
     }
 
 }

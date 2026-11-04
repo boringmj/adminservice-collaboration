@@ -56,7 +56,7 @@ class ContainerCacheTest extends TestCase {
         mkdir($this->dir,0755,true);
         $this->config=new Repository(array(
             'app'=>array('debug'=>false),
-            'data'=>array('ext_name'=>'txt','name_cycle'=>3600),
+            'data'=>array('ext_name'=>'txt','dir_mode'=>0755),
             'log'=>array('path'=>'test-log'),
             'cache'=>array(
                 'path'=>$this->dir.'/cache',
@@ -301,7 +301,7 @@ class ContainerCacheTest extends TestCase {
         $container->instance(\base\ConfigInterface::class,$this->config);
         $consumer=$container->make(ConfigConsumer::class);
 
-        $this->assertSame(3600,$consumer->cycle);
+        $this->assertSame(0755,$consumer->dir_mode);
         $this->assertSame('txt',$consumer->ext_name);
         $this->assertFileExists($this->dir.'/cache/compile/container.cache.php');
     }

@@ -2,35 +2,35 @@
 
 namespace AdminService;
 
-use base\Cookie as BaseCookie;
 use base\ConfigInterface;
+use base\Cookie as BaseCookie;
 
 use function is_array;
 use function setcookie;
 use function time;
 
 /**
- * Cookie 类
+ * Cookie 下发服务
  *
- * - 契约 `base\Cookie` 的方法为 `abstract static`, 无实例可注入, 配置只能从容器或门面取
- *   容器可用时读容器里登记的一份, 否则回落门面(同一进程内两者指向同一实例, 见 `Config::setRepository()` 的同步)
+ * - 每个请求一个实例，配置通过构造注入
+ * - 由 Response 在发送阶段调用，不读取门面或全局容器
  */
 final class Cookie extends BaseCookie {
 
     /**
-     * 取配置(静态 API 的取值口)
-     *
-     * - 当前容器(请求进行中即请求级容器)里登记了配置实例就读它, 这样作用域内的配置能生效
-     * - 容器未就绪(引导期)或未登记时回落门面当前那份
-     *
-     * @access private
-     * @return ConfigInterface
+     * 配置
+     * @var ConfigInterface
      */
-    private static function config(): ConfigInterface {
-        $container=App::hasInstance()?App::getInstance():null;
-        if($container!==null&&$container->hasInstance(ConfigInterface::class))
-            return $container->get(ConfigInterface::class);
-        return Config::repository()??new Repository(array());
+    private ConfigInterface $config;
+
+    /**
+     * 构造方法
+     *
+     * @access public
+     * @param ConfigInterface $config 配置
+     */
+    public function __construct(ConfigInterface $config) {
+        $this->config=$config;
     }
 
     /**
@@ -40,10 +40,10 @@ final class Cookie extends BaseCookie {
      * @param array<string,mixed> $data 数据
      * @return void
      */
-    public static function setByArray(array $data): void {
+    public function setByArray(array $data): void {
         foreach($data as $key=>$value)
             if(is_array($value))
-                self::set(
+                $this->set(
                     $key,
                     $value['value']??'',
                     $value['expire']??null,
@@ -53,7 +53,7 @@ final class Cookie extends BaseCookie {
                     $value['httponly']??null
                 );
             else
-                self::set($key,$value);
+                $this->set($key,$value);
     }
 
     /**
@@ -65,23 +65,23 @@ final class Cookie extends BaseCookie {
      * @param int|null $expire 过期时间
      * @param string|null $path 路径
      * @param string|null $domain 域名
-     * @param bool $secure 是否仅https
-     * @param bool $httponly 是否仅http
+     * @param bool|null $secure 是否仅https
+     * @param bool|null $httponly 是否仅http
      * @return void
      */
-    public static function set(
+    public function set(
         string $name,mixed $value,
         ?int $expire=null,?string $path=null,?string $domain=null,
         ?bool $secure=null,?bool $httponly=null
     ): void {
         setcookie(
-            self::config()->get('cookie.prefix','').$name,
+            $this->config->get('cookie.prefix','').$name,
             $value,
-            time()+($expire??self::config()->get('cookie.expire',3600)),
-            $path??self::config()->get('cookie.path',''),
-            $domain??self::config()->get('cookie.domain',''),
-            $secure??self::config()->get('cookie.secure',false),
-            $httponly??self::config()->get('cookie.httponly',false)
+            time()+($expire??$this->config->get('cookie.expire',3600)),
+            $path??$this->config->get('cookie.path',''),
+            $domain??$this->config->get('cookie.domain',''),
+            $secure??$this->config->get('cookie.secure',false),
+            $httponly??$this->config->get('cookie.httponly',false)
         );
     }
 

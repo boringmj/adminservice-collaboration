@@ -60,6 +60,8 @@ final class Error extends BaseError {
      * @return ConfigInterface|null
      */
     private static function config(): ?ConfigInterface {
+        if(self::$request_context!==null)
+            return self::$request_context->config();
         $container=self::$container;
         if($container!==null&&$container->hasInstance(ConfigInterface::class))
             return $container->get(ConfigInterface::class);
@@ -97,6 +99,12 @@ final class Error extends BaseError {
      * @var ContainerContract|null
      */
     private static ?ContainerContract $request_container=null;
+
+    /**
+     * 当前请求上下文
+     * @var RequestContext|null
+     */
+    private static ?RequestContext $request_context=null;
 
     /**
      * 标记框架是否初始化完成(用于决定是否记录日志)
@@ -137,6 +145,27 @@ final class Error extends BaseError {
     }
 
     /**
+     * 注入当前请求上下文
+     *
+     * @access public
+     * @param RequestContext|null $context 请求上下文
+     * @return void
+     */
+    public static function setRequestContext(?RequestContext $context): void {
+        self::$request_context=$context;
+    }
+
+    /**
+     * 获取当前请求上下文
+     *
+     * @access public
+     * @return RequestContext|null
+     */
+    public static function requestContext(): ?RequestContext {
+        return self::$request_context;
+    }
+
+    /**
      * 错误出口使用的容器
      *
      * - 优先当前请求级容器; 尚未处理过请求时回退应用级容器
@@ -145,6 +174,8 @@ final class Error extends BaseError {
      * @return ContainerContract|null
      */
     private static function responseContainer(): ?ContainerContract {
+        if(self::$request_context!==null)
+            return self::$request_context->container();
         return self::$request_container??self::$container;
     }
 

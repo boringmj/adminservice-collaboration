@@ -45,9 +45,11 @@ final class Main {
         // 注册错误处理(响应出口: 正常退出时按请求准备好响应再发送)
         // 关停阶段门面已收回应用级容器, 故这里直接向 Application 取请求级容器(框架内部不走门面)
         Error::register(function(): void {
-            $container=$this->application===null?App::getInstance():$this->application->requestContainer();
-            $response=$container->get(Response::class);
-            $response->prepare($container->get(Request::class));
+            $context=$this->application?->requestContext();
+            $container=$context?->container()??($this->application===null?App::getInstance():$this->application->requestContainer());
+            $response=$context?->response()??$container->get(Response::class);
+            $request=$context?->request()??$container->get(Request::class);
+            $response->prepare($request);
             try {
                 $response->send();
             } finally {

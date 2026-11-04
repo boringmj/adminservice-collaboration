@@ -4,8 +4,8 @@ namespace AdminService;
 
 use AdminService\Config\Repository;
 use base\ConfigInterface;
-
-use base\Cookie;
+use base\Container as ContainerContract;
+use base\Cookie as CookieContract;
 use base\Request;
 use base\Response as BaseResponse;
 use AdminService\ResponseProcessor\Http;
@@ -39,6 +39,18 @@ final class Response extends BaseResponse {
     private ?ConfigInterface $config=null;
 
     /**
+     * Cookie 下发服务
+     * @var CookieContract|null
+     */
+    private ?CookieContract $cookie=null;
+
+    /**
+     * 请求级容器
+     * @var ContainerContract|null
+     */
+    private ?ContainerContract $container=null;
+
+    /**
      * 取配置契约实例
      *
      * - 容器构建本对象时由构造参数注入(即 `Application::init()` 登记进容器的那一份)
@@ -50,6 +62,16 @@ final class Response extends BaseResponse {
      */
     private function config(): ConfigInterface {
         return $this->config??Config::repository()??new Repository(array());
+    }
+
+    /**
+     * 获取 Cookie 下发服务
+     *
+     * @access private
+     * @return CookieContract
+     */
+    private function cookieWriter(): CookieContract {
+        return $this->cookie??=new Cookie($this->config());
     }
 
     /**
@@ -75,9 +97,17 @@ final class Response extends BaseResponse {
      *
      * @access public
      * @param ConfigInterface|null $config 配置契约实例(未注入时回落门面当前那份)
+     * @param CookieContract|null $cookie Cookie 下发服务
+     * @param ContainerContract|null $container 请求级容器
      */
-    public function __construct(?ConfigInterface $config=null) {
+    public function __construct(
+        ?ConfigInterface $config=null,
+        ?CookieContract $cookie=null,
+        ?ContainerContract $container=null
+    ) {
         $this->config=$config;
+        $this->cookie=$cookie;
+        $this->container=$container;
         $this->headers=(new Data())->setCaseSensitive(false)->resetKey();
         $this->cookies=new Data();
     }
@@ -328,8 +358,11 @@ final class Response extends BaseResponse {
         $types=$this->config()->get('response.default.type',[]);
         $config=is_array($types)?($types[$type]??[]):[];
         $class=$config['class']??Http::class;
-        // 处理器需要写入本实例: 显式传入, 不依赖容器中的同名单例
-        App::new($class,response:$this,config:$config)->handle();
+        // 处理器需要写入本实例: 显式传入; 请求级容器负责解析处理器依赖
+        if($this->container!==null)
+            $this->container->build($class,response:$this,config:$config)->handle();
+        else
+            App::new($class,response:$this,config:$config)->handle();
         // 合并该内容类型登记的Header
         $this->headers($config['headers']??[]);
         return $this->return_content??'';
@@ -353,8 +386,8 @@ final class Response extends BaseResponse {
                     $replace=false;
                 }
             }
-            $cookie=App::get(Cookie::class);
-            $cookie->setByArray($this->cookies->all());
+            if($this->cookies->all()!==array())
+                $this->cookieWriter()->setByArray($this->cookies->all());
         }
     }
 

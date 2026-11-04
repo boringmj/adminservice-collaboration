@@ -51,6 +51,9 @@ final class App {
      * @throws Exception
      */
     public static function getInstance(): ContainerContract {
+        $context=ContextStorage::current();
+        if($context!==null)
+            return $context->container();
         if(self::$instance===null)
             throw new Exception('容器尚未初始化, 请先调用 App::init() 或 Main::init()');
         return self::$instance;
@@ -63,7 +66,7 @@ final class App {
      * @return bool
      */
     public static function hasInstance(): bool {
-        return self::$instance!==null;
+        return ContextStorage::current()!==null||self::$instance!==null;
     }
 
     /**

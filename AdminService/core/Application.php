@@ -42,6 +42,12 @@ final class Application {
     private ?ContainerContract $request_container=null;
 
     /**
+     * 当前(最近一次)请求上下文
+     * @var RequestContext|null
+     */
+    private ?RequestContext $request_context=null;
+
+    /**
      * 配置仓储(装配与请求期都要读它; 构造期定下, 之后不再变)
      * @var Repository
      */
@@ -244,9 +250,13 @@ final class Application {
         App::setInstance($container);
         $completed=false;
         try {
-            $this->bootRequest($container);
+            $this->request_context=$this->bootRequest($container);
+            Error::setRequestContext($this->request_context);
             $completed=true;
-            return $callback($container);
+            return ContextStorage::run(
+                $this->request_context,
+                fn()=> $callback($container)
+            );
         } finally {
             // 正常 HTTP 请求把落盘推迟到响应发送后; 异常或普通调用在请求边界落盘
             if(!$defer_metadata||!$completed)
@@ -287,6 +297,16 @@ final class Application {
     }
 
     /**
+     * 获取当前(最近一次)请求上下文
+     *
+     * @access public
+     * @return RequestContext|null
+     */
+    public function requestContext(): ?RequestContext {
+        return $this->request_context;
+    }
+
+    /**
      * 请求级装配(请求 / 响应 / 会话)
      *
      * - 已登记则沿用(测试或自定义入口可预先 `App::instance()` 注入, 用于控制请求内容)
@@ -294,21 +314,40 @@ final class Application {
      *
      * @access private
      * @param ContainerContract $container 请求级容器
-     * @return void
+     * @return RequestContext
      * @throws Exception
      */
-    private function bootRequest(ContainerContract $container): void {
-        if(!$container->hasInstance(Request::class))
-            $container->instance(Request::class,$container->build(Request::class));
-        if(!$container->hasInstance(Response::class))
-            $container->instance(Response::class,$container->build(Response::class));
-        if(!$container->hasInstance(AbstractSession::class)) {
+    private function bootRequest(ContainerContract $container): RequestContext {
+        if($container->hasInstance(Request::class))
+            $request=$container->get(Request::class);
+        else {
+            $request=$container->build(Request::class);
+            $container->instance(Request::class,$request);
+        }
+        if($container->hasInstance(Response::class))
+            $response=$container->get(Response::class);
+        else {
+            $response=$container->build(Response::class,container:$container);
+            $container->instance(Response::class,$response);
+        }
+        if($container->hasInstance(AbstractSession::class))
+            $session=$container->get(AbstractSession::class);
+        else {
             /** @var AbstractSession $session */
             $session=$container->build($this->config()->get('session.class',ArraySession::class));
             if($this->config()->get('session.start',false))
                 $session->init();
             $container->instance(AbstractSession::class,$session);
         }
+        $context=new RequestContext(
+            $container,
+            $request,
+            $response,
+            $session,
+            $this->config()
+        );
+        $container->instance(RequestContext::class,$context);
+        return $context;
     }
 
 }

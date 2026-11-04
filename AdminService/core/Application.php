@@ -262,7 +262,7 @@ final class Application {
         $is_nested=$previous_context!==null;
         // 顶层请求开始时回收上一轮请求容器与未结束的事务会话; 嵌套 handle 不能清掉外层状态
         if(!$is_nested) {
-            BaseDb::releaseSessions();
+            BaseDb::releaseCurrentSessions();
             if($this->request_container!==null)
                 $this->request_container->reset();
         }
@@ -291,7 +291,15 @@ final class Application {
             $completed=true;
             return ContextStorage::run(
                 $context,
-                fn()=> $callback($container)
+                function() use ($callback,$container): mixed {
+                    try {
+                        return $callback($container);
+                    } finally {
+                        // 请求回调结束后立即释放当前执行流的事务会话;
+                        // 响应发送阶段不应再持有数据库事务
+                        BaseDb::releaseCurrentSessions();
+                    }
+                }
             );
         } finally {
             // 正常 HTTP 请求把落盘推迟到响应发送后; 异常或普通调用在请求边界落盘
@@ -400,7 +408,7 @@ final class Application {
                     $router->resetCurrent();
             }
         }
-        BaseDb::releaseSessions();
+        BaseDb::releaseCurrentSessions();
         $this->request_context=null;
         $this->last_request_context=null;
         $this->request_container=null;

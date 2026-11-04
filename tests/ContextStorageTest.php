@@ -8,6 +8,7 @@ use AdminService\App;
 use AdminService\ArraySession;
 use AdminService\Config\Repository;
 use AdminService\ContextStorage;
+use AdminService\CoroutineContextStorage;
 use AdminService\FiberContextStorage;
 use AdminService\HttpRequest;
 use AdminService\RequestContext;
@@ -89,6 +90,20 @@ class ContextStorageTest extends TestCase {
                 $this->assertSame($b,$storage->current());
             });
             $this->assertSame($a,$storage->current());
+        });
+        $this->assertNull($storage->current());
+    }
+
+    /**
+     * 测试: 无协程扩展时协程存储回落到顺序/Fiber 存储
+     *
+     * @return void
+     */
+    public function testCoroutineStorageFallsBackWithoutExtension(): void {
+        $storage=new CoroutineContextStorage();
+        $context=$this->context(new Container());
+        $storage->run($context,function() use ($storage,$context): void {
+            $this->assertSame($context,$storage->current());
         });
         $this->assertNull($storage->current());
     }

@@ -10,6 +10,7 @@ use base\Database\Connection\PdoConnectionSession;
 use base\Database\Db;
 use base\Database\Query\Query;
 use base\Database\Sql\Dialect\MysqlDialect;
+use Fiber;
 use Tests\Fixtures\FakePdo;
 
 /**
@@ -244,6 +245,45 @@ class DbTest extends TestCase {
         $db->releaseSession();
         $this->assertNull($db->getTransactionContext());
         $this->assertSame(array('begin','rollback'),$pdo->transactionCalls);
+    }
+
+    /**
+     * 测试: 两个 Fiber 的事务会话互不共享
+     *
+     * @return void
+     */
+    public function testFiberTransactionSessionsAreIsolated(): void {
+        $pdo=new FakePdo();
+        $db=$this->createDb($pdo);
+        $context_a=null;
+        $context_b=null;
+
+        $fiber_a=new Fiber(function() use ($db,&$context_a): void {
+            $db->beginTransaction();
+            $context_a=$db->getTransactionContext();
+            Fiber::suspend();
+            $db->rollBack();
+        });
+        $fiber_b=new Fiber(function() use ($db,&$context_b): void {
+            $db->beginTransaction();
+            $context_b=$db->getTransactionContext();
+            Fiber::suspend();
+            $db->rollBack();
+        });
+
+        $this->assertNull($db->getTransactionContext(),'主执行流不应有事务');
+        $fiber_a->start();
+        $fiber_b->start();
+        $this->assertNotNull($context_a);
+        $this->assertNotNull($context_b);
+        $this->assertNotSame($context_a,$context_b);
+        $this->assertTrue($context_a->isActive());
+        $this->assertTrue($context_b->isActive());
+        $this->assertNull($db->getTransactionContext(),'主执行流仍不应有事务');
+
+        $fiber_a->resume();
+        $fiber_b->resume();
+        $this->assertNull($db->getTransactionContext());
     }
 
     /**

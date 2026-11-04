@@ -82,6 +82,20 @@ final class RouterFactory {
     }
 
     /**
+     * 清除缓存的路由表
+     *
+     * - 配置替换、测试复位或常驻 worker 需要强制重建时调用
+     * - 下一次 `get()` 会按当前配置重新装配
+     *
+     * @access public
+     * @return void
+     */
+    public function reset(): void {
+        $this->router=null;
+        $this->config=null;
+    }
+
+    /**
      * 实时装配路由表
      *
      * - 不读取或写入路由编译缓存, 供容器预热时收集处理器类

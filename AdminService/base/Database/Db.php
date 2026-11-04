@@ -23,6 +23,7 @@ use base\Database\Transaction\TransactionContextInterface;
 use base\Database\Type\QueryType;
 
 use function array_merge;
+use function class_exists;
 use function get_class;
 use function get_debug_type;
 use function implode;
@@ -32,6 +33,8 @@ use function is_string;
 use function preg_match;
 use function serialize;
 use function spl_object_hash;
+use function spl_object_id;
+use function str_starts_with;
 
 /**
  * 数据库入口(门面)
@@ -60,10 +63,15 @@ final class Db {
     private array $middlewares;
 
     /**
-     * 绑定的事务会话(事务作用域/手动事务期间持有)
-     * @var ConnectionSessionInterface|null
+     * 按执行流绑定的事务会话
+     *
+     * - 键 = Db 实例标识 + 当前执行流标识
+     * - 顺序执行用 `main`; Fiber / Swoole 协程各自独立
+     * - 避免共享 Db 单例在交错执行时复用到别的事务会话
+     *
+     * @var array<string,ConnectionSessionInterface>
      */
-    private ?ConnectionSessionInterface $session=null;
+    private static array $sessions=array();
 
     /**
      * 按「连接名 + 配置指纹」缓存的数据库入口(纯配置调用共享单例)
@@ -131,10 +139,98 @@ final class Db {
      * @return void
      */
     public function releaseSession(): void {
-        if($this->session===null)
+        $prefix=spl_object_hash($this).'|';
+        foreach(self::$sessions as $key=>$session) {
+            if(!str_starts_with($key,$prefix))
+                continue;
+            $session->release();
+            unset(self::$sessions[$key]);
+        }
+    }
+
+    /**
+     * 释放当前执行流绑定的事务会话
+     *
+     * - 请求结束时在上下文仍然存在的情况下调用
+     * - 只影响当前 Fiber / 协程 / 顺序执行流
+     *
+     * @access public
+     * @return void
+     */
+    public function releaseCurrentSession(): void {
+        $key=$this->sessionKey();
+        if(!isset(self::$sessions[$key]))
             return;
-        $this->session->release();
-        $this->session=null;
+        self::$sessions[$key]->release();
+        unset(self::$sessions[$key]);
+    }
+
+    /**
+     * 释放所有数据库入口上的当前执行流事务会话
+     *
+     * @access public
+     * @return void
+     */
+    public static function releaseCurrentSessions(): void {
+        foreach(self::$instances as $instance)
+            $instance->releaseCurrentSession();
+    }
+
+    /**
+     * 获取当前执行流绑定的事务会话
+     *
+     * @access private
+     * @return ConnectionSessionInterface|null
+     */
+    private function currentSession(): ?ConnectionSessionInterface {
+        return self::$sessions[$this->sessionKey()]??null;
+    }
+
+    /**
+     * 设置当前执行流绑定的事务会话
+     *
+     * @access private
+     * @param ConnectionSessionInterface|null $session 会话
+     * @return void
+     */
+    private function setCurrentSession(?ConnectionSessionInterface $session): void {
+        $key=$this->sessionKey();
+        if($session===null)
+            unset(self::$sessions[$key]);
+        else
+            self::$sessions[$key]=$session;
+    }
+
+    /**
+     * 当前 Db 实例 + 执行流的会话键
+     *
+     * @access private
+     * @return string
+     */
+    private function sessionKey(): string {
+        return spl_object_hash($this).'|'.self::contextKey();
+    }
+
+    /**
+     * 当前执行流标识
+     *
+     * - Fiber: 按对象身份区分
+     * - Swoole / OpenSwoole 协程: 按协程 ID 区分
+     * - 其余: 顺序主流程
+     *
+     * @access private
+     * @return string
+     */
+    private static function contextKey(): string {
+        if(class_exists(\Fiber::class,false)&&($fiber=\Fiber::getCurrent())!==null)
+            return 'fiber:'.spl_object_id($fiber);
+        if(class_exists(\Swoole\Coroutine::class,false)
+            &&\Swoole\Coroutine::getCid()>0)
+            return 'swoole:'.\Swoole\Coroutine::getCid();
+        if(class_exists(\OpenSwoole\Coroutine::class,false)
+            &&\OpenSwoole\Coroutine::getCid()>0)
+            return 'openswoole:'.\OpenSwoole\Coroutine::getCid();
+        return 'main';
     }
 
     /**
@@ -289,7 +385,7 @@ final class Db {
         $context=new QueryContext($query);
         $coordinator=new QueryCoordinator($context,$this->manager,$this->compiler,$this->middlewares);
         // 事务中传入绑定会话(复用不借还池), 否则走连接池, 单一流水线
-        return $coordinator->query(new QueryStatementBuilder(),$this->session);
+        return $coordinator->query(new QueryStatementBuilder(),$this->currentSession());
     }
 
     /**
@@ -311,7 +407,7 @@ final class Db {
         $context=new QueryContext(Query::select(),$queryType);
         $coordinator=new QueryCoordinator($context,$this->manager,$this->compiler,$this->middlewares);
         // 事务中传入绑定会话(复用不借还池), 否则走连接池, 单一流水线
-        return $coordinator->raw($statement,$this->session,$modifiesSession);
+        return $coordinator->raw($statement,$this->currentSession(),$modifiesSession);
     }
 
     /**
@@ -362,12 +458,15 @@ final class Db {
      * @throws Throwable
      */
     public function transaction(callable $callback): mixed {
-        $previous=$this->session;
-        if($previous===null)
-            $this->session=$this->manager->getExclusiveConnection();
+        $previous=$this->currentSession();
+        $session=$previous;
+        if($session===null) {
+            $session=$this->manager->getExclusiveConnection();
+            $this->setCurrentSession($session);
+        }
         try {
-            $tx=$this->session->getTransactionExecutor();
-            $context=$this->session->getTransactionContext();
+            $tx=$session->getTransactionExecutor();
+            $context=$session->getTransactionContext();
             $tx->begin();
             try {
                 $result=$callback($this);
@@ -390,9 +489,9 @@ final class Db {
                 throw $e;
             }
         } finally {
-            if($previous===null&&$this->session!==null) {
-                $this->session->release();
-                $this->session=null;
+            if($previous===null&&$this->currentSession()!==null) {
+                $this->currentSession()->release();
+                $this->setCurrentSession(null);
             }
         }
     }
@@ -404,9 +503,9 @@ final class Db {
      * @return static
      */
     public function beginTransaction(): static {
-        if($this->session===null)
-            $this->session=$this->manager->getExclusiveConnection();
-        $this->session->getTransactionExecutor()->begin();
+        if($this->currentSession()===null)
+            $this->setCurrentSession($this->manager->getExclusiveConnection());
+        $this->currentSession()->getTransactionExecutor()->begin();
         return $this;
     }
 
@@ -417,10 +516,11 @@ final class Db {
      * @return void
      */
     public function commit(): void {
-        if($this->session!==null) {
-            $this->session->getTransactionExecutor()->commit();
-            $this->session->release();
-            $this->session=null;
+        $session=$this->currentSession();
+        if($session!==null) {
+            $session->getTransactionExecutor()->commit();
+            $session->release();
+            $this->setCurrentSession(null);
         }
     }
 
@@ -431,10 +531,11 @@ final class Db {
      * @return void
      */
     public function rollBack(): void {
-        if($this->session!==null) {
-            $this->session->getTransactionExecutor()->rollback();
-            $this->session->release();
-            $this->session=null;
+        $session=$this->currentSession();
+        if($session!==null) {
+            $session->getTransactionExecutor()->rollback();
+            $session->release();
+            $this->setCurrentSession(null);
         }
     }
 
@@ -445,7 +546,7 @@ final class Db {
      * @return TransactionContextInterface|null
      */
     public function getTransactionContext(): ?TransactionContextInterface {
-        return $this->session?->getTransactionContext();
+        return $this->currentSession()?->getTransactionContext();
     }
 
 }

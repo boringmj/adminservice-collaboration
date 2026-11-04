@@ -5,7 +5,7 @@ namespace AdminService;
 /**
  * 当前请求上下文存储入口
  *
- * - 默认使用 FiberContextStorage；非 Fiber 执行流自动回落顺序栈
+ * - 默认使用 CoroutineContextStorage；无协程扩展时回落 Fiber/顺序栈
  * - 门面与错误出口通过 current() 获取当前请求，不依赖 App 指针
  */
 final class ContextStorage {
@@ -23,7 +23,7 @@ final class ContextStorage {
      * @return ContextStorageInterface
      */
     public static function storage(): ContextStorageInterface {
-        return self::$storage??=new FiberContextStorage();
+        return self::$storage??=new CoroutineContextStorage();
     }
 
     /**

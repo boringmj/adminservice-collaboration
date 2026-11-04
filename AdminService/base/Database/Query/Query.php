@@ -308,7 +308,7 @@ class Query implements QueryInterface {
         $operator=strtoupper($operator);
         // null 值与比较操作符: 自动转为 IS NULL / IS NOT NULL, 避免生成永不匹配的 "= ?"
         if($value===null) {
-            if($operator===Operator::EQ||$operator===Operator::EQ_ALT)
+            if($operator===Operator::EQ)
                 return $this->whereNull($field);
             if($operator===Operator::NEQ||$operator===Operator::NEQ_ANSI)
                 return $this->whereNull($field,true);

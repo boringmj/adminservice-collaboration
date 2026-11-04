@@ -231,23 +231,13 @@ class AutowireModesTest extends TestCase {
     }
 
     /**
-     * 无 name 的 AutowireMethod 仍按旧生命周期写法执行
+     * 无 name 的 AutowireMethod 必须报错, 生命周期钩子改用 AutowireLifecycle
      * @return void
      */
-    public function testLegacyLifecycleWithoutNameStillWorks(): void {
-        $consumer=App::make(LegacyLifecycleConsumer::class);
-        $this->assertTrue($consumer->called);
-        $this->assertInstanceOf(LegacyLifecycleDependency::class,$consumer->dependency);
-    }
-
-    /**
-     * 旧生命周期写法不允许 Proxy / Deferred
-     * @return void
-     */
-    public function testLegacyLifecycleRejectsProxyMode(): void {
+    public function testAutowireMethodWithoutNameIsRejected(): void {
         $this->expectException(AutowireException::class);
-        $this->expectExceptionMessage('legacy lifecycle');
-        App::make(LegacyProxyLifecycleConsumer::class);
+        $this->expectExceptionMessage('without a name');
+        App::make(LegacyLifecycleConsumer::class);
     }
 
     /**
@@ -339,16 +329,6 @@ class AutowireModesTest extends TestCase {
         $this->expectException(AutowireException::class);
         $this->expectExceptionMessage('not compatible');
         App::make(ProxyWrongMethodConsumer::class);
-    }
-
-    /**
-     * 旧生命周期写法同样禁止 Deferred
-     * @return void
-     */
-    public function testLegacyLifecycleRejectsDeferredMode(): void {
-        $this->expectException(AutowireException::class);
-        $this->expectExceptionMessage('legacy lifecycle');
-        App::make(LegacyDeferredLifecycleConsumer::class);
     }
 
     /**
@@ -616,7 +596,7 @@ final class LegacyLifecycleDependency {
 }
 
 /**
- * 旧无 name 生命周期写法
+ * 无 name 的 AutowireMethod 错误写法
  */
 final class LegacyLifecycleConsumer {
 
@@ -627,31 +607,13 @@ final class LegacyLifecycleConsumer {
     public ?LegacyLifecycleDependency $dependency=null;
 
     /**
-     * 是否调用
-     * @var bool
-     */
-    public bool $called=false;
-
-    /**
-     * 旧生命周期方法
+     * 无 name 的方法注入(应拒绝)
      * @param LegacyLifecycleDependency $dependency 依赖
      * @return void
      */
     #[AutowireMethod]
     public function boot(LegacyLifecycleDependency $dependency): void {
         $this->dependency=$dependency;
-        $this->called=true;
-    }
-
-}
-
-/**
- * 旧生命周期写法错误使用 Proxy
- */
-final class LegacyProxyLifecycleConsumer {
-
-    #[AutowireMethod(mode:AutowireMode::Proxy)]
-    public function boot(): void {
     }
 
 }
@@ -776,17 +738,6 @@ final class ProxyWrongMethodConsumer {
 
     #[AutowireMethod(ProxyIdentityTarget::class,mode:AutowireMode::Proxy)]
     public function setTarget(ProxyIdentityTarget $target): void {
-    }
-
-}
-
-/**
- * 旧生命周期写法错误使用 Deferred
- */
-final class LegacyDeferredLifecycleConsumer {
-
-    #[AutowireMethod(mode:AutowireMode::Deferred)]
-    public function boot(): void {
     }
 
 }

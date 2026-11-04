@@ -790,8 +790,7 @@ final class Autowire implements AutowireInterface {
      *
      * - `#[AutowireLifecycle]`: 全部参数按类型注入, 与构造函数注入一致
      * - `#[AutowireMethod(类名)]`: 单参数方法, 仅注入显式依赖, 支持 Proxy / Deferred
-     * - 无 `name` 的 `#[AutowireMethod]` 是旧生命周期写法, 保留一个版本兼容;
-     *   该写法禁止 Proxy / Deferred, 新代码请使用 `#[AutowireLifecycle]`
+     * - `#[AutowireMethod]` 必须显式给出依赖类名; 生命周期钩子请使用 `#[AutowireLifecycle]`
      *
      * @access protected
      * @param array<ReflectionMethod> $methods 需要注入方法的反射实例数组
@@ -833,42 +832,35 @@ final class Autowire implements AutowireInterface {
                     $autowire_attr=$attributes[0]->newInstance();
                     $mode=$autowire_attr->getMode();
                     $params=$method->getParameters();
-                    // 显式指定 name: 仅支持单参数方法(与 Setter 注入一致, 支持 Proxy / Deferred)
-                    if($autowire_attr->getName()!==null) {
-                        if(count($params)!==1)
-                            throw new AutowireException(
-                                'Method "'.$method->getName().'" of class "'.$ref->getName().
-                                '" with explicit name must have exactly one parameter.',
-                            );
-                        // 形参上的 #[Config] 在"显式单依赖方法注入"路径不会被应用(静默失效), 直接报错
-                        if($this->arguments?->configAttribute($params[0])!==null)
-                            throw new AutowireException(
-                                'Parameter "'.$params[0]->getName().'" of method "'.$method->getName().
-                                '" of class "'.$ref->getName().
-                                '" is annotated with #[Config], which is not applied here: '.
-                                '#[AutowireMethod] injects an explicit service; use #[AutowireLifecycle] for config-driven lifecycle parameters.',
-                            );
-                        if($mode===AutowireMode::Deferred) {
-                            $this->deferMethod($method,$instance,$ref,$params[0],$autowire_attr->getName());
-                            continue;
-                        }
-                        $args=array($this->getReflectionPropertyValue(
-                            $params[0],
-                            $ref,
-                            $autowire_attr->getName(),
-                            $mode,
-                            $flags
-                        ));
-                    } else {
-                        // 旧写法: 未指定 name 时按生命周期方法处理; 新代码请使用 #[AutowireLifecycle]
-                        if($mode!==AutowireMode::Normal)
-                            throw new AutowireException(
-                                'Method "'.$method->getName().'" of class "'.$ref->getName().
-                                '" uses #[AutowireMethod] without a name as a legacy lifecycle hook; '.
-                                'Proxy / Deferred are not supported here. Use #[AutowireLifecycle] for lifecycle hooks.',
-                            );
-                        $args=$this->arguments->merge($params,array(),true);
+                    if($autowire_attr->getName()===null)
+                        throw new AutowireException(
+                            'Method "'.$method->getName().'" of class "'.$ref->getName().
+                            '" uses #[AutowireMethod] without a name; use #[AutowireLifecycle] for lifecycle hooks.',
+                        );
+                    if(count($params)!==1)
+                        throw new AutowireException(
+                            'Method "'.$method->getName().'" of class "'.$ref->getName().
+                            '" with explicit name must have exactly one parameter.',
+                        );
+                    // 形参上的 #[Config] 在"显式单依赖方法注入"路径不会被应用(静默失效), 直接报错
+                    if($this->arguments?->configAttribute($params[0])!==null)
+                        throw new AutowireException(
+                            'Parameter "'.$params[0]->getName().'" of method "'.$method->getName().
+                            '" of class "'.$ref->getName().
+                            '" is annotated with #[Config], which is not applied here: '.
+                            '#[AutowireMethod] injects an explicit service; use #[AutowireLifecycle] for config-driven lifecycle parameters.',
+                        );
+                    if($mode===AutowireMode::Deferred) {
+                        $this->deferMethod($method,$instance,$ref,$params[0],$autowire_attr->getName());
+                        continue;
                     }
+                    $args=array($this->getReflectionPropertyValue(
+                        $params[0],
+                        $ref,
+                        $autowire_attr->getName(),
+                        $mode,
+                        $flags
+                    ));
                 }
                 // 调用方法
                 $method->setAccessible(true);

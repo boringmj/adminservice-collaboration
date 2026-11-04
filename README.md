@@ -62,7 +62,7 @@
 | 运行时目录 | [运行时目录](https://github.com/boringmj/adminservice-collaboration/wiki/运行时目录) |
 | 缓存 | [缓存](https://github.com/boringmj/adminservice-collaboration/wiki/缓存) |
 | 命令行 | [命令行](https://github.com/boringmj/adminservice-collaboration/wiki/命令行) |
-| 数据库 | [数据库示例](https://github.com/boringmj/adminservice-collaboration/wiki/Demo-Sql) |
+| 数据库 | [数据库](https://github.com/boringmj/adminservice-collaboration/wiki/数据库) |
 | ORM | [ORM 使用指南](https://github.com/boringmj/adminservice-collaboration/wiki/Orm) |
 | 版本迁移 | [新旧版本调整](https://github.com/boringmj/adminservice-collaboration/wiki/新旧版本调整) |
 

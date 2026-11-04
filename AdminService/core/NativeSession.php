@@ -10,6 +10,7 @@ use function session_destroy;
 use function session_id;
 use function session_start;
 use function session_status;
+use function session_write_close;
 
 /**
  * 原生会话驱动
@@ -127,6 +128,20 @@ class NativeSession extends AbstractSession {
             session_destroy();
         $_SESSION=[];
         $this->session_id=null;
+    }
+
+    /**
+     * 结束当前请求的会话写入
+     *
+     * - 释放 PHP 原生会话写锁, 避免常驻 worker 跨请求阻塞
+     * - 不销毁会话数据
+     *
+     * @access public
+     * @return void
+     */
+    public function close(): void {
+        if(session_status()===PHP_SESSION_ACTIVE)
+            session_write_close();
     }
 
     /**

@@ -231,6 +231,22 @@ class DbTest extends TestCase {
     }
 
     /**
+     * 测试释放事务会话会回滚未完成的手动事务
+     *
+     * @return void
+     */
+    public function testReleaseSessionRollsBackManualTransaction(): void {
+        $pdo=new FakePdo();
+        $db=$this->createDb($pdo);
+        $db->beginTransaction();
+        $this->assertTrue($db->getTransactionContext()?->isActive());
+
+        $db->releaseSession();
+        $this->assertNull($db->getTransactionContext());
+        $this->assertSame(array('begin','rollback'),$pdo->transactionCalls);
+    }
+
+    /**
      * 测试 raw 执行事务控制语句时连接被标记脏并丢弃
      * @return void
      */

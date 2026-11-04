@@ -3,9 +3,11 @@
 namespace AdminService;
 
 use AdminService\Config\Repository;
+use AdminService\Router\Router;
 use AdminService\Router\RouterFactory;
 use base\AbstractSession;
 use base\Container as ContainerContract;
+use base\Database\Db as BaseDb;
 use base\Request;
 use base\Response;
 
@@ -258,9 +260,12 @@ final class Application {
         $previous_last=$this->last_request_context;
         $previous_instance=App::hasInstance()?App::getInstance():null;
         $is_nested=$previous_context!==null;
-        // 顶层请求开始时回收上一轮请求容器; 嵌套 handle 不能清掉外层正在使用的容器
-        if(!$is_nested&&$this->request_container!==null)
-            $this->request_container->reset();
+        // 顶层请求开始时回收上一轮请求容器与未结束的事务会话; 嵌套 handle 不能清掉外层状态
+        if(!$is_nested) {
+            BaseDb::releaseSessions();
+            if($this->request_container!==null)
+                $this->request_container->reset();
+        }
         // 请求级 scope: 实例表独立; 绑定/别名/单例为 fork 快照; 反射缓存共享
         $container=$this->container->fork();
         $this->request_container=$container;
@@ -385,6 +390,17 @@ final class Application {
      * @return void
      */
     public function endRequest(): void {
+        $context=$this->request_context??$this->last_request_context;
+        if($context!==null) {
+            $context->session()->close();
+            $container=$context->container();
+            if($container->hasInstance(Router::class)) {
+                $router=$container->get(Router::class);
+                if($router instanceof Router)
+                    $router->resetCurrent();
+            }
+        }
+        BaseDb::releaseSessions();
         $this->request_context=null;
         $this->last_request_context=null;
         $this->request_container=null;

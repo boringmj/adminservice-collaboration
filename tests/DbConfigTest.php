@@ -235,6 +235,23 @@ class DbConfigTest extends TestCase {
     }
 
     /**
+     * 测试清空实例缓存后重新创建数据库入口
+     *
+     * @return void
+     */
+    public function testClearInstancesRebuildsCachedEntry(): void {
+        set_config(array(
+            'database'=>array(
+                'connections'=>array('default'=>array('type'=>'mysql','dbname'=>'main')),
+            ),
+        ));
+        $a=Db::fromConfig('default');
+        Db::clearInstances();
+        $b=Db::fromConfig('default');
+        $this->assertNotSame($a,$b);
+    }
+
+    /**
      * 测试配置变化后自动失效重建
      * @return void
      */

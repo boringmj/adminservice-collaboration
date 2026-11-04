@@ -162,6 +162,19 @@ abstract class Model {
     }
 
     /**
+     * 清空模型注入的数据库入口缓存
+     *
+     * - 测试复位、配置替换或常驻 worker 重启时调用
+     * - 清除后模型回落到 `Db::fromConfig(static::$connection)`
+     *
+     * @access public
+     * @return void
+     */
+    public static function resetDbCache(): void {
+        self::$dbCache=array();
+    }
+
+    /**
      * 获取数据库入口(未注入时经注册表按连接名解析, 同名连接共享单例)
      *
      * - setDb 注入优先(测试/自定义连接); 未注入则 Db::fromConfig(static::$connection)

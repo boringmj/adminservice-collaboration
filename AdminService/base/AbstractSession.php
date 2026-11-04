@@ -85,4 +85,15 @@ abstract class AbstractSession {
      */
     abstract public function destroy(): void;
 
+    /**
+     * 结束当前请求的会话写入
+     *
+     * - 默认无操作; 原生会话实现应在请求结束时关闭会话写锁
+     *
+     * @access public
+     * @return void
+     */
+    public function close(): void {
+    }
+
 }

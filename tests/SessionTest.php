@@ -88,6 +88,17 @@ class SessionTest extends TestCase {
     }
 
     /**
+     * 测试: 未开启原生会话时 close() 安全无副作用
+     *
+     * @return void
+     */
+    public function testCloseWithoutActiveNativeSessionIsSafe(): void {
+        $session=new NativeSession();
+        $session->close();
+        $this->assertNotSame(PHP_SESSION_ACTIVE,session_status());
+    }
+
+    /**
      * 测试内存驱动不会写入超全局
      *
      * - 这是"假会话"缺陷的防线: 数据只在实例内, 不落盘也不污染 `$_SESSION`

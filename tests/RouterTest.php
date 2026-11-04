@@ -1353,6 +1353,11 @@ class RouterTest extends TestCase {
         // 未命中时必须复位, 否则调用方会读到上一次命中的路由
         $router->find('GET','/missing');
         $this->assertNull($router->current());
+        // 请求结束可显式清理最近命中结果
+        $router->find('GET','/c');
+        $this->assertNotNull($router->current());
+        $router->resetCurrent();
+        $this->assertNull($router->current());
     }
 
     /**

@@ -90,6 +90,51 @@ final class Db {
      */
     public static function setConfig(?DatabaseConfigInterface $config): void {
         self::$config=$config;
+        self::clearInstances();
+    }
+
+    /**
+     * 清空按配置缓存的数据库入口
+     *
+     * - 配置替换、测试复位或常驻 worker 重启时调用
+     * - 清理前释放实例上绑定的活动事务会话, 避免旧连接/事务跨配置泄漏
+     *
+     * @access public
+     * @return void
+     */
+    public static function clearInstances(): void {
+        foreach(self::$instances as $instance)
+            $instance->releaseSession();
+        self::$instances=array();
+    }
+
+    /**
+     * 释放所有已缓存数据库入口上的事务会话
+     *
+     * - 供请求边界清理: 未手动 commit/rollBack 的会话在此回滚并归还连接
+     * - 不清理实例缓存本身
+     *
+     * @access public
+     * @return void
+     */
+    public static function releaseSessions(): void {
+        foreach(self::$instances as $instance)
+            $instance->releaseSession();
+    }
+
+    /**
+     * 释放当前实例绑定的事务会话
+     *
+     * - 有活动事务时由会话/连接池负责回滚与归还
+     *
+     * @access public
+     * @return void
+     */
+    public function releaseSession(): void {
+        if($this->session===null)
+            return;
+        $this->session->release();
+        $this->session=null;
     }
 
     /**

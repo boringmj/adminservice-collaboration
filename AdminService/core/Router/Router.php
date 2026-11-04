@@ -813,6 +813,19 @@ final class Router implements RoutingInterface {
     }
 
     /**
+     * 清除最近命中的路由
+     *
+     * - 请求结束或常驻 worker 回收请求态时调用
+     * - 路由表本身仍可复用; 只清请求相关的匹配结果
+     *
+     * @access public
+     * @return void
+     */
+    public function resetCurrent(): void {
+        $this->current=null;
+    }
+
+    /**
      * 校验路由名唯一
      *
      * - 装配完成后调用, 让重名尽早暴露

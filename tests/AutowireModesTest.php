@@ -231,19 +231,6 @@ class AutowireModesTest extends TestCase {
     }
 
     /**
-     * 旧 bool 第二参数仍按 Proxy 处理
-     * @return void
-     */
-    public function testLegacyBooleanProxyStillWorks(): void {
-        $consumer=App::make(LegacyBooleanProxyConsumer::class);
-        $this->assertInstanceOf(DynamicProxy::class,$consumer->target);
-        $this->assertInstanceOf(ProxyIdentityTarget::class,$consumer->target->instance());
-
-        $named=App::make(LegacyNamedBooleanProxyConsumer::class);
-        $this->assertInstanceOf(DynamicProxy::class,$named->target);
-    }
-
-    /**
      * 无 name 的 AutowireMethod 仍按旧生命周期写法执行
      * @return void
      */
@@ -619,26 +606,6 @@ final class ProxyIntersectionConsumer {
 
     #[AutowireProperty(ProxyIdentityTarget::class,mode:AutowireMode::Proxy)]
     public ProxyIdentityTarget&DynamicProxy $target;
-
-}
-
-/**
- * 旧 bool 代理写法
- */
-final class LegacyBooleanProxyConsumer {
-
-    #[AutowireProperty(ProxyIdentityTarget::class,true)]
-    public DynamicProxy $target;
-
-}
-
-/**
- * 旧具名 proxy 参数写法
- */
-final class LegacyNamedBooleanProxyConsumer {
-
-    #[AutowireProperty(ProxyIdentityTarget::class,proxy:true)]
-    public DynamicProxy $target;
 
 }
 

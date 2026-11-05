@@ -9,8 +9,12 @@ use Tests\Fixtures\UserInfo;
 use Tests\Fixtures\UserName;
 use Tests\Fixtures\UserStatus;
 use Tests\Fixtures\AbstractStatus;
+use Tests\Fixtures\ConcreteService;
 use AdminService\App;
+use AdminService\Autowire;
 use AdminService\DynamicProxy;
+use AdminService\ReflectionCache;
+use base\Attribute\AutowireProperty;
 
 class AutowirePropertyTest extends TestCase {
 
@@ -41,4 +45,35 @@ class AutowirePropertyTest extends TestCase {
         $this->assertEquals(1,$id_object->id);
     }
 
+    /**
+     * 测试无元数据分支注入父类私有属性
+     *
+     * @return void
+     */
+    public function testAutowireWithoutMetadataInjectsParentPrivateProperty(): void {
+        $child=new NoMetadataChild();
+        $flags=array();
+        (new Autowire(new ReflectionCache()))->autowire($child,$flags);
+        $this->assertInstanceOf(ConcreteService::class,$child->service());
+    }
+
+}
+
+class NoMetadataParent {
+
+    #[AutowireProperty(ConcreteService::class)]
+    private ConcreteService $service;
+
+    /**
+     * 返回父类私有注入属性
+     *
+     * @return ConcreteService
+     */
+    public function service(): ConcreteService {
+        return $this->service;
+    }
+
+}
+
+class NoMetadataChild extends NoMetadataParent {
 }

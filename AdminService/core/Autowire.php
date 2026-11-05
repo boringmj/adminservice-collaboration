@@ -317,8 +317,8 @@ final class Autowire implements AutowireInterface {
             $this->autowireMethod($methods,$instance,$ref,$flags);
             return;
         }
-        // 获取类的所有属性
-        $properties=$ref->getProperties();
+        // 获取类及父类声明的属性
+        $properties=$this->collectProperties($ref);
         // 自动注入属性
         $this->autowireProperty($properties,$instance,$ref,$flags);
         // 获取类的所有方法
@@ -327,6 +327,25 @@ final class Autowire implements AutowireInterface {
         $this->autowireSetter($methods,$instance,$ref,$flags);
         // 自动注入生命周期方法(#[AutowireLifecycle])与单依赖方法(#[AutowireMethod])
         $this->autowireMethod($methods,$instance,$ref,$flags);
+    }
+
+    /**
+     * 收集类及父类声明的属性
+     *
+     * @access private
+     * @param ReflectionClass<object> $ref 类反射
+     * @return array<ReflectionProperty>
+     */
+    private function collectProperties(ReflectionClass $ref): array {
+        $properties=array();
+        for($class=$ref;$class!==false;$class=$class->getParentClass()) {
+            foreach($class->getProperties() as $property) {
+                if($property->getDeclaringClass()->getName()!==$class->getName())
+                    continue;
+                $properties[]=$property;
+            }
+        }
+        return $properties;
     }
 
     /**

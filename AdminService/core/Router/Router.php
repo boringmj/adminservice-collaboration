@@ -701,7 +701,7 @@ final class Router implements RoutingInterface {
         if($this->lazy)
             return $this->findLazy($method,$uri);
         $static_index=$this->staticIndex();
-        foreach(self::staticUriCandidates($uri) as $candidate) {
+        foreach(self::uriCandidates($uri) as $candidate) {
             $static=$static_index[$candidate]??null;
             if($static===null)
                 continue;
@@ -734,7 +734,12 @@ final class Router implements RoutingInterface {
                 continue;
             if(!$route->matchesMethod($method))
                 continue;
-            $params=$route->matchUri($uri);
+            $params=null;
+            foreach(self::uriCandidates($uri) as $candidate) {
+                $params=$route->matchUri($candidate);
+                if($params!==null)
+                    break;
+            }
             if($params===null)
                 continue;
             $methods=$route->getMethods();
@@ -763,7 +768,7 @@ final class Router implements RoutingInterface {
      */
     private function findLazy(string $method,string $uri): ?array {
         $static_index=$this->staticIndexData();
-        foreach(self::staticUriCandidates($uri) as $candidate) {
+        foreach(self::uriCandidates($uri) as $candidate) {
             $static=$static_index[$candidate]??null;
             if($static===null)
                 continue;
@@ -781,7 +786,12 @@ final class Router implements RoutingInterface {
                 continue;
             if(!RouteItem::matchesMethodData($data['methods']??array(),$method))
                 continue;
-            $params=RouteItem::matchUriData((string)($data['pattern']??''),$data['params']??array(),$uri);
+            $params=null;
+            foreach(self::uriCandidates($uri) as $candidate) {
+                $params=RouteItem::matchUriData((string)($data['pattern']??''),$data['params']??array(),$candidate);
+                if($params!==null)
+                    break;
+            }
             if($params===null)
                 continue;
             $methods=$data['methods']??array();
@@ -819,7 +829,7 @@ final class Router implements RoutingInterface {
             return $this->allowedMethodsLazy($uri);
         $methods=array();
         foreach($this->routes as $route) {
-            $candidates=$route->isStatic()?self::staticUriCandidates($uri):array($uri);
+            $candidates=self::uriCandidates($uri);
             $matched=false;
             foreach($candidates as $candidate) {
                 if($route->matchUri($candidate)!==null) {
@@ -852,7 +862,7 @@ final class Router implements RoutingInterface {
         $methods=array();
         foreach($this->route_data as $data) {
             $params=$data['params']??array();
-            $candidates=RouteItem::isStaticData($params)?self::staticUriCandidates($uri):array($uri);
+            $candidates=self::uriCandidates($uri);
             $matched=false;
             foreach($candidates as $candidate) {
                 if(RouteItem::matchUriData((string)($data['pattern']??''),$params,$candidate)!==null) {
@@ -1322,17 +1332,17 @@ final class Router implements RoutingInterface {
     }
 
     /**
-     * 静态路由可比较的路径候选
+     * 请求路径的原始与解码候选
      *
-     * - 浏览器会把空格、非 ASCII 字符和部分保留字符百分号编码, 路由字面量通常是解码后的写法
-     * - 只额外尝试解码后的路径; `%2F` 会改变路径分段, 保留原始 URI, 交给动态路由按原始分段处理
+     * - 静态字面量与动态参数先按原始路径匹配, 失败后再尝试解码路径
+     * - `%2F` 会改变路径分段, 保留原始 URI, 交给动态路由按原始分段处理
      * - 使用 `rawurldecode()` 而非 `urldecode()`, 保持路径中的 `+` 不是空格
      *
      * @access private
      * @param string $uri 已规范化的请求路径
      * @return array<string>
      */
-    private static function staticUriCandidates(string $uri): array {
+    private static function uriCandidates(string $uri): array {
         if(!str_contains($uri,'%'))
             return array($uri);
         $decoded=rawurldecode($uri);

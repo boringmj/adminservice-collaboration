@@ -109,6 +109,25 @@ class RouterLazyImportTest extends TestCase {
     }
 
     /**
+     * 测试: 懒加载下自定义约束的反向生成结果可被自身路由命中
+     *
+     * @return void
+     */
+    public function testLazyBuildUriRoundTripsCustomConstraint(): void {
+        $router=new Router();
+        $router->get('/tag/{name:[a-z+]+}',array(ConcreteService::class,'execute'))->name('tag');
+        $lazy=new Router();
+        $lazy->import($router->export(),true);
+
+        $url=$lazy->url('tag',array('name'=>'c++'));
+        $this->assertSame('/tag/c%2B%2B',$url);
+
+        $found=$lazy->find('GET',$url);
+        $this->assertNotNull($found);
+        $this->assertSame(array('name'=>'c++'),$found[1]);
+    }
+
+    /**
      * 测试: 405/命名路由/导出在懒加载下保持行为
      *
      * @return void

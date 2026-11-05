@@ -136,9 +136,13 @@ final class CacheBuildCommand extends AbstractCommand {
         $targets=$target===null?CacheCommandSupport::TARGETS:array($target);
         $failed=false;
         foreach($targets as $name) {
-            if($name==='config')
+            if($name==='config') {
                 $result=$this->buildConfig($force);
-            elseif($name==='routes')
+                // 配置重建后后续目标必须使用新的配置对象与缓存路径
+                $store=new CompileStore($this->config);
+                if($force)
+                    $store->force(true);
+            } elseif($name==='routes')
                 $result=$this->buildRoutes($store,$force);
             else
                 $result=$this->buildContainer($store,$force);
@@ -182,6 +186,8 @@ final class CacheBuildCommand extends AbstractCommand {
         $env=$this->config->envSnapshot()??$this->bootstrapper->env();
         $result=$this->bootstrapper->buildConfigCache($env,$force);
         $failure=!in_array($result['status'],array('built','ready','skipped'),true);
+        if(!$failure)
+            $this->config=$this->bootstrapper->loadConfig($env,$force);
         return array(
             'status'=>$result['status'],
             'reason'=>$result['reason'],

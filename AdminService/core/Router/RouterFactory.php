@@ -386,12 +386,15 @@ final class RouterFactory {
         foreach($routes as $route) {
             $handler=$route->getHandler();
             $class=null;
+            $method=null;
             if(is_array($handler)&&count($handler)===2) {
                 $target=$handler[0]??null;
                 if(is_string($target))
                     $class=$target;
                 elseif(is_object($target))
                     $class=$target::class;
+                if(is_string($handler[1]))
+                    $method=$handler[1];
             } elseif(is_object($handler)) {
                 $class=$handler::class;
             }
@@ -399,15 +402,35 @@ final class RouterFactory {
                 continue;
             try {
                 $reflection=new ReflectionClass($class);
-                $file=$reflection->getFileName();
-                if(is_string($file))
-                    $this->collectFileStats($file,$stats);
+                $this->collectHandlerSource($reflection,$method,$stats);
             } catch(\Throwable) {
                 $stats['missing_class:'.$class]=null;
             }
         }
         ksort($stats);
         return $stats;
+    }
+
+    /**
+     * 收集处理器类及其继承层次的文件指纹
+     *
+     * @access private
+     * @param ReflectionClass<object> $reflection 处理器类反射
+     * @param string|null $method 处理器方法名
+     * @param array<string,array{mtime:int,size?:int}|null> $stats 指纹表(引用)
+     * @return void
+     */
+    private function collectHandlerSource(ReflectionClass $reflection,?string $method,array &$stats): void {
+        for($current=$reflection;$current!==false;$current=$current->getParentClass()) {
+            $file=$current->getFileName();
+            if(is_string($file))
+                $this->collectFileStats($file,$stats);
+        }
+        if($method===null||!$reflection->hasMethod($method))
+            return;
+        $file=$reflection->getMethod($method)->getFileName();
+        if(is_string($file))
+            $this->collectFileStats($file,$stats);
     }
 
     /**

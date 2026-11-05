@@ -17,6 +17,8 @@ use AdminService\Router\RouterFactory;
 use AdminService\Runtime;
 use Tests\Fixtures\RouteCacheController;
 
+use function array_column;
+use function copy;
 use function file_get_contents;
 use function file_put_contents;
 use function filemtime;
@@ -25,10 +27,12 @@ use function is_file;
 use function mkdir;
 use function rmdir;
 use function scandir;
+use function str_ends_with;
 use function sys_get_temp_dir;
 use function time;
 use function touch;
 use function uniqid;
+use function var_export;
 
 /**
  * 编译缓存命令测试
@@ -121,6 +125,62 @@ class CacheCommandTest extends TestCase {
                 'shortcuts'=>array()
             )
         ));
+    }
+
+    /**
+     * 写入临时配置目录的路由配置
+     *
+     * @param string $config_dir 配置目录
+     * @param string $route_file 路由文件
+     * @return void
+     */
+    private function writeRouteConfig(string $config_dir,string $route_file): void {
+        file_put_contents(
+            $config_dir.'/route.php',
+            "<?php\n\nreturn ".var_export(array(
+                'files'=>array($route_file),
+                'attributes'=>array('scan'=>false,'classes'=>array())
+            ),true).";\n"
+        );
+    }
+
+    /**
+     * 测试: 全部强制构建使用重建后的配置
+     *
+     * @return void
+     */
+    public function testForceAllBuildUsesRebuiltConfig(): void {
+        $config_dir=$this->dir.'/config';
+        mkdir($config_dir,0755,true);
+        foreach(scandir(dirname(__DIR__).'/AdminService/config') as $file)
+            if(str_ends_with($file,'.php'))
+                copy(dirname(__DIR__).'/AdminService/config/'.$file,$config_dir.'/'.$file);
+
+        $old=$this->dir.'/old-routes.php';
+        $new=$this->dir.'/new-routes.php';
+        $body=function(string $name): string {
+            return "<?php\n\nreturn function(\\AdminService\\Router\\Router \$router): void {\n"
+                ."    \$router->get('/".$name."',array(\\Tests\\Fixtures\\RouteCacheController::class,'index'));\n};\n";
+        };
+        file_put_contents($old,$body('old'));
+        file_put_contents($new,$body('new'));
+        $this->writeRouteConfig($config_dir,$old);
+
+        $env=new Env();
+        $bootstrapper=new Bootstrapper($config_dir);
+        $config=$bootstrapper->loadConfig($env);
+        $command=new CacheBuildCommand($bootstrapper,$config);
+        $output=Output::buffer();
+        $this->assertSame(0,$command->execute(new Input(array('all','--force')),$output));
+
+        $this->writeRouteConfig($config_dir,$new);
+        $this->assertSame(0,$command->execute(new Input(array('all','--force')),$output));
+
+        $current=$bootstrapper->loadConfig($env);
+        $inspect=(new CompileStore($current))->inspect('routes');
+        $paths=array_column($inspect['payload']['routes']??array(),'path');
+        $this->assertContains('/new',$paths);
+        $this->assertNotContains('/old',$paths);
     }
 
     /**

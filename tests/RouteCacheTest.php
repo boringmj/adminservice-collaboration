@@ -295,6 +295,47 @@ class RouteCacheTest extends TestCase {
         $this->assertNotNull($second->find('GET','/temp'));
     }
 
+    /**
+     * 测试: 继承动作的父类文件变化后路由缓存失效
+     *
+     * @return void
+     */
+    public function testInheritedControllerSourceChangeRebuildsRouteCache(): void {
+        $suffix=uniqid();
+        $parent='RouteCacheParent'.$suffix;
+        $child='RouteCacheChild'.$suffix;
+        $parent_file=$this->dir.'/'.$parent.'.php';
+        $child_file=$this->dir.'/'.$child.'.php';
+        file_put_contents(
+            $parent_file,
+            "<?php\n\nnamespace Tests\\Fixtures;\n\nclass ".$parent." {\n"
+            ."    public function index(): string { return 'ok'; }\n}\n"
+        );
+        file_put_contents(
+            $child_file,
+            "<?php\n\nnamespace Tests\\Fixtures;\n\nclass ".$child.' extends '.$parent." {}\n"
+        );
+        clearstatcache(true,$parent_file);
+        clearstatcache(true,$child_file);
+        $body='require_once '.var_export($parent_file,true).";\n"
+            .'require_once '.var_export($child_file,true).";\n"
+            .'$router->get(\'/inherited\',array(\\Tests\\Fixtures\\'.$child.'::class,\'index\'));';
+        $this->writeRoutes($body);
+
+        $config=$this->config(true,'always');
+        (new RouterFactory())->get($config);
+        $this->assertSame('valid',(new RouterFactory())->inspect($config)['status']);
+
+        file_put_contents($parent_file,"\n// changed\n",FILE_APPEND);
+        clearstatcache(true,$parent_file);
+
+        $this->assertSame(
+            'stale',
+            (new RouterFactory())->inspect($config)['status'],
+            '父类动作文件变化应使路由缓存失效'
+        );
+    }
+
     public function testZeroStatReusesCacheWhenSourceRemoved(): void {
         $this->writeRoutes();
         $config=$this->config(false,'auto');

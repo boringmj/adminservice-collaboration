@@ -436,7 +436,8 @@ final class ArgumentResolver implements ArgumentResolverInterface {
     private function resolveTypesForParameter(array $types,ReflectionParameter $parameter): array {
         if(!in_array('self',$types,true)&&!in_array('parent',$types,true)&&!in_array('static',$types,true))
             return $types;
-        $declaring=$parameter->getDeclaringFunction()->getDeclaringClass();
+        $function=$parameter->getDeclaringFunction();
+        $declaring=$function instanceof ReflectionMethod?$function->getDeclaringClass():null;
         if($declaring===null)
             return $types;
         $resolved=array();

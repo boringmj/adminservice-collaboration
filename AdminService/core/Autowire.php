@@ -403,10 +403,12 @@ final class Autowire implements AutowireInterface {
      * @return ReflectionClass
      */
     private function declaringClassFor(ReflectionProperty|ReflectionParameter $parameter,ReflectionClass $fallback): ReflectionClass {
-        $declaring=$parameter instanceof ReflectionProperty
-            ?$parameter->getDeclaringClass()
-            :$parameter->getDeclaringFunction()->getDeclaringClass();
-        return $declaring??$fallback;
+        if($parameter instanceof ReflectionProperty)
+            return $parameter->getDeclaringClass()??$fallback;
+        $function=$parameter->getDeclaringFunction();
+        if($function instanceof ReflectionMethod)
+            return $function->getDeclaringClass();
+        return $fallback;
     }
 
     /**

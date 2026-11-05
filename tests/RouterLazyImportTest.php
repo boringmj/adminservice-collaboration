@@ -92,6 +92,23 @@ class RouterLazyImportTest extends TestCase {
     }
 
     /**
+     * 测试: 懒加载静态路由也接受百分号编码
+     *
+     * @return void
+     */
+    public function testLazyStaticEncodedPath(): void {
+        $router=new Router();
+        $router->get('/hello world',array(ConcreteService::class,'execute'));
+        $lazy=new Router();
+        $lazy->import($router->export(),true);
+
+        $found=$lazy->find('GET','/hello%20world');
+        $this->assertNotNull($found);
+        $this->assertSame('/hello world',$found[0]->getPath());
+        $this->assertSame(array('GET','HEAD'),$lazy->allowedMethods('/hello%20world'));
+    }
+
+    /**
      * 测试: 405/命名路由/导出在懒加载下保持行为
      *
      * @return void

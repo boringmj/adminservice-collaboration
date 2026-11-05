@@ -452,4 +452,30 @@ class RouteCacheTest extends TestCase {
         $this->assertFileDoesNotExist($this->dir.'/cache/compile/routes.cache.php');
     }
 
+    /**
+     * 测试: 同一工厂内路由装配依赖变化时必须重建
+     *
+     * - `app.path` 影响属性路由扫描根
+     * - `middlewares.controller` 影响控制器中间件编译结果
+     *
+     * @return void
+     */
+    public function testConfigChangeRebuildsInProcessRouter(): void {
+        $this->writeRoutes();
+        $factory=new RouterFactory();
+        $first_config=$this->config(true,'off');
+        $first=$factory->get($first_config);
+        $first_route=$first->getRoutes()[0];
+        $this->assertCount(1,$first_route->getCompiledControllerMiddlewares(),'前置条件: 只有控制器属性中间件');
+
+        $second_config=$this->config(true,'off');
+        $second_config->put('app.path',$this->dir.'/app-b');
+        $second_config->put('middlewares.controller',array(RouteCacheMiddleware::class));
+        $second=$factory->get($second_config);
+        $second_route=$second->getRoutes()[0];
+
+        $this->assertNotSame($first,$second,'路由装配依赖变化后必须重建');
+        $this->assertCount(2,$second_route->getCompiledControllerMiddlewares(),'新配置的控制器中间件必须参与编译');
+    }
+
 }

@@ -97,6 +97,35 @@ class RouterTest extends TestCase {
     }
 
     /**
+     * 测试静态字面量路由接受浏览器百分号编码
+     *
+     * - 空格/非 ASCII 字符按标准编码后仍应命中
+     * - `%2F` 不参与静态路径解码, 避免改变路径分段
+     *
+     * @return void
+     */
+    public function testStaticPathAcceptsPercentEncodedLiteral(): void {
+        $router=new Router();
+        $router->get('/hello world',array('C','space'))->name('space');
+        $router->get('/你好',array('C','unicode'))->name('unicode');
+        $router->get('/a/b',array('C','slash'));
+
+        $this->assertSame('/hello%20world',$router->url('space'));
+        $this->assertSame('/%E4%BD%A0%E5%A5%BD',$router->url('unicode'));
+
+        $space=$router->find('GET','/hello%20world');
+        $this->assertNotNull($space);
+        $this->assertSame('/hello world',$space[0]->getPath());
+
+        $unicode=$router->find('GET','/%E4%BD%A0%E5%A5%BD');
+        $this->assertNotNull($unicode);
+        $this->assertSame('/你好',$unicode[0]->getPath());
+
+        $this->assertSame(array('GET','HEAD'),$router->allowedMethods('/hello%20world'));
+        $this->assertNull($router->find('GET','/a%2Fb'),'编码斜杠不能改变静态路径分段');
+    }
+
+    /**
      * 测试多段参数提取
      * @return void
      */

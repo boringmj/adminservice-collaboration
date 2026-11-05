@@ -37,6 +37,8 @@ use function method_exists;
 use function preg_match;
 use function preg_quote;
 use function preg_replace;
+use function preg_replace_callback;
+use function rawurlencode;
 use function rtrim;
 use function str_contains;
 use function strlen;
@@ -403,15 +405,15 @@ final class RouteItem {
                             'omitted'=>$name,
                             'name'=>$matches[$later]['name']
                         ));
-                $uri.=rtrim($literal,'/');
+                $uri.=rtrim($this->encodeStaticLiteral($literal),'/');
                 $offset=strlen($this->path);
                 break;
             }
-            $uri.=$literal.$this->encodePathValue($this->checkValue($name,$params[$name]));
+            $uri.=$this->encodeStaticLiteral($literal).$this->encodePathValue($this->checkValue($name,$params[$name]));
             $used[$name]=true;
             $offset=$match['offset']+$match['length'];
         }
-        $path=$uri.substr($this->path,$offset);
+        $path=$uri.$this->encodeStaticLiteral(substr($this->path,$offset));
         // 未出现在路径模板里的参数按查询串附加(Laravel 风格), 不再静默丢弃
         $extra=array_diff_key($params,$used);
         if($extra!==array())
@@ -514,6 +516,28 @@ final class RouteItem {
      */
     private function encodePathValue(string $value): string {
         return implode('/',array_map('rawurlencode',explode('/',$value)));
+    }
+
+    /**
+     * 编码静态路径字面量
+     *
+     * - 只处理控制字符、空格、非 ASCII、`?` 与 `#`; 保留已有的 `%XX` 写法
+     * - 动态参数值仍由 `encodePathValue()` 负责
+     *
+     * @access private
+     * @param string $literal 静态字面量
+     * @return string
+     */
+    private function encodeStaticLiteral(string $literal): string {
+        if($literal===''||preg_match('/[\x00-\x20\x7F-\xFF?#]/',$literal)!==1)
+            return $literal;
+        return (string)preg_replace_callback(
+            '/[\x00-\x20\x7F-\xFF?#]/',
+            static function(array $match): string {
+                return rawurlencode($match[0]);
+            },
+            $literal
+        );
     }
 
     /**

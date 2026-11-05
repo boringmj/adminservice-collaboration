@@ -122,7 +122,9 @@ final class RouterFactory {
         try {
             return md5(serialize(array(
                 $config->get('route',array()),
-                $config->get('cache.compile',array())
+                $config->get('cache.compile',array()),
+                $config->get('app.path'),
+                $config->get('middlewares.controller',array())
             )));
         } catch(\Throwable) {
             return 'object:'.spl_object_hash($config);

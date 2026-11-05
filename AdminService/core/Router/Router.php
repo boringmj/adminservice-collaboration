@@ -31,9 +31,12 @@ use function is_file;
 use function is_string;
 use function ltrim;
 use function range;
+use function rawurldecode;
 use function rtrim;
 use function sort;
+use function substr_count;
 use function spl_object_id;
+use function str_contains;
 use function str_replace;
 use function strtoupper;
 use function trim;
@@ -697,8 +700,11 @@ final class Router implements RoutingInterface {
         $method=strtoupper($method);
         if($this->lazy)
             return $this->findLazy($method,$uri);
-        $static=$this->staticIndex()[$uri]??null;
-        if($static!==null) {
+        $static_index=$this->staticIndex();
+        foreach(self::staticUriCandidates($uri) as $candidate) {
+            $static=$static_index[$candidate]??null;
+            if($static===null)
+                continue;
             $route=$static[$method]??($static['*']??null);
             if($route!==null) {
                 $this->setCurrent($route);
@@ -756,8 +762,11 @@ final class Router implements RoutingInterface {
      * @return array{0:RouteItem,1:array<string,string>}|null
      */
     private function findLazy(string $method,string $uri): ?array {
-        $static=$this->staticIndexData()[$uri]??null;
-        if($static!==null) {
+        $static_index=$this->staticIndexData();
+        foreach(self::staticUriCandidates($uri) as $candidate) {
+            $static=$static_index[$candidate]??null;
+            if($static===null)
+                continue;
             $index=$static[$method]??($static['*']??null);
             if($index!==null) {
                 $route=$this->instantiateRoute($index);
@@ -810,7 +819,15 @@ final class Router implements RoutingInterface {
             return $this->allowedMethodsLazy($uri);
         $methods=array();
         foreach($this->routes as $route) {
-            if($route->matchUri($uri)===null)
+            $candidates=$route->isStatic()?self::staticUriCandidates($uri):array($uri);
+            $matched=false;
+            foreach($candidates as $candidate) {
+                if($route->matchUri($candidate)!==null) {
+                    $matched=true;
+                    break;
+                }
+            }
+            if(!$matched)
                 continue;
             // 不限方法的路由可命中任何方法, 无须汇总
             if($route->allowedMethods()===array())
@@ -834,7 +851,16 @@ final class Router implements RoutingInterface {
     private function allowedMethodsLazy(string $uri): array {
         $methods=array();
         foreach($this->route_data as $data) {
-            if(RouteItem::matchUriData((string)($data['pattern']??''),$data['params']??array(),$uri)===null)
+            $params=$data['params']??array();
+            $candidates=RouteItem::isStaticData($params)?self::staticUriCandidates($uri):array($uri);
+            $matched=false;
+            foreach($candidates as $candidate) {
+                if(RouteItem::matchUriData((string)($data['pattern']??''),$params,$candidate)!==null) {
+                    $matched=true;
+                    break;
+                }
+            }
+            if(!$matched)
                 continue;
             $allowed=RouteItem::allowedMethodsData($data['methods']??array());
             if($allowed===array())
@@ -1293,6 +1319,26 @@ final class Router implements RoutingInterface {
      */
     private static function normalizeUri(string $uri): string {
         return '/'.trim(explode('?',$uri,2)[0],'/');
+    }
+
+    /**
+     * 静态路由可比较的路径候选
+     *
+     * - 浏览器会把空格、非 ASCII 字符和部分保留字符百分号编码, 路由字面量通常是解码后的写法
+     * - 只额外尝试解码后的路径; `%2F` 会改变路径分段, 保留原始 URI, 交给动态路由按原始分段处理
+     * - 使用 `rawurldecode()` 而非 `urldecode()`, 保持路径中的 `+` 不是空格
+     *
+     * @access private
+     * @param string $uri 已规范化的请求路径
+     * @return array<string>
+     */
+    private static function staticUriCandidates(string $uri): array {
+        if(!str_contains($uri,'%'))
+            return array($uri);
+        $decoded=rawurldecode($uri);
+        if($decoded===$uri||substr_count($decoded,'/')!==substr_count($uri,'/'))
+            return array($uri);
+        return array($uri,$decoded);
     }
 
 }

@@ -46,7 +46,7 @@ final class ContainerMetadata {
     /**
      * 缓存格式版本
      */
-    private const VERSION=2;
+    private const VERSION=3;
 
     /**
      * 反射缓存
@@ -95,7 +95,7 @@ final class ContainerMetadata {
      *
      * @var array<string,array{
      *     files:array<string,array{mtime:int,size:int}>,
-     *     properties:array<string>,
+     *     properties:array<array{name:string,declaring:string}>,
      *     setters:array<string>,
      *     methods:array<string>,
      *     params:array<string,array<array<string,mixed>>>
@@ -146,7 +146,7 @@ final class ContainerMetadata {
      *
      * @access public
      * @param class-string $class 类名
-     * @return array{properties:array<string>,setters:array<string>,methods:array<string>}
+     * @return array{properties:array<array{name:string,declaring:string}>,setters:array<string>,methods:array<string>}
      */
     public function getClass(string $class): array {
         $entry=$this->entry($class);
@@ -312,7 +312,7 @@ final class ContainerMetadata {
      * @param class-string $class 类名
      * @return array{
      *     files:array<string,array{mtime:int,size:int}>,
-     *     properties:array<string>,
+     *     properties:array<array{name:string,declaring:string}>,
      *     setters:array<string>,
      *     methods:array<string>,
      *     params:array<string,array<array<string,mixed>>>
@@ -378,13 +378,21 @@ final class ContainerMetadata {
      * @return bool
      */
     private function validEntry(mixed $entry): bool {
-        return is_array($entry)
-            &&isset($entry['files'],$entry['properties'],$entry['setters'],$entry['methods'],$entry['params'])
-            &&is_array($entry['files'])
-            &&is_array($entry['properties'])
-            &&is_array($entry['setters'])
-            &&is_array($entry['methods'])
-            &&is_array($entry['params']);
+        if(!is_array($entry)
+            ||!isset($entry['files'],$entry['properties'],$entry['setters'],$entry['methods'],$entry['params'])
+            ||!is_array($entry['files'])
+            ||!is_array($entry['properties'])
+            ||!is_array($entry['setters'])
+            ||!is_array($entry['methods'])
+            ||!is_array($entry['params']))
+            return false;
+        foreach($entry['properties'] as $property)
+            if(!is_array($property)
+                ||!isset($property['name'],$property['declaring'])
+                ||!is_string($property['name'])
+                ||!is_string($property['declaring']))
+                return false;
+        return true;
     }
 
     /**
@@ -395,7 +403,7 @@ final class ContainerMetadata {
      * @param array<string,array{mtime:int,size:int}> $files 类及父类/ trait 文件指纹
      * @return array{
      *     files:array<string,array{mtime:int,size:int}>,
-     *     properties:array<string>,
+     *     properties:array<array{name:string,declaring:string}>,
      *     setters:array<string>,
      *     methods:array<string>,
      *     params:array<string,array<array<string,mixed>>>
@@ -403,10 +411,19 @@ final class ContainerMetadata {
      */
     private function build(ReflectionClass $reflection,array $files): array {
         $properties=array();
-        foreach($reflection->getProperties() as $property)
-            if($this->hasAttribute($property,ConfigAttribute::class)
-                ||$this->hasAttribute($property,AutowireProperty::class))
-                $properties[]=$property->getName();
+        for($current=$reflection;$current!==false;$current=$current->getParentClass()) {
+            foreach($current->getProperties() as $property) {
+                // getProperties() 会带回继承成员, 这里只收集当前声明类自己的属性
+                if($property->getDeclaringClass()->getName()!==$current->getName())
+                    continue;
+                if($this->hasAttribute($property,ConfigAttribute::class)
+                    ||$this->hasAttribute($property,AutowireProperty::class))
+                    $properties[]=array(
+                        'name'=>$property->getName(),
+                        'declaring'=>$current->getName()
+                    );
+            }
+        }
 
         $setters=array();
         $methods=array();

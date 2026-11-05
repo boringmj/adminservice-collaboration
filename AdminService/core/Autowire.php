@@ -83,6 +83,12 @@ final class Autowire implements AutowireInterface {
     private ?Closure $instance_resolver=null;
 
     /**
+     * 类型列表解析回调(签名: array<string>, array<mixed> => object|null)
+     * @var (Closure(array<string>,array<mixed>):?object)|null
+     */
+    private ?Closure $type_resolver=null;
+
+    /**
      * 参数解析器(生命周期方法的形参按类型注入时复用同一套合并规则)
      * @var ArgumentResolverInterface|null
      */
@@ -151,6 +157,17 @@ final class Autowire implements AutowireInterface {
      */
     public function setInstanceResolver(callable $resolver): void {
         $this->instance_resolver=$resolver(...);
+    }
+
+    /**
+     * 设置类型列表解析回调
+     *
+     * @access public
+     * @param callable $resolver 回调(接收类型列表与构建栈, 返回可注入实例或 null)
+     * @return void
+     */
+    public function setTypeResolver(callable $resolver): void {
+        $this->type_resolver=$resolver(...);
     }
 
     /**
@@ -283,8 +300,12 @@ final class Autowire implements AutowireInterface {
             if($meta['properties']===array()&&$meta['setters']===array()&&$meta['methods']===array())
                 return;
             $properties=array();
-            foreach($meta['properties'] as $name)
-                $properties[]=$ref->getProperty($name);
+            foreach($meta['properties'] as $property_meta) {
+                $declaring=$property_meta['declaring'];
+                $declaring_ref=$this->reflections->getClass($declaring);
+                if($declaring_ref->hasProperty($property_meta['name']))
+                    $properties[]=$declaring_ref->getProperty($property_meta['name']);
+            }
             $setters=array();
             foreach($meta['setters'] as $name)
                 $setters[]=$ref->getMethod($name);
@@ -472,9 +493,24 @@ final class Autowire implements AutowireInterface {
                 'Parameter "'.$parameter->getName().'" of class "'.$ref->getName().
                 '" has no type declaration and no class name is specified.',
             );
-            // 如果没有指定类名,则根据类型注入
-            $class_name=$this->resolveClass($type_array[0]);
-            return $this->resolveInstance($class_name,false,$flags);
+            // 如果没有指定类名,则按可解析性选择类型分支
+            if($this->type_resolver!==null) {
+                $instance=($this->type_resolver)($type_array,$flags);
+                if($instance!==null)
+                    return $instance;
+            } else {
+                foreach($type_array as $type) {
+                    try {
+                        return $this->resolveInstance($this->resolveClass($type),false,$flags);
+                    } catch(\Throwable) {
+                        continue;
+                    }
+                }
+            }
+            throw new AutowireException(
+                'No injectable type found for parameter "'.$parameter->getName().'" of class "'.
+                $ref->getName().'".',
+            );
         } catch(Exception $e) {
             throw new AutowireException(
                 $e->getMessage(),

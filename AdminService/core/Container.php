@@ -203,6 +203,16 @@ final class Container implements \base\Container {
         $this->autowire->setInstanceResolver(function(string $class,bool $is_force=false,array &$flags=array()): object {
             return $this->makeInternal($class,$is_force,$flags);
         });
+        // 属性/Setter 与构造参数共用“已登记实例优先、再选可实例化分支”的规则
+        $this->autowire->setTypeResolver(function(array $types,array &$flags): ?object {
+            $bound=$this->getBoundInstance($types);
+            if($bound!==null)
+                return $bound;
+            $real_class=$this->classes->getFirstInstantiableClass($types);
+            if($real_class===null)
+                return null;
+            return $this->makeInternal($real_class,false,$flags);
+        });
         // 类查找器: 别名与绑定解析
         $this->classes->setClassResolver(function(string $class): string {
             return $this->resolve($class);
@@ -380,9 +390,11 @@ final class Container implements \base\Container {
         if(isset($this->container[$name]))
             return $this->container[$name];
         if($this->parent!==null
-            &&!isset($this->local_bindings[$name])
-            &&isset($this->parent->container[$name]))
-            return $this->parent->container[$name];
+            &&!isset($this->local_bindings[$name])) {
+            $instance=$this->parent->findInstance($name);
+            if($instance!==null)
+                return $instance;
+        }
         return null;
     }
 

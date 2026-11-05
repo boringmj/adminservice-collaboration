@@ -90,7 +90,7 @@ class ContainerCacheTest extends TestCase {
         $metadata=new ContainerMetadata(new ReflectionCache(),$this->config);
 
         $userInfo=$metadata->getClass(UserInfo::class);
-        $this->assertEqualsCanonicalizing(array('name','status','id'),$userInfo['properties']);
+        $this->assertEqualsCanonicalizing(array('name','status','id'),array_column($userInfo['properties'],'name'));
         $this->assertSame(array(),$userInfo['methods']);
 
         $profile=$metadata->getClass(UserProfile::class);
@@ -98,7 +98,7 @@ class ContainerCacheTest extends TestCase {
         $this->assertEqualsCanonicalizing(array('init','boot'),$profile['methods']);
 
         $consumer=$metadata->getClass(ConfigConsumer::class);
-        $this->assertContains('ext_name',$consumer['properties']);
+        $this->assertContains('ext_name',array_column($consumer['properties'],'name'));
         $this->assertContains('setLogPath',$consumer['setters']);
 
         $params=$metadata->methodParams(new \ReflectionMethod(ConfigConsumer::class,'methodParamInjected'));
@@ -229,12 +229,13 @@ class ContainerCacheTest extends TestCase {
 
         $cache_file=$this->dir.'/cache-auto/compile/container.cache.php';
         $cached=include $cache_file;
-        $cached['payload']['classes'][$class]['properties']=array('sentinel');
+        $sentinel=array(array('name'=>'sentinel','declaring'=>$class));
+        $cached['payload']['classes'][$class]['properties']=$sentinel;
         file_put_contents($cache_file,"<?php\n\nreturn ".var_export($cached,true).";\n");
         unlink($source);
 
         $second=new ContainerMetadata(new ReflectionCache(),$config);
-        $this->assertSame(array('sentinel'),$second->getClass($class)['properties']);
+        $this->assertSame($sentinel,$second->getClass($class)['properties']);
     }
 
     /**
@@ -269,12 +270,15 @@ class ContainerCacheTest extends TestCase {
 
         $cache_file=$this->dir.'/cache-validation/compile/container.cache.php';
         $cached=include $cache_file;
-        $cached['payload']['classes'][$class]['properties']=array('sentinel');
+        $cached['payload']['classes'][$class]['properties']=array(array('name'=>'sentinel','declaring'=>$class));
         file_put_contents($cache_file,"<?php\n\nreturn ".var_export($cached,true).";\n");
         file_put_contents($source,"\n",FILE_APPEND);
 
         $second=new ContainerMetadata(new ReflectionCache(),$config);
-        $this->assertSame(array('dependency'),$second->getClass($class)['properties']);
+        $this->assertSame(
+            array(array('name'=>'dependency','declaring'=>$class)),
+            $second->getClass($class)['properties']
+        );
     }
 
     /**

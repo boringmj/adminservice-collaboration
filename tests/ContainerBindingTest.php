@@ -15,6 +15,7 @@ use AdminService\Container;
 use AdminService\Exception;
 use AdminService\exception\AutowireException;
 use base\Attribute\AutowireProperty;
+use base\Attribute\AutowireSetter;
 use base\Container as ContainerContract;
 
 use function class_exists;
@@ -326,6 +327,57 @@ class ContainerBindingTest extends TestCase {
         $this->assertSame($registered,$handler->inner);
     }
 
+    /**
+     * 测试属性与 Setter 的联合类型选择可解析分支
+     *
+     * @return void
+     */
+    public function testPropertyAndSetterUnionUseResolvableBranch(): void {
+        $property=App::make(RegressionUnionPropertyConsumer::class);
+        $setter=App::make(RegressionUnionSetterConsumer::class);
+        $this->assertInstanceOf(RegressionUnionFallback::class,$property->service);
+        $this->assertInstanceOf(RegressionUnionFallback::class,$setter->service);
+    }
+
+    /**
+     * 测试属性与 Setter 接口注入优先使用已登记实现
+     *
+     * @return void
+     */
+    public function testPropertyAndSetterPreferRegisteredImplementation(): void {
+        $registered=new RegressionRegisteredHandler();
+        App::instance(RegressionRegisteredHandler::class,$registered);
+        $property=App::make(RegressionRegisteredPropertyConsumer::class);
+        $setter=App::make(RegressionRegisteredSetterConsumer::class);
+        $this->assertSame($registered,$property->service);
+        $this->assertSame($registered,$setter->service);
+    }
+
+    /**
+     * 测试子类构建时注入父类私有属性
+     *
+     * @return void
+     */
+    public function testChildBuildsParentPrivateProperty(): void {
+        $child=App::make(RegressionChildPrivate::class);
+        $this->assertInstanceOf(ConcreteService::class,$child->service());
+    }
+
+    /**
+     * 测试多层派生容器仍可读取祖先实例
+     *
+     * @return void
+     */
+    public function testNestedForkFindsAncestorInstance(): void {
+        $root=new Container();
+        $marker=new \stdClass();
+        $root->instance('marker',$marker);
+        $child=$root->fork();
+        $grandchild=$child->fork();
+        $this->assertTrue($grandchild->hasInstance('marker'));
+        $this->assertSame($marker,$grandchild->get('marker'));
+    }
+
 }
 
 /**
@@ -429,4 +481,74 @@ final class RegressionSelfReferencingHandler implements RegressionHandlerInterfa
  * 已登记的多实现候选
  */
 final class RegressionRegisteredHandler implements RegressionHandlerInterface {
+}
+
+/**
+ * 联合类型用例: 无实现接口
+ */
+interface RegressionUnionMissingInterface {
+}
+
+/**
+ * 联合类型用例: 可构造候选
+ */
+final class RegressionUnionFallback {
+}
+
+/**
+ * 属性联合类型消费者
+ */
+final class RegressionUnionPropertyConsumer {
+    #[AutowireProperty]
+    public RegressionUnionMissingInterface|RegressionUnionFallback $service;
+}
+
+/**
+ * Setter 联合类型消费者
+ */
+final class RegressionUnionSetterConsumer {
+    public RegressionUnionFallback|RegressionUnionMissingInterface $service;
+
+    #[AutowireSetter]
+    public function setService(RegressionUnionMissingInterface|RegressionUnionFallback $service): void {
+        $this->service=$service;
+    }
+}
+
+/**
+ * 属性接口注入消费者
+ */
+final class RegressionRegisteredPropertyConsumer {
+    #[AutowireProperty]
+    public RegressionHandlerInterface $service;
+}
+
+/**
+ * Setter 接口注入消费者
+ */
+final class RegressionRegisteredSetterConsumer {
+    public RegressionHandlerInterface $service;
+
+    #[AutowireSetter]
+    public function setService(RegressionHandlerInterface $service): void {
+        $this->service=$service;
+    }
+}
+
+/**
+ * 父类私有属性注入用例
+ */
+class RegressionParentPrivate {
+    #[AutowireProperty]
+    private ConcreteService $service;
+
+    public function service(): ConcreteService {
+        return $this->service;
+    }
+}
+
+/**
+ * 父类私有属性注入子类
+ */
+final class RegressionChildPrivate extends RegressionParentPrivate {
 }

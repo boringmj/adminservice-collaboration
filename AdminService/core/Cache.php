@@ -9,9 +9,12 @@ use Closure;
 
 use function array_diff;
 use function array_key_exists;
+use function array_merge;
 use function base64_decode;
 use function base64_encode;
+use function basename;
 use function dirname;
+use function file_get_contents;
 use function file_put_contents;
 use function filemtime;
 use function fclose;
@@ -26,6 +29,7 @@ use function is_link;
 use function is_object;
 use function is_resource;
 use function is_string;
+use function ltrim;
 use function mkdir;
 use function opcache_invalidate;
 use function preg_match;
@@ -36,6 +40,7 @@ use function rtrim;
 use function scandir;
 use function serialize;
 use function sha1;
+use function sort;
 use function str_ends_with;
 use function str_replace;
 use function str_starts_with;
@@ -378,26 +383,44 @@ final class Cache implements CacheInterface {
         $limit=$max_files??(int)$this->config()->get('cache.gc_max_files',200);
         if($limit<=0)
             $limit=PHP_INT_MAX;
+        $kv=$this->kvRoot();
+        if(!is_dir($kv)||is_link($kv))
+            return 0;
+        $files=$this->gcCandidates($kv);
+        sort($files);
+        $count=count($files);
+        if($count===0)
+            return 0;
+        $cursor=$this->readGcCursor();
+        if($cursor<0||$cursor>=$count)
+            $cursor=0;
         $checked=0;
         $removed=0;
-        $kv=$this->kvRoot();
-        if(is_dir($kv)&&!is_link($kv)) {
+        $processed=0;
+        for($i=0;$i<$count&&$checked<$limit;$i++) {
+            $path=$files[($cursor+$i)%$count];
+            $processed++;
+            if($this->isAuxiliaryFile(basename($path))) {
+                $this->gcAuxiliaryFile($path,$removed);
+                continue;
+            }
+            $checked++;
+            $before=is_file($path);
+            $this->readEntry($path,null,false);
+            if($before&&!is_file($path))
+                $removed++;
+        }
+        $this->writeGcCursor(($cursor+$processed)%$count);
+        if($checked<$limit) {
             $pools=@scandir($kv);
-            if($pools!==false) {
+            if($pools!==false)
                 foreach($pools as $pool) {
-                    if($checked>=$limit)
-                        break;
                     if($pool==='.'||$pool==='..')
                         continue;
                     $path=$kv.'/'.$pool;
-                    if(!is_dir($path)||is_link($path))
-                        continue;
-                    $this->gcDirectory($path,$limit,$checked,$removed);
-                    // limit 已用尽时不再遍历整个目录树做空目录清理
-                    if($checked<$limit)
+                    if(is_dir($path)&&!is_link($path))
                         $this->removeEmptyDirectories($path,$path);
                 }
-            }
         }
         return $removed;
     }
@@ -531,7 +554,7 @@ final class Cache implements CacheInterface {
                 if(is_int($current))
                     $value=$current;
                 elseif(is_string($current)&&preg_match('/^[+-]?\d+$/',$current)===1)
-                    $value=(int)$current;
+                    $value=$this->integerFromString($current,$key);
                 else
                     throw new Exception('Cache value is not an integer: '.$key,self::ERROR_NOT_INTEGER,array(
                         'key'=>$key
@@ -551,6 +574,34 @@ final class Cache implements CacheInterface {
         }
         $this->maybeGc();
         return $value;
+    }
+
+    /**
+     * 把整数字符串转换为无溢出整数
+     *
+     * @access private
+     * @param string $value 整数字符串
+     * @param string $key 缓存键
+     * @return int
+     * @throws Exception 超出本机整数范围
+     */
+    private function integerFromString(string $value,string $key): int {
+        $sign='';
+        $digits=$value;
+        if($digits!==''&&($digits[0]==='+'||$digits[0]==='-')) {
+            $sign=$digits[0];
+            $digits=substr($digits,1);
+        }
+        $digits=ltrim($digits,'0');
+        if($digits==='')
+            $digits='0';
+        $integer=(int)$value;
+        $expected=($sign==='-'&&$digits!=='0'?'-':'').$digits;
+        if((string)$integer!==$expected)
+            throw new Exception('Cache value is outside integer range: '.$key,self::ERROR_NOT_INTEGER,array(
+                'key'=>$key
+            ));
+        return $integer;
     }
 
     /**
@@ -804,43 +855,55 @@ final class Cache implements CacheInterface {
     }
 
     /**
-     * 增量清理单个池目录
+     * 收集 KV 缓存候选文件
      *
      * @access private
      * @param string $dir 当前目录
-     * @param int $limit 本次检查上限
-     * @param int $checked 已检查文件数(引用)
-     * @param int $removed 已清理文件数(引用)
-     * @return void
+     * @return array<string>
      */
-    private function gcDirectory(string $dir,int $limit,int &$checked,int &$removed): void {
+    private function gcCandidates(string $dir): array {
+        $files=array();
         $entries=@scandir($dir);
         if($entries===false)
-            return;
+            return $files;
         foreach($entries as $entry) {
-            if($checked>=$limit)
-                return;
             if($entry==='.'||$entry==='..')
                 continue;
             $path=$dir.'/'.$entry;
             if(is_link($path))
                 continue;
             if(is_dir($path)) {
-                $this->gcDirectory($path,$limit,$checked,$removed);
+                $files=array_merge($files,$this->gcCandidates($path));
                 continue;
             }
-            if($this->isAuxiliaryFile($entry)) {
-                $this->gcAuxiliaryFile($path,$removed);
-                continue;
-            }
-            if(!is_file($path)||!str_ends_with($path,'.cache.php'))
-                continue;
-            $checked++;
-            $before=is_file($path);
-            $this->readEntry($path,null,false);
-            if($before&&!is_file($path))
-                $removed++;
+            if(is_file($path)
+                &&($this->isAuxiliaryFile($entry)||str_ends_with($entry,'.cache.php')))
+                $files[]=$path;
         }
+        return $files;
+    }
+
+    /**
+     * 读取增量 GC 游标
+     *
+     * @access private
+     * @return int
+     */
+    private function readGcCursor(): int {
+        $path=$this->cacheRoot().'/gc.cursor';
+        $content=@file_get_contents($path);
+        return $content===false?0:(int)trim($content);
+    }
+
+    /**
+     * 写入增量 GC 游标
+     *
+     * @access private
+     * @param int $cursor 下一次起始位置
+     * @return void
+     */
+    private function writeGcCursor(int $cursor): void {
+        @file_put_contents($this->cacheRoot().'/gc.cursor',(string)$cursor,LOCK_EX);
     }
 
     /**

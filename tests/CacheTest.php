@@ -25,10 +25,13 @@ use function mkdir;
 use function opcache_invalidate;
 use function rmdir;
 use function scandir;
+use function sha1;
+use function strcmp;
 use function sys_get_temp_dir;
 use function time;
 use function touch;
 use function uniqid;
+use function usort;
 use function var_export;
 
 /**
@@ -248,6 +251,18 @@ class CacheTest extends TestCase {
     }
 
     /**
+     * 测试: 超出整数范围的字符串不能参与计数
+     *
+     * @return void
+     */
+    public function testIncrementRejectsIntegerStringOverflow(): void {
+        $cache=new Cache($this->config);
+        $cache->set('counter','9999999999999999999999999999999999999');
+        $this->expectException(Exception::class);
+        $cache->decrement('counter');
+    }
+
+    /**
      * 测试: 非整数缓存不能自增
      *
      * @return void
@@ -397,6 +412,24 @@ class CacheTest extends TestCase {
 
         $this->assertSame(1,$cache->gc(1),'只允许检查一个文件');
         $this->assertSame(2,$cache->gc(0),'剩余两个过期文件应被清理');
+    }
+
+    /**
+     * 测试: 有限额 GC 跨调用推进, 不被固定前缀阻塞
+     *
+     * @return void
+     */
+    public function testGcCursorAdvancesPastLivePrefix(): void {
+        $cache=new Cache($this->config);
+        $keys=array('first','second','third');
+        usort($keys,fn(string $a,string $b): int => strcmp(sha1($a),sha1($b)));
+        foreach($keys as $key)
+            $cache->forever($key,$key);
+        $expired=$this->expireEntry($cache,$keys[2]);
+
+        for($i=0;$i<5;$i++)
+            $cache->gc(2);
+        $this->assertFileDoesNotExist($expired);
     }
 
     /**

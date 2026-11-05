@@ -157,6 +157,29 @@ class ApplicationLifecycleTest extends TestCase {
     }
 
     /**
+     * 测试: 请求异常不污染下一次请求
+     *
+     * @return void
+     */
+    public function testRequestExceptionDoesNotPoisonNextRequest(): void {
+        $application=new Application();
+        try {
+            $application->handle(function(): void {
+                throw new \RuntimeException('request failed');
+            });
+            $this->fail('请求异常应向上抛出');
+        } catch(\RuntimeException $e) {
+            $this->assertSame('request failed',$e->getMessage());
+        }
+
+        $application->handle(function() use ($application): void {
+            $this->assertNotNull($application->requestContext());
+            $this->assertSame(array(),Error::getErrors());
+            $this->assertNotNull(App::get(Request::class));
+        });
+    }
+
+    /**
      * 测试: 请求内禁止替换整份配置仓储
      *
      * @return void

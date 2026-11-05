@@ -734,11 +734,11 @@ final class Router implements RoutingInterface {
                 continue;
             if(!$route->matchesMethod($method))
                 continue;
-            $params=null;
-            foreach(self::uriCandidates($uri) as $candidate) {
-                $params=$route->matchUri($candidate);
-                if($params!==null)
-                    break;
+            $params=$route->matchUri($uri);
+            if($params===null) {
+                $decoded=self::decodedUriCandidate($uri);
+                if($decoded!==null)
+                    $params=$route->matchUri($decoded);
             }
             if($params===null)
                 continue;
@@ -786,11 +786,11 @@ final class Router implements RoutingInterface {
                 continue;
             if(!RouteItem::matchesMethodData($data['methods']??array(),$method))
                 continue;
-            $params=null;
-            foreach(self::uriCandidates($uri) as $candidate) {
-                $params=RouteItem::matchUriData((string)($data['pattern']??''),$data['params']??array(),$candidate);
-                if($params!==null)
-                    break;
+            $params=RouteItem::matchUriData((string)($data['pattern']??''),$data['params']??array(),$uri);
+            if($params===null) {
+                $decoded=self::decodedUriCandidate($uri);
+                if($decoded!==null)
+                    $params=RouteItem::matchUriData((string)($data['pattern']??''),$data['params']??array(),$decoded);
             }
             if($params===null)
                 continue;
@@ -828,8 +828,8 @@ final class Router implements RoutingInterface {
         if($this->lazy)
             return $this->allowedMethodsLazy($uri);
         $methods=array();
+        $candidates=self::uriCandidates($uri);
         foreach($this->routes as $route) {
-            $candidates=self::uriCandidates($uri);
             $matched=false;
             foreach($candidates as $candidate) {
                 if($route->matchUri($candidate)!==null) {
@@ -860,9 +860,9 @@ final class Router implements RoutingInterface {
      */
     private function allowedMethodsLazy(string $uri): array {
         $methods=array();
+        $candidates=self::uriCandidates($uri);
         foreach($this->route_data as $data) {
             $params=$data['params']??array();
-            $candidates=self::uriCandidates($uri);
             $matched=false;
             foreach($candidates as $candidate) {
                 if(RouteItem::matchUriData((string)($data['pattern']??''),$params,$candidate)!==null) {
@@ -1343,12 +1343,24 @@ final class Router implements RoutingInterface {
      * @return array<string>
      */
     private static function uriCandidates(string $uri): array {
+        $decoded=self::decodedUriCandidate($uri);
+        return $decoded===null?array($uri):array($uri,$decoded);
+    }
+
+    /**
+     * 计算不改变路径分段的解码候选
+     *
+     * @access private
+     * @param string $uri 已规范化的请求路径
+     * @return string|null
+     */
+    private static function decodedUriCandidate(string $uri): ?string {
         if(!str_contains($uri,'%'))
-            return array($uri);
+            return null;
         $decoded=rawurldecode($uri);
         if($decoded===$uri||substr_count($decoded,'/')!==substr_count($uri,'/'))
-            return array($uri);
-        return array($uri,$decoded);
+            return null;
+        return $decoded;
     }
 
 }

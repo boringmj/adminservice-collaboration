@@ -46,12 +46,6 @@ final class RouterFactory {
     private ?Router $router=null;
 
     /**
-     * 当前路由表对应的配置对象
-     * @var ConfigInterface|null
-     */
-    private ?ConfigInterface $config=null;
-
-    /**
      * 当前路由表对应的路由配置指纹
      * @var string|null
      */
@@ -87,7 +81,6 @@ final class RouterFactory {
             return $this->router;
         $router=$this->loadOrBuild($config);
         $this->router=$router;
-        $this->config=$config;
         $this->route_key=$route_key;
         return $router;
     }
@@ -103,7 +96,6 @@ final class RouterFactory {
      */
     public function reset(): void {
         $this->router=null;
-        $this->config=null;
         $this->route_key=null;
     }
 

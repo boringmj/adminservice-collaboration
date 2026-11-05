@@ -395,6 +395,7 @@ final class RouterFactory {
             if(!is_string($class)||$class==='')
                 continue;
             try {
+                /** @var ReflectionClass<object> $reflection 处理器类名在运行期解析 */
                 $reflection=new ReflectionClass($class);
                 $this->collectHandlerSource($reflection,$method,$stats);
             } catch(\Throwable) {

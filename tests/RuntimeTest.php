@@ -68,6 +68,17 @@ class RuntimeTest extends TestCase {
     }
 
     /**
+     * 测试: 显式 env 的 reload 结果写入进程缓存
+     *
+     * @return void
+     */
+    public function testReloadWithExplicitEnvPersistsPath(): void {
+        $env=new Env('RUNTIME_PATH=/tmp/custom_runtime');
+        $this->assertSame('/tmp/custom_runtime',Runtime::reload($env));
+        $this->assertSame('/tmp/custom_runtime',Runtime::path());
+    }
+
+    /**
      * 测试: RUNTIME_PATH 为空时回落默认值
      *
      * @return void

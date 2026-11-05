@@ -91,7 +91,7 @@ final class Runtime {
         if($env===null)
             env_reset();
         self::$path=null;
-        return self::path($env);
+        return self::$path=self::path($env);
     }
 
     /**

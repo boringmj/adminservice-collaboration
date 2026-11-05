@@ -153,7 +153,7 @@ final class CompileStore {
      * @return string auto / always / off
      */
     public function mode(): string {
-        if(!$this->flagEnabled($this->config()->get('cache.compile.enabled',true)))
+        if(!self::flagEnabled($this->config()->get('cache.compile.enabled',true)))
             return 'off';
         $mode=$this->config()->get('cache.compile.mode','auto');
         return in_array($mode,array('auto','always','off'),true)?$mode:'auto';
@@ -436,7 +436,7 @@ final class CompileStore {
      */
     private function enabledFor(string $name): bool {
         $key=self::ENABLE_KEYS[$name]??$name;
-        return $this->flagEnabled($this->config()->get('cache.compile.'.$key,true));
+        return self::flagEnabled($this->config()->get('cache.compile.'.$key,true));
     }
 
     /**
@@ -444,11 +444,11 @@ final class CompileStore {
      *
      * - `.env` 的 `0` 按字符串保留, 与配置文件里的布尔 false 语义保持一致
      *
-     * @access private
+     * @access public
      * @param mixed $value 配置值
      * @return bool
      */
-    private function flagEnabled(mixed $value): bool {
+    public static function flagEnabled(mixed $value): bool {
         return !($value===false||$value===0||$value==='0'||$value==='false');
     }
 

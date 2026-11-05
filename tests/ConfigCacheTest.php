@@ -286,6 +286,49 @@ class ConfigCacheTest extends TestCase {
     }
 
     /**
+     * 测试: 自定义配置目录必须隔离配置缓存
+     *
+     * - 零探测模式不调用源指纹, 只能依赖上下文识别目录切换
+     *
+     * @return void
+     */
+    public function testBootstrapperConfigCacheSeparatesConfigDirs(): void {
+        $old_runtime=Runtime::path();
+        $base=$this->tempDir();
+        $config_a=$base.'/config-a';
+        $config_b=$base.'/config-b';
+        mkdir($config_a,0755,true);
+        mkdir($config_b,0755,true);
+        file_put_contents($config_a.'/app.php',"<?php return array('name'=>'A','debug'=>false);\n");
+        file_put_contents($config_b.'/app.php',"<?php return array('name'=>'B','debug'=>false);\n");
+        try {
+            Runtime::setPath($base.'/runtime');
+            $env=new Env();
+            $first=(new Bootstrapper($config_a))->loadConfig($env,false,true);
+            $second=(new Bootstrapper($config_b))->loadConfig($env,false,true);
+
+            $this->assertSame('A',$first->get('app.name'));
+            $this->assertSame('B',$second->get('app.name'),'不同配置目录不能复用同一份零探测快照');
+        } finally {
+            Runtime::setPath($old_runtime);
+            $this->removePath($base);
+        }
+    }
+
+    /**
+     * 测试: Bootstrapper 与 CompileStore 对字符串 false 的解析一致
+     *
+     * @return void
+     */
+    public function testBootstrapperTreatsQuotedFalseAsDisabled(): void {
+        $env=new Env('CACHE_COMPILE="false"');
+        $store=(new Bootstrapper())->configStore($env);
+
+        $this->assertSame('off',$store->mode());
+        $this->assertFalse($store->enabled('config'));
+    }
+
+    /**
      * 测试: 配置源指纹能检测配置文件内容变化
      *
      * @return void

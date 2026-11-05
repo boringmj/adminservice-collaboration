@@ -17,6 +17,7 @@ use function date_default_timezone_set;
 use function explode;
 use function in_array;
 use function is_array;
+use function realpath;
 use function scandir;
 use function sort;
 use function stat;
@@ -206,6 +207,7 @@ final class Bootstrapper {
     public function configContext(CompileStore $store,Env $env): string {
         return $store->hash(array(
             'runtime'=>Runtime::path(),
+            'config_dir'=>realpath($this->config_dir) ?: $this->config_dir,
             'env'=>$env->all()
         ));
     }
@@ -344,8 +346,7 @@ final class Bootstrapper {
      * @return bool
      */
     private function compileEnabled(Env $env): bool {
-        $value=$env->get('CACHE_COMPILE',true);
-        return $value!==false&&$value!=='0';
+        return CompileStore::flagEnabled($env->get('CACHE_COMPILE',true));
     }
 
     /**

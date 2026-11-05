@@ -80,6 +80,12 @@ final class Application {
     private Repository $config;
 
     /**
+     * 顶层请求开始时捕获的应用级配置仓储
+     * @var Repository|null
+     */
+    private ?Repository $application_config=null;
+
+    /**
      * 是否已执行过 `init()`
      *
      * - 未初始化时 `config()` 必须尊重构造期显式传入的那份(测试会用它反证"不摸门面")
@@ -246,6 +252,19 @@ final class Application {
     }
 
     /**
+     * 获取应用级配置仓储
+     *
+     * - 顶层请求开始时捕获门面当前配置, 嵌套请求复用该基线
+     * - 未捕获时回退构造期配置
+     *
+     * @access private
+     * @return Repository
+     */
+    private function applicationConfig(): Repository {
+        return $this->application_config??$this->config;
+    }
+
+    /**
      * 处理一次请求(应用级入口)
      *
      * - **每请求一个干净的请求级容器**: 从应用级容器 `fork()` 派生, 保留到下一次请求开始时被 `reset()`;
@@ -268,6 +287,7 @@ final class Application {
         $is_nested=$previous_context!==null;
         // 顶层请求开始时回收上一轮请求容器与未结束的事务会话; 嵌套 handle 不能清掉外层状态
         if(!$is_nested) {
+            $this->application_config=$this->config();
             BaseDb::releaseCurrentSessions();
             if($this->request_container!==null)
                 $this->request_container->reset();
@@ -283,7 +303,7 @@ final class Application {
         // 错误出口需要当前请求的 Response; 在请求开始时同步给错误处理器
         Error::beginRequest($container);
         // 请求开始时复制一份应用级配置: 请求内 setValue 只修改副本, 不泄漏到后续请求
-        $repository=$this->config();
+        $repository=$this->applicationConfig();
         if($repository!==null) {
             $request_config=$repository->fork();
             // 请求配置只登记到请求容器, 不切换共享元数据缓存的配置;
@@ -448,7 +468,7 @@ final class Application {
         // 请求配置以请求容器本地副本为准; 未注入时回退应用级配置
         $config=$this->hasLocalInstance($container,Repository::class)
             ?$container->get(Repository::class)
-            :$this->config();
+            :$this->applicationConfig();
         // 请求对象只在请求容器本地构建; 父容器里的 Request/Response/Session 一律不复用
         $request=$this->request_seed;
         $this->request_seed=null;

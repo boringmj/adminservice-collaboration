@@ -159,6 +159,25 @@ class ApplicationLifecycleTest extends TestCase {
     }
 
     /**
+     * 测试: 嵌套请求以应用级配置为基准
+     *
+     * @return void
+     */
+    public function testNestedHandleUsesApplicationConfig(): void {
+        $application=new Application();
+        $application->handle(function() use ($application): void {
+            Config::setValue('app.debug',true);
+            $this->assertTrue((bool)Config::get('app.debug'));
+
+            $application->handle(function(): void {
+                $this->assertFalse((bool)Config::get('app.debug'));
+            });
+
+            $this->assertTrue((bool)Config::get('app.debug'));
+        });
+    }
+
+    /**
      * 测试: 请求配置副本不能清空共享容器元数据
      *
      * - 请求容器与应用容器共享 `ContainerMetadata`

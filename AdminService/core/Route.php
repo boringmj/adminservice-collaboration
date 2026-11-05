@@ -22,7 +22,7 @@ use function implode;
 use function in_array;
 use function is_array;
 use function is_string;
-use function urldecode;
+use function rawurldecode;
 
 /**
  * 路由协调器
@@ -277,7 +277,7 @@ final class Route extends BaseRoute {
      */
     private static function decodeParams(array $params): array {
         foreach($params as $k=>$v)
-            $params[$k]=urldecode((string)$v);
+            $params[$k]=rawurldecode((string)$v);
         return $params;
     }
 

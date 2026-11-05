@@ -16,6 +16,7 @@ use ReflectionMethod;
 
 use function array_key_exists;
 use function array_diff_key;
+use function array_map;
 use function array_merge;
 use function array_pop;
 use function array_reverse;
@@ -34,12 +35,12 @@ use function is_string;
 use function ltrim;
 use function method_exists;
 use function preg_match;
-use function preg_match_all;
 use function preg_quote;
 use function preg_replace;
 use function rtrim;
 use function str_contains;
 use function strlen;
+use function strpos;
 use function strtoupper;
 use function substr;
 
@@ -54,12 +55,6 @@ use function substr;
  * - 末尾的 `*` 为通配糖: `/files/*` 等价于 `/files/{any?:.*}`
  */
 final class RouteItem {
-
-    /**
-     * 路径参数模式(含捕获组: 参数名 / 可选标记 / 约束)
-     * @var string
-     */
-    private const PARAM_PATTERN='/\{([a-zA-Z_][a-zA-Z0-9_]*)(\?)?(?::([^}]+))?\}/';
 
     /**
      * 允许的请求方法(为空或含 `*` 表示不限方法)
@@ -388,13 +383,12 @@ final class RouteItem {
         $uri='';
         $used=array();
         $offset=0;
-        $matches=array();
-        preg_match_all(self::PARAM_PATTERN,$this->path,$matches,PREG_SET_ORDER|PREG_OFFSET_CAPTURE);
+        $matches=$this->parsePlaceholders($this->path);
         $count=count($matches);
         foreach($matches as $index=>$match) {
-            $name=$match[1][0];
-            $optional=($match[2][1]??-1)!==-1;
-            $literal=substr($this->path,$offset,$match[0][1]-$offset);
+            $name=$match['name'];
+            $optional=$match['optional'];
+            $literal=substr($this->path,$offset,$match['offset']-$offset);
             if(!array_key_exists($name,$params)) {
                 if(!$optional)
                     throw new Exception('Missing route parameter.',-412,array(
@@ -403,19 +397,19 @@ final class RouteItem {
                     ));
                 // 末尾可选参数成链: 省略某个之后, 更靠后的参数不得再提供
                 for($later=$index+1;$later<$count;$later++)
-                    if(array_key_exists($matches[$later][1][0],$params))
+                    if(array_key_exists($matches[$later]['name'],$params))
                         throw new Exception('Route parameter cannot be provided after an omitted optional one.',-412,array(
                             'path'=>$this->path,
                             'omitted'=>$name,
-                            'name'=>$matches[$later][1][0]
+                            'name'=>$matches[$later]['name']
                         ));
                 $uri.=rtrim($literal,'/');
                 $offset=strlen($this->path);
                 break;
             }
-            $uri.=$literal.$this->checkValue($name,$params[$name]);
+            $uri.=$literal.$this->encodePathValue($this->checkValue($name,$params[$name]));
             $used[$name]=true;
-            $offset=$match[0][1]+strlen($match[0][0]);
+            $offset=$match['offset']+$match['length'];
         }
         $path=$uri.substr($this->path,$offset);
         // 未出现在路径模板里的参数按查询串附加(Laravel 风格), 不再静默丢弃
@@ -423,6 +417,103 @@ final class RouteItem {
         if($extra!==array())
             $path.='?'.http_build_query($extra);
         return $path;
+    }
+
+    /**
+     * 解析路径中的参数占位符
+     *
+     * - 约束内允许出现花括号量词、字符类和转义字符
+     *
+     * @access private
+     * @param string $path 路由路径
+     * @return array<array{offset:int,length:int,name:string,optional:bool,constraint:string}>
+     */
+    private function parsePlaceholders(string $path): array {
+        $matches=array();
+        $length=strlen($path);
+        $offset=0;
+        while(($start=strpos($path,'{',$offset))!==false) {
+            if(preg_match('/\G([a-zA-Z_][a-zA-Z0-9_]*)(\?)?/',$path,$name_match,0,$start+1)!==1) {
+                $offset=$start+1;
+                continue;
+            }
+            $name=$name_match[1];
+            $optional=($name_match[2]??'')==='?';
+            $pos=$start+1+strlen($name_match[0]);
+            $constraint='';
+            if($pos<$length&&$path[$pos]===':') {
+                $pos++;
+                $constraint_start=$pos;
+                $depth=0;
+                $in_class=false;
+                $escaped=false;
+                for(; $pos<$length; $pos++) {
+                    $char=$path[$pos];
+                    if($escaped) {
+                        $escaped=false;
+                        continue;
+                    }
+                    if($char==='\\') {
+                        $escaped=true;
+                        continue;
+                    }
+                    if($in_class) {
+                        if($char===']')
+                            $in_class=false;
+                        continue;
+                    }
+                    if($char==='[') {
+                        $in_class=true;
+                        continue;
+                    }
+                    if($char==='{') {
+                        $depth++;
+                        continue;
+                    }
+                    if($char==='}') {
+                        if($depth>0) {
+                            $depth--;
+                            continue;
+                        }
+                        break;
+                    }
+                }
+                if($pos>=$length||$path[$pos]!=='}'||$in_class) {
+                    $offset=$start+1;
+                    continue;
+                }
+                $constraint=substr($path,$constraint_start,$pos-$constraint_start);
+                if($constraint==='') {
+                    $offset=$start+1;
+                    continue;
+                }
+            } elseif($pos>=$length||$path[$pos]!=='}') {
+                $offset=$start+1;
+                continue;
+            }
+            $matches[]=array(
+                'offset'=>$start,
+                'length'=>$pos-$start+1,
+                'name'=>$name,
+                'optional'=>$optional,
+                'constraint'=>$constraint===''?'[^/]+':$constraint
+            );
+            $offset=$pos+1;
+        }
+        return $matches;
+    }
+
+    /**
+     * 编码路径参数值
+     *
+     * - 保留通配参数中的 `/` 分隔, 其余字符按路径段编码
+     *
+     * @access private
+     * @param string $value 参数值
+     * @return string
+     */
+    private function encodePathValue(string $value): string {
+        return implode('/',array_map('rawurlencode',explode('/',$value)));
     }
 
     /**
@@ -894,22 +985,19 @@ final class RouteItem {
     private function tokenize(): array {
         $tokens=array();
         $offset=0;
-        $matches=array();
-        preg_match_all(self::PARAM_PATTERN,$this->path,$matches,PREG_SET_ORDER|PREG_OFFSET_CAPTURE);
-        foreach($matches as $match) {
-            $literal=substr($this->path,$offset,$match[0][1]-$offset);
+        foreach($this->parsePlaceholders($this->path) as $match) {
+            $literal=substr($this->path,$offset,$match['offset']-$offset);
             if($literal!=='') {
                 $this->literalLength+=strlen($literal);
                 $tokens[]=array('type'=>'literal','value'=>$literal);
             }
             $tokens[]=array(
                 'type'=>'param',
-                'name'=>$match[1][0],
-                'optional'=>($match[2][1]??-1)!==-1,
-                // 未提供约束时匹配单个路径段
-                'constraint'=>($match[3][1]??-1)!==-1?$match[3][0]:'[^/]+'
+                'name'=>$match['name'],
+                'optional'=>$match['optional'],
+                'constraint'=>$match['constraint']
             );
-            $offset=$match[0][1]+strlen($match[0][0]);
+            $offset=$match['offset']+$match['length'];
         }
         $tail=substr($this->path,$offset);
         if($tail!=='') {

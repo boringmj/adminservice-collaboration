@@ -705,6 +705,24 @@ final class Router implements RoutingInterface {
                 return array($route,array());
             }
         }
+        $match=$this->findDynamic($method,$uri);
+        if($match!==null)
+            $this->setCurrent($match[0]);
+        return $match;
+    }
+
+    /**
+     * 匹配动态路由
+     *
+     * - HEAD 先找显式 HEAD / 不限方法路由, 再回落到 GET
+     *
+     * @access private
+     * @param string $method 请求方法
+     * @param string $uri 请求路径
+     * @return array{0:RouteItem,1:array<string,string>}|null
+     */
+    private function findDynamic(string $method,string $uri): ?array {
+        $fallback=null;
         foreach($this->sortedRoutes() as $route) {
             if($route->isStatic())
                 continue;
@@ -713,10 +731,17 @@ final class Router implements RoutingInterface {
             $params=$route->matchUri($uri);
             if($params===null)
                 continue;
-            $this->setCurrent($route);
+            $methods=$route->getMethods();
+            if($method==='HEAD'
+                &&!in_array('HEAD',$methods,true)
+                &&!in_array('*',$methods,true)) {
+                if($fallback===null)
+                    $fallback=array($route,$params);
+                continue;
+            }
             return array($route,$params);
         }
-        return null;
+        return $fallback;
     }
 
     /**
@@ -740,6 +765,7 @@ final class Router implements RoutingInterface {
                 return array($route,array());
             }
         }
+        $fallback=null;
         foreach($this->sortedRouteIndices() as $index) {
             $data=$this->route_data[$index];
             if(RouteItem::isStaticData($data['params']??array()))
@@ -749,9 +775,22 @@ final class Router implements RoutingInterface {
             $params=RouteItem::matchUriData((string)($data['pattern']??''),$data['params']??array(),$uri);
             if($params===null)
                 continue;
+            $methods=$data['methods']??array();
+            if($method==='HEAD'
+                &&!in_array('HEAD',$methods,true)
+                &&!in_array('*',$methods,true)) {
+                if($fallback===null)
+                    $fallback=array($index,$params);
+                continue;
+            }
             $route=$this->instantiateRoute($index);
             $this->setCurrent($route);
             return array($route,$params);
+        }
+        if($fallback!==null) {
+            $route=$this->instantiateRoute($fallback[0]);
+            $this->setCurrent($route);
+            return array($route,$fallback[1]);
         }
         return null;
     }

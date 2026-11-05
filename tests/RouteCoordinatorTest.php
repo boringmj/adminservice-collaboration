@@ -200,6 +200,16 @@ class RouteCoordinatorTest extends TestCase {
     }
 
     /**
+     * 测试路径中的字面量加号不会被解码为空格
+     *
+     * @return void
+     */
+    public function testPathPlusIsNotDecodedAsSpace(): void {
+        $this->useRoutes("\$router->get('/t/plus/{name}',function(string \$name): string { return \$name; });");
+        $this->assertSame('a+b',$this->dispatch('/t/plus/a+b'));
+    }
+
+    /**
      * 测试路由参数显式名称绑定
      *
      * - 支持参数级与路由配置级绑定

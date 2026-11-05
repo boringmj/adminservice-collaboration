@@ -108,6 +108,18 @@ class RouterTest extends TestCase {
     }
 
     /**
+     * 测试正则约束中的花括号量词
+     *
+     * @return void
+     */
+    public function testRegexQuantifierConstraint(): void {
+        $router=new Router();
+        $router->get('/items/{id:\d{2}}',array('C','show'));
+        $this->assertNotNull($router->find('GET','/items/12'));
+        $this->assertNull($router->find('GET','/items/1'));
+    }
+
+    /**
      * 测试参数正则约束
      * @return void
      */
@@ -329,8 +341,10 @@ class RouterTest extends TestCase {
         $router=new Router();
         $router->get('/user/{id:\d+}',array('C','show'))->name('user.show');
         $router->get('/about',array('C','about'))->name('about');
+        $router->get('/docs/{name}',array('C','docs'))->name('docs');
         $this->assertSame('/user/42',$router->url('user.show',array('id'=>42)));
         $this->assertSame('/about',$router->url('about'));
+        $this->assertSame('/docs/a%3Fadmin%3D1%23fragment',$router->url('docs',array('name'=>'a?admin=1#fragment')));
         // 路径模板之外的参数附加为查询串, 不再静默丢弃
         $this->assertSame('/user/42?tab=profile',$router->url('user.show',array('id'=>42,'tab'=>'profile')));
     }
@@ -1555,6 +1569,28 @@ class RouterTest extends TestCase {
         $reverse->get('/head-priority',array('C','get'));
         $reverse->add(array('HEAD'),'/head-priority',array('C','head'));
         $this->assertSame(array('C','head'),$reverse->find('HEAD','/head-priority')[0]->getHandler());
+    }
+
+    /**
+     * 动态路径上的显式 HEAD 路由优先于 GET 回退
+     *
+     * @return void
+     */
+    public function testExplicitDynamicHeadRouteKeepsPriorityOverGetFallback(): void {
+        $router=new Router();
+        $router->get('/items/{id}',array(RouteController::class,'hello'));
+        $router->add(array('HEAD'),'/items/{id}',array(RouteController::class,'ignored'));
+        $this->assertSame(
+            array(RouteController::class,'ignored'),
+            $router->find('HEAD','/items/7')[0]->getHandler()
+        );
+
+        $imported=new Router();
+        $imported->import($router->export());
+        $this->assertSame(
+            array(RouteController::class,'ignored'),
+            $imported->find('HEAD','/items/7')[0]->getHandler()
+        );
     }
 
     /**

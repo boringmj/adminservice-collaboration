@@ -2,6 +2,7 @@
 
 namespace AdminService;
 
+use function call_user_func;
 use function class_exists;
 
 /**
@@ -79,17 +80,24 @@ final class CoroutineContextStorage implements ContextStorageInterface {
      * @return int
      */
     private static function coroutineId(): int {
-        if(class_exists(\Swoole\Coroutine::class,false)) {
-            $cid=(int)\Swoole\Coroutine::getCid();
-            if($cid>0)
-                return $cid;
-        }
-        if(class_exists(\OpenSwoole\Coroutine::class,false)) {
-            $cid=(int)\OpenSwoole\Coroutine::getCid();
-            if($cid>0)
-                return $cid;
-        }
-        return 0;
+        $cid=self::extensionCoroutineId('Swoole\\Coroutine');
+        if($cid>0)
+            return $cid;
+        $cid=self::extensionCoroutineId('OpenSwoole\\Coroutine');
+        return $cid>0?$cid:0;
+    }
+
+    /**
+     * 读取协程扩展的当前协程 ID
+     *
+     * @access private
+     * @param string $class 协程类名
+     * @return int 无扩展或不在协程内时返回 0
+     */
+    private static function extensionCoroutineId(string $class): int {
+        if(!class_exists($class,false))
+            return 0;
+        return (int)call_user_func(array($class,'getCid'));
     }
 
 }

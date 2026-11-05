@@ -284,8 +284,15 @@ final class Application {
         Error::beginRequest($container);
         // 请求开始时复制一份应用级配置: 请求内 setValue 只修改副本, 不泄漏到后续请求
         $repository=$this->config();
-        if($repository!==null)
-            $container->instance(Repository::class,$repository->fork());
+        if($repository!==null) {
+            $request_config=$repository->fork();
+            // 请求配置只登记到请求容器, 不切换共享元数据缓存的配置;
+            // 否则每请求都会清空应用级类元数据, 并把请求级 cache.path/debug 带入后续请求
+            if($container instanceof Container)
+                $container->instanceWithoutMetadata(Repository::class,$request_config);
+            else
+                $container->instance(Repository::class,$request_config);
+        }
         App::setInstance($container);
         $completed=false;
         try {

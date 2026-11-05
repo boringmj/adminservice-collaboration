@@ -94,6 +94,19 @@ class AutowireModesTest extends TestCase {
     }
 
     /**
+     * 属性 / Setter 的 self、parent 相对类型按声明类解析
+     *
+     * @return void
+     */
+    public function testRelativePropertyAndSetterTypes(): void {
+        $consumer=App::make(RelativeTypeConsumer::class);
+
+        $this->assertInstanceOf(RelativeTypeParent::class,$consumer->parent);
+        $this->assertInstanceOf(RelativeTypeParent::class,$consumer->from_setter);
+        $this->assertTrue($consumer->called);
+    }
+
+    /**
      * 延迟任务失败后清空队列, 不污染后续请求
      * @return void
      */
@@ -792,6 +805,49 @@ final class LifecycleConfigConsumer {
     #[AutowireLifecycle]
     public function boot(#[ConfigAttribute('data.ext_name')] string $ext): void {
         $this->ext=$ext;
+    }
+
+}
+
+/**
+ * self/parent 相对类型测试父类
+ */
+class RelativeTypeParent {
+}
+
+/**
+ * self/parent 相对类型属性与 Setter 消费者
+ */
+class RelativeTypeConsumer extends RelativeTypeParent {
+
+    /**
+     * parent 类型属性
+     * @var parent
+     */
+    #[AutowireProperty]
+    public parent $parent;
+
+    /**
+     * Setter 注入结果
+     * @var RelativeTypeParent|null
+     */
+    public ?RelativeTypeParent $from_setter=null;
+
+    /**
+     * Setter 是否被调用
+     * @var bool
+     */
+    public bool $called=false;
+
+    /**
+     * parent 类型 Setter
+     * @param parent $parent 父类实例
+     * @return void
+     */
+    #[AutowireSetter]
+    public function setParent(parent $parent): void {
+        $this->from_setter=$parent;
+        $this->called=true;
     }
 
 }

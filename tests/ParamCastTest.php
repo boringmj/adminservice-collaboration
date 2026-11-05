@@ -53,6 +53,54 @@ final class ParamCastTarget {
         return $service;
     }
 
+    public function takeIterable(iterable $value): string {
+        return get_debug_type($value);
+    }
+
+    public function takeFalse(false $value): bool {
+        return $value;
+    }
+
+    public function takeTrue(true $value): bool {
+        return $value;
+    }
+
+    public function takeStringable(string $value): string {
+        return $value;
+    }
+
+}
+
+/**
+ * self/parent 类型测试父类
+ */
+class ParamCastParent {
+}
+
+/**
+ * self/parent 类型测试目标
+ */
+class ParamCastRelativeTarget extends ParamCastParent {
+
+    public function takeSelf(self $value): string {
+        return $value::class;
+    }
+
+    public function takeParent(parent $value): string {
+        return $value::class;
+    }
+
+}
+
+/**
+ * Stringable 弱转换测试值
+ */
+class ParamCastStringable {
+
+    public function __toString(): string {
+        return 'stringable';
+    }
+
 }
 
 /**
@@ -321,6 +369,61 @@ class ParamCastTest extends TestCase {
         $target=new ParamCastTarget();
         $this->assertSame('5',App::exec_class_function($target,'union',array('x'=>'5')));
         $this->assertSame(5,App::exec_class_function($target,'union',array('x'=>5)));
+    }
+
+    /**
+     * 测试: iterable 接受数组与 Traversable
+     *
+     * @return void
+     */
+    public function testIterableType(): void {
+        $target=new ParamCastTarget();
+        $this->assertSame('array',App::exec_class_function($target,'takeIterable',array('value'=>array(1,2))));
+        $this->assertSame(
+            \ArrayIterator::class,
+            App::exec_class_function($target,'takeIterable',array('value'=>new \ArrayIterator(array(1,2))))
+        );
+    }
+
+    /**
+     * 测试: false / true 字面量类型精确匹配
+     *
+     * @return void
+     */
+    public function testLiteralBooleanTypes(): void {
+        $target=new ParamCastTarget();
+        $this->assertFalse(App::exec_class_function($target,'takeFalse',array('value'=>false)));
+        $this->assertTrue(App::exec_class_function($target,'takeTrue',array('value'=>true)));
+    }
+
+    /**
+     * 测试: self / parent 相对类型按声明类解析
+     *
+     * @return void
+     */
+    public function testRelativeTypes(): void {
+        $target=new ParamCastRelativeTarget();
+        $this->assertSame(
+            ParamCastRelativeTarget::class,
+            App::exec_class_function($target,'takeSelf',array('value'=>$target))
+        );
+        $this->assertSame(
+            ParamCastParent::class,
+            App::exec_class_function($target,'takeParent',array('value'=>new ParamCastParent()))
+        );
+    }
+
+    /**
+     * 测试: Stringable 到 string 的弱转换
+     *
+     * @return void
+     */
+    public function testStringableToString(): void {
+        $target=new ParamCastTarget();
+        $this->assertSame(
+            'stringable',
+            App::exec_class_function($target,'takeStringable',array('value'=>new ParamCastStringable()))
+        );
     }
 
 }

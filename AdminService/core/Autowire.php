@@ -364,6 +364,52 @@ final class Autowire implements AutowireInterface {
     }
 
     /**
+     * 将 self / parent / static 解析为声明类对应的真实类名
+     *
+     * @access private
+     * @param array<string> $types 类型列表
+     * @param ReflectionClass $declaring 声明类
+     * @return array<string>
+     */
+    private function resolveRelativeTypes(array $types,ReflectionClass $declaring): array {
+        if(!in_array('self',$types,true)
+            &&!in_array('parent',$types,true)
+            &&!in_array('static',$types,true))
+            return $types;
+        $resolved=array();
+        foreach($types as $type) {
+            if($type==='self'||$type==='static') {
+                $resolved[]=$declaring->getName();
+                continue;
+            }
+            if($type==='parent') {
+                $parent=$declaring->getParentClass();
+                if($parent!==false) {
+                    $resolved[]=$parent->getName();
+                    continue;
+                }
+            }
+            $resolved[]=$type;
+        }
+        return array_values(array_unique($resolved));
+    }
+
+    /**
+     * 取注入目标的声明类
+     *
+     * @access private
+     * @param ReflectionProperty|ReflectionParameter $parameter 属性或形参
+     * @param ReflectionClass $fallback 回退类
+     * @return ReflectionClass
+     */
+    private function declaringClassFor(ReflectionProperty|ReflectionParameter $parameter,ReflectionClass $fallback): ReflectionClass {
+        $declaring=$parameter instanceof ReflectionProperty
+            ?$parameter->getDeclaringClass()
+            :$parameter->getDeclaringFunction()->getDeclaringClass();
+        return $declaring??$fallback;
+    }
+
+    /**
      * 类型是否包含交叉类型(含 DNF 分支)
      *
      * 交叉类型当前未实现 AND 语义; 代理注入至少不能把它误当成"无类型"而静默放行。
@@ -439,6 +485,10 @@ final class Autowire implements AutowireInterface {
             // 获取属性的类型
             $type=$parameter->getType();
             $type_array=$this->reflectionTypeToArray($type,false);
+            $type_array=$this->resolveRelativeTypes(
+                $type_array,
+                $this->declaringClassFor($parameter,$ref)
+            );
             if($mode===AutowireMode::Deferred)
                 throw new AutowireException(
                     'Deferred injection for parameter "'.$parameter->getName().'" of class "'.

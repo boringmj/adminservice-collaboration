@@ -182,15 +182,15 @@ final class Container implements \base\Container {
         // - 仍查不到时回落默认值(而不是抛): 引导期就会走到这里, 抛异常会把真正的错误盖掉;
         //   裸容器(没有任何配置实例)保持"给默认值"的既有语义。
         $this->arguments->setValueResolver(function(string $key,mixed $default=null): mixed {
-            $config=$this->getBoundInstance(array(\base\ConfigInterface::class));
+            $config=$this->getBoundInstance(array(ConfigInterface::class));
             if($config===null)
-                $config=$this->findBoundImplementation(\base\ConfigInterface::class);
+                $config=$this->findBoundImplementation(ConfigInterface::class);
             if($config===null) {
-                $real_class=$this->classes->getFirstInstantiableClass(array(\base\ConfigInterface::class));
+                $real_class=$this->classes->getFirstInstantiableClass(array(ConfigInterface::class));
                 if($real_class!==null)
                     $config=$this->findInstance($real_class);
             }
-            return $config instanceof \base\ConfigInterface?$config->get($key,$default):$default;
+            return $config instanceof ConfigInterface?$config->get($key,$default):$default;
         });
         $this->autowire->setProxyResolver(function(string $class,array $args=array()): DynamicProxy {
             $proxy=new DynamicProxy($class,...$args);
@@ -715,12 +715,39 @@ final class Container implements \base\Container {
      * @return void
      */
     public function instance(string $name,object $object): void {
-        $real=$this->resolve($name);
-        $this->container[$real]=$object;
-        unset($this->resolved_container[$real]);
+        $this->registerInstance($name,$object);
         // 容器登记配置后, 容器元数据缓存跟随容器配置, 不再使用门面配置
         if($object instanceof ConfigInterface)
             $this->metadata->setConfig($object);
+    }
+
+    /**
+     * 登记实例但不切换容器元数据配置
+     *
+     * - 供请求级配置副本使用: 请求容器与父容器共享元数据缓存, 请求配置不应清空
+     *   应用级类元数据, 也不应把请求级 cache.path / debug 带入共享缓存
+     *
+     * @access public
+     * @param string $name 对象名(类名 / 接口名 / 别名)
+     * @param object $object 对象
+     * @return void
+     */
+    public function instanceWithoutMetadata(string $name,object $object): void {
+        $this->registerInstance($name,$object);
+    }
+
+    /**
+     * 登记实例主体
+     *
+     * @access private
+     * @param string $name 对象名(类名 / 接口名 / 别名)
+     * @param object $object 对象
+     * @return void
+     */
+    private function registerInstance(string $name,object $object): void {
+        $real=$this->resolve($name);
+        $this->container[$real]=$object;
+        unset($this->resolved_container[$real]);
     }
 
     /**

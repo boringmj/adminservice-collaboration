@@ -19,7 +19,9 @@ use base\AbstractSession;
 use base\Request;
 use Tests\Fixtures\ConcreteService;
 
+use function count;
 use function error_reporting;
+use function sys_get_temp_dir;
 
 /**
  * 请求生命周期测试
@@ -154,6 +156,37 @@ class ApplicationLifecycleTest extends TestCase {
             Config::setValue('app.debug',true);
         });
         $this->assertFalse((bool)Config::get('app.debug'),'请求内修改不得泄漏到应用级配置');
+    }
+
+    /**
+     * 测试: 请求配置副本不能清空共享容器元数据
+     *
+     * - 请求容器与应用容器共享 `ContainerMetadata`
+     * - 请求级 `cache.path` / debug 变化只影响请求配置, 不能改写共享元数据配置
+     *
+     * @return void
+     */
+    public function testRequestConfigDoesNotClearSharedMetadata(): void {
+        $application=new Application();
+        $metadata_property=new \ReflectionProperty(Container::class,'metadata');
+        $metadata_property->setAccessible(true);
+        $metadata=$metadata_property->getValue($application->container());
+        $metadata->getClass(ConcreteService::class);
+        $classes_property=new \ReflectionProperty($metadata,'classes');
+        $classes_property->setAccessible(true);
+        $before=count($classes_property->getValue($metadata));
+        $this->assertGreaterThan(0,$before,'前置条件: 元数据已加载');
+
+        $application->handle(function(): void {
+            Config::setValue('cache.path',sys_get_temp_dir().'/adminservice_request_metadata');
+        });
+
+        $after=count($classes_property->getValue($metadata));
+        $this->assertSame($before,$after,'请求配置登记不应清空共享元数据');
+
+        $config_property=new \ReflectionProperty($metadata,'config');
+        $config_property->setAccessible(true);
+        $this->assertSame(Config::repository(),$config_property->getValue($metadata),'共享元数据必须继续使用应用级配置');
     }
 
     /**

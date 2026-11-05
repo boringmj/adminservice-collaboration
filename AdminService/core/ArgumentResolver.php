@@ -25,6 +25,7 @@ use function is_bool;
 use function is_callable;
 use function is_float;
 use function is_int;
+use function is_iterable;
 use function is_numeric;
 use function is_string;
 use function preg_match;
@@ -192,6 +193,8 @@ final class ArgumentResolver implements ArgumentResolverInterface {
                 $has_default=$param->isDefaultValueAvailable();
                 $default=$has_default?$param->getDefaultValue():null;
             }
+            // self/parent 是相对于声明类的类型, 不能直接拿去 class_exists()
+            $types=$this->resolveTypesForParameter($types,$param);
             // 判断参数类型是否为可变参数
             if($is_variadic) {
                 $numeric_args=array_values(array_filter($args,'is_numeric',ARRAY_FILTER_USE_KEY));
@@ -311,14 +314,19 @@ final class ArgumentResolver implements ArgumentResolverInterface {
         if(in_array('callable',$types,true)) {
             if(is_callable($arg)) return true;
         }
+        // PHP 8.2 字面量类型与 iterable
+        if($arg===false&&in_array('false',$types,true)) return true;
+        if($arg===true&&in_array('true',$types,true)) return true;
+        if(in_array('iterable',$types,true)&&is_iterable($arg)) return true;
         // 标量弱类型兼容(对齐 PHP 非严格模式,反射调用默认是严格类型)
         // 注意: $types 为 getStandardTypes() 标准化后的 gettype() 风格(integer/double/boolean)
         if($this->enable_param_cast) {
             // 数字字符串 → int/float
             if((in_array('integer',$types,true)||in_array('double',$types,true))&&is_numeric($arg))
                 return true;
-            // int/float/bool → string
-            if(in_array('string',$types,true)&&(is_int($arg)||is_float($arg)||is_bool($arg)))
+            // int/float/bool/Stringable → string
+            if(in_array('string',$types,true)
+                &&(is_int($arg)||is_float($arg)||is_bool($arg)||$arg instanceof \Stringable))
                 return true;
             // float/bool → int
             if(in_array('integer',$types,true)&&(is_float($arg)||is_bool($arg)))
@@ -367,6 +375,14 @@ final class ArgumentResolver implements ArgumentResolverInterface {
         // 值本身已经符合某个声明类型时保持原样: 联合类型(int|string)不能把 "5" 强转成 int
         if(in_array(gettype($value),$types,true))
             return $value;
+        // false/true 字面量不能落入普通 boolean 的弱转换分支
+        if($value===false&&in_array('false',$types,true))
+            return false;
+        if($value===true&&in_array('true',$types,true))
+            return true;
+        // Stringable 在 PHP 非严格模式下可传给 string 形参
+        if(in_array('string',$types,true)&&$value instanceof \Stringable)
+            return (string)$value;
         // $types 为 getStandardTypes() 标准化后的 gettype() 风格(integer/double/boolean)
         if(is_string($value)) {
             if(is_numeric($value)) {
@@ -407,6 +423,38 @@ final class ArgumentResolver implements ArgumentResolverInterface {
                 return (float)$value;
         }
         return $value;
+    }
+
+    /**
+     * 将 self / parent / static 解析为声明类对应的真实类名
+     *
+     * @access private
+     * @param array<string> $types 类型列表
+     * @param ReflectionParameter $parameter 当前形参
+     * @return array<string>
+     */
+    private function resolveTypesForParameter(array $types,ReflectionParameter $parameter): array {
+        if(!in_array('self',$types,true)&&!in_array('parent',$types,true)&&!in_array('static',$types,true))
+            return $types;
+        $declaring=$parameter->getDeclaringFunction()->getDeclaringClass();
+        if($declaring===null)
+            return $types;
+        $resolved=array();
+        foreach($types as $type) {
+            if($type==='self'||$type==='static') {
+                $resolved[]=$declaring->getName();
+                continue;
+            }
+            if($type==='parent') {
+                $parent=$declaring->getParentClass();
+                if($parent!==false) {
+                    $resolved[]=$parent->getName();
+                    continue;
+                }
+            }
+            $resolved[]=$type;
+        }
+        return array_values(array_unique($resolved));
     }
 
     /**

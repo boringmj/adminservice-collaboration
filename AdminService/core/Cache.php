@@ -359,6 +359,8 @@ final class Cache implements CacheInterface {
     /**
      * 清空当前缓存池
      *
+     * - 保留 `.lock` 文件, 避免与并发 increment/decrement 形成新旧 inode 双锁
+     *
      * @access public
      * @return bool
      */
@@ -366,7 +368,7 @@ final class Cache implements CacheInterface {
         $path=$this->poolPath();
         if(!is_dir($path)||is_link($path))
             return true;
-        return $this->removeDirectoryContents($path);
+        return $this->removeDirectoryContents($path,true);
     }
 
     /**
@@ -462,7 +464,7 @@ final class Cache implements CacheInterface {
      * 清空整个缓存目录
      *
      * - 包括所有 KV 池与编译缓存
-     * - 只保留 `cache.path` 目录本身
+     * - 只保留 `cache.path` 目录本身与并发锁文件
      *
      * @access public
      * @return bool
@@ -471,7 +473,7 @@ final class Cache implements CacheInterface {
         $root=$this->cacheRoot();
         $ok=true;
         if(is_dir($root)&&!is_link($root))
-            $ok=$this->removeDirectoryContents($root);
+            $ok=$this->removeDirectoryContents($root,true);
         // 配置快照是引导期例外, 即使 cache.path 自定义也要一并清理
         $runtime=$this->runtimeCompileRoot();
         if($runtime!==$this->compileRoot())
@@ -819,11 +821,15 @@ final class Cache implements CacheInterface {
     /**
      * 递归清理目录内容(保留目录本身)
      *
+     * - `$preserve_locks=true` 时保留 `.lock`: 删除仍可能被等待者持有的锁文件会
+     *   让新旧 inode 同时被加锁, 破坏 increment/decrement 的互斥
+     *
      * @access private
      * @param string $dir 目录
+     * @param bool $preserve_locks 是否保留锁文件
      * @return bool
      */
-    private function removeDirectoryContents(string $dir): bool {
+    private function removeDirectoryContents(string $dir,bool $preserve_locks=false): bool {
         $entries=@scandir($dir);
         if($entries===false)
             return false;
@@ -831,7 +837,7 @@ final class Cache implements CacheInterface {
         foreach($entries as $entry) {
             if($entry==='.'||$entry==='..')
                 continue;
-            if(!$this->deletePath($dir.'/'.$entry))
+            if(!$this->deletePath($dir.'/'.$entry,$preserve_locks))
                 $ok=false;
         }
         return $ok;
@@ -840,17 +846,31 @@ final class Cache implements CacheInterface {
     /**
      * 删除文件或目录(递归)
      *
+     * - 保留锁文件时, 目录内只剩锁文件则保留目录, 避免 rmdir 失败被误报为清理失败
+     *
      * @access private
      * @param string $path 路径
+     * @param bool $preserve_locks 是否保留锁文件
      * @return bool
      */
-    private function deletePath(string $path): bool {
-        if(is_link($path)||is_file($path))
+    private function deletePath(string $path,bool $preserve_locks=false): bool {
+        if(is_link($path)||is_file($path)) {
+            if($preserve_locks&&str_ends_with(basename($path),'.lock'))
+                return true;
             return $this->removeFile($path);
+        }
         if(!is_dir($path))
             return true;
-        if(!$this->removeDirectoryContents($path))
+        if(!$this->removeDirectoryContents($path,$preserve_locks))
             return false;
+        if(!$preserve_locks)
+            return @rmdir($path);
+        $entries=@scandir($path);
+        if($entries===false)
+            return false;
+        foreach($entries as $entry)
+            if($entry!=='.'&&$entry!=='..')
+                return true;
         return @rmdir($path);
     }
 
@@ -907,20 +927,23 @@ final class Cache implements CacheInterface {
     }
 
     /**
-     * 是否为锁文件或崩溃残留的临时文件
+     * 是否为崩溃残留的临时文件
+     *
+     * - `.lock` 不参与 GC: 删除仍被并发等待者持有的锁文件会让新旧 inode
+     *   各自被加锁, 破坏 increment/decrement 的互斥
      *
      * @access private
      * @param string $name 文件名
      * @return bool
      */
     private function isAuxiliaryFile(string $name): bool {
-        return str_ends_with($name,'.lock')||str_starts_with($name,'.cachetmp_');
+        return str_starts_with($name,'.cachetmp_');
     }
 
     /**
-     * 清理超过一小时且未被占用的锁文件/临时文件
+     * 清理超过一小时的崩溃残留临时文件
      *
-     * - 锁文件可能被活动进程持有, 只在非阻塞 flock 成功时删除
+     * - 锁文件不在此处清理; 删除锁文件会破坏并发 increment/decrement 的 inode 互斥
      * - 检查失败时保留文件, 不影响本次 GC
      *
      * @access private

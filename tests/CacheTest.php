@@ -547,9 +547,41 @@ class CacheTest extends TestCase {
         touch($lock,time()-7200);
         touch($tmp,time()-7200);
 
-        $this->assertGreaterThanOrEqual(2,$cache->gc(0));
-        $this->assertFileDoesNotExist($lock);
+        $this->assertGreaterThanOrEqual(1,$cache->gc(0));
+        $this->assertFileExists($lock,'锁文件不能被 GC 删除');
         $this->assertFileDoesNotExist($tmp);
+    }
+
+    /**
+     * 测试: 清空池时保留锁文件
+     *
+     * @return void
+     */
+    public function testClearPreservesLockFiles(): void {
+        $cache=new Cache($this->config);
+        $cache->increment('counter');
+        $lock=$this->entryPath($cache,'counter').'.lock';
+        $this->assertFileExists($lock);
+
+        $this->assertTrue($cache->clear());
+        $this->assertFileExists($lock,'清空池不能删除并发锁文件');
+        $this->assertNull($cache->get('counter'));
+    }
+
+    /**
+     * 测试: 全量清空也保留锁文件
+     *
+     * @return void
+     */
+    public function testClearAllPreservesLockFiles(): void {
+        $cache=new Cache($this->config);
+        $cache->increment('counter');
+        $lock=$this->entryPath($cache,'counter').'.lock';
+        $this->assertFileExists($lock);
+
+        $this->assertTrue($cache->clearAll());
+        $this->assertFileExists($lock,'全量清空不能删除并发锁文件');
+        $this->assertNull($cache->get('counter'));
     }
 
     public function testInvalidKeyAndPoolAreRejected(): void {

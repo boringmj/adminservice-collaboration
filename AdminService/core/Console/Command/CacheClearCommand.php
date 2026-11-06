@@ -51,7 +51,7 @@ final class CacheClearCommand extends AbstractCommand {
      * @return string
      */
     public function description(): string {
-        return '清理编译缓存(不影响 kv/ 业务缓存池)';
+        return '清理编译缓存(含环境快照, 不影响 kv/ 业务缓存池)';
     }
 
     /**
@@ -72,7 +72,7 @@ final class CacheClearCommand extends AbstractCommand {
      */
     public function optionHelp(): array {
         return array(
-            array('names'=>array('target'),'value'=>'all|config|routes|container','description'=>'清理范围, 默认 all'),
+            array('names'=>array('target'),'value'=>'all|env|config|routes|container','description'=>'清理范围, 默认 all'),
         );
     }
 
@@ -83,7 +83,7 @@ final class CacheClearCommand extends AbstractCommand {
      * @return string
      */
     public function usage(): string {
-        return 'cache clear [all|config|routes|container]';
+        return 'cache clear [all|env|config|routes|container]';
     }
 
     /**

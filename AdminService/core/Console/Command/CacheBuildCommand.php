@@ -4,6 +4,7 @@ namespace AdminService\Console\Command;
 
 use AdminService\Cache\CompileStore;
 use AdminService\Config\Bootstrapper;
+use AdminService\Config\Env;
 use AdminService\Config\Repository;
 use AdminService\Console\Input;
 use AdminService\Console\Output;
@@ -81,7 +82,7 @@ final class CacheBuildCommand extends AbstractCommand {
      * @return string
      */
     public function description(): string {
-        return '预构建配置、路由与容器编译缓存';
+        return '预构建环境、配置、路由与容器编译缓存';
     }
 
     /**
@@ -101,7 +102,7 @@ final class CacheBuildCommand extends AbstractCommand {
      * @return array<int,string>
      */
     public function booleanOptions(): array {
-        return array('force','f');
+        return array('force','f','with-env');
     }
 
     /**
@@ -112,8 +113,9 @@ final class CacheBuildCommand extends AbstractCommand {
      */
     public function optionHelp(): array {
         return array(
-            array('names'=>array('target'),'value'=>'all|config|routes|container','description'=>'构建范围, 默认 all'),
+            array('names'=>array('target'),'value'=>'all|env|config|routes|container','description'=>'构建范围, 默认 all(不含 env)'),
             array('names'=>array('force','f'),'value'=>null,'description'=>'忽略缓存指纹, 强制重建'),
+            array('names'=>array('with-env'),'value'=>null,'description'=>'all 同时构建环境快照(包含 .env 全部键值)'),
         );
     }
 
@@ -124,7 +126,7 @@ final class CacheBuildCommand extends AbstractCommand {
      * @return string
      */
     public function usage(): string {
-        return 'cache build [all|config|routes|container] [--force]';
+        return 'cache build [all|env|config|routes|container] [--with-env] [--force]';
     }
 
     /**
@@ -146,11 +148,17 @@ final class CacheBuildCommand extends AbstractCommand {
         $store=new CompileStore($this->config);
         if($force)
             $store->force(true);
-        $targets=$target===null?CacheCommandSupport::TARGETS:array($target);
+        $targets=$target===null
+            ?($input->hasOption('with-env')?CacheCommandSupport::ALL_TARGETS:CacheCommandSupport::TARGETS)
+            :array($target);
         $failed=false;
+        $compiled_env=null;
         foreach($targets as $name) {
-            if($name==='config') {
-                $result=$this->buildConfig($force);
+            if($name==='env') {
+                $result=$this->buildEnv();
+                $compiled_env=$result['env'];
+            } elseif($name==='config') {
+                $result=$this->buildConfig($force,$compiled_env);
                 // 配置重建后后续目标必须使用新的配置对象与缓存路径
                 $store=new CompileStore($this->config);
                 if($force)
@@ -189,14 +197,31 @@ final class CacheBuildCommand extends AbstractCommand {
     }
 
     /**
+     * 构建环境快照
+     *
+     * @access private
+     * @return array{status:string,reason:string|null,failure:bool,env:Env|null}
+     */
+    private function buildEnv(): array {
+        $result=$this->bootstrapper->buildEnvCache();
+        return array(
+            'status'=>$result['status'],
+            'reason'=>$result['reason'],
+            'failure'=>$result['status']==='failed',
+            'env'=>$result['env']
+        );
+    }
+
+    /**
      * 构建配置缓存
      *
      * @access private
      * @param bool $force 是否强制重建
+     * @param Env|null $env 环境快照(null = 当前配置/引导器的快照)
      * @return array{status:string,reason:string|null,failure:bool}
      */
-    private function buildConfig(bool $force): array {
-        $env=$this->config->envSnapshot()??$this->bootstrapper->env();
+    private function buildConfig(bool $force,?Env $env=null): array {
+        $env??=$this->config->envSnapshot()??$this->bootstrapper->env();
         $result=$this->bootstrapper->buildConfigCache($env,$force);
         $failure=!in_array($result['status'],array('built','ready','skipped'),true);
         if(!$failure)

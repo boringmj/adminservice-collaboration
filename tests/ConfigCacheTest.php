@@ -16,13 +16,18 @@ use AdminService\Container;
 use AdminService\Runtime;
 use Tests\Fixtures\ConfigCacheAliasTarget;
 
+use function AdminService\env;
+use function AdminService\env_reset;
+use function AdminService\env_snapshot;
 use function class_exists;
 use function clearstatcache;
 use function file_put_contents;
+use function getenv;
 use function is_dir;
 use function is_file;
 use function is_link;
 use function mkdir;
+use function putenv;
 use function rmdir;
 use function scandir;
 use function sys_get_temp_dir;
@@ -236,6 +241,165 @@ class ConfigCacheTest extends TestCase {
     }
 
     /**
+     * 测试: 环境快照存在时允许生成配置快照
+     *
+     * @return void
+     */
+    public function testBootstrapperAllowsConfigCacheWithCompiledEnv(): void {
+        $old_runtime=Runtime::path();
+        $dir=$this->tempDir();
+        try {
+            Runtime::setPath($dir.'/runtime');
+            $env=Env::fromArray(array('APP_DEBUG'=>false),'/tmp/.env');
+
+            $config=(new Bootstrapper())->loadConfig($env);
+
+            $this->assertInstanceOf(Repository::class,$config);
+            $this->assertTrue($config->isValidated(),'环境快照存在时应生成配置快照');
+            $this->assertFileExists($dir.'/runtime/cache/compile/config.cache.php');
+        } finally {
+            Runtime::setPath($old_runtime);
+            $this->removePath($dir);
+        }
+    }
+
+    /**
+     * 测试: 环境快照值变化时配置快照随之重建
+     *
+     * @return void
+     */
+    public function testConfigCacheRebuildsWhenEnvContextChanges(): void {
+        $old_runtime=Runtime::path();
+        $dir=$this->tempDir();
+        try {
+            Runtime::setPath($dir.'/runtime');
+            $bootstrapper=new Bootstrapper();
+
+            $first=$bootstrapper->loadConfig(Env::fromArray(
+                array('APP_DEBUG'=>false,'app.timezone'=>'UTC'),
+                '/tmp/.env'
+            ));
+            $this->assertSame('UTC',$first->get('app.timezone'));
+
+            $second=$bootstrapper->loadConfig(Env::fromArray(
+                array('APP_DEBUG'=>false,'app.timezone'=>'Asia/Tokyo'),
+                '/tmp/.env'
+            ));
+            $this->assertTrue($second->isValidated());
+            $this->assertSame('Asia/Tokyo',$second->get('app.timezone'),'env 上下文变化应重建配置快照');
+        } finally {
+            Runtime::setPath($old_runtime);
+            $this->removePath($dir);
+        }
+    }
+
+    /**
+     * 测试: 环境快照重建后同步进程快照, 配置缓存使用新值
+     *
+     * @return void
+     */
+    public function testBuildEnvCacheSyncsProcessSnapshotForConfigBuild(): void {
+        $old_runtime=Runtime::path();
+        $old_env=getenv('ADMINSERVICE_TEST_ENV_FILE');
+        $old_cache=getenv('ADMINSERVICE_TEST_ENV_CACHE');
+        $dir=$this->tempDir();
+        $env_file=$dir.'/.env';
+        $env_cache=$dir.'/env.cache.php';
+        $runtime=$dir.'/runtime';
+        try {
+            Runtime::setPath($runtime);
+            putenv('ADMINSERVICE_TEST_ENV_FILE='.$env_file);
+            putenv('ADMINSERVICE_TEST_ENV_CACHE='.$env_cache);
+            file_put_contents($env_file,"APP_DEBUG=false\nDB_HOST=old-host\nDB_PASSWORD=old-pass\nRUNTIME_PATH=".$runtime."\n");
+            env_reset();
+            Runtime::reset();
+            $bootstrapper=new Bootstrapper();
+            $this->assertSame('built',$bootstrapper->buildEnvCache()['status']);
+
+            // 模拟 CLI 已启动: 先加载旧快照
+            env_reset();
+            $old=env_snapshot();
+            Runtime::setPath(Runtime::path($old));
+            $this->assertSame('old-host',env('DB_HOST'));
+
+            file_put_contents($env_file,"APP_DEBUG=false\nDB_HOST=new-host\nDB_PASSWORD=new-pass-longer\nRUNTIME_PATH=".$runtime."\n");
+            $result=$bootstrapper->buildEnvCache();
+            $this->assertSame('built',$result['status']);
+            $this->assertSame('new-host',env('DB_HOST'),'构建后进程快照应切到新值');
+            $this->assertSame(Runtime::path($result['env']),Runtime::path());
+
+            $this->assertSame('built',$bootstrapper->buildConfigCache($result['env'],true)['status']);
+            $data=include Runtime::path().'/cache/compile/config.cache.php';
+            $this->assertSame('new-host',$data['payload']['raw']['database']['connections']['default']['host']);
+            $this->assertSame('new-pass-longer',$data['payload']['raw']['database']['connections']['default']['password']);
+        } finally {
+            if($old_env===false)
+                putenv('ADMINSERVICE_TEST_ENV_FILE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_FILE='.$old_env);
+            if($old_cache===false)
+                putenv('ADMINSERVICE_TEST_ENV_CACHE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_CACHE='.$old_cache);
+            env_reset();
+            Runtime::setPath($old_runtime);
+            $this->removePath($dir);
+        }
+    }
+
+    /**
+     * 测试: RUNTIME_PATH 变更后缓存写入新 runtime
+     *
+     * @return void
+     */
+    public function testBuildEnvCacheMovesConfigCacheToNewRuntime(): void {
+        $old_runtime=Runtime::path();
+        $old_env=getenv('ADMINSERVICE_TEST_ENV_FILE');
+        $old_cache=getenv('ADMINSERVICE_TEST_ENV_CACHE');
+        $dir=$this->tempDir();
+        $env_file=$dir.'/.env';
+        $env_cache=$dir.'/env.cache.php';
+        $runtime_old=$dir.'/runtime-old';
+        $runtime_new=$dir.'/runtime-new';
+        try {
+            Runtime::setPath($runtime_old);
+            putenv('ADMINSERVICE_TEST_ENV_FILE='.$env_file);
+            putenv('ADMINSERVICE_TEST_ENV_CACHE='.$env_cache);
+            file_put_contents($env_file,"APP_DEBUG=false\nRUNTIME_PATH=".$runtime_old."\n");
+            env_reset();
+            Runtime::reset();
+            $bootstrapper=new Bootstrapper();
+            $this->assertSame('built',$bootstrapper->buildEnvCache()['status']);
+
+            // 模拟 CLI 已启动: 先加载旧快照
+            env_reset();
+            $old=env_snapshot();
+            Runtime::setPath(Runtime::path($old));
+
+            file_put_contents($env_file,"APP_DEBUG=false\nRUNTIME_PATH=".$runtime_new."\n");
+            $result=$bootstrapper->buildEnvCache();
+            $this->assertSame('built',$result['status']);
+            $this->assertSame(Runtime::path($result['env']),Runtime::path());
+            $this->assertStringEndsWith('/runtime-new',Runtime::path());
+
+            $this->assertSame('built',$bootstrapper->buildConfigCache($result['env'],true)['status']);
+            $this->assertFileExists(Runtime::path().'/cache/compile/config.cache.php');
+        } finally {
+            if($old_env===false)
+                putenv('ADMINSERVICE_TEST_ENV_FILE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_FILE='.$old_env);
+            if($old_cache===false)
+                putenv('ADMINSERVICE_TEST_ENV_CACHE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_CACHE='.$old_cache);
+            env_reset();
+            Runtime::setPath($old_runtime);
+            $this->removePath($dir);
+        }
+    }
+
+    /**
      * 测试: Bootstrapper 在 debug + auto 下跳过配置缓存
      *
      * @return void
@@ -368,7 +532,9 @@ class ConfigCacheTest extends TestCase {
      */
     public function testClearCompileCoversRuntimeConfigSnapshot(): void {
         $old_runtime=Runtime::path();
+        $old_env_cache=getenv('ADMINSERVICE_TEST_ENV_CACHE');
         $dir=$this->tempDir();
+        putenv('ADMINSERVICE_TEST_ENV_CACHE='.$dir.'/env.cache.php');
         try {
             Runtime::setPath($dir.'/runtime');
             $runtime_file=$dir.'/runtime/cache/compile/config.cache.php';
@@ -393,6 +559,10 @@ class ConfigCacheTest extends TestCase {
             $this->assertTrue($cache->clearAll());
             $this->assertFileDoesNotExist($runtime_file);
         } finally {
+            if($old_env_cache===false)
+                putenv('ADMINSERVICE_TEST_ENV_CACHE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_CACHE='.$old_env_cache);
             Runtime::setPath($old_runtime);
             $this->removePath($dir);
         }

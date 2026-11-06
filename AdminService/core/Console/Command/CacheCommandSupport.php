@@ -20,10 +20,16 @@ use function trim;
 final class CacheCommandSupport {
 
     /**
-     * 全部目标
+     * 默认构建目标(不含环境快照)
      * @var array<int,string>
      */
     public const TARGETS=array('config','routes','container');
+
+    /**
+     * 全部目标(含环境快照, 按构建顺序)
+     * @var array<int,string>
+     */
+    public const ALL_TARGETS=array('env','config','routes','container');
 
     /**
      * 从参数解析目标
@@ -62,7 +68,7 @@ final class CacheCommandSupport {
             return null;
         if($target==='route')
             $target='routes';
-        if(!array_key_exists($target,array('config'=>true,'routes'=>true,'container'=>true)))
+        if(!array_key_exists($target,array('env'=>true,'config'=>true,'routes'=>true,'container'=>true)))
             throw new InvalidArgumentException('缓存目标无效(Cache target is invalid): '.$target);
         return $target;
     }

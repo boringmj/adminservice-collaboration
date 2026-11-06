@@ -4,6 +4,7 @@ namespace AdminService\Config;
 
 use AdminService\Application;
 use AdminService\Cache\CompileStore;
+use AdminService\Cache\EnvCache;
 use AdminService\Config as ConfigFacade;
 use AdminService\Database\DatabaseConfig;
 use AdminService\Exception;
@@ -17,6 +18,7 @@ use function date_default_timezone_set;
 use function explode;
 use function in_array;
 use function is_array;
+use function is_file;
 use function realpath;
 use function scandir;
 use function sort;
@@ -229,6 +231,63 @@ final class Bootstrapper {
     }
 
     /**
+     * 构建环境快照
+     *
+     * - 快照包含 `.env` 的全部键值, 写入前必须确认 runtime 不在文档根内
+     * - 没有 `.env` 或使用测试替代文件时跳过
+     * - 成功时同步进程快照与 runtime 路径, 并返回编译标记的 `Env`
+     *
+     * @access public
+     * @return array{status:string,path:string,reason:string|null,env:Env|null}
+     */
+    public function buildEnvCache(): array {
+        $path=EnvCache::path();
+        if(EnvSnapshot::usesCustomFile()&&!EnvCache::hasPathOverride())
+            return array(
+                'status'=>'skipped',
+                'path'=>$path,
+                'reason'=>'使用 ADMINSERVICE_TEST_ENV_FILE, 已跳过环境快照',
+                'env'=>null
+            );
+        $file=EnvSnapshot::file();
+        if(!is_file($file)) {
+            if(!EnvCache::clear())
+                return array(
+                    'status'=>'failed',
+                    'path'=>$path,
+                    'reason'=>'无法删除环境快照: '.$path,
+                    'env'=>null
+                );
+            EnvSnapshot::reset();
+            Runtime::reset();
+            return array(
+                'status'=>'skipped',
+                'path'=>$path,
+                'reason'=>'没有 .env, 环境快照已清理',
+                'env'=>null
+            );
+        }
+        $env=Env::fromFile($file);
+        if(!EnvCache::write($file,$env))
+            return array(
+                'status'=>'failed',
+                'path'=>$path,
+                'reason'=>'无法写入环境快照: '.$path,
+                'env'=>null
+            );
+        $compiled=Env::fromArray($env->all(),$file);
+        // 同步进程状态: 后续 config/*.php 的 env() 与缓存路径都使用新值
+        EnvSnapshot::replace($compiled);
+        Runtime::setPath(Runtime::path($compiled));
+        return array(
+            'status'=>'built',
+            'path'=>$path,
+            'reason'=>'.env 全部键值已写入(包含敏感值): '.$path,
+            'env'=>$compiled
+        );
+    }
+
+    /**
      * 构建配置缓存
      *
      * @access public
@@ -241,7 +300,7 @@ final class Bootstrapper {
         if($force)
             $store->force(true);
         $path=$store->path('config');
-        if($env->path()!=='') {
+        if($env->path()!==''&&!$env->compiled()) {
             if(!$store->invalidate('config'))
                 return array(
                     'status'=>'failed',
@@ -251,7 +310,7 @@ final class Bootstrapper {
             return array(
                 'status'=>'skipped',
                 'path'=>$path,
-                'reason'=>'.env 存在，配置缓存已禁用'
+                'reason'=>'.env 存在且未生成环境快照，配置缓存已禁用'
             );
         }
         if(!$store->enabled('config'))
@@ -296,7 +355,9 @@ final class Bootstrapper {
         $reason=null;
         if(!$enabled) {
             $status='disabled';
-            $reason=$env->path()!==''?'.env 存在，配置缓存已禁用':'配置中已禁用配置缓存';
+            $reason=$env->path()!==''
+                ?'.env 存在且未生成环境快照，配置缓存已禁用'
+                :'配置中已禁用配置缓存';
         } elseif(!$inspect['exists']) {
             $status='missing';
             $reason=$inspect['reason'];
@@ -352,14 +413,15 @@ final class Bootstrapper {
     /**
      * 配置缓存是否启用
      *
-     * - 存在 `.env` 时固定关闭, 避免配置快照物化敏感值
+     * - 没有 `.env` 时默认启用
+     * - 有 `.env` 时只有环境快照可用才启用, 避免隐式物化敏感值
      *
      * @access private
      * @param Env $env `.env` 快照
      * @return bool
      */
     private function compileConfigEnabled(Env $env): bool {
-        return $this->compileEnabled($env)&&$env->path()==='';
+        return $this->compileEnabled($env)&&($env->path()===''||$env->compiled());
     }
 
     /**

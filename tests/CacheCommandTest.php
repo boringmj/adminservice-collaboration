@@ -17,14 +17,17 @@ use AdminService\Router\RouterFactory;
 use AdminService\Runtime;
 use Tests\Fixtures\RouteCacheController;
 
+use function AdminService\env_reset;
 use function array_column;
 use function copy;
 use function file_get_contents;
 use function file_put_contents;
 use function filemtime;
+use function getenv;
 use function is_dir;
 use function is_file;
 use function mkdir;
+use function putenv;
 use function rmdir;
 use function scandir;
 use function str_ends_with;
@@ -52,6 +55,12 @@ class CacheCommandTest extends TestCase {
     private string $old_runtime;
 
     /**
+     * 用例前的环境快照路径覆盖
+     * @var string|false
+     */
+    private string|false $old_env_cache=false;
+
+    /**
      * 测试配置
      * @var Repository
      */
@@ -76,6 +85,9 @@ class CacheCommandTest extends TestCase {
             ."    \$router->get('/cli',array(\\Tests\\Fixtures\\RouteCacheController::class,'index'));\n};\n");
         $this->old_runtime=Runtime::path();
         Runtime::setPath($this->dir.'/runtime');
+        // 清理命令的用例不能删掉本地真实的环境快照
+        $this->old_env_cache=getenv('ADMINSERVICE_TEST_ENV_CACHE');
+        putenv('ADMINSERVICE_TEST_ENV_CACHE='.$this->dir.'/env.cache.php');
         $this->config=$this->makeConfig();
     }
 
@@ -85,6 +97,10 @@ class CacheCommandTest extends TestCase {
      * @return void
      */
     protected function tearDown(): void {
+        if($this->old_env_cache===false)
+            putenv('ADMINSERVICE_TEST_ENV_CACHE');
+        else
+            putenv('ADMINSERVICE_TEST_ENV_CACHE='.$this->old_env_cache);
         Runtime::setPath($this->old_runtime);
         $this->removePath($this->dir);
     }
@@ -207,6 +223,49 @@ class CacheCommandTest extends TestCase {
         $this->assertSame(0,$command->execute(new Input(array()),$output));
         $this->assertFileDoesNotExist($compile.'/config.cache.php');
         $this->assertFileExists($kv.'/business.data.json');
+    }
+
+    /**
+     * 测试环境快照的构建、状态与清理
+     *
+     * @return void
+     */
+    public function testEnvTargetBuildStatusAndClear(): void {
+        $previous_env=getenv('ADMINSERVICE_TEST_ENV_FILE');
+        $previous_cache=getenv('ADMINSERVICE_TEST_ENV_CACHE');
+        $env_file=$this->dir.'/env-src';
+        $cache_file=$this->dir.'/env.cache.php';
+        file_put_contents($env_file,"APP_DEBUG=false\n");
+        putenv('ADMINSERVICE_TEST_ENV_FILE='.$env_file);
+        putenv('ADMINSERVICE_TEST_ENV_CACHE='.$cache_file);
+        env_reset();
+        try {
+            $build=new CacheBuildCommand(new Bootstrapper(),$this->config);
+            $output=Output::buffer();
+            $this->assertSame(0,$build->execute(new Input(array('env')),$output));
+            $this->assertFileExists($cache_file);
+            $this->assertStringContainsString('包含敏感值',$output->stdout());
+
+            $status=new CacheStatusCommand($this->config);
+            $output=Output::buffer();
+            $this->assertSame(0,$status->execute(new Input(array('env')),$output));
+            $this->assertStringContainsString('valid',$output->stdout());
+
+            $clear=new CacheClearCommand($this->config);
+            $output=Output::buffer();
+            $this->assertSame(0,$clear->execute(new Input(array('env')),$output));
+            $this->assertFileDoesNotExist($cache_file);
+        } finally {
+            if($previous_env===false)
+                putenv('ADMINSERVICE_TEST_ENV_FILE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_FILE='.$previous_env);
+            if($previous_cache===false)
+                putenv('ADMINSERVICE_TEST_ENV_CACHE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_CACHE='.$previous_cache);
+            env_reset();
+        }
     }
 
     /**

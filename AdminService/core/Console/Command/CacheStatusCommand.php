@@ -3,7 +3,9 @@
 namespace AdminService\Console\Command;
 
 use AdminService\Cache\CompileStore;
+use AdminService\Cache\EnvCache;
 use AdminService\Config\Bootstrapper;
+use AdminService\Config\EnvSnapshot;
 use AdminService\Config\Repository;
 use AdminService\Console\Input;
 use AdminService\Console\Output;
@@ -69,7 +71,7 @@ final class CacheStatusCommand extends AbstractCommand {
      * @return string
      */
     public function description(): string {
-        return '查看配置、路由与容器编译缓存状态';
+        return '查看环境、配置、路由与容器编译缓存状态';
     }
 
     /**
@@ -90,7 +92,7 @@ final class CacheStatusCommand extends AbstractCommand {
      */
     public function optionHelp(): array {
         return array(
-            array('names'=>array('target'),'value'=>'all|config|routes|container','description'=>'查看范围, 默认 all'),
+            array('names'=>array('target'),'value'=>'all|env|config|routes|container','description'=>'查看范围, 默认 all'),
         );
     }
 
@@ -101,7 +103,7 @@ final class CacheStatusCommand extends AbstractCommand {
      * @return string
      */
     public function usage(): string {
-        return 'cache status [all|config|routes|container]';
+        return 'cache status [all|env|config|routes|container]';
     }
 
     /**
@@ -132,7 +134,7 @@ final class CacheStatusCommand extends AbstractCommand {
         $output->info('环境文件(.env): '.(is_file($env->path())?'存在(present)':'不存在(absent)'));
         $output->info('');
         $rows=array();
-        foreach($target===null?CacheCommandSupport::TARGETS:array($target) as $name) {
+        foreach($target===null?CacheCommandSupport::ALL_TARGETS:array($target) as $name) {
             $inspect=$this->inspect($name,$store,$bootstrapper,$env);
             $created=is_int($inspect['created_at']??null)?date('Y-m-d H:i:s',$inspect['created_at']):'-';
             $size=is_int($inspect['size']??null)?number_format($inspect['size']):'-';
@@ -179,6 +181,15 @@ final class CacheStatusCommand extends AbstractCommand {
      * @return array<string,mixed>
      */
     private function inspect(string $target,CompileStore $store,Bootstrapper $bootstrapper,$env): array {
+        if($target==='env') {
+            if(EnvSnapshot::usesCustomFile()&&!EnvCache::hasPathOverride())
+                return array(
+                    'path'=>EnvCache::path(),
+                    'status'=>'disabled',
+                    'reason'=>'使用 ADMINSERVICE_TEST_ENV_FILE，环境快照未参与'
+                );
+            return EnvCache::status(EnvSnapshot::file());
+        }
         if($target==='config') {
             $status=$bootstrapper->configCacheStatus($env);
             $inspect=$status['inspect'];
@@ -202,6 +213,8 @@ final class CacheStatusCommand extends AbstractCommand {
      * @return bool
      */
     private function enabled(string $target,CompileStore $store,Bootstrapper $bootstrapper,$env): bool {
+        if($target==='env')
+            return EnvCache::exists()&&!(EnvSnapshot::usesCustomFile()&&!EnvCache::hasPathOverride());
         if($target==='config')
             return $bootstrapper->configStore($env)->enabled('config');
         return $store->enabled($target);

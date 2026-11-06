@@ -81,6 +81,12 @@ final class Env {
     private string $path='';
 
     /**
+     * 是否来自编译快照
+     * @var bool
+     */
+    private bool $compiled=false;
+
+    /**
      * 构造方法
      *
      * @access public
@@ -113,6 +119,34 @@ final class Env {
         if($content===false)
             throw new ConfigException('env 文件读取失败: '.$path,100922);
         return new self($content,$path);
+    }
+
+    /**
+     * 从编译快照构造
+     *
+     * - 值已完成解析与类型转换, 不再二次解析
+     * - 调用方负责保证值只含标量或 null
+     *
+     * @access public
+     * @param array<string,mixed> $values 键值表
+     * @param string $path 来源路径
+     * @return self
+     */
+    public static function fromArray(array $values,string $path=''): self {
+        $env=new self('',$path);
+        $env->values=$values;
+        $env->compiled=true;
+        return $env;
+    }
+
+    /**
+     * 是否来自编译快照
+     *
+     * @access public
+     * @return bool
+     */
+    public function compiled(): bool {
+        return $this->compiled;
     }
 
     /**

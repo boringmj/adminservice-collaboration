@@ -2,6 +2,8 @@
 
 namespace AdminService;
 
+use AdminService\Cache\EnvCache;
+use AdminService\Config\EnvSnapshot;
 use AdminService\Config\Repository;
 use base\CacheInterface;
 use base\ConfigInterface;
@@ -431,7 +433,7 @@ final class Cache implements CacheInterface {
      * 清理编译缓存
      *
      * @access public
-     * @param string|null $target 目标(`config` / `routes` / `route` / `container`); null = 全部编译缓存
+     * @param string|null $target 目标(`env` / `config` / `routes` / `route` / `container`); null = 全部编译缓存
      * @return bool
      * @throws Exception 目标名非法
      */
@@ -441,10 +443,20 @@ final class Cache implements CacheInterface {
             $ok=true;
             if(is_dir($root)&&!is_link($root))
                 $ok=$this->removeDirectoryContents($root);
-            // 引导期配置快照固定写入 runtime; cache.path 改到别处时也要清掉它
+            // 引导期快照固定写入 runtime; cache.path 改到别处时也要清掉它们
             $runtime=$this->runtimeCompileRoot();
             if($runtime!==$root&&is_dir($runtime)&&!is_link($runtime))
                 $ok=$this->removeDirectoryContents($runtime)&&$ok;
+            if(EnvCache::clear())
+                EnvSnapshot::reset();
+            else
+                $ok=false;
+            return $ok;
+        }
+        if($target==='env') {
+            $ok=EnvCache::clear();
+            if($ok)
+                EnvSnapshot::reset();
             return $ok;
         }
         if(!array_key_exists($target,self::COMPILE_FILES))
@@ -478,6 +490,10 @@ final class Cache implements CacheInterface {
         $runtime=$this->runtimeCompileRoot();
         if($runtime!==$this->compileRoot())
             $ok=$this->removeFile($runtime.'/config.cache.php')&&$ok;
+        if(EnvCache::clear())
+            EnvSnapshot::reset();
+        else
+            $ok=false;
         return $ok;
     }
 

@@ -7,6 +7,7 @@ use ReflectionMethod;
 
 use AdminService\Cache;
 use AdminService\Cache\CompileStore;
+use AdminService\Config\Bootstrapper;
 use AdminService\Config\Repository;
 use AdminService\Container;
 use AdminService\Exception;
@@ -14,15 +15,20 @@ use AdminService\Runtime;
 use base\CacheInterface;
 use base\ConfigInterface;
 
+use function AdminService\env;
+use function AdminService\env_reset;
+use function AdminService\env_snapshot;
 use function fclose;
 use function file_put_contents;
 use function fopen;
 use function function_exists;
+use function getenv;
 use function is_dir;
 use function is_file;
 use function is_link;
 use function mkdir;
 use function opcache_invalidate;
+use function putenv;
 use function rmdir;
 use function scandir;
 use function sha1;
@@ -62,6 +68,12 @@ class CacheTest extends TestCase {
     private string $old_runtime;
 
     /**
+     * 用例前的环境快照路径覆盖
+     * @var string|false
+     */
+    private string|false $old_env_cache=false;
+
+    /**
      * 每个用例前创建隔离目录
      *
      * @return void
@@ -71,6 +83,9 @@ class CacheTest extends TestCase {
         mkdir($this->dir,0755,true);
         $this->old_runtime=Runtime::path();
         Runtime::setPath($this->dir.'/runtime');
+        // 清理编译缓存的用例不能删掉本地真实的环境快照
+        $this->old_env_cache=getenv('ADMINSERVICE_TEST_ENV_CACHE');
+        putenv('ADMINSERVICE_TEST_ENV_CACHE='.$this->dir.'/env.cache.php');
         $this->config=$this->makeConfig();
     }
 
@@ -80,6 +95,10 @@ class CacheTest extends TestCase {
      * @return void
      */
     protected function tearDown(): void {
+        if($this->old_env_cache===false)
+            putenv('ADMINSERVICE_TEST_ENV_CACHE');
+        else
+            putenv('ADMINSERVICE_TEST_ENV_CACHE='.$this->old_env_cache);
         Runtime::setPath($this->old_runtime);
         $this->removePath($this->dir);
     }
@@ -582,6 +601,34 @@ class CacheTest extends TestCase {
         $this->assertTrue($cache->clearAll());
         $this->assertFileExists($lock,'全量清空不能删除并发锁文件');
         $this->assertNull($cache->get('counter'));
+    }
+
+    /**
+     * 测试: 清理环境快照后进程快照回到实时读取
+     *
+     * @return void
+     */
+    public function testClearEnvCacheResetsProcessSnapshot(): void {
+        $previous_env=getenv('ADMINSERVICE_TEST_ENV_FILE');
+        $env_file=$this->dir.'/env-src';
+        file_put_contents($env_file,"KEY=live\n");
+        putenv('ADMINSERVICE_TEST_ENV_FILE='.$env_file);
+        try {
+            env_reset();
+            (new Bootstrapper())->buildEnvCache();
+            $this->assertTrue(env_snapshot()->compiled());
+
+            $cache=new Cache($this->config);
+            $this->assertTrue($cache->clearCompile('env'));
+            $this->assertFalse(env_snapshot()->compiled(),'清理环境快照后应回到实时读取');
+            $this->assertSame('live',env('KEY'));
+        } finally {
+            if($previous_env===false)
+                putenv('ADMINSERVICE_TEST_ENV_FILE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_FILE='.$previous_env);
+            env_reset();
+        }
     }
 
     public function testInvalidKeyAndPoolAreRejected(): void {

@@ -105,6 +105,19 @@ final class CacheBuildCommand extends AbstractCommand {
     }
 
     /**
+     * 选项说明
+     *
+     * @access public
+     * @return array<int,array{names:array<int,string>,value:string|null,description:string}>
+     */
+    public function optionHelp(): array {
+        return array(
+            array('names'=>array('target'),'value'=>'all|config|routes|container','description'=>'构建范围, 默认 all'),
+            array('names'=>array('force','f'),'value'=>null,'description'=>'忽略缓存指纹, 强制重建'),
+        );
+    }
+
+    /**
      * 简短用法
      *
      * @access public

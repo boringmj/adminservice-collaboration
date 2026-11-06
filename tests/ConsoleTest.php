@@ -319,6 +319,27 @@ class ConsoleTest extends TestCase {
     }
 
     /**
+     * 测试帮助显示布尔选项与 bin 入口用法
+     *
+     * @return void
+     */
+    public function testHelpShowsBooleanOptionsAndBinUsage(): void {
+        $app=$this->application();
+        $output=Output::buffer();
+        $console=new Console($app,$output);
+        $this->assertSame(0,$console->run(array('console','help','server','start')));
+        $this->assertStringContainsString('用法(Usage): php bin/server start',$output->stdout());
+        $this->assertStringContainsString('选项(Options):',$output->stdout());
+        $this->assertStringContainsString('--host, -H <地址>',$output->stdout());
+        $this->assertStringContainsString('--dry-run',$output->stdout());
+
+        $output=Output::buffer();
+        $console=new Console($app,$output);
+        $this->assertSame(0,$console->run(array('console','help','server')));
+        $this->assertStringContainsString('php bin/server <command> --help',$output->stdout());
+    }
+
+    /**
      * 测试 server start 的 dry-run 与参数形式
      *
      * @return void

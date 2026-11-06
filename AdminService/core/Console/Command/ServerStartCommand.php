@@ -91,6 +91,23 @@ final class ServerStartCommand extends AbstractCommand {
     }
 
     /**
+     * 选项说明
+     *
+     * @access public
+     * @return array<int,array{names:array<int,string>,value:string|null,description:string}>
+     */
+    public function optionHelp(): array {
+        return array(
+            array('names'=>array('host','H'),'value'=>'地址','description'=>'监听地址, 默认 CLI_SERVE_HOST 或 localhost'),
+            array('names'=>array('port','p'),'value'=>'端口','description'=>'监听端口, 默认 CLI_SERVE_PORT 或 8000'),
+            array('names'=>array('docroot','t'),'value'=>'目录','description'=>'文档根目录, 默认 public/'),
+            array('names'=>array('php'),'value'=>'可执行文件','description'=>'PHP 可执行文件, 默认当前 PHP'),
+            array('names'=>array('router'),'value'=>'文件','description'=>'路由脚本, 默认不指定'),
+            array('names'=>array('dry-run'),'value'=>null,'description'=>'只输出将执行的命令, 不启动服务'),
+        );
+    }
+
+    /**
      * 简短用法
      *
      * @access public

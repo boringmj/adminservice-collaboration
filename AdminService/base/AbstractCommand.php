@@ -65,6 +65,20 @@ abstract class AbstractCommand implements CommandInterface {
     }
 
     /**
+     * 选项说明
+     *
+     * - 只用于帮助展示, 不参与参数解析
+     * - `names` 第一项为长选项, 其余为短选项; `value` 为 null 表示布尔选项
+     * - 返回空数组时帮助回退到 `valueOptions()` / `booleanOptions()` 的扁平列表
+     *
+     * @access public
+     * @return array<int,array{names:array<int,string>,value:string|null,description:string}>
+     */
+    public function optionHelp(): array {
+        return array();
+    }
+
+    /**
      * 简短用法
      *
      * @access public

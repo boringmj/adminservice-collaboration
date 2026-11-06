@@ -65,6 +65,18 @@ final class CacheClearCommand extends AbstractCommand {
     }
 
     /**
+     * 选项说明
+     *
+     * @access public
+     * @return array<int,array{names:array<int,string>,value:string|null,description:string}>
+     */
+    public function optionHelp(): array {
+        return array(
+            array('names'=>array('target'),'value'=>'all|config|routes|container','description'=>'清理范围, 默认 all'),
+        );
+    }
+
+    /**
      * 简短用法
      *
      * @access public

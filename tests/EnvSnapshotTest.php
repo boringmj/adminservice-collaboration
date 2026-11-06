@@ -228,6 +228,52 @@ class EnvSnapshotTest extends TestCase {
     }
 
     /**
+     * 测试: 进程级开关关闭环境快照
+     *
+     * @return void
+     */
+    public function testSwitchDisablesSnapshot(): void {
+        $env_file=tempnam(sys_get_temp_dir(),'env_snapshot_switch_');
+        $cache_file=sys_get_temp_dir().'/env_snapshot_cache_'.uniqid('',true).'.php';
+        $previous_env=getenv('ADMINSERVICE_TEST_ENV_FILE');
+        $previous_cache=getenv('ADMINSERVICE_TEST_ENV_CACHE');
+        $previous_switch=getenv('ADMINSERVICE_ENV_SNAPSHOT');
+        try {
+            file_put_contents($env_file,"KEY=one\n");
+            putenv('ADMINSERVICE_TEST_ENV_FILE='.$env_file);
+            putenv('ADMINSERVICE_TEST_ENV_CACHE='.$cache_file);
+            env_reset();
+            $this->assertSame('built',(new Bootstrapper())->buildEnvCache()['status']);
+            $this->assertFileExists($cache_file);
+
+            putenv('ADMINSERVICE_ENV_SNAPSHOT=0');
+            env_reset();
+            $this->assertFalse(env_snapshot()->compiled(),'开关关闭时不读取快照');
+            $this->assertSame('one',env('KEY'));
+            $this->assertSame('skipped',(new Bootstrapper())->buildEnvCache()['status'],'开关关闭时不构建快照');
+        } finally {
+            if($previous_env===false)
+                putenv('ADMINSERVICE_TEST_ENV_FILE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_FILE='.$previous_env);
+            if($previous_cache===false)
+                putenv('ADMINSERVICE_TEST_ENV_CACHE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_CACHE='.$previous_cache);
+            if($previous_switch===false)
+                putenv('ADMINSERVICE_ENV_SNAPSHOT');
+            else
+                putenv('ADMINSERVICE_ENV_SNAPSHOT='.$previous_switch);
+            env_reset();
+            Runtime::reset();
+            if(is_file($cache_file))
+                unlink($cache_file);
+            if(is_file($env_file))
+                unlink($env_file);
+        }
+    }
+
+    /**
      * 测试: Runtime::reset 清除路径缓存
      *
      * @return void

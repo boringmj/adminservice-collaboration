@@ -234,7 +234,7 @@ final class Bootstrapper {
      * 构建环境快照
      *
      * - 快照包含 `.env` 的全部键值, 写入前必须确认 runtime 不在文档根内
-     * - 没有 `.env` 或使用测试替代文件时跳过
+     * - 没有 `.env`、使用测试替代文件或 `ADMINSERVICE_ENV_SNAPSHOT=0` 时跳过
      * - 成功时同步进程快照与 runtime 路径, 并返回编译标记的 `Env`
      *
      * @access public
@@ -242,6 +242,13 @@ final class Bootstrapper {
      */
     public function buildEnvCache(): array {
         $path=EnvCache::path();
+        if(EnvSnapshot::disabledBySwitch())
+            return array(
+                'status'=>'skipped',
+                'path'=>$path,
+                'reason'=>'ADMINSERVICE_ENV_SNAPSHOT=0, 已跳过环境快照',
+                'env'=>null
+            );
         if(EnvSnapshot::usesCustomFile()&&!EnvCache::hasPathOverride())
             return array(
                 'status'=>'skipped',

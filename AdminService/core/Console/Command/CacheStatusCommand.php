@@ -182,6 +182,12 @@ final class CacheStatusCommand extends AbstractCommand {
      */
     private function inspect(string $target,CompileStore $store,Bootstrapper $bootstrapper,$env): array {
         if($target==='env') {
+            if(EnvSnapshot::disabledBySwitch())
+                return array(
+                    'path'=>EnvCache::path(),
+                    'status'=>'disabled',
+                    'reason'=>'ADMINSERVICE_ENV_SNAPSHOT=0'
+                );
             if(EnvSnapshot::usesCustomFile()&&!EnvCache::hasPathOverride())
                 return array(
                     'path'=>EnvCache::path(),
@@ -214,7 +220,9 @@ final class CacheStatusCommand extends AbstractCommand {
      */
     private function enabled(string $target,CompileStore $store,Bootstrapper $bootstrapper,$env): bool {
         if($target==='env')
-            return EnvCache::exists()&&!(EnvSnapshot::usesCustomFile()&&!EnvCache::hasPathOverride());
+            return EnvCache::exists()
+                &&!EnvSnapshot::disabledBySwitch()
+                &&!(EnvSnapshot::usesCustomFile()&&!EnvCache::hasPathOverride());
         if($target==='config')
             return $bootstrapper->configStore($env)->enabled('config');
         return $store->enabled($target);

@@ -7,8 +7,9 @@ namespace base\Attribute;
  *
  * - `$name`: 显式依赖类名; `null` 表示按目标类型解析
  * - `$mode`: 注入模式; 默认直接注入真实对象
+ * - 本类不是注解, 不直接实例化
  */
-class Autowire {
+abstract class Autowire {
 
     /**
      * 依赖的类名

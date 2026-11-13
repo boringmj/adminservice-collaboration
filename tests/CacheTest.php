@@ -18,7 +18,9 @@ use base\ConfigInterface;
 use function AdminService\env;
 use function AdminService\env_reset;
 use function AdminService\env_snapshot;
+use function dirname;
 use function fclose;
+use function file_get_contents;
 use function file_put_contents;
 use function fopen;
 use function function_exists;
@@ -452,6 +454,91 @@ class CacheTest extends TestCase {
     }
 
     /**
+     * 测试: GC 游标为相对路径, 旧整数游标从头开始
+     *
+     * @return void
+     */
+    public function testGcCursorUsesRelativePathAndAcceptsLegacyInteger(): void {
+        $cache=new Cache($this->config);
+        foreach(array('a','b','c') as $key) {
+            $cache->forever($key,$key);
+            $this->expireEntry($cache,$key);
+        }
+
+        $this->assertSame(1,$cache->gc(1));
+        $cursor=file_get_contents($this->dir.'/cache/gc.cursor');
+        $this->assertMatchesRegularExpression('#^[a-z]+/[a-z0-9]+/[a-z0-9]+/[^/]+$#',$cursor);
+
+        file_put_contents($this->dir.'/cache/gc.cursor','123');
+        $this->assertSame(2,$cache->gc(0),'旧整数游标应从头扫描');
+    }
+
+    /**
+     * 测试: 辅助临时文件计入 GC 上限
+     *
+     * @return void
+     */
+    public function testGcCountsAuxiliaryFilesTowardLimit(): void {
+        $cache=new Cache($this->config);
+        $cache->forever('live','value');
+        $entry=$this->entryPath($cache,'live');
+        $tmp=dirname($entry).'/.cachetmp_stale';
+        file_put_contents($tmp,'');
+        touch($tmp,time()-7200);
+
+        $this->assertSame(1,$cache->gc(1));
+        $this->assertFileDoesNotExist($tmp);
+        $this->assertFileExists($entry,'辅助文件计入上限, 不应继续检查缓存条目');
+    }
+
+    /**
+     * 测试: 没有候选文件时也清理空分片目录
+     *
+     * @return void
+     */
+    public function testGcCleansEmptyShardsWithoutCandidates(): void {
+        $cache=new Cache($this->config);
+        $pool=$this->dir.'/cache/kv/default';
+        $shard=$pool.'/ab/cd';
+        mkdir($shard,0755,true);
+
+        $this->assertSame(0,$cache->gc(0));
+        $this->assertFalse(is_dir($shard));
+        $this->assertFalse(is_dir(dirname($shard)));
+        $this->assertFalse(is_dir($pool));
+        $this->assertTrue(is_dir($this->dir.'/cache/kv'));
+    }
+
+    /**
+     * 测试: 游标回绕后能检查游标之前新增的条目
+     *
+     * @return void
+     */
+    public function testGcCursorWrapPicksInsertedEntry(): void {
+        $cache=new Cache($this->config);
+        $keys=array();
+        for($i=0;$i<200;$i++)
+            $keys[]='wrap-'.$i;
+        usort($keys,static fn(string $a,string $b): int => strcmp(sha1($a),sha1($b)));
+        $first=$keys[0];
+        $second=$keys[1];
+        $cache->forever($first,$first);
+        $cache->forever($second,$second);
+        $this->assertFileExists($this->entryPath($cache,$first));
+
+        // 先让游标停在 second 之后, 再插入排在它们之前的过期条目
+        $cache->gc(2);
+        $cache->forever($first,$first);
+        $cache->set('inserted','value');
+        $inserted=$this->entryPath($cache,'inserted');
+        $this->expireEntry($cache,'inserted');
+
+        for($i=0;$i<6&&is_file($inserted);$i++)
+            $cache->gc(1);
+        $this->assertFileDoesNotExist($inserted,'回绕后应检查游标之前新增的条目');
+    }
+
+    /**
      * 测试: GC 清理过期条目
      *
      * @return void
@@ -558,9 +645,10 @@ class CacheTest extends TestCase {
     public function testGcRemovesStaleAuxiliaryFiles(): void {
         $cache=new Cache($this->config);
         $pool=$this->dir.'/cache/kv/default';
-        mkdir($pool,0755,true);
+        $shard=$pool.'/ab/cd';
+        mkdir($shard,0755,true);
         $lock=$pool.'/key.lock';
-        $tmp=$pool.'/.cachetmp_stale';
+        $tmp=$shard.'/.cachetmp_stale';
         file_put_contents($lock,'');
         file_put_contents($tmp,'');
         touch($lock,time()-7200);

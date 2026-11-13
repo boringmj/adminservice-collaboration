@@ -9,13 +9,13 @@ use base\CacheInterface;
 use base\ConfigInterface;
 use Closure;
 
-use function array_diff;
 use function array_key_exists;
-use function array_merge;
+use function array_keys;
 use function base64_decode;
 use function base64_encode;
 use function basename;
 use function dirname;
+use function explode;
 use function file_get_contents;
 use function file_put_contents;
 use function filemtime;
@@ -42,10 +42,10 @@ use function rtrim;
 use function scandir;
 use function serialize;
 use function sha1;
-use function sort;
 use function str_ends_with;
 use function str_replace;
 use function str_starts_with;
+use function strcmp;
 use function strlen;
 use function substr;
 use function time;
@@ -53,6 +53,7 @@ use function trim;
 use function uniqid;
 use function unlink;
 use function unserialize;
+use function usort;
 use function var_export;
 
 /**
@@ -377,7 +378,8 @@ final class Cache implements CacheInterface {
      * 触发一次增量垃圾回收
      *
      * - 只清理 KV 缓存, 不动编译缓存
-     * - `$max_files` 限制单次检查文件数, 避免大目录阻塞请求
+     * - 按 `pool/aa/bb/文件名` 顺序有界遍历, 内存不随缓存总量增长
+     * - `$max_files` 限制单次检查文件数, 辅助临时文件也计入
      *
      * @access public
      * @param int|null $max_files 本次最多检查文件数; null = 配置, <=0 = 不限制
@@ -390,43 +392,11 @@ final class Cache implements CacheInterface {
         $kv=$this->kvRoot();
         if(!is_dir($kv)||is_link($kv))
             return 0;
-        $files=$this->gcCandidates($kv);
-        sort($files);
-        $count=count($files);
-        if($count===0)
-            return 0;
-        $cursor=$this->readGcCursor();
-        if($cursor<0||$cursor>=$count)
-            $cursor=0;
-        $checked=0;
-        $removed=0;
-        $processed=0;
-        for($i=0;$i<$count&&$checked<$limit;$i++) {
-            $path=$files[($cursor+$i)%$count];
-            $processed++;
-            if($this->isAuxiliaryFile(basename($path))) {
-                $this->gcAuxiliaryFile($path,$removed);
-                continue;
-            }
-            $checked++;
-            $before=is_file($path);
-            $this->readEntry($path,null,false);
-            if($before&&!is_file($path))
-                $removed++;
-        }
-        $this->writeGcCursor(($cursor+$processed)%$count);
-        if($checked<$limit) {
-            $pools=@scandir($kv);
-            if($pools!==false)
-                foreach($pools as $pool) {
-                    if($pool==='.'||$pool==='..')
-                        continue;
-                    $path=$kv.'/'.$pool;
-                    if(is_dir($path)&&!is_link($path))
-                        $this->removeEmptyDirectories($path,$path);
-                }
-        }
-        return $removed;
+        $visited=array();
+        $result=$this->gcScan($kv,$this->readGcCursor(),$limit,$visited);
+        $this->writeGcCursor($result['cursor']);
+        $this->gcCleanupVisited($visited);
+        return $result['removed'];
     }
 
     /**
@@ -891,55 +861,193 @@ final class Cache implements CacheInterface {
     }
 
     /**
-     * 收集 KV 缓存候选文件
+     * 有界扫描 KV 候选
+     *
+     * - 从游标之后扫到末尾; 未达上限时再从头扫到游标之前
+     * - 游标为最后一次检查的相对路径; 空值或旧整数游标从头开始
      *
      * @access private
-     * @param string $dir 当前目录
-     * @return array<string>
+     * @param string $kv KV 根目录
+     * @param string $after 上次游标
+     * @param int $limit 本次最多检查的候选数
+     * @param array<string,true> $visited 访问过的目录(引用)
+     * @return array{checked:int,removed:int,cursor:string}
      */
-    private function gcCandidates(string $dir): array {
-        $files=array();
-        $entries=@scandir($dir);
-        if($entries===false)
-            return $files;
-        foreach($entries as $entry) {
-            if($entry==='.'||$entry==='..')
-                continue;
-            $path=$dir.'/'.$entry;
-            if(is_link($path))
-                continue;
-            if(is_dir($path)) {
-                $files=array_merge($files,$this->gcCandidates($path));
-                continue;
-            }
-            if(is_file($path)
-                &&($this->isAuxiliaryFile($entry)||str_ends_with($entry,'.cache.php')))
-                $files[]=$path;
+    private function gcScan(string $kv,string $after,int $limit,array &$visited): array {
+        $start=$this->parseGcCursor($after);
+        $phases=$start===null
+            ?array(array(null,null))
+            :array(array($start,null),array(null,$start));
+        $checked=0;
+        $removed=0;
+        $cursor='';
+        foreach($phases as $phase) {
+            if($checked>=$limit)
+                break;
+            $this->gcTraverse($kv,$phase[0],$phase[1],$limit,$checked,$removed,$cursor,$visited);
         }
-        return $files;
+        return array('checked'=>$checked,'removed'=>$removed,'cursor'=>$cursor);
+    }
+
+    /**
+     * 按目录顺序遍历候选文件
+     *
+     * - 只访问 `$from` 之后、`$to` 及其之前的位置; null 表示不限制
+     * - 达到上限立即停止
+     *
+     * @access private
+     * @param string $kv KV 根目录
+     * @param array{0:string,1:string,2:string,3:string}|null $from 起始位置(不含)
+     * @param array{0:string,1:string,2:string,3:string}|null $to 结束位置(含)
+     * @param int $limit 本次上限
+     * @param int $checked 已检查数(引用)
+     * @param int $removed 已清理数(引用)
+     * @param string $cursor 最后检查的相对路径(引用)
+     * @param array<string,true> $visited 访问过的目录(引用)
+     * @return void
+     */
+    private function gcTraverse(string $kv,?array $from,?array $to,int $limit,int &$checked,int &$removed,string &$cursor,array &$visited): void {
+        $pools=@scandir($kv);
+        if($pools===false)
+            return;
+        foreach($pools as $pool) {
+            if($pool==='.'||$pool==='..')
+                continue;
+            $pool_path=$kv.'/'.$pool;
+            if(!is_dir($pool_path)||is_link($pool_path))
+                continue;
+            $visited[$pool_path]=true;
+            $aa_entries=@scandir($pool_path);
+            if($aa_entries===false)
+                continue;
+            foreach($aa_entries as $aa) {
+                if($aa==='.'||$aa==='..')
+                    continue;
+                $aa_path=$pool_path.'/'.$aa;
+                if(!is_dir($aa_path)||is_link($aa_path))
+                    continue;
+                $visited[$aa_path]=true;
+                $bb_entries=@scandir($aa_path);
+                if($bb_entries===false)
+                    continue;
+                foreach($bb_entries as $bb) {
+                    if($bb==='.'||$bb==='..')
+                        continue;
+                    $bb_path=$aa_path.'/'.$bb;
+                    if(!is_dir($bb_path)||is_link($bb_path))
+                        continue;
+                    $visited[$bb_path]=true;
+                    $files=@scandir($bb_path);
+                    if($files===false)
+                        continue;
+                    foreach($files as $file) {
+                        if($file==='.'||$file==='..')
+                            continue;
+                        if(!$this->isAuxiliaryFile($file)&&!str_ends_with($file,'.cache.php'))
+                            continue;
+                        $path=$bb_path.'/'.$file;
+                        if(!is_file($path))
+                            continue;
+                        $pos=array($pool,$aa,$bb,$file);
+                        if($from!==null&&$this->gcCompare($pos,$from)<=0)
+                            continue;
+                        if($to!==null&&$this->gcCompare($pos,$to)>0)
+                            return;
+                        $cursor=$pool.'/'.$aa.'/'.$bb.'/'.$file;
+                        $checked++;
+                        if($this->isAuxiliaryFile($file)) {
+                            $this->gcAuxiliaryFile($path,$removed);
+                        } else {
+                            $before=is_file($path);
+                            $this->readEntry($path,null,false);
+                            if($before&&!is_file($path))
+                                $removed++;
+                        }
+                        if($checked>=$limit)
+                            return;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 解析 GC 游标
+     *
+     * - 旧版整数游标或格式非法时返回 null, 从头扫描
+     *
+     * @access private
+     * @param string $cursor 游标文本
+     * @return array{0:string,1:string,2:string,3:string}|null
+     */
+    private function parseGcCursor(string $cursor): ?array {
+        if($cursor===''
+            ||preg_match('#^[a-zA-Z0-9_-]+/[a-zA-Z0-9]+/[a-zA-Z0-9]+/[^/]+$#',$cursor)!==1)
+            return null;
+        $parts=explode('/',$cursor);
+        return count($parts)===4?array($parts[0],$parts[1],$parts[2],$parts[3]):null;
+    }
+
+    /**
+     * 比较两个 GC 位置
+     *
+     * @access private
+     * @param array{0:string,1:string,2:string,3:string} $a 位置
+     * @param array{0:string,1:string,2:string,3:string} $b 位置
+     * @return int
+     */
+    private function gcCompare(array $a,array $b): int {
+        for($i=0;$i<4;$i++) {
+            $cmp=strcmp($a[$i],$b[$i]);
+            if($cmp!==0)
+                return $cmp;
+        }
+        return 0;
+    }
+
+    /**
+     * 移除本次访问过的空目录
+     *
+     * - 由深到浅; 非空目录 rmdir 失败即保留
+     *
+     * @access private
+     * @param array<string,true> $visited 访问过的目录
+     * @return void
+     */
+    private function gcCleanupVisited(array $visited): void {
+        $dirs=array_keys($visited);
+        usort($dirs,static fn(string $a,string $b): int => strlen($b)<=>strlen($a));
+        foreach($dirs as $dir)
+            @rmdir($dir);
     }
 
     /**
      * 读取增量 GC 游标
      *
+     * - 旧版整数游标视为没有游标, 从头扫描
+     *
      * @access private
-     * @return int
+     * @return string 相对路径; 空字符串 = 从头
      */
-    private function readGcCursor(): int {
-        $path=$this->cacheRoot().'/gc.cursor';
-        $content=@file_get_contents($path);
-        return $content===false?0:(int)trim($content);
+    private function readGcCursor(): string {
+        $content=@file_get_contents($this->cacheRoot().'/gc.cursor');
+        if($content===false)
+            return '';
+        $content=trim($content);
+        if($content===''||preg_match('/^[0-9]+$/',$content)===1)
+            return '';
+        return $content;
     }
 
     /**
      * 写入增量 GC 游标
      *
      * @access private
-     * @param int $cursor 下一次起始位置
+     * @param string $cursor 最后一次检查的相对路径(空 = 从头)
      * @return void
      */
-    private function writeGcCursor(int $cursor): void {
-        @file_put_contents($this->cacheRoot().'/gc.cursor',(string)$cursor,LOCK_EX);
+    private function writeGcCursor(string $cursor): void {
+        @file_put_contents($this->cacheRoot().'/gc.cursor',$cursor,LOCK_EX);
     }
 
     /**
@@ -985,36 +1093,6 @@ final class Cache implements CacheInterface {
         } finally {
             @fclose($handle);
         }
-    }
-
-    /**
-     * 递归移除空目录(保留池根目录)
-     *
-     * @access private
-     * @param string $dir 当前目录
-     * @param string $root 池根目录
-     * @return void
-     */
-    private function removeEmptyDirectories(string $dir,string $root): void {
-        if(!is_dir($dir)||is_link($dir))
-            return;
-        $entries=@scandir($dir);
-        if($entries===false)
-            return;
-        foreach($entries as $entry) {
-            if($entry==='.'||$entry==='..')
-                continue;
-            $path=$dir.'/'.$entry;
-            if(is_dir($path)&&!is_link($path))
-                $this->removeEmptyDirectories($path,$root);
-        }
-        if($dir===$root)
-            return;
-        $entries=@scandir($dir);
-        if($entries===false)
-            return;
-        if(array_diff($entries,array('.','..'))===array())
-            @rmdir($dir);
     }
 
     /**

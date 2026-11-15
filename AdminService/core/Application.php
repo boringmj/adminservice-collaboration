@@ -409,7 +409,7 @@ final class Application {
      * - 应用级与请求级容器共享同一份元数据, 两次 flush 只有第一次会实际写入
      *
      * @access public
-     * @param ContainerContract|null $container 指定请求容器(null = 当前上下文或最近请求)
+     * @param ContainerContract|null $container 指定请求容器(null = 当前执行流)
      * @return bool 是否成功落盘
      */
     public function flushRequestMetadata(?ContainerContract $container=null): bool {
@@ -484,7 +484,7 @@ final class Application {
      * - 不清空应用级容器
      *
      * @access public
-     * @param RequestContext|null $context 指定请求上下文(null = 当前上下文或最近请求)
+     * @param RequestContext|null $context 指定请求上下文(null = 当前执行流)
      * @return void
      */
     public function endRequest(?RequestContext $context=null): void {

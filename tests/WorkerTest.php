@@ -11,11 +11,13 @@ use AdminService\Config\Repository;
 use AdminService\Container;
 use AdminService\Exception;
 use AdminService\NativeSession;
+use AdminService\RequestContext;
 use AdminService\Response;
 use AdminService\Worker\RequestFactory;
 use AdminService\Worker\Worker;
 use AdminService\Worker\WorkerResponse;
 use base\AbstractInputProcessor;
+use base\AbstractSession;
 use base\Controller;
 use base\Database\Connection\PdoConnectionManager;
 use base\Database\Connection\PdoConnectionPool;
@@ -94,8 +96,15 @@ class WorkerTest extends TestCase {
         $worker=new Worker($app);
         StreamProbeController::$calls=0;
         $context_during_stream=null;
-        StreamProbeController::$probe=static function() use($app,&$context_during_stream): void {
+        $scope_during_stream=array();
+        StreamProbeController::$probe=static function() use($app,&$context_during_stream,&$scope_during_stream): void {
             $context_during_stream=$app->requestContext();
+            $scope_during_stream=array(
+                'container'=>App::getInstance(),
+                'context'=>App::get(RequestContext::class),
+                'session'=>App::get(AbstractSession::class),
+                'config'=>Config::repository()
+            );
         };
         try {
             $chunks='';
@@ -109,6 +118,10 @@ class WorkerTest extends TestCase {
             $this->assertSame(200,$response->status());
             $this->assertSame(1,StreamProbeController::$calls);
             $this->assertNotNull($context_during_stream,'生成器执行时应仍保留请求上下文');
+            $this->assertSame($context_during_stream->container(),$scope_during_stream['container'],'生成器应处于请求级容器作用域');
+            $this->assertSame($context_during_stream,$scope_during_stream['context'],'门面应取到本请求上下文');
+            $this->assertSame($context_during_stream->session(),$scope_during_stream['session'],'门面应取到本请求会话');
+            $this->assertSame($context_during_stream->config(),$scope_during_stream['config'],'门面应取到请求级配置');
             $this->assertSame('probe',$chunks);
             $this->assertNull($app->requestContext());
         } finally {

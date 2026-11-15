@@ -5,6 +5,7 @@ namespace AdminService\Worker;
 use AdminService\Application;
 use AdminService\ArraySession;
 use AdminService\Config\Bootstrapper;
+use AdminService\ContextStorage;
 use AdminService\Error;
 use AdminService\Exception;
 use AdminService\HttpRequest;
@@ -88,7 +89,7 @@ final class Worker {
     /**
      * 处理一个请求
      *
-     * - 写出回调在请求收尾前执行, 流式生成器因此能读到请求级状态
+     * - 写出回调在请求收尾前、请求上下文作用域内执行, 流式生成器可读取请求级对象
      *
      * @access public
      * @param WorkerRequest $request 请求
@@ -121,8 +122,15 @@ final class Worker {
             $response=$this->errorResponse($e,$app,$context);
         }
         try {
-            if($emit!==null)
-                $emit($response);
+            // 写出阶段恢复请求上下文: 门面仍指向本请求的容器与配置
+            if($emit!==null) {
+                if($context===null)
+                    $emit($response);
+                else
+                    ContextStorage::run($context,static function() use($emit,$response): void {
+                        $emit($response);
+                    });
+            }
         } finally {
             if($context!==null) {
                 // 失败请求同样要落盘元数据

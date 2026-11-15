@@ -54,9 +54,17 @@ final class Main {
             $container=$context?->container()??($this->application===null?App::getInstance():$this->application->requestContainer());
             $response=$context?->response()??$container->get(Response::class);
             $request=$context?->request()??$container->get(Request::class);
-            $response->prepare($request);
             try {
-                $response->send();
+                // 响应出口在请求上下文作用域内执行: 发送阶段门面仍指向请求级容器
+                if($context!==null)
+                    ContextStorage::run($context,static function() use($response,$request): void {
+                        $response->prepare($request);
+                        $response->send();
+                    });
+                else {
+                    $response->prepare($request);
+                    $response->send();
+                }
             } finally {
                 $this->application?->flushRequestMetadata($context?->container());
                 $this->application?->endRequest($context);

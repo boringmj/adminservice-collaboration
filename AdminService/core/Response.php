@@ -131,19 +131,51 @@ final class Response extends BaseResponse {
         ?string $type=null
     ): string {
         $type=strtolower(trim(explode(';',$type??$this->contentType,2)[0]));
-        $type_list=array_keys($this->config()->get('response.default.type',[]));
-        // 判断当前类型是否存在
         if($type==='')
             $type='*/*';
-        // 精确匹配(大小写与参数已归一)
-        if(in_array($type,$type_list,true))
-            return $type;
-        // application vendor JSON 回落到标准 JSON
-        if(Negotiator::normalizeType($type)==='application/json'&&$type!=='application/json'
-            &&in_array('application/json',$type_list,true))
-            return 'application/json';
         // 未注册类型回落到默认桶
-        return $type_list[0]??'*/*';
+        if(!$this->isRegisteredType($type))
+            return $this->typeList()[0]??'*/*';
+        // 精确登记的类型原样返回, vendor JSON 回落到标准 JSON
+        return in_array($type,$this->typeList(),true)?$type:'application/json';
+    }
+
+    /**
+     * 取登记的内容类型列表
+     *
+     * @access private
+     * @return array<int,string>
+     */
+    private function typeList(): array {
+        $types=$this->config()->get('response.default.type',[]);
+        return is_array($types)?array_keys($types):array();
+    }
+
+    /**
+     * 内容类型是否已登记
+     *
+     * - vendor JSON 在登记了 `application/json` 时视为已登记
+     *
+     * @access private
+     * @param string $type 已归一的内容类型
+     * @return bool
+     */
+    private function isRegisteredType(string $type): bool {
+        $type_list=$this->typeList();
+        if(in_array($type,$type_list,true))
+            return true;
+        return $this->isVendorJson($type)&&in_array('application/json',$type_list,true);
+    }
+
+    /**
+     * 是否为等价到 `application/json` 的 vendor 类型
+     *
+     * @access private
+     * @param string $type 已归一的内容类型
+     * @return bool
+     */
+    private function isVendorJson(string $type): bool {
+        return $type!=='application/json'&&Negotiator::normalizeType($type)==='application/json';
     }
 
     /**
@@ -420,7 +452,8 @@ final class Response extends BaseResponse {
      *
      * - 先发送请求头, 再按生成器逐段输出并刷新
      * - HEAD / 禁止正文的状态码不调用生成器; 生成器异常只记录日志(响应头可能已发送)
-     * - `continue` 模式忽略客户端断开并让生成器执行完毕, 为此临时打开 `ignore_user_abort`
+     * - 发送期间临时打开 `ignore_user_abort`: `stop` 在检测到断开后抛异常停止生成,
+     *   `continue` 让生成器执行完毕; 结束后恢复原值
      *
      * @access private
      * @return void
@@ -434,9 +467,7 @@ final class Response extends BaseResponse {
         if($producer===null)
             return;
         $continue=$this->streamOnDisconnect()==='continue';
-        $previous_abort=null;
-        if($continue)
-            $previous_abort=ignore_user_abort(true);
+        $previous_abort=ignore_user_abort(true);
         $aborted=false;
         $writer=static function(string $chunk) use (&$aborted,$continue): void {
             if($chunk===''||$aborted)
@@ -458,8 +489,7 @@ final class Response extends BaseResponse {
         } catch(\Throwable $e) {
             error_log('Stream response failed: '.get_class($e).': '.$e->getMessage());
         } finally {
-            if($continue&&$previous_abort!==null)
-                ignore_user_abort($previous_abort);
+            ignore_user_abort((bool)$previous_abort);
         }
     }
 
@@ -472,13 +502,9 @@ final class Response extends BaseResponse {
      * @return void
      */
     private function streamHeaders(): void {
-        $types=$this->config()->get('response.default.type',[]);
-        $type_list=is_array($types)?array_keys($types):array();
         $raw=strtolower(trim(explode(';',$this->contentType,2)[0]));
-        $registered=$raw!==''&&$raw!=='*/*'&&(in_array($raw,$type_list,true)
-            ||(Negotiator::normalizeType($raw)==='application/json'&&in_array('application/json',$type_list,true)));
         // 显式指定但未登记的类型原样下发, 不套用登记表的响应头
-        if($raw!==''&&$raw!=='*/*'&&!$registered) {
+        if($raw!==''&&$raw!=='*/*'&&!$this->isRegisteredType($raw)) {
             $this->header('Content-Type',$this->contentType);
             return;
         }

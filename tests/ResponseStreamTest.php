@@ -240,6 +240,18 @@ class ResponseStreamTest extends TestCase {
     }
 
     /**
+     * 测试: 流式发送期间临时打开 ignore_user_abort, 结束后恢复
+     *
+     * @return void
+     */
+    public function testStreamTemporarilyEnablesIgnoreUserAbort(): void {
+        list($status,$stdout,$stderr)=$this->runFixture(__DIR__.'/fixtures/stream_response_abort.php');
+        $this->assertSame(0,$status,$stderr);
+        $this->assertStringContainsString('stop=1/0',$stdout);
+        $this->assertStringContainsString('continue=1/0',$stdout);
+    }
+
+    /**
      * 运行夹具脚本
      *
      * @access private

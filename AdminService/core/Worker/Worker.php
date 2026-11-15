@@ -88,11 +88,14 @@ final class Worker {
     /**
      * 处理一个请求
      *
+     * - 写出回调在请求收尾前执行, 流式生成器因此能读到请求级状态
+     *
      * @access public
      * @param WorkerRequest $request 请求
+     * @param callable(WorkerResponse):void|null $emit 响应写出回调(null = 只返回, 由调用方写出)
      * @return WorkerResponse
      */
-    public function handle(WorkerRequest $request): WorkerResponse {
+    public function handle(WorkerRequest $request,?callable $emit=null): WorkerResponse {
         $app=$this->boot();
         // 请求上下文在闭包内捕获: 异常路径不能从进程级最近上下文取, 协程交错时会拿到别的请求
         $context=null;
@@ -101,6 +104,7 @@ final class Worker {
             return $container->build(HttpRequest::class,sources:$sources);
         };
         try {
+            // 异常路径也要拿到本请求上下文: 只能在此捕获, 不能从进程级最近上下文取
             $app->handle(function(ContainerContract $container) use($app,&$context): RequestContext {
                 $context=$container->get(RequestContext::class);
                 return $app->runRequest($container);
@@ -111,10 +115,14 @@ final class Worker {
             $core_response=$context->response();
             if(!$core_request instanceof Request||!$core_response instanceof Response)
                 throw new Exception('Worker request produced no response.');
-            return (new ResponseEmitter())->emit($core_response,$core_request);
+            $response=(new ResponseEmitter())->emit($core_response,$core_request);
         } catch(Throwable $e) {
             error_log('Worker request failed: '.get_class($e).': '.$e->getMessage());
-            return $this->errorResponse($e,$app,$context);
+            $response=$this->errorResponse($e,$app,$context);
+        }
+        try {
+            if($emit!==null)
+                $emit($response);
         } finally {
             if($context!==null) {
                 // 失败请求同样要落盘元数据
@@ -122,6 +130,7 @@ final class Worker {
                 $app->endRequest($context);
             }
         }
+        return $response;
     }
 
     /**

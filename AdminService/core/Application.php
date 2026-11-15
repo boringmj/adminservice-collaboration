@@ -413,9 +413,8 @@ final class Application {
      * @return bool 是否成功落盘
      */
     public function flushRequestMetadata(?ContainerContract $container=null): bool {
-        $request_container=$container
-            ??ContextStorage::current()?->container()
-            ??$this->request_container;
+        // 只认当前执行流或调用方显式传入的容器
+        $request_container=$container??ContextStorage::current()?->container();
         $ok=true;
         if($request_container instanceof Container)
             $ok=$request_container->flushMetadata();
@@ -489,7 +488,8 @@ final class Application {
      * @return void
      */
     public function endRequest(?RequestContext $context=null): void {
-        $context??=ContextStorage::current()??$this->request_context??$this->last_request_context;
+        // 只认当前执行流: 进程级最近上下文可能属于其它并发请求
+        $context??=ContextStorage::current();
         if($context!==null) {
             $context->session()->close();
             $container=$context->container();

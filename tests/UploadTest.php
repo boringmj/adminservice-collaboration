@@ -7,6 +7,8 @@ use PHPUnit\Framework\TestCase;
 use AdminService\App;
 use AdminService\Config;
 use AdminService\Config\Repository;
+use AdminService\Container;
+use AdminService\Exception;
 use AdminService\HttpRequest;
 use AdminService\UploadFile;
 use AdminService\UploadFiles;
@@ -15,6 +17,7 @@ use AdminService\UploadStorage;
 use AdminService\exception\UploadException;
 use AdminService\exception\UploadStorageException;
 use Tests\Fixtures\FakeUploadStorage;
+use Tests\Fixtures\NotAnUploadFile;
 
 use function array_keys;
 use function count;
@@ -144,6 +147,28 @@ class UploadTest extends TestCase {
         $saved=$storage->getLastSavePath();
         $this->tempFiles[]=$saved;
         $this->assertSame($content,file_get_contents($saved));
+    }
+
+    /**
+     * 测试: 上传文件绑定类型不符时抛异常
+     *
+     * @return void
+     */
+    public function testWrongUploadFileBindingThrows(): void {
+        $source=tempnam(sys_get_temp_dir(),'upload_wrong_binding_');
+        file_put_contents($source,'x');
+        $this->tempFiles[]=$source;
+        $container=new Container();
+        $container->bind(UploadFile::class,NotAnUploadFile::class);
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Upload file binding must return');
+        new UploadFiles(sys_get_temp_dir(),array(
+            'name'=>'wrong.txt',
+            'type'=>'text/plain',
+            'size'=>1,
+            'tmp_name'=>$source,
+            'error'=>UPLOAD_ERR_OK
+        ),array(),$container,true);
     }
 
     /**

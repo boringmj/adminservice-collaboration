@@ -169,7 +169,7 @@ abstract class Controller {
     /**
      * 设置流式响应
      *
-     * - 生成器接收 `callable(string):void` 写入器, 每调用一次输出一段正文
+     * - 生成器接收 `callable(string):void` 写入器, 每调用一次输出一段正文; 客户端断开时写入器抛异常
      * - 设置后控制器返回值不参与渲染
      *
      * @access protected

@@ -309,12 +309,35 @@ class ApplicationLifecycleTest extends TestCase {
         $application->handle(function() use ($application): void {
             $this->assertNotNull($application->requestContext());
         });
-        $this->assertNotNull($application->requestContext());
+        $context=$application->requestContext();
+        $this->assertNotNull($context);
 
-        $application->endRequest();
+        $application->endRequest($context);
         $this->assertNull($application->requestContext());
         $this->assertSame($application->container(),$application->requestContainer());
         $this->assertNull(Error::requestContext());
+    }
+
+    /**
+     * 测试: 无参 endRequest 不操作其它请求的上下文
+     *
+     * @return void
+     */
+    public function testEndRequestWithoutContextLeavesOtherRequestAlone(): void {
+        $application=new Application();
+        $application->handle(function(): void {});
+        $first=$application->requestContext();
+        $application->handle(function(): void {});
+        $second=$application->requestContext();
+        $this->assertNotNull($first);
+        $this->assertNotNull($second);
+        $this->assertNotSame($first,$second);
+
+        $application->endRequest();
+        $this->assertSame($second,$application->requestContext(),'无参调用不应关闭其它请求的上下文');
+
+        $application->endRequest($second);
+        $this->assertNull($application->requestContext());
     }
 
     /**

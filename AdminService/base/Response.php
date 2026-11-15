@@ -40,7 +40,7 @@ abstract class Response {
     /**
      * 流式响应生成器
      *
-     * - 接收 `callable(string):void` 写入器, 每调用一次输出一段正文
+     * - 接收 `callable(string):void` 写入器, 每调用一次输出一段正文; 客户端断开时写入器抛异常
      * - 设置后优先于普通返回内容
      *
      * @var callable(callable(string):void):void|null
@@ -151,7 +151,7 @@ abstract class Response {
     /**
      * 设置流式响应
      *
-     * - 生成器接收 `callable(string):void` 写入器, 每调用一次输出一段正文
+     * - 生成器接收 `callable(string):void` 写入器, 每调用一次输出一段正文; 客户端断开时写入器抛异常
      * - 设置后优先于普通返回内容; HEAD 与禁止正文的状态码不会调用生成器
      *
      * @access public
@@ -176,6 +176,18 @@ abstract class Response {
      */
     public function hasStream(): bool {
         return $this->stream_producer!==null;
+    }
+
+    /**
+     * 清除流式响应
+     *
+     * - 供错误出口等改回普通正文的调用方使用, 不影响已设置的返回内容
+     *
+     * @access public
+     * @return void
+     */
+    public function clearStream(): void {
+        $this->stream_producer=null;
     }
 
     /**

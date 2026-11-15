@@ -9,8 +9,10 @@ use base\Cookie as CookieContract;
 use base\Request;
 use base\Response as BaseResponse;
 use AdminService\ResponseProcessor\Http;
+use AdminService\exception\ClientDisconnectedException;
 
 use function array_keys;
+use function connection_aborted;
 use function array_map;
 use function error_log;
 use function explode;
@@ -354,14 +356,8 @@ final class Response extends BaseResponse {
         // 1xx / 204 / 205 / 304 不允许有正文
         if($this->hasNoBody()) return '';
         if($this->return_content!==null) return $this->return_content;
-        // 未登记的内容类型回落到登记表的第一个
-        $type=$this->getStandardContentType();
-        // `*/*` 只是分派桶, 实际落盘时回退到第一个具体类型
-        if($type==='*/*')
-            $type=$this->defaultContentType();
         // 先取整棵类型表再按数组键取值: 媒体类型本身可能含点(如 vendor `+json`)
-        $types=$this->config()->get('response.default.type',[]);
-        $config=is_array($types)?($types[$type]??[]):[];
+        list(,$config)=$this->typeConfig();
         $class=$config['class']??Http::class;
         // 处理器需要写入本实例: 显式传入; 请求级容器负责解析处理器依赖
         $container=$this->container??ContextStorage::current()?->container();
@@ -442,9 +438,13 @@ final class Response extends BaseResponse {
             if(ob_get_level()>0)
                 ob_flush();
             flush();
+            if(connection_aborted()!==0)
+                throw new ClientDisconnectedException('Client disconnected during stream response.');
         };
         try {
             $producer($writer);
+        } catch(ClientDisconnectedException) {
+            // 客户端已断开, 正文无法继续
         } catch(\Throwable $e) {
             error_log('Stream response failed: '.get_class($e).': '.$e->getMessage());
         }
@@ -459,12 +459,35 @@ final class Response extends BaseResponse {
      * @return void
      */
     private function streamHeaders(): void {
-        $type=$this->getStandardContentType();
+        $types=$this->config()->get('response.default.type',[]);
+        $type_list=is_array($types)?array_keys($types):array();
+        $raw=strtolower(trim(explode(';',$this->contentType,2)[0]));
+        $registered=$raw!==''&&$raw!=='*/*'&&(in_array($raw,$type_list,true)
+            ||(Negotiator::normalizeType($raw)==='application/json'&&in_array('application/json',$type_list,true)));
+        // 显式指定但未登记的类型原样下发, 不套用登记表的响应头
+        if($raw!==''&&$raw!=='*/*'&&!$registered) {
+            $this->header('Content-Type',$this->contentType);
+            return;
+        }
+        list(,$config)=$this->typeConfig();
+        $this->headers($config['headers']??[]);
+    }
+
+    /**
+     * 取内容类型与登记配置
+     *
+     * - 未登记类型回落到登记表第一个; 通配桶只作分派, 落盘时回退到第一个具体类型
+     *
+     * @access private
+     * @param string|null $type 内容类型(null = 当前类型)
+     * @return array{0:string,1:array<string,mixed>} 实际类型与登记配置
+     */
+    private function typeConfig(?string $type=null): array {
+        $type=$type??$this->getStandardContentType();
         if($type==='*/*')
             $type=$this->defaultContentType();
         $types=$this->config()->get('response.default.type',[]);
-        $config=is_array($types)?($types[$type]??[]):[];
-        $this->headers($config['headers']??[]);
+        return array($type,is_array($types)?($types[$type]??[]):array());
     }
 
     /**

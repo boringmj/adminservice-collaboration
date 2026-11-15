@@ -72,6 +72,8 @@ final class HttpError {
         if($this->contentType!==null)
             $response->contentType($this->contentType);
         $response->body($this->body);
+        // 错误正文优先于此前设置的流式生成器
+        $response->clearStream();
     }
 
 }

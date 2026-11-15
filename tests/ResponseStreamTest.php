@@ -5,6 +5,7 @@ namespace Tests;
 use PHPUnit\Framework\TestCase;
 
 use AdminService\Config\Repository;
+use AdminService\HttpError;
 use AdminService\HttpRequest;
 use AdminService\Response;
 use AdminService\ResponseProcessor\Http;
@@ -54,6 +55,37 @@ class ResponseStreamTest extends TestCase {
             'REQUEST_URI'=>'/',
             'REQUEST_METHOD'=>$method
         )));
+    }
+
+    /**
+     * 测试: 应用错误响应后清除流式生成器
+     *
+     * @return void
+     */
+    public function testHttpErrorClearsStream(): void {
+        $response=$this->response();
+        $response->stream(static function(callable $write): void {
+            $write('streamed');
+        },'text/plain');
+        HttpError::notFound()->apply($response);
+        $data=$response->export($this->request());
+        $this->assertNull($data['stream']);
+        $this->assertSame('404 Not Found',$data['body']);
+    }
+
+    /**
+     * 测试: 显式指定但未登记的流式内容类型不被替换
+     *
+     * @return void
+     */
+    public function testExplicitUnregisteredStreamTypeIsKept(): void {
+        $response=$this->response();
+        $response->stream(static function(callable $write): void {
+            $write('event');
+        },'text/event-stream');
+        $data=$response->export($this->request());
+        $headers=array_change_key_case($data['headers'],CASE_LOWER);
+        $this->assertSame('text/event-stream',$headers['content-type'][0]);
     }
 
     /**
@@ -157,6 +189,18 @@ class ResponseStreamTest extends TestCase {
         $this->assertSame(0,$status,$stderr);
         $this->assertStringContainsString('partial',$stdout);
         $this->assertStringContainsString('Stream response failed',$stderr);
+    }
+
+    /**
+     * 测试: 客户端断开不记录为流式失败
+     *
+     * @return void
+     */
+    public function testClientDisconnectIsNotLoggedAsFailure(): void {
+        list($status,$stdout,$stderr)=$this->runFixture(__DIR__.'/fixtures/stream_response_disconnect.php');
+        $this->assertSame(0,$status,$stderr);
+        $this->assertStringContainsString('partial',$stdout);
+        $this->assertStringNotContainsString('Stream response failed',$stderr);
     }
 
     /**

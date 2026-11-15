@@ -27,6 +27,7 @@ use Fiber;
 use ReflectionProperty;
 use RuntimeException;
 use Tests\Fixtures\FakePdo;
+use Tests\Fixtures\StreamProbeController;
 
 use function file_get_contents;
 use function file_put_contents;
@@ -71,6 +72,54 @@ class WorkerTest extends TestCase {
                 App::setInstance($old_app);
             if($old_config!==null)
                 Config::setRepository($old_config);
+        }
+    }
+
+    /**
+     * 测试: 流式生成器在请求收尾前执行, 能读到请求上下文
+     *
+     * @return void
+     */
+    public function testStreamProducerRunsBeforeTeardown(): void {
+        $old_config=Config::repository();
+        $old_app=App::hasInstance()?App::getInstance():null;
+        $route=tempnam(sys_get_temp_dir(),'worker_stream_route_');
+        file_put_contents($route,"<?php\nreturn function(\\AdminService\\Router\\Router \$router): void {\n"
+            ."\$router->get('/stream-probe',array(\\Tests\\Fixtures\\StreamProbeController::class,'index'));\n"
+            ."};\n");
+        $configs=Config::all();
+        $configs['route']['files']=array($route);
+        $config=Config::new($configs);
+        $app=(new Application(new Container(),$config))->init();
+        $worker=new Worker($app);
+        StreamProbeController::$calls=0;
+        $context_during_stream=null;
+        StreamProbeController::$probe=static function() use($app,&$context_during_stream): void {
+            $context_during_stream=$app->requestContext();
+        };
+        try {
+            $chunks='';
+            $response=$worker->handle(RequestFactory::create('GET','/stream-probe'),static function(WorkerResponse $worker_response) use(&$chunks): void {
+                $stream=$worker_response->stream();
+                if($stream!==null)
+                    $stream(static function(string $chunk) use(&$chunks): void {
+                        $chunks.=$chunk;
+                    });
+            });
+            $this->assertSame(200,$response->status());
+            $this->assertSame(1,StreamProbeController::$calls);
+            $this->assertNotNull($context_during_stream,'生成器执行时应仍保留请求上下文');
+            $this->assertSame('probe',$chunks);
+            $this->assertNull($app->requestContext());
+        } finally {
+            StreamProbeController::$probe=null;
+            $worker->shutdown();
+            if($old_app!==null)
+                App::setInstance($old_app);
+            if($old_config!==null)
+                Config::setRepository($old_config);
+            if(is_file($route))
+                unlink($route);
         }
     }
 

@@ -11,6 +11,7 @@ use base\Container as ContainerContract;
 use function array_keys;
 use function array_map;
 use function file_exists;
+use function get_debug_type;
 use function is_array;
 use function is_uploaded_file;
 use function pathinfo;
@@ -168,10 +169,10 @@ final class UploadFiles extends AbstractUploadFiles {
             $upload_file=$this->container!==null
                 ? $this->container->build(UploadFile::class,...$arguments)
                 : new UploadFile(...$arguments);
-            if($upload_file instanceof AbstractUploadFile) {
-                $upload_file->setTrusted($this->trusted_files);
-                $this->addFile($upload_file);
-            }
+            if(!$upload_file instanceof AbstractUploadFile)
+                throw new Exception('Upload file binding must return '.AbstractUploadFile::class.', got '.get_debug_type($upload_file).'.');
+            $upload_file->setTrusted($this->trusted_files);
+            $this->addFile($upload_file);
 
         }
     }

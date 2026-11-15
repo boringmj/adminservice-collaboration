@@ -3,6 +3,7 @@
 namespace AdminService\Worker;
 
 use AdminService\Exception;
+use AdminService\exception\ClientDisconnectedException;
 
 use function class_exists;
 use function error_log;
@@ -86,47 +87,53 @@ final class SwooleDriver {
                     isset($server_data['query_string'])?(string)$server_data['query_string']:null,
                     true
                 );
-                $worker_response=$worker->handle($worker_request);
-                $body=$worker_response->body();
-                $stream=$worker_response->stream();
-                $headers=$worker_response->headers();
-                if($compressor!==null&&$stream===null)
-                    $body=$compressor->compress($body,(string)($request->header['accept-encoding']??''),$headers)??$body;
-                $response->status($worker_response->status());
-                foreach($headers as $name=>$values) {
-                    $lower=strtolower((string)$name);
-                    if($lower==='content-length'||$lower==='connection'||$lower==='set-cookie')
-                        continue;
-                    $response->header((string)$name,implode(', ',(array)$values));
-                }
-                foreach($worker_response->cookies() as $name=>$item) {
-                    if(is_array($item)) {
-                        $response->cookie(
-                            (string)$name,
-                            (string)($item['value']??''),
-                            (int)($item['expire']??0),
-                            (string)($item['path']??'/'),
-                            (string)($item['domain']??''),
-                            (bool)($item['secure']??false),
-                            (bool)($item['httponly']??false)
-                        );
-                    } else
-                        $response->cookie((string)$name,(string)$item);
-                }
-                if($stream!==null) {
-                    // 分块写入; 生成器异常时只能截断响应, 由日志记录
-                    try {
-                        $stream(static function(string $chunk) use($response): void {
-                            if($chunk!=='')
-                                $response->write($chunk);
-                        });
-                    } catch(\Throwable $e) {
-                        error_log('Worker stream failed: '.$e->getMessage());
+                // 写出在请求收尾前执行, 流式生成器可读取请求级状态
+                $worker->handle($worker_request,function(WorkerResponse $worker_response) use($response,$request,$compressor): void {
+                    $body=$worker_response->body();
+                    $stream=$worker_response->stream();
+                    $headers=$worker_response->headers();
+                    if($compressor!==null&&$stream===null)
+                        $body=$compressor->compress($body,(string)($request->header['accept-encoding']??''),$headers)??$body;
+                    $response->status($worker_response->status());
+                    foreach($headers as $name=>$values) {
+                        $lower=strtolower((string)$name);
+                        if($lower==='content-length'||$lower==='connection'||$lower==='set-cookie')
+                            continue;
+                        $response->header((string)$name,implode(', ',(array)$values));
                     }
-                    $response->end();
-                    return;
-                }
-                $response->end($body);
+                    foreach($worker_response->cookies() as $name=>$item) {
+                        if(is_array($item)) {
+                            $response->cookie(
+                                (string)$name,
+                                (string)($item['value']??''),
+                                (int)($item['expire']??0),
+                                (string)($item['path']??'/'),
+                                (string)($item['domain']??''),
+                                (bool)($item['secure']??false),
+                                (bool)($item['httponly']??false)
+                            );
+                        } else
+                            $response->cookie((string)$name,(string)$item);
+                    }
+                    if($stream!==null) {
+                        // 分块写入; 生成器异常时只能截断响应, 由日志记录
+                        try {
+                            $stream(static function(string $chunk) use($response): void {
+                                if($chunk==='')
+                                    return;
+                                if($response->write($chunk)===false)
+                                    throw new ClientDisconnectedException('Client disconnected during stream response.');
+                            });
+                        } catch(ClientDisconnectedException) {
+                            // 客户端已断开, 正文无法继续
+                        } catch(\Throwable $e) {
+                            error_log('Worker stream failed: '.$e->getMessage());
+                        }
+                        $response->end();
+                        return;
+                    }
+                    $response->end($body);
+                });
             } catch(\Throwable $e) {
                 error_log('Worker request failed: '.$e->getMessage());
                 $response->status(500);

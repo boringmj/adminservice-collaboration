@@ -18,6 +18,12 @@ final class Main {
     private ?Application $application=null;
 
     /**
+     * 当前请求上下文(关停阶段响应出口使用)
+     * @var RequestContext|null
+     */
+    private ?RequestContext $request_context=null;
+
+    /**
      * 获取应用(不存在则建立)
      *
      * - 请求级容器由它承载: 关停阶段或自定义入口需要请求级对象时用它取(`application()->requestContainer()`)
@@ -44,7 +50,7 @@ final class Main {
         // 注册错误处理(响应出口: 正常退出时按请求准备好响应再发送)
         // 关停阶段门面已收回应用级容器, 故这里直接向 Application 取请求级容器(框架内部不走门面)
         Error::register(function(): void {
-            $context=$this->application?->requestContext();
+            $context=$this->request_context;
             $container=$context?->container()??($this->application===null?App::getInstance():$this->application->requestContainer());
             $response=$context?->response()??$container->get(Response::class);
             $request=$context?->request()??$container->get(Request::class);
@@ -52,8 +58,8 @@ final class Main {
             try {
                 $response->send();
             } finally {
-                $this->application?->flushRequestMetadata();
-                $this->application?->endRequest();
+                $this->application?->flushRequestMetadata($context?->container());
+                $this->application?->endRequest($context);
             }
         },false);
         // 配置、缓存、容器与数据库装配由 Bootstrapper 统一完成
@@ -81,7 +87,7 @@ final class Main {
      */
     public function run(): void {
         // 由应用承载请求处理: 每请求一个请求级容器(fork/reset 与门面指针切换都在 Application::handle() 内)
-        $this->application()->handleHttp();
+        $this->request_context=$this->application()->handleHttp();
     }
 
 }

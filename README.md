@@ -42,7 +42,7 @@
    php bin/server start
    ```
 
-   需要常驻 worker 时（可选，需要 Swoole 扩展）：
+   需要常驻 worker 时（可选，需要 Swoole 5.1.x；PHP 8.2/8.3 已验证，PHP 8.4 需要 Swoole 6.x）：
 
    ```bash
    php bin/worker start --host=0.0.0.0 --port=9501

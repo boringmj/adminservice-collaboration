@@ -32,7 +32,8 @@
     },
 
     "require-dev": {
-        "phpunit/phpunit": "^10.5"
+        "phpunit/phpunit": "^10.5",
+        "swoole/ide-helper": "^5.1"
     },
 
     "suggest": {

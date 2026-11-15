@@ -62,7 +62,6 @@ final class SwooleDriver {
         if(!extension_loaded('swoole')||!class_exists('Swoole\\Http\\Server'))
             throw new Exception('Swoole extension is required for worker start.');
         $compressor=$compression?new ResponseCompressor($compression_level):null;
-        /** @var \Swoole\Http\Server $server */
         $server=new \Swoole\Http\Server($host,$port);
         $server->set(array(
             'worker_num'=>max(1,$workers),

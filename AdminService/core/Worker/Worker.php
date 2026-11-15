@@ -5,6 +5,7 @@ namespace AdminService\Worker;
 use AdminService\Application;
 use AdminService\ArraySession;
 use AdminService\Config\Bootstrapper;
+use AdminService\Error;
 use AdminService\Exception;
 use AdminService\HttpRequest;
 use AdminService\NativeSession;
@@ -78,6 +79,9 @@ final class Worker {
         }
         if(!$this->booted) {
             $this->assertSessionDriver($this->application);
+            // 错误页与日志出口需要应用级容器; 不注册 PHP 处理器, 避免并发请求共享错误收集
+            Error::setContainer($this->application->container());
+            Error::setInitialized(true);
             $this->booted=true;
         }
         return $this->application;
@@ -146,6 +150,8 @@ final class Worker {
         if($this->application===null)
             return;
         BaseDb::clearInstances();
+        Error::setContainer(null);
+        Error::setInitialized(false);
         $this->application=null;
         $this->booted=false;
     }
@@ -159,6 +165,25 @@ final class Worker {
      * @return WorkerResponse
      */
     private function errorResponse(Throwable $e,Application $app): WorkerResponse {
+        // 请求上下文仍在时按框架错误页渲染并写日志; 上下文缺失(启动失败等)走纯文本兜底
+        $context=$app->requestContext();
+        if($context!==null) {
+            try {
+                $page=Error::renderRequestPage($e);
+                $response=$context->response();
+                if($page!==''&&$response instanceof Response) {
+                    $response->status(500);
+                    $response->contentType('text/html');
+                    // 已渲染内容会跳过类型表, 内容类型需显式下发
+                    $response->header('Content-Type','text/html; charset=utf-8');
+                    $response->rendered($page);
+                    $response->header('Is-Error','true');
+                    return (new ResponseEmitter())->emit($response,$context->request());
+                }
+            } catch(Throwable $render_failure) {
+                error_log('Worker error page failed: '.get_class($render_failure).': '.$render_failure->getMessage());
+            }
+        }
         $debug=(bool)$app->config()->get('app.debug',false);
         $body=$debug
             ?get_class($e).': '.$e->getMessage()

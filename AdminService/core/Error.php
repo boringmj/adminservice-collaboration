@@ -352,21 +352,53 @@ final class Error extends BaseError {
      * @return void
      */
     public static function handleException(\Throwable $exception): void {
-        // 清理异常消息
-        $message=self::cleanErrorMessage($exception->getMessage());
-        // 将异常视为致命错误
-        self::$errors[]=array(
+        self::$errors[]=self::exceptionRecord($exception);
+        // 处理并让脚本自然结束; 不主动 exit(), 保留后续 shutdown 回调
+        self::handleShutdown();
+    }
+
+    /**
+     * 渲染当前请求的错误页并写入日志
+     *
+     * - 供常驻入口等自行捕获异常的调用方使用; 不发送响应头, 不退出进程
+     * - 无已收集错误且未传入异常时返回空字符串
+     *
+     * @access public
+     * @param \Throwable|null $exception 当前请求的异常
+     * @return string HTML 错误页
+     */
+    public static function renderRequestPage(?\Throwable $exception=null): string {
+        if($exception!==null)
+            self::$errors[]=self::exceptionRecord($exception);
+        if(self::$errors===array())
+            return '';
+        self::$handled=true;
+        $errorPage=self::renderErrors();
+        $logFailure=self::writeErrorLogs();
+        if($logFailure!==null) {
+            self::writeOutletFailureLog('log',$logFailure);
+            $errorPage.='<br>日志记录失败，请检查日志配置。';
+        }
+        return $errorPage;
+    }
+
+    /**
+     * 把异常转成错误记录
+     *
+     * @access private
+     * @param \Throwable $exception 异常
+     * @return array{type:int,message:string,file:string,line:int,is_fatal:bool,stack_trace:array<mixed>,is_exception:bool}
+     */
+    private static function exceptionRecord(\Throwable $exception): array {
+        return array(
             'type'=>E_ERROR,
-            'message'=>$message,
+            'message'=>self::cleanErrorMessage($exception->getMessage()),
             'file'=>$exception->getFile(),
             'line'=>$exception->getLine(),
             'is_fatal'=>true,
             'stack_trace'=>$exception->getTrace(),
             'is_exception'=>true
         );
-        
-        // 处理并让脚本自然结束; 不主动 exit(), 保留后续 shutdown 回调
-        self::handleShutdown();
     }
 
     /**
@@ -448,10 +480,41 @@ final class Error extends BaseError {
         }
         $errorPage=self::renderErrors();
         // 记录所有错误到日志(先于正文输出: 客户端断开后仍应留下日志)
-        // - 引导完成且容器可用: 走应用的 Log 服务
-        // - 引导未完成 / 容器不可用: 直写 PHP 错误日志(不依赖容器, 也不依赖配置)
-        $logFailure=null;
+        $logFailure=self::writeErrorLogs();
         $headerFailure=null;
+        // 发送正文前兜底 500: 响应对象取不到或 sendHeaders() 提前失败时也不能让客户端看到 200
+        if(!headers_sent())
+            http_response_code(500);
+        if($response!==null) {
+            try {
+                $response->sendHeaders();
+            } catch(\Throwable $e) {
+                // 响应头发送失败不能吞掉错误页正文
+                $headerFailure=$e;
+            }
+        }
+        echo $errorPage;
+        // 页面只给通用提示, 详细原因写日志; 日志失败与响应头失败必须分开, 避免误导排障
+        if($logFailure!==null) {
+            self::writeOutletFailureLog('log',$logFailure);
+            echo '<br>日志记录失败，请检查日志配置。';
+        }
+        if($headerFailure!==null) {
+            self::writeOutletFailureLog('header',$headerFailure);
+            echo '<br>响应头发送失败，请检查是否已有输出。';
+        }
+    }
+
+    /**
+     * 写入已收集错误的日志
+     *
+     * - 引导完成且容器可用: 走应用的 Log 服务
+     * - 引导未完成 / 容器不可用: 直写 PHP 错误日志(不依赖容器, 也不依赖配置)
+     *
+     * @access private
+     * @return \Throwable|null 写入失败时的异常
+     */
+    private static function writeErrorLogs(): ?\Throwable {
         try {
             foreach(self::$errors as $error) {
                 $errorType=self::$errorTypes[$error['type']]??'Unknown';
@@ -474,29 +537,9 @@ final class Error extends BaseError {
                     $container->exec_class_function(Log::class,'write',array($logMessage,$context));
             }
         } catch(\Throwable $e) {
-            $logFailure=$e;
+            return $e;
         }
-        // 发送正文前兜底 500: 响应对象取不到或 sendHeaders() 提前失败时也不能让客户端看到 200
-        if(!headers_sent())
-            http_response_code(500);
-        if($response!==null) {
-            try {
-                $response->sendHeaders();
-            } catch(\Throwable $e) {
-                // 响应头发送失败不能吞掉错误页正文
-                $headerFailure=$e;
-            }
-        }
-        echo $errorPage;
-        // 页面只给通用提示, 详细原因写日志; 日志失败与响应头失败必须分开, 避免误导排障
-        if($logFailure!==null) {
-            self::writeOutletFailureLog('log',$logFailure);
-            echo '<br>日志记录失败，请检查日志配置。';
-        }
-        if($headerFailure!==null) {
-            self::writeOutletFailureLog('header',$headerFailure);
-            echo '<br>响应头发送失败，请检查是否已有输出。';
-        }
+        return null;
     }
 
     /**

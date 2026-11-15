@@ -38,6 +38,16 @@ abstract class Response {
     protected ?string $return_content=null;
 
     /**
+     * 流式响应生成器
+     *
+     * - 接收 `callable(string):void` 写入器, 每调用一次输出一段正文
+     * - 设置后优先于普通返回内容
+     *
+     * @var callable|null
+     */
+    protected $stream_producer=null;
+
+    /**
      * 获取或设置状态码
      *
      * @access public
@@ -94,8 +104,11 @@ abstract class Response {
      * @return ?string
      */
     public function rendered(?string $content=null): ?string {
-        if(func_num_args()>0)
+        if(func_num_args()>0) {
             $this->return_content=$content;
+            if($content!==null)
+                $this->stream_producer=null;
+        }
         return $this->return_content;
     }
 
@@ -133,6 +146,46 @@ abstract class Response {
     public function text(mixed $content=null): mixed {
         $this->contentType('text/plain');
         return $content;
+    }
+
+    /**
+     * 设置流式响应
+     *
+     * - 生成器接收 `callable(string):void` 写入器, 每调用一次输出一段正文
+     * - 设置后优先于普通返回内容; HEAD 与禁止正文的状态码不会调用生成器
+     *
+     * @access public
+     * @param callable(string):void $producer 生成器
+     * @param string|null $content_type 内容类型(null = 沿用当前类型)
+     * @return static
+     */
+    public function stream(callable $producer,?string $content_type=null): static {
+        if($content_type!==null)
+            $this->contentType($content_type);
+        $this->controller_return=null;
+        $this->return_content=null;
+        $this->stream_producer=$producer;
+        return $this;
+    }
+
+    /**
+     * 是否设置了流式响应
+     *
+     * @access public
+     * @return bool
+     */
+    public function hasStream(): bool {
+        return $this->stream_producer!==null;
+    }
+
+    /**
+     * 获取流式响应生成器
+     *
+     * @access public
+     * @return callable|null
+     */
+    public function streamProducer(): ?callable {
+        return $this->stream_producer;
     }
 
     /**

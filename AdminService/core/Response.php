@@ -12,14 +12,19 @@ use AdminService\ResponseProcessor\Http;
 
 use function array_keys;
 use function array_map;
+use function error_log;
 use function explode;
+use function flush;
 use function func_num_args;
+use function get_class;
 use function header;
 use function headers_sent;
 use function http_response_code;
 use function implode;
 use function in_array;
 use function is_array;
+use function ob_flush;
+use function ob_get_level;
 use function str_contains;
 use function strtolower;
 use function trim;
@@ -399,6 +404,10 @@ final class Response extends BaseResponse {
      * @return void
      */
     public function send(): void {
+        if($this->hasStream()) {
+            $this->sendStream();
+            return;
+        }
         $content=$this->render();
         // 发送请求头
         $this->sendHeaders();
@@ -410,10 +419,59 @@ final class Response extends BaseResponse {
     }
 
     /**
+     * 发送流式响应
+     *
+     * - 先发送请求头, 再按生成器逐段输出并刷新
+     * - HEAD / 禁止正文的状态码不调用生成器; 生成器异常只记录日志(响应头可能已发送)
+     *
+     * @access private
+     * @return void
+     */
+    private function sendStream(): void {
+        $this->streamHeaders();
+        $this->sendHeaders();
+        if($this->head_only||$this->hasNoBody())
+            return;
+        $producer=$this->streamProducer();
+        if($producer===null)
+            return;
+        $writer=static function(string $chunk): void {
+            if($chunk==='')
+                return;
+            echo $chunk;
+            if(ob_get_level()>0)
+                ob_flush();
+            flush();
+        };
+        try {
+            $producer($writer);
+        } catch(\Throwable $e) {
+            error_log('Stream response failed: '.get_class($e).': '.$e->getMessage());
+        }
+    }
+
+    /**
+     * 合并流式响应的内容类型Header
+     *
+     * - 与 `render()` 使用同一份类型登记表, 但不执行处理器
+     *
+     * @access private
+     * @return void
+     */
+    private function streamHeaders(): void {
+        $type=$this->getStandardContentType();
+        if($type==='*/*')
+            $type=$this->defaultContentType();
+        $types=$this->config()->get('response.default.type',[]);
+        $config=is_array($types)?($types[$type]??[]):[];
+        $this->headers($config['headers']??[]);
+    }
+
+    /**
      * 导出可直接写入非 SAPI 响应的内容
      *
-     * - `prepare` 与 `render` 各执行一次
-     * - HEAD 与禁止正文的状态码返回空正文
+     * - `prepare` 执行一次; 普通响应再执行 `render`, 流式响应只返回生成器
+     * - HEAD 与禁止正文的状态码返回空正文; 流式响应的生成器为 null
      *
      * @access public
      * @param Request $request 当前请求
@@ -428,19 +486,32 @@ final class Response extends BaseResponse {
      *         secure:bool,
      *         httponly:bool
      *     }>,
-     *     body:string
+     *     body:string,
+     *     stream:callable|null
      * }
      */
     public function export(Request $request): array {
         $this->prepare($request);
+        $cookies=$this->cookieWriter()->buildByArray($this->cookies->all());
+        if($this->hasStream()) {
+            $this->streamHeaders();
+            return array(
+                'status'=>$this->status(),
+                'headers'=>$this->headers->all(),
+                'cookies'=>$cookies,
+                'body'=>'',
+                'stream'=>$this->head_only||$this->hasNoBody()?null:$this->streamProducer()
+            );
+        }
         $content=$this->render();
         if($this->head_only)
             $content='';
         return array(
             'status'=>$this->status(),
             'headers'=>$this->headers->all(),
-            'cookies'=>$this->cookieWriter()->buildByArray($this->cookies->all()),
-            'body'=>$content
+            'cookies'=>$cookies,
+            'body'=>$content,
+            'stream'=>null
         );
     }
 

@@ -167,6 +167,21 @@ abstract class Controller {
     }
 
     /**
+     * 设置流式响应
+     *
+     * - 生成器接收 `callable(string):void` 写入器, 每调用一次输出一段正文
+     * - 设置后控制器返回值不参与渲染
+     *
+     * @access protected
+     * @param callable(string):void $producer 生成器
+     * @param string|null $type 内容类型(null = 沿用当前类型)
+     * @return void
+     */
+    final protected function stream(callable $producer,?string $type=null): void {
+        $this->response->stream($producer,$type);
+    }
+
+    /**
      * 设置返回时的状态码
      * 
      * @access protected

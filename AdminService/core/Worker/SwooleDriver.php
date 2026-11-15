@@ -88,8 +88,9 @@ final class SwooleDriver {
                 );
                 $worker_response=$worker->handle($worker_request);
                 $body=$worker_response->body();
+                $stream=$worker_response->stream();
                 $headers=$worker_response->headers();
-                if($compressor!==null)
+                if($compressor!==null&&$stream===null)
                     $body=$compressor->compress($body,(string)($request->header['accept-encoding']??''),$headers)??$body;
                 $response->status($worker_response->status());
                 foreach($headers as $name=>$values) {
@@ -111,6 +112,19 @@ final class SwooleDriver {
                         );
                     } else
                         $response->cookie((string)$name,(string)$item);
+                }
+                if($stream!==null) {
+                    // 分块写入; 生成器异常时只能截断响应, 由日志记录
+                    try {
+                        $stream(static function(string $chunk) use($response): void {
+                            if($chunk!=='')
+                                $response->write($chunk);
+                        });
+                    } catch(\Throwable $e) {
+                        error_log('Worker stream failed: '.$e->getMessage());
+                    }
+                    $response->end();
+                    return;
                 }
                 $response->end($body);
             } catch(\Throwable $e) {

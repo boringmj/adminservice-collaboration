@@ -30,7 +30,8 @@ final class ResponseEmitter {
             $data['status'],
             $data['headers'],
             $data['cookies'],
-            $data['body']
+            $data['body'],
+            $data['stream']??null
         );
     }
 

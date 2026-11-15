@@ -487,7 +487,7 @@ final class Response extends BaseResponse {
      *         httponly:bool
      *     }>,
      *     body:string,
-     *     stream:callable|null
+     *     stream:callable(callable(string):void):void|null
      * }
      */
     public function export(Request $request): array {

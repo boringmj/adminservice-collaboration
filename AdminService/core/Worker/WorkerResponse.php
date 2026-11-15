@@ -15,7 +15,7 @@ final class WorkerResponse {
 
     /**
      * 流式响应生成器
-     * @var callable|null
+     * @var callable(callable(string):void):void|null
      */
     private $stream=null;
 
@@ -34,7 +34,7 @@ final class WorkerResponse {
      *     httponly:bool
      * }> $cookies Cookie
      * @param string $body 正文
-     * @param callable|null $stream 流式响应生成器(非 null 时正文为空)
+     * @param callable(callable(string):void):void|null $stream 流式响应生成器(非 null 时正文为空)
      */
     public function __construct(
         private int $status,
@@ -97,7 +97,7 @@ final class WorkerResponse {
      * 流式响应生成器
      *
      * @access public
-     * @return callable|null
+     * @return callable(callable(string):void):void|null
      */
     public function stream(): ?callable {
         return $this->stream;

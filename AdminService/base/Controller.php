@@ -173,7 +173,7 @@ abstract class Controller {
      * - 设置后控制器返回值不参与渲染
      *
      * @access protected
-     * @param callable(string):void $producer 生成器
+     * @param callable(callable(string):void):void $producer 生成器, 参数为正文写入器
      * @param string|null $type 内容类型(null = 沿用当前类型)
      * @return void
      */

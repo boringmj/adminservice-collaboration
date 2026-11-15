@@ -43,7 +43,7 @@ abstract class Response {
      * - 接收 `callable(string):void` 写入器, 每调用一次输出一段正文
      * - 设置后优先于普通返回内容
      *
-     * @var callable|null
+     * @var callable(callable(string):void):void|null
      */
     protected $stream_producer=null;
 
@@ -155,7 +155,7 @@ abstract class Response {
      * - 设置后优先于普通返回内容; HEAD 与禁止正文的状态码不会调用生成器
      *
      * @access public
-     * @param callable(string):void $producer 生成器
+     * @param callable(callable(string):void):void $producer 生成器, 参数为正文写入器
      * @param string|null $content_type 内容类型(null = 沿用当前类型)
      * @return static
      */
@@ -182,7 +182,7 @@ abstract class Response {
      * 获取流式响应生成器
      *
      * @access public
-     * @return callable|null
+     * @return callable(callable(string):void):void|null
      */
     public function streamProducer(): ?callable {
         return $this->stream_producer;

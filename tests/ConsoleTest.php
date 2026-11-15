@@ -366,6 +366,7 @@ class ConsoleTest extends TestCase {
         $console=new Console($app,$output);
         $this->assertSame(0,$console->run(array('console','worker','start','--dry-run')));
         $this->assertStringContainsString('监听(Worker):',$output->stdout());
+        $this->assertStringContainsString('压缩(Compression): off',$output->stdout());
         $this->assertStringContainsString('试运行(Dry run)',$output->stdout());
     }
 

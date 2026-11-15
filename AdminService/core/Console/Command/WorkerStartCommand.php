@@ -137,9 +137,12 @@ final class WorkerStartCommand extends AbstractCommand {
         }
         $port=(int)$port_raw;
         $workers=(int)$workers_raw;
+        $compression=(bool)$this->config->get('worker.compression',false);
+        $compression_level=(int)$this->config->get('worker.compression_level',4);
         $swoole=extension_loaded('swoole')&&class_exists('Swoole\\Http\\Server');
         $output->info('监听(Worker): '.$host.':'.$port);
         $output->info('进程数(Workers): '.$workers);
+        $output->info('压缩(Compression): '.($compression?'gzip level '.max(1,min(9,$compression_level)):'off'));
         $output->info('会话驱动(Session): '.(string)$this->config->get('session.class',''));
         $output->info('Swoole: '.($swoole?'可用(available)':'不可用(unavailable)'));
         if($input->hasOption('dry-run')) {
@@ -158,7 +161,7 @@ final class WorkerStartCommand extends AbstractCommand {
             $worker=new Worker($this->application);
             $worker->boot();
             $output->info('启动(Start): worker 正在运行, 按 Ctrl+C 停止');
-            (new SwooleDriver($worker))->serve($host,$port,$workers);
+            (new SwooleDriver($worker))->serve($host,$port,$workers,$compression,$compression_level);
         } catch(Throwable $e) {
             $output->error('[ERROR] worker 启动失败(Worker start failed): '.$e->getMessage());
             return self::FAILURE;

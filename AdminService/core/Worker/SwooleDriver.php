@@ -47,20 +47,31 @@ final class SwooleDriver {
      * @param string $host 监听地址
      * @param int $port 监听端口
      * @param int $workers 进程数
+     * @param bool $compression 是否启用 gzip 响应压缩
+     * @param int $compression_level 压缩级别 1-9
      * @return void
-     * @throws Exception Swoole 扩展不可用
+     * @throws Exception Swoole 扩展不可用, 或压缩配置无效
      */
-    public function serve(string $host,int $port,int $workers=1): void {
+    public function serve(
+        string $host,
+        int $port,
+        int $workers=1,
+        bool $compression=false,
+        int $compression_level=4
+    ): void {
         if(!extension_loaded('swoole')||!class_exists('Swoole\\Http\\Server'))
             throw new Exception('Swoole extension is required for worker start.');
+        $compressor=$compression?new ResponseCompressor($compression_level):null;
         /** @var \Swoole\Http\Server $server */
         $server=new \Swoole\Http\Server($host,$port);
         $server->set(array(
             'worker_num'=>max(1,$workers),
-            'enable_coroutine'=>true
+            'enable_coroutine'=>true,
+            // 压缩统一由驱动处理, 避免 Swoole 内置压缩重复处理正文
+            'http_compression'=>false
         ));
         $worker=$this->worker;
-        $server->on('request',function(\Swoole\Http\Request $request,\Swoole\Http\Response $response) use($worker): void {
+        $server->on('request',function(\Swoole\Http\Request $request,\Swoole\Http\Response $response) use($worker,$compressor): void {
             try {
                 $server_data=$request->server??array();
                 $worker_request=RequestFactory::create(
@@ -77,8 +88,12 @@ final class SwooleDriver {
                     true
                 );
                 $worker_response=$worker->handle($worker_request);
+                $body=$worker_response->body();
+                $headers=$worker_response->headers();
+                if($compressor!==null)
+                    $body=$compressor->compress($body,(string)($request->header['accept-encoding']??''),$headers)??$body;
                 $response->status($worker_response->status());
-                foreach($worker_response->headers() as $name=>$values) {
+                foreach($headers as $name=>$values) {
                     $lower=strtolower((string)$name);
                     if($lower==='content-length'||$lower==='connection'||$lower==='set-cookie')
                         continue;
@@ -98,7 +113,7 @@ final class SwooleDriver {
                     } else
                         $response->cookie((string)$name,(string)$item);
                 }
-                $response->end($worker_response->body());
+                $response->end($body);
             } catch(\Throwable $e) {
                 error_log('Worker request failed: '.$e->getMessage());
                 $response->status(500);

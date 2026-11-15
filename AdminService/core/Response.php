@@ -22,6 +22,7 @@ use function get_class;
 use function header;
 use function headers_sent;
 use function http_response_code;
+use function ignore_user_abort;
 use function implode;
 use function in_array;
 use function is_array;
@@ -419,6 +420,7 @@ final class Response extends BaseResponse {
      *
      * - 先发送请求头, 再按生成器逐段输出并刷新
      * - HEAD / 禁止正文的状态码不调用生成器; 生成器异常只记录日志(响应头可能已发送)
+     * - `continue` 模式忽略客户端断开并让生成器执行完毕, 为此临时打开 `ignore_user_abort`
      *
      * @access private
      * @return void
@@ -431,14 +433,22 @@ final class Response extends BaseResponse {
         $producer=$this->streamProducer();
         if($producer===null)
             return;
-        $writer=static function(string $chunk): void {
-            if($chunk==='')
+        $continue=$this->streamOnDisconnect()==='continue';
+        $previous_abort=null;
+        if($continue)
+            $previous_abort=ignore_user_abort(true);
+        $aborted=false;
+        $writer=static function(string $chunk) use (&$aborted,$continue): void {
+            if($chunk===''||$aborted)
                 return;
             echo $chunk;
             if(ob_get_level()>0)
                 ob_flush();
             flush();
-            if(connection_aborted()!==0)
+            if(connection_aborted()===0)
+                return;
+            $aborted=true;
+            if(!$continue)
                 throw new ClientDisconnectedException('Client disconnected during stream response.');
         };
         try {
@@ -447,6 +457,9 @@ final class Response extends BaseResponse {
             // 客户端已断开, 正文无法继续
         } catch(\Throwable $e) {
             error_log('Stream response failed: '.get_class($e).': '.$e->getMessage());
+        } finally {
+            if($continue&&$previous_abort!==null)
+                ignore_user_abort($previous_abort);
         }
     }
 
@@ -510,7 +523,8 @@ final class Response extends BaseResponse {
      *         httponly:bool
      *     }>,
      *     body:string,
-     *     stream:callable(callable(string):void):void|null
+     *     stream:callable(callable(string):void):void|null,
+     *     stream_on_disconnect:'stop'|'continue'
      * }
      */
     public function export(Request $request): array {
@@ -523,7 +537,8 @@ final class Response extends BaseResponse {
                 'headers'=>$this->headers->all(),
                 'cookies'=>$cookies,
                 'body'=>'',
-                'stream'=>$this->head_only||$this->hasNoBody()?null:$this->streamProducer()
+                'stream'=>$this->head_only||$this->hasNoBody()?null:$this->streamProducer(),
+                'stream_on_disconnect'=>$this->streamOnDisconnect()
             );
         }
         $content=$this->render();
@@ -534,7 +549,8 @@ final class Response extends BaseResponse {
             'headers'=>$this->headers->all(),
             'cookies'=>$cookies,
             'body'=>$content,
-            'stream'=>null
+            'stream'=>null,
+            'stream_on_disconnect'=>$this->streamOnDisconnect()
         );
     }
 

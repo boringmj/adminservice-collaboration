@@ -58,6 +58,42 @@ class ResponseStreamTest extends TestCase {
     }
 
     /**
+     * 测试: 流式断开处理方式可配置, 默认停止
+     *
+     * @return void
+     */
+    public function testStreamOnDisconnectOption(): void {
+        $response=$this->response();
+        $response->stream(static function(callable $write): void {
+            $write('default');
+        },'text/plain');
+        $this->assertSame('stop',$response->streamOnDisconnect());
+        $this->assertSame('stop',$response->export($this->request())['stream_on_disconnect']);
+
+        $response=$this->response();
+        $response->stream(static function(callable $write): void {
+            $write('continue');
+        },'text/plain',array('on_disconnect'=>'continue'));
+        $data=$response->export($this->request());
+        $this->assertSame('continue',$response->streamOnDisconnect());
+        $this->assertSame('continue',$data['stream_on_disconnect']);
+
+        $worker_response=(new ResponseEmitter())->emit($response,$this->request());
+        $this->assertSame('continue',$worker_response->streamOnDisconnect());
+    }
+
+    /**
+     * 测试: 流式断开处理方式取值无效时抛异常
+     *
+     * @return void
+     */
+    public function testInvalidStreamOnDisconnectThrows(): void {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('on_disconnect');
+        $this->response()->stream(static function(callable $write): void {},'text/plain',array('on_disconnect'=>'finish'));
+    }
+
+    /**
      * 测试: 应用错误响应后清除流式生成器
      *
      * @return void

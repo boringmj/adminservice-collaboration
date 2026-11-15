@@ -31,7 +31,8 @@ final class ResponseEmitter {
             $data['headers'],
             $data['cookies'],
             $data['body'],
-            $data['stream']??null
+            $data['stream']??null,
+            $data['stream_on_disconnect']??'stop'
         );
     }
 

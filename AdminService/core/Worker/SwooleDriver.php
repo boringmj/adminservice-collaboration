@@ -117,11 +117,16 @@ final class SwooleDriver {
                     }
                     if($stream!==null) {
                         // 分块写入; 生成器异常时只能截断响应, 由日志记录
+                        $continue=$worker_response->streamOnDisconnect()==='continue';
+                        $aborted=false;
                         try {
-                            $stream(static function(string $chunk) use($response): void {
-                                if($chunk==='')
+                            $stream(static function(string $chunk) use($response,&$aborted,$continue): void {
+                                if($chunk===''||$aborted)
                                     return;
-                                if($response->write($chunk)===false)
+                                if($response->write($chunk)!==false)
+                                    return;
+                                $aborted=true;
+                                if(!$continue)
                                     throw new ClientDisconnectedException('Client disconnected during stream response.');
                             });
                         } catch(ClientDisconnectedException) {

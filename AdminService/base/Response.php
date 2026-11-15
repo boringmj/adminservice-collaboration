@@ -3,6 +3,7 @@
 namespace base;
 
 use function func_num_args;
+use function var_export;
 
 /**
  * 响应抽象基类
@@ -46,6 +47,16 @@ abstract class Response {
      * @var callable(callable(string):void):void|null
      */
     protected $stream_producer=null;
+
+    /**
+     * 流式响应遇到客户端断开时的处理方式
+     *
+     * - `stop`: 写入器抛异常, 生成器停止
+     * - `continue`: 写入器改为空操作, 生成器继续执行完毕
+     *
+     * @var 'stop'|'continue'
+     */
+    protected string $stream_on_disconnect='stop';
 
     /**
      * 获取或设置状态码
@@ -151,20 +162,27 @@ abstract class Response {
     /**
      * 设置流式响应
      *
-     * - 生成器接收 `callable(string):void` 写入器, 每调用一次输出一段正文; 客户端断开时写入器抛异常
+     * - 生成器接收 `callable(string):void` 写入器, 每调用一次输出一段正文
+     * - `on_disconnect=stop` 时客户端断开由写入器抛异常; `continue` 时写入器改为空操作
      * - 设置后优先于普通返回内容; HEAD 与禁止正文的状态码不会调用生成器
      *
      * @access public
      * @param callable(callable(string):void):void $producer 生成器, 参数为正文写入器
      * @param string|null $content_type 内容类型(null = 沿用当前类型)
+     * @param array{on_disconnect?:'stop'|'continue'} $options 流式选项
      * @return static
+     * @throws \InvalidArgumentException `on_disconnect` 取值无效
      */
-    public function stream(callable $producer,?string $content_type=null): static {
+    public function stream(callable $producer,?string $content_type=null,array $options=array()): static {
+        $mode=$options['on_disconnect']??'stop';
+        if($mode!=='stop'&&$mode!=='continue')
+            throw new \InvalidArgumentException('Unknown stream option on_disconnect: '.var_export($mode,true).'; expected stop or continue.');
         if($content_type!==null)
             $this->contentType($content_type);
         $this->controller_return=null;
         $this->return_content=null;
         $this->stream_producer=$producer;
+        $this->stream_on_disconnect=$mode;
         return $this;
     }
 
@@ -188,6 +206,16 @@ abstract class Response {
      */
     public function clearStream(): void {
         $this->stream_producer=null;
+    }
+
+    /**
+     * 流式响应遇到客户端断开时的处理方式
+     *
+     * @access public
+     * @return 'stop'|'continue'
+     */
+    public function streamOnDisconnect(): string {
+        return $this->stream_on_disconnect;
     }
 
     /**

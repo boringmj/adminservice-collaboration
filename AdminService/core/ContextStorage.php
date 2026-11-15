@@ -69,4 +69,14 @@ final class ContextStorage {
         return self::storage()->run($context,$callback);
     }
 
+    /**
+     * 当前执行流是否与其他执行流隔离
+     *
+     * @access public
+     * @return bool
+     */
+    public static function isolated(): bool {
+        return self::storage()->isolated();
+    }
+
 }

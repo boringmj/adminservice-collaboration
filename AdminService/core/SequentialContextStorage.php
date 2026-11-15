@@ -48,4 +48,14 @@ final class SequentialContextStorage implements ContextStorageInterface {
         }
     }
 
+    /**
+     * 当前执行流是否与其他执行流隔离
+     *
+     * @access public
+     * @return bool
+     */
+    public function isolated(): bool {
+        return false;
+    }
+
 }

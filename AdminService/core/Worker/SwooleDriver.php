@@ -55,10 +55,9 @@ final class SwooleDriver {
             throw new Exception('Swoole extension is required for worker start.');
         /** @var \Swoole\Http\Server $server */
         $server=new \Swoole\Http\Server($host,$port);
-        // 进程 worker 顺序处理; 协程并发需要请求上下文按协程隔离, 尚未启用
         $server->set(array(
             'worker_num'=>max(1,$workers),
-            'enable_coroutine'=>false
+            'enable_coroutine'=>true
         ));
         $worker=$this->worker;
         $server->on('request',function(\Swoole\Http\Request $request,\Swoole\Http\Response $response) use($worker): void {

@@ -74,6 +74,16 @@ final class CoroutineContextStorage implements ContextStorageInterface {
     }
 
     /**
+     * 当前执行流是否与其他执行流隔离
+     *
+     * @access public
+     * @return bool
+     */
+    public function isolated(): bool {
+        return self::coroutineId()>0||$this->fallback->isolated();
+    }
+
+    /**
      * 当前协程 ID(无协程返回 0)
      *
      * @access private

@@ -13,10 +13,12 @@ use AdminService\Container;
 use AdminService\ContextStorage;
 use AdminService\Error;
 use AdminService\HttpRequest;
+use AdminService\RequestContext;
 use AdminService\Response;
 use AdminService\Runtime;
 use base\AbstractSession;
 use base\Request;
+use Fiber;
 use Tests\Fixtures\ConcreteService;
 
 use function count;
@@ -324,6 +326,44 @@ class ApplicationLifecycleTest extends TestCase {
         $application->handle(function(): void {
             $this->assertFalse(App::getInstance()->hasInstance(ConcreteService::class));
         });
+    }
+
+    /**
+     * 测试: Fiber 交错请求的配置与上下文互不串用
+     *
+     * @return void
+     */
+    public function testFiberInterleavedRequestsKeepContextsSeparate(): void {
+        $application=new Application();
+        $seen=array();
+        $make=function(string $key,bool $debug) use($application,&$seen): Fiber {
+            return new Fiber(function() use($application,$key,$debug,&$seen): void {
+                $context=$application->handle(function($container) use($application,$key,$debug,&$seen): RequestContext {
+                    $container->get(Repository::class)->put('app.debug',$debug);
+                    $request=$application->requestContext()?->request();
+                    Fiber::suspend();
+                    $this->assertSame($debug,Config::get('app.debug'));
+                    $this->assertSame($request,$application->requestContext()?->request());
+                    $seen[$key]=true;
+                    return $container->get(RequestContext::class);
+                },true,new HttpRequest(array('server'=>array(
+                    'REQUEST_URI'=>'/',
+                    'REQUEST_METHOD'=>'GET'
+                ))));
+                $application->endRequest($context);
+            });
+        };
+        $first=$make('first',true);
+        $second=$make('second',false);
+        $first->start();
+        $second->start();
+        $this->assertFalse($first->isTerminated());
+        $this->assertFalse($second->isTerminated());
+        $first->resume();
+        $second->resume();
+        $this->assertTrue($first->isTerminated());
+        $this->assertTrue($second->isTerminated());
+        $this->assertSame(array('first'=>true,'second'=>true),$seen);
     }
 
 }

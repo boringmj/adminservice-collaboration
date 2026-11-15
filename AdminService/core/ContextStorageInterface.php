@@ -28,4 +28,14 @@ interface ContextStorageInterface {
      */
     public function run(RequestContext $context,callable $callback): mixed;
 
+    /**
+     * 当前执行流是否与其他执行流隔离
+     *
+     * - 顺序存储返回 false; Fiber / 协程在活动执行流内返回 true
+     *
+     * @access public
+     * @return bool
+     */
+    public function isolated(): bool;
+
 }

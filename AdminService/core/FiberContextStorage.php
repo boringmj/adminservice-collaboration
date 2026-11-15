@@ -72,4 +72,14 @@ final class FiberContextStorage implements ContextStorageInterface {
         }
     }
 
+    /**
+     * 当前执行流是否与其他执行流隔离
+     *
+     * @access public
+     * @return bool
+     */
+    public function isolated(): bool {
+        return class_exists(Fiber::class)&&Fiber::getCurrent()!==null;
+    }
+
 }

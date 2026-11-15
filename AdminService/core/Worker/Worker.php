@@ -9,6 +9,7 @@ use AdminService\Exception;
 use AdminService\HttpRequest;
 use AdminService\NativeSession;
 use AdminService\Pipeline;
+use AdminService\RequestContext;
 use AdminService\Response;
 use base\Container as ContainerContract;
 use base\Database\Db as BaseDb;
@@ -91,19 +92,21 @@ final class Worker {
      */
     public function handle(WorkerRequest $request): WorkerResponse {
         $app=$this->boot();
-        $app->seedRequest(new HttpRequest($request->sources()));
+        $context=null;
         try {
-            $app->handle(function(ContainerContract $container) use($app): void {
+            $context=$app->handle(function(ContainerContract $container) use($app): RequestContext {
                 $middlewares=Pipeline::order(Pipeline::normalize($app->config()->get('middlewares.request',array())));
                 (new Pipeline($middlewares,$container->get(Request::class),$container))->then(
                     function() use($container): void {
                         $container->fresh(Route::class)->run();
                     }
                 );
-            },true);
-            $context=$app->requestContext();
-            $core_request=$context?->request();
-            $core_response=$context?->response();
+                return $container->get(RequestContext::class);
+            },true,new HttpRequest($request->sources()));
+            if(!$context instanceof RequestContext)
+                throw new Exception('Worker request produced no context.');
+            $core_request=$context->request();
+            $core_response=$context->response();
             if(!$core_request instanceof Request||!$core_response instanceof Response)
                 throw new Exception('Worker request produced no response.');
             return (new ResponseEmitter())->emit($core_response,$core_request);
@@ -111,8 +114,15 @@ final class Worker {
             error_log('Worker request failed: '.get_class($e).': '.$e->getMessage());
             return $this->errorResponse($e,$app);
         } finally {
-            $app->flushRequestMetadata();
-            $app->endRequest();
+            if($context!==null) {
+                $app->flushRequestMetadata($context->container());
+                $app->endRequest($context);
+            } else {
+                // handle 抛错时仍可能有最近上下文, 显式释放
+                $last=$app->requestContext();
+                if($last!==null)
+                    $app->endRequest($last);
+            }
         }
     }
 

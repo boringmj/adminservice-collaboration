@@ -166,7 +166,7 @@ final class Error extends BaseError {
      * @return RequestContext|null
      */
     public static function requestContext(): ?RequestContext {
-        return self::$request_context;
+        return ContextStorage::current()??self::$request_context;
     }
 
     /**

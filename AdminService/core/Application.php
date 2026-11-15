@@ -277,11 +277,12 @@ final class Application {
      * @access public
      * @param callable $callback 请求处理过程(接收请求级容器)
      * @param bool $defer_metadata 是否延迟到响应发送后落盘容器元数据
+     * @param Request|null $request_seed 请求对象种子(null = 使用 `seedRequest()` 注入的那份)
      * @return mixed
      * @throws Exception
      */
-    public function handle(callable $callback,bool $defer_metadata=false): mixed {
-        $previous_context=$this->request_context;
+    public function handle(callable $callback,bool $defer_metadata=false,?Request $request_seed=null): mixed {
+        $previous_context=ContextStorage::current();
         $previous_last=$this->last_request_context;
         $previous_instance=App::hasInstance()?App::getInstance():null;
         $is_nested=$previous_context!==null;
@@ -289,7 +290,8 @@ final class Application {
         if(!$is_nested) {
             $this->application_config=$this->config();
             BaseDb::releaseCurrentSessions();
-            if($this->request_container!==null)
+            // 隔离执行流中 request_container 可能属于其它请求, 只回收顺序执行流的上一轮
+            if(!ContextStorage::isolated()&&$this->request_container!==null)
                 $this->request_container->reset();
         }
         // 请求级 scope: 实例表独立; 绑定/别名/单例为 fork 快照; 反射缓存共享
@@ -316,7 +318,7 @@ final class Application {
         App::setInstance($container);
         $completed=false;
         try {
-            $context=$this->bootRequest($container);
+            $context=$this->bootRequest($container,$request_seed);
             $this->request_context=$context;
             $this->last_request_context=$context;
             Error::setRequestContext($context);
@@ -341,7 +343,7 @@ final class Application {
         } finally {
             // 正常 HTTP 请求把落盘推迟到响应发送后; 异常或普通调用在请求边界落盘
             if(!$defer_metadata||!$completed)
-                $this->flushRequestMetadata();
+                $this->flushRequestMetadata($container);
             // 嵌套请求结束后恢复外层上下文; 顶层保留 last_request_context 供关停阶段响应出口使用
             $this->request_context=$previous_context;
             if($is_nested) {
@@ -361,12 +363,16 @@ final class Application {
      * - 应用级与请求级容器共享同一份元数据, 两次 flush 只有第一次会实际写入
      *
      * @access public
+     * @param ContainerContract|null $container 指定请求容器(null = 当前上下文或最近请求)
      * @return bool 是否成功落盘
      */
-    public function flushRequestMetadata(): bool {
+    public function flushRequestMetadata(?ContainerContract $container=null): bool {
+        $request_container=$container
+            ??ContextStorage::current()?->container()
+            ??$this->request_container;
         $ok=true;
-        if($this->request_container instanceof Container)
-            $ok=$this->request_container->flushMetadata();
+        if($request_container instanceof Container)
+            $ok=$request_container->flushMetadata();
         if($this->container instanceof Container)
             $ok=$this->container->flushMetadata()&&$ok;
         return $ok;
@@ -381,7 +387,8 @@ final class Application {
      * @return ContainerContract
      */
     public function requestContainer(): ContainerContract {
-        return $this->request_context?->container()
+        return ContextStorage::current()?->container()
+            ??$this->request_context?->container()
             ??$this->last_request_context?->container()
             ??$this->request_container
             ??$this->container;
@@ -396,7 +403,7 @@ final class Application {
      * @return RequestContext|null
      */
     public function requestContext(): ?RequestContext {
-        return $this->request_context??$this->last_request_context;
+        return ContextStorage::current()??$this->request_context??$this->last_request_context;
     }
 
     /**
@@ -432,10 +439,11 @@ final class Application {
      * - 不清空应用级容器
      *
      * @access public
+     * @param RequestContext|null $context 指定请求上下文(null = 当前上下文或最近请求)
      * @return void
      */
-    public function endRequest(): void {
-        $context=$this->request_context??$this->last_request_context;
+    public function endRequest(?RequestContext $context=null): void {
+        $context??=ContextStorage::current()??$this->request_context??$this->last_request_context;
         if($context!==null) {
             $context->session()->close();
             $container=$context->container();
@@ -446,9 +454,13 @@ final class Application {
             }
         }
         BaseDb::releaseCurrentSessions();
-        $this->request_context=null;
-        $this->last_request_context=null;
-        $this->request_container=null;
+        // 隔离执行流中共享引用可能已指向其它请求, 只清与本上下文匹配的部分
+        if($this->request_context===$context)
+            $this->request_context=null;
+        if($this->last_request_context===$context)
+            $this->last_request_context=null;
+        if($context!==null&&$this->request_container===$context->container())
+            $this->request_container=null;
         Error::endRequest();
     }
 
@@ -461,16 +473,17 @@ final class Application {
      *
      * @access private
      * @param ContainerContract $container 请求级容器
+     * @param Request|null $request_seed 请求对象种子(null = 使用共享种子)
      * @return RequestContext
      * @throws Exception
      */
-    private function bootRequest(ContainerContract $container): RequestContext {
+    private function bootRequest(ContainerContract $container,?Request $request_seed=null): RequestContext {
         // 请求配置以请求容器本地副本为准; 未注入时回退应用级配置
         $config=$this->hasLocalInstance($container,Repository::class)
             ?$container->get(Repository::class)
             :$this->applicationConfig();
         // 请求对象只在请求容器本地构建; 父容器里的 Request/Response/Session 一律不复用
-        $request=$this->request_seed;
+        $request=$request_seed??$this->request_seed;
         $this->request_seed=null;
         if($request===null) {
             if($this->hasLocalInstance($container,Request::class))

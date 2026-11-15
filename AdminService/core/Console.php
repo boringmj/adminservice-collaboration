@@ -9,6 +9,7 @@ use AdminService\Console\Command\CacheStatusCommand;
 use AdminService\Console\Command\HelpCommand;
 use AdminService\Console\Command\ListCommand;
 use AdminService\Console\Command\ServerStartCommand;
+use AdminService\Console\Command\WorkerStartCommand;
 use AdminService\Console\CommandRegistry;
 use AdminService\Console\Input;
 use AdminService\Console\Output;
@@ -132,6 +133,7 @@ final class Console {
         $this->register(new ListCommand($this));
         $this->register($this->help);
         $this->register(new ServerStartCommand($config));
+        $this->register(new WorkerStartCommand($config,$this->application));
         $this->register(new CacheStatusCommand($config,$this->bootstrapper));
         $this->register(new CacheClearCommand($config));
         $this->register(new CacheBuildCommand($this->bootstrapper,$config));

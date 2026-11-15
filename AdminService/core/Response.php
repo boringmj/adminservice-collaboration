@@ -410,6 +410,41 @@ final class Response extends BaseResponse {
     }
 
     /**
+     * 导出可直接写入非 SAPI 响应的内容
+     *
+     * - `prepare` 与 `render` 各执行一次
+     * - HEAD 与禁止正文的状态码返回空正文
+     *
+     * @access public
+     * @param Request $request 当前请求
+     * @return array{
+     *     status:int,
+     *     headers:array<string,array<int,string>>,
+     *     cookies:array<string,array{
+     *         value:string,
+     *         expire:int|null,
+     *         path:string|null,
+     *         domain:string|null,
+     *         secure:bool|null,
+     *         httponly:bool|null
+     *     }>,
+     *     body:string
+     * }
+     */
+    public function export(Request $request): array {
+        $this->prepare($request);
+        $content=$this->render();
+        if($this->head_only)
+            $content='';
+        return array(
+            'status'=>$this->status(),
+            'headers'=>$this->headers->all(),
+            'cookies'=>$this->cookies->all(),
+            'body'=>$content
+        );
+    }
+
+    /**
      * 判断当前响应是否有可协商的内容
      *
      * - 已渲染内容或控制器返回值非空时视为有内容

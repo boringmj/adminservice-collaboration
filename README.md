@@ -42,6 +42,14 @@
    php bin/server start
    ```
 
+   需要常驻 worker 时（可选，需要 Swoole 扩展）：
+
+   ```bash
+   php bin/worker start --host=0.0.0.0 --port=9501
+   ```
+
+   详见 [常驻入口](https://github.com/boringmj/adminservice-collaboration/wiki/常驻入口)。
+
 4. 访问 `http://localhost:8000/`。
 
 更完整的安装与第一个程序说明见 [准备](https://github.com/boringmj/adminservice-collaboration/wiki/准备) 和 [开始](https://github.com/boringmj/adminservice-collaboration/wiki/开始)。
@@ -62,6 +70,7 @@
 | 运行时目录 | [运行时目录](https://github.com/boringmj/adminservice-collaboration/wiki/运行时目录) |
 | 缓存 | [缓存](https://github.com/boringmj/adminservice-collaboration/wiki/缓存) |
 | 命令行 | [命令行](https://github.com/boringmj/adminservice-collaboration/wiki/命令行) |
+| 常驻入口 | [常驻入口](https://github.com/boringmj/adminservice-collaboration/wiki/常驻入口) |
 | 数据库 | [数据库](https://github.com/boringmj/adminservice-collaboration/wiki/数据库) |
 | ORM | [ORM 使用指南](https://github.com/boringmj/adminservice-collaboration/wiki/Orm) |
 | 版本迁移 | [新旧版本调整](https://github.com/boringmj/adminservice-collaboration/wiki/新旧版本调整) |

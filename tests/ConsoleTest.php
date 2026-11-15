@@ -356,6 +356,20 @@ class ConsoleTest extends TestCase {
     }
 
     /**
+     * 测试 worker start 试运行
+     *
+     * @return void
+     */
+    public function testWorkerStartDryRun(): void {
+        $app=$this->application();
+        $output=Output::buffer();
+        $console=new Console($app,$output);
+        $this->assertSame(0,$console->run(array('console','worker','start','--dry-run')));
+        $this->assertStringContainsString('监听(Worker):',$output->stdout());
+        $this->assertStringContainsString('试运行(Dry run)',$output->stdout());
+    }
+
+    /**
      * 测试默认命令为 list
      *
      * @return void

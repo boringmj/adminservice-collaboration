@@ -4,6 +4,7 @@ namespace AdminService;
 
 use AdminService\Exception;
 use AdminService\UploadFile;
+use base\AbstractUploadFile;
 use base\AbstractUploadFiles;
 use base\Container as ContainerContract;
 
@@ -49,6 +50,12 @@ final class UploadFiles extends AbstractUploadFiles {
     private ?ContainerContract $container=null;
 
     /**
+     * 文件是否由驱动托管
+     * @var bool
+     */
+    private bool $trusted_files=false;
+
+    /**
      * 构造方法
      *
      * - 只解析文件列表, 不触碰上传目录(目录由存储方在保存时准备)
@@ -58,18 +65,21 @@ final class UploadFiles extends AbstractUploadFiles {
      * @param array<string,mixed> $files 上传文件列表
      * @param array<string,mixed> $rules 上传规则(对应配置`request.default.upload`)
      * @param ContainerContract|null $container 请求级容器
+     * @param bool $trusted_files 文件是否由驱动托管
      */
     public function __construct(
         string $dir,
         array $files,
         array $rules=array(),
-        ?ContainerContract $container=null
+        ?ContainerContract $container=null,
+        bool $trusted_files=false
     ) {
         $this->max_size=$rules['max_size']??104857600;
         $this->name_rule=$rules['name_rule']??'/[^a-zA-Z\.0-9_\-]/';
         $this->ext_rule=$rules['ext_rule']??'/[^0-9a-z-]/';
         $this->hash_algo=$rules['hash']['algo']??'sha1';
         $this->container=$container;
+        $this->trusted_files=$trusted_files;
         parent::__construct($dir,$files);
     }
 
@@ -128,8 +138,10 @@ final class UploadFiles extends AbstractUploadFiles {
                 }
                 continue;
             }
-            // 安全验证
-            if(!is_uploaded_file($tmp_file)||!file_exists($tmp_file))
+            // 安全验证: 驱动托管的文件不经过 SAPI 上传校验
+            if(!$this->trusted_files&&!is_uploaded_file($tmp_file))
+                continue;
+            if(!file_exists($tmp_file))
                 continue;
             // 安全处理扩展名
             $raw_ext=strtolower(pathinfo($file_name,PATHINFO_EXTENSION));
@@ -153,9 +165,13 @@ final class UploadFiles extends AbstractUploadFiles {
                 'confirm_dir'=>$this->dir,
                 'hash_algo'=>$this->hash_algo
             );
-            $this->addFile($this->container!==null
+            $upload_file=$this->container!==null
                 ? $this->container->build(UploadFile::class,...$arguments)
-                : new UploadFile(...$arguments));
+                : new UploadFile(...$arguments);
+            if($upload_file instanceof AbstractUploadFile) {
+                $upload_file->setTrusted($this->trusted_files);
+                $this->addFile($upload_file);
+            }
 
         }
     }

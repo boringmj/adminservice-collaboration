@@ -10,6 +10,7 @@ use base\UploadStorageInterface;
 use AdminService\exception\UploadStorageException;
 
 use function basename;
+use function copy;
 use function file_exists;
 use function in_array;
 use function is_dir;
@@ -18,7 +19,9 @@ use function is_writable;
 use function mkdir;
 use function move_uploaded_file;
 use function realpath;
+use function rename;
 use function str_contains;
+use function unlink;
 
 final class UploadStorage implements UploadStorageInterface {
 
@@ -71,7 +74,14 @@ final class UploadStorage implements UploadStorageInterface {
         $this->prepareDir($file->getConfirmDir());
         $this->validate($file);
         $save_path=$this->generateSavePath($file);
-        if(!@move_uploaded_file($file->getTempPath(),$save_path))
+        if($file->isTrusted()) {
+            // 驱动托管的本地文件不是 SAPI 上传文件, 不能使用 move_uploaded_file
+            if(!@rename($file->getTempPath(),$save_path)) {
+                if(!@copy($file->getTempPath(),$save_path))
+                    throw new UploadStorageException('保存文件失败');
+                @unlink($file->getTempPath());
+            }
+        } elseif(!@move_uploaded_file($file->getTempPath(),$save_path))
             throw new UploadStorageException('保存文件失败');
         $real_path=realpath($save_path);
         $this->last_save_path=$real_path===false?$save_path:$real_path;

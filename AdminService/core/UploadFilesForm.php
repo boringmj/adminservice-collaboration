@@ -32,6 +32,12 @@ class UploadFilesForm extends AbstractUploadFilesForm {
     private ?ContainerContract $container=null;
 
     /**
+     * 文件是否由驱动托管
+     * @var bool
+     */
+    private bool $trusted_files=false;
+
+    /**
      * 构造方法
      *
      * @access public
@@ -39,15 +45,18 @@ class UploadFilesForm extends AbstractUploadFilesForm {
      * @param array<string,mixed> $files 上传文件列表
      * @param ContainerContract|null $container 请求级容器
      * @param ConfigInterface|null $config 配置契约实例
+     * @param bool $trusted_files 文件是否由驱动托管
      */
     public function __construct(
         string $dir,
         array $files,
         ?ContainerContract $container=null,
-        ?ConfigInterface $config=null
+        ?ConfigInterface $config=null,
+        bool $trusted_files=false
     ) {
         $this->container=$container;
         $this->config=$config;
+        $this->trusted_files=$trusted_files;
         parent::__construct($dir,$files);
     }
 
@@ -162,9 +171,10 @@ class UploadFilesForm extends AbstractUploadFilesForm {
                 dir:$dir,
                 files:$file,
                 rules:$rules,
-                container:$this->container
+                container:$this->container,
+                trusted_files:$this->trusted_files
             );
-        return new UploadFiles($dir,$file,$rules);
+        return new UploadFiles($dir,$file,$rules,null,$this->trusted_files);
     }
 
 }

@@ -35,6 +35,7 @@ final class WorkerRequest {
      * @param array<string,mixed> $files 上传文件
      * @param array<string,mixed> $server Server 数据
      * @param string|null $queryString 原始查询串(null = 从 URI/参数推导)
+     * @param bool $trusted_files 文件是否由驱动托管
      */
     public function __construct(
         private string $method,
@@ -46,7 +47,8 @@ final class WorkerRequest {
         private string $rawInput='',
         private array $files=array(),
         private array $server=array(),
-        private ?string $queryString=null
+        private ?string $queryString=null,
+        private bool $trusted_files=false
     ) {
     }
 
@@ -81,7 +83,8 @@ final class WorkerRequest {
      *     post:array<string,mixed>,
      *     cookie:array<string,mixed>,
      *     rawInput:string,
-     *     files:array<string,mixed>
+     *     files:array<string,mixed>,
+     *     trustedFiles:bool
      * }
      */
     public function sources(): array {
@@ -116,7 +119,8 @@ final class WorkerRequest {
             'post'=>$this->post,
             'cookie'=>$this->cookies,
             'rawInput'=>$this->rawInput,
-            'files'=>$this->files
+            'files'=>$this->files,
+            'trustedFiles'=>$this->trusted_files
         );
     }
 

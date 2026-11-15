@@ -68,6 +68,12 @@ abstract class AbstractUploadFile {
     protected string $hash_algo='';
 
     /**
+     * 是否为驱动托管的本地文件
+     * @var bool
+     */
+    protected bool $trusted=false;
+
+    /**
      * 构造方法
      * 
      * @access public
@@ -99,8 +105,31 @@ abstract class AbstractUploadFile {
     }
 
     /**
+     * 设置文件是否为驱动托管的本地文件
+     *
+     * - 驱动托管的文件不经过 SAPI 上传校验
+     *
+     * @access public
+     * @param bool $trusted 是否受信任
+     * @return void
+     */
+    public function setTrusted(bool $trusted): void {
+        $this->trusted=$trusted;
+    }
+
+    /**
+     * 是否为驱动托管的本地文件
+     *
+     * @access public
+     * @return bool
+     */
+    public function isTrusted(): bool {
+        return $this->trusted;
+    }
+
+    /**
      * 获取文件名称
-     * 
+     *
      * @access public
      * @return string
      */

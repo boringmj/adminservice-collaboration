@@ -29,6 +29,7 @@ final class RequestFactory {
      * @param array<string,mixed> $files 上传文件
      * @param array<string,mixed> $server Server 数据
      * @param string|null $queryString 原始查询串
+     * @param bool $trusted_files 文件是否由驱动托管
      * @return WorkerRequest
      */
     public static function create(
@@ -41,7 +42,8 @@ final class RequestFactory {
         string $rawInput='',
         array $files=array(),
         array $server=array(),
-        ?string $queryString=null
+        ?string $queryString=null,
+        bool $trusted_files=false
     ): WorkerRequest {
         return new WorkerRequest(
             strtoupper($method),
@@ -53,7 +55,8 @@ final class RequestFactory {
             $rawInput,
             $files,
             $server,
-            $queryString
+            $queryString,
+            $trusted_files
         );
     }
 

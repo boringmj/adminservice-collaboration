@@ -138,10 +138,16 @@ final class HttpRequest extends Request {
     protected ?UploadFilesForm $file_form=null;
 
     /**
+     * 文件是否由驱动托管
+     * @var bool
+     */
+    protected bool $trusted_files=false;
+
+    /**
      * 构造方法
      *
      * - `$sources` 为可选输入源, 缺省读超全局; 测试可注入以避免触碰 `$_GET` 等
-     * - 支持的键: `headers` / `query` / `post` / `cookie` / `server` / `rawInput` / `files`
+     * - 支持的键: `headers` / `query` / `post` / `cookie` / `server` / `rawInput` / `files` / `trustedFiles`
      * - `$container` 由容器构建本对象时注入(输入处理器因此可依赖注入);直接 `new` 时为 null
      *
      * @access public
@@ -168,6 +174,7 @@ final class HttpRequest extends Request {
         $this->server=new Data($sources['server']??$_SERVER??array());
         $this->attributes=new Data();
         $this->raw_files=$sources['files']??$_FILES??array();
+        $this->trusted_files=(bool)($sources['trustedFiles']??false);
         $this->raw_input=$sources['rawInput']??(@file_get_contents('php://input')?:'');
         // 解析Input信息
         $this->input=new Data();
@@ -270,9 +277,10 @@ final class HttpRequest extends Request {
                     dir:$save_dir,
                     files:$this->raw_files,
                     container:$this->container,
-                    config:$this->config()
+                    config:$this->config(),
+                    trusted_files:$this->trusted_files
                 )
-                : new UploadFilesForm($save_dir,$this->raw_files);
+                : new UploadFilesForm($save_dir,$this->raw_files,trusted_files:$this->trusted_files);
         }
         return $this->file_form;
     }

@@ -6,6 +6,8 @@ use PHPUnit\Framework\TestCase;
 
 use AdminService\App;
 use AdminService\Config;
+use AdminService\Config\Repository;
+use AdminService\HttpRequest;
 use AdminService\UploadFile;
 use AdminService\UploadFiles;
 use AdminService\UploadFilesForm;
@@ -16,6 +18,7 @@ use Tests\Fixtures\FakeUploadStorage;
 
 use function array_keys;
 use function count;
+use function file_get_contents;
 use function file_put_contents;
 use function is_dir;
 use function is_file;
@@ -32,7 +35,7 @@ use function unlink;
  * 上传测试
  *
  * - 覆盖哈希在保存前算好、保存目录由存储方准备、解析阶段不触碰目录
- * - `$_FILES` 解析依赖真实上传(`is_uploaded_file`), 由真实请求冒烟覆盖
+ * - SAPI 上传解析依赖真实上传(`is_uploaded_file`), 由真实请求冒烟覆盖; 驱动托管文件由 `trustedFiles` 覆盖
  */
 class UploadTest extends TestCase {
 
@@ -103,6 +106,44 @@ class UploadTest extends TestCase {
         $this->assertFalse(is_file($file->getTempPath()));
         $this->assertSame(sha1($content),$file->toArray()['hash']);
         $this->assertSame(sha1($content),$file->getHash());
+    }
+
+    /**
+     * 测试: 驱动托管的文件跳过 SAPI 上传校验并可保存
+     *
+     * @return void
+     */
+    public function testTrustedFilesParseAndSave(): void {
+        $content='trusted-upload-content';
+        $source=tempnam(sys_get_temp_dir(),'upload_trusted_');
+        file_put_contents($source,$content);
+        $this->tempFiles[]=$source;
+        $save_dir=sys_get_temp_dir();
+        $config=new Repository(array('request'=>array('default'=>array(
+            'upload'=>array('save'=>array('dir'=>$save_dir))
+        ))));
+        $files=array('files'=>array(
+            'name'=>'trusted.txt',
+            'type'=>'text/plain',
+            'size'=>strlen($content),
+            'tmp_name'=>$source,
+            'error'=>UPLOAD_ERR_OK
+        ));
+        $request=new HttpRequest(array(
+            'files'=>$files,
+            'trustedFiles'=>true
+        ),null,$config);
+        $uploaded=$request->file('files');
+        $this->assertInstanceOf(UploadFiles::class,$uploaded);
+        $this->assertCount(1,$uploaded);
+        $file=$uploaded->getFiles()[0];
+        $this->assertTrue($file->isTrusted());
+
+        $storage=new UploadStorage($config);
+        $file->save($storage);
+        $saved=$storage->getLastSavePath();
+        $this->tempFiles[]=$saved;
+        $this->assertSame($content,file_get_contents($saved));
     }
 
     /**

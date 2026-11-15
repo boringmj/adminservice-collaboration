@@ -70,7 +70,8 @@ final class SwooleDriver {
                     (string)($request->rawContent()??''),
                     $request->files??array(),
                     $server_data,
-                    isset($server_data['query_string'])?(string)$server_data['query_string']:null
+                    isset($server_data['query_string'])?(string)$server_data['query_string']:null,
+                    true
                 );
                 $worker_response=$worker->handle($worker_request);
                 $response->status($worker_response->status());

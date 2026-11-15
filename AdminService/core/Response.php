@@ -422,11 +422,11 @@ final class Response extends BaseResponse {
      *     headers:array<string,array<int,string>>,
      *     cookies:array<string,array{
      *         value:string,
-     *         expire:int|null,
-     *         path:string|null,
-     *         domain:string|null,
-     *         secure:bool|null,
-     *         httponly:bool|null
+     *         expire:int,
+     *         path:string,
+     *         domain:string,
+     *         secure:bool,
+     *         httponly:bool
      *     }>,
      *     body:string
      * }
@@ -439,7 +439,7 @@ final class Response extends BaseResponse {
         return array(
             'status'=>$this->status(),
             'headers'=>$this->headers->all(),
-            'cookies'=>$this->cookies->all(),
+            'cookies'=>$this->cookieWriter()->buildByArray($this->cookies->all()),
             'body'=>$content
         );
     }

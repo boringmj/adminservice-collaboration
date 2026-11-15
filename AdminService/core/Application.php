@@ -10,6 +10,7 @@ use base\Container as ContainerContract;
 use base\Database\Db as BaseDb;
 use base\Request;
 use base\Response;
+use base\Route;
 
 use function array_keys;
 use function array_merge;
@@ -277,11 +278,15 @@ final class Application {
      * @access public
      * @param callable $callback 请求处理过程(接收请求级容器)
      * @param bool $defer_metadata 是否延迟到响应发送后落盘容器元数据
-     * @param Request|null $request_seed 请求对象种子(null = 使用 `seedRequest()` 注入的那份)
+     * @param Request|callable|null $request_seed 请求对象种子或工厂(callable 接收请求级容器); null = 使用 `seedRequest()` 注入的那份
      * @return mixed
      * @throws Exception
      */
-    public function handle(callable $callback,bool $defer_metadata=false,?Request $request_seed=null): mixed {
+    public function handle(
+        callable $callback,
+        bool $defer_metadata=false,
+        Request|callable|null $request_seed=null
+    ): mixed {
         $previous_context=ContextStorage::current();
         $previous_last=$this->last_request_context;
         $previous_instance=App::hasInstance()?App::getInstance():null;
@@ -352,9 +357,50 @@ final class Application {
                 Error::setRequestContainer($previous_last?->container());
                 Error::setRequestContext($previous_last);
             }
-            // 门面指针**收回应用级容器**(嵌套时回到外层请求容器), 避免"请求外的登记落进已废弃的请求容器"
-            App::setInstance($previous_instance??$this->container);
+            // 门面指针**收回应用级容器**(嵌套时回到外层请求容器), 避免"请求外的登记落进已废弃的请求容器";
+            // 隔离执行流的顶层请求不能恢复成其它协程开始时捕获的请求容器
+            if(!$is_nested&&ContextStorage::isolated())
+                App::setInstance($this->container);
+            else
+                App::setInstance($previous_instance??$this->container);
         }
+    }
+
+    /**
+     * 执行一次 HTTP 请求装配(中间件 + 路由)
+     *
+     * - 供默认入口与常驻 worker 共用, 避免请求装配分叉
+     *
+     * @access public
+     * @param ContainerContract $container 请求级容器
+     * @return RequestContext
+     * @throws Exception
+     */
+    public function runRequest(ContainerContract $container): RequestContext {
+        $middlewares=Pipeline::order(Pipeline::normalize($this->config()->get('middlewares.request',array())));
+        (new Pipeline($middlewares,$container->get(Request::class),$container))->then(
+            function() use($container): void {
+                $container->fresh(Route::class)->run();
+            }
+        );
+        return $container->get(RequestContext::class);
+    }
+
+    /**
+     * 处理一次 HTTP 请求
+     *
+     * @access public
+     * @param bool $defer_metadata 是否延迟到响应发送后落盘容器元数据
+     * @param Request|callable|null $request_seed 请求对象种子或工厂(callable 接收请求级容器)
+     * @return mixed
+     * @throws Exception
+     */
+    public function handleHttp(bool $defer_metadata=true,Request|callable|null $request_seed=null): mixed {
+        return $this->handle(
+            fn(ContainerContract $container): RequestContext => $this->runRequest($container),
+            $defer_metadata,
+            $request_seed
+        );
     }
 
     /**
@@ -473,11 +519,11 @@ final class Application {
      *
      * @access private
      * @param ContainerContract $container 请求级容器
-     * @param Request|null $request_seed 请求对象种子(null = 使用共享种子)
+     * @param Request|callable|null $request_seed 请求对象种子或工厂(null = 使用共享种子)
      * @return RequestContext
      * @throws Exception
      */
-    private function bootRequest(ContainerContract $container,?Request $request_seed=null): RequestContext {
+    private function bootRequest(ContainerContract $container,Request|callable|null $request_seed=null): RequestContext {
         // 请求配置以请求容器本地副本为准; 未注入时回退应用级配置
         $config=$this->hasLocalInstance($container,Repository::class)
             ?$container->get(Repository::class)
@@ -485,6 +531,8 @@ final class Application {
         // 请求对象只在请求容器本地构建; 父容器里的 Request/Response/Session 一律不复用
         $request=$request_seed??$this->request_seed;
         $this->request_seed=null;
+        if(!$request instanceof Request&&is_callable($request))
+            $request=$request($container);
         if($request===null) {
             if($this->hasLocalInstance($container,Request::class))
                 $request=$container->get(Request::class);

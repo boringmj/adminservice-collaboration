@@ -21,11 +21,11 @@ final class WorkerResponse {
      * @param array<string,array<int,string>> $headers 响应头
      * @param array<string,array{
      *     value:string,
-     *     expire:int|null,
-     *     path:string|null,
-     *     domain:string|null,
-     *     secure:bool|null,
-     *     httponly:bool|null
+     *     expire:int,
+     *     path:string,
+     *     domain:string,
+     *     secure:bool,
+     *     httponly:bool
      * }> $cookies Cookie
      * @param string $body 正文
      */
@@ -63,11 +63,11 @@ final class WorkerResponse {
      * @access public
      * @return array<string,array{
      *     value:string,
-     *     expire:int|null,
-     *     path:string|null,
-     *     domain:string|null,
-     *     secure:bool|null,
-     *     httponly:bool|null
+     *     expire:int,
+     *     path:string,
+     *     domain:string,
+     *     secure:bool,
+     *     httponly:bool
      * }>
      */
     public function cookies(): array {

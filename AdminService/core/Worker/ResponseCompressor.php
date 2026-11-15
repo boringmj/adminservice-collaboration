@@ -4,12 +4,17 @@ namespace AdminService\Worker;
 
 use AdminService\Exception;
 
+use function array_shift;
+use function explode;
 use function function_exists;
 use function gzencode;
+use function is_numeric;
 use function str_starts_with;
 use function stripos;
 use function strlen;
 use function strtolower;
+use function substr;
+use function trim;
 
 /**
  * 常驻 worker 响应压缩
@@ -63,7 +68,7 @@ final class ResponseCompressor {
     public function compress(string $body,string $accept_encoding,array &$headers): ?string {
         if($body===''||strlen($body)<self::MIN_LENGTH)
             return null;
-        if(stripos($accept_encoding,'gzip')===false)
+        if(!$this->acceptsGzip($accept_encoding))
             return null;
         if($this->header($headers,'content-encoding')!==null)
             return null;
@@ -82,6 +87,39 @@ final class ResponseCompressor {
         $vary[]='Accept-Encoding';
         $headers['vary']=array_values($vary);
         return $compressed;
+    }
+
+    /**
+     * 判断客户端是否接受 gzip
+     *
+     * - 按 `q` 参数解析; 显式 `gzip;q=0` 视为不接受, `*` 在无显式 gzip 时生效
+     *
+     * @access private
+     * @param string $header `Accept-Encoding`
+     * @return bool
+     */
+    private function acceptsGzip(string $header): bool {
+        if($header==='')
+            return false;
+        $gzip=null;
+        foreach(explode(',',$header) as $part) {
+            $params=explode(';',$part);
+            $token=strtolower(trim((string)array_shift($params)));
+            $q=1.0;
+            foreach($params as $param) {
+                $param=trim($param);
+                if(stripos($param,'q=')===0) {
+                    $value=trim(substr($param,2));
+                    if(is_numeric($value))
+                        $q=(float)$value;
+                }
+            }
+            if($token==='gzip')
+                $gzip=$q;
+            elseif($token==='*'&&$gzip===null)
+                $gzip=$q;
+        }
+        return $gzip!==null&&$gzip>0;
     }
 
     /**

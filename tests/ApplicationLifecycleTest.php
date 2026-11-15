@@ -211,6 +211,29 @@ class ApplicationLifecycleTest extends TestCase {
     }
 
     /**
+     * 测试: 隔离执行流的顶层请求结束后恢复应用级容器
+     *
+     * @return void
+     */
+    public function testFiberHandleRestoresApplicationContainer(): void {
+        $application=new Application();
+        $app_container=$application->container();
+        $custom=new Container();
+        App::setInstance($custom);
+        try {
+            $fiber=new Fiber(function() use ($application,$app_container): void {
+                $application->handle(function(): void {
+                });
+                $this->assertSame($app_container,App::getInstance());
+            });
+            $fiber->start();
+            $this->assertTrue($fiber->isTerminated());
+        } finally {
+            App::setInstance($app_container);
+        }
+    }
+
+    /**
      * 测试: 请求异常不污染下一次请求
      *
      * @return void

@@ -371,6 +371,26 @@ class ConsoleTest extends TestCase {
     }
 
     /**
+     * 测试 worker start 拒绝非法压缩级别
+     *
+     * @return void
+     */
+    public function testWorkerStartRejectsInvalidCompressionLevel(): void {
+        $configs=Config::all();
+        $configs['app']['debug']=false;
+        $configs['console']['commands']=array();
+        $configs['worker']['compression']=true;
+        $configs['worker']['compression_level']=10;
+        $config=Config::new($configs);
+        Config::setRepository($config);
+        $app=(new Application(null,$config))->init();
+        $output=Output::buffer();
+        $console=new Console($app,$output);
+        $this->assertSame(2,$console->run(array('console','worker','start','--dry-run')));
+        $this->assertStringContainsString('压缩级别无效',$output->stderr());
+    }
+
+    /**
      * 测试默认命令为 list
      *
      * @return void

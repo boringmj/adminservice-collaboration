@@ -16,6 +16,36 @@ use function strtoupper;
 final class RequestFactory {
 
     /**
+     * 补齐 Swoole server 数组中的 $_SERVER 风格大写键
+     *
+     * - 只补缺失项, 保留小写原键
+     *
+     * @access public
+     * @param array<string,mixed> $server Swoole server 数组
+     * @return array<string,mixed>
+     */
+    public static function normalizeServer(array $server): array {
+        $keys=array(
+            'remote_addr'=>'REMOTE_ADDR',
+            'remote_port'=>'REMOTE_PORT',
+            'server_port'=>'SERVER_PORT',
+            'server_protocol'=>'SERVER_PROTOCOL',
+            'server_software'=>'SERVER_SOFTWARE',
+            'request_time'=>'REQUEST_TIME',
+            'request_time_float'=>'REQUEST_TIME_FLOAT',
+            'path_info'=>'PATH_INFO'
+        );
+        foreach($keys as $from=>$to)
+            if(isset($server[$from])&&!isset($server[$to]))
+                $server[$to]=$server[$from];
+        if(!isset($server['HTTPS'])&&(string)($server['SERVER_PORT']??'')==='443')
+            $server['HTTPS']='on';
+        if(!isset($server['REQUEST_SCHEME']))
+            $server['REQUEST_SCHEME']=isset($server['HTTPS'])?'https':'http';
+        return $server;
+    }
+
+    /**
      * 构造请求
      *
      * @access public

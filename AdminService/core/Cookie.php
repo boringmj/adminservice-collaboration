@@ -57,6 +57,31 @@ final class Cookie extends BaseCookie {
     }
 
     /**
+     * 按配置构建待下发的 Cookie 描述(不发送)
+     *
+     * - 键名带 `cookie.prefix`; 未指定属性时套用配置默认值
+     *
+     * @access public
+     * @param array<string,mixed> $data 数据
+     * @return array<string,array{
+     *     value:string,
+     *     expire:int,
+     *     path:string,
+     *     domain:string,
+     *     secure:bool,
+     *     httponly:bool
+     * }>
+     */
+    public function buildByArray(array $data): array {
+        $cookies=array();
+        foreach($data as $key=>$value) {
+            $options=is_array($value)?$value:array('value'=>$value);
+            $cookies[$this->config->get('cookie.prefix','').$key]=$this->normalize($options);
+        }
+        return $cookies;
+    }
+
+    /**
      * 设置Cookie
      *
      * @access public
@@ -74,14 +99,53 @@ final class Cookie extends BaseCookie {
         ?int $expire=null,?string $path=null,?string $domain=null,
         ?bool $secure=null,?bool $httponly=null
     ): void {
+        $options=array('value'=>$value);
+        if($expire!==null)
+            $options['expire']=$expire;
+        if($path!==null)
+            $options['path']=$path;
+        if($domain!==null)
+            $options['domain']=$domain;
+        if($secure!==null)
+            $options['secure']=$secure;
+        if($httponly!==null)
+            $options['httponly']=$httponly;
+        $cookie=$this->normalize($options);
         setcookie(
             $this->config->get('cookie.prefix','').$name,
-            $value,
-            time()+($expire??$this->config->get('cookie.expire',3600)),
-            $path??$this->config->get('cookie.path',''),
-            $domain??$this->config->get('cookie.domain',''),
-            $secure??$this->config->get('cookie.secure',false),
-            $httponly??$this->config->get('cookie.httponly',false)
+            $cookie['value'],
+            $cookie['expire'],
+            $cookie['path'],
+            $cookie['domain'],
+            $cookie['secure'],
+            $cookie['httponly']
+        );
+    }
+
+    /**
+     * 归一化单个 Cookie 描述
+     *
+     * - 相对过期时间转为绝对时间; 未给属性时套用配置默认值
+     *
+     * @access private
+     * @param array<string,mixed> $options Cookie 选项
+     * @return array{
+     *     value:string,
+     *     expire:int,
+     *     path:string,
+     *     domain:string,
+     *     secure:bool,
+     *     httponly:bool
+     * }
+     */
+    private function normalize(array $options): array {
+        return array(
+            'value'=>(string)($options['value']??''),
+            'expire'=>time()+(int)($options['expire']??$this->config->get('cookie.expire',3600)),
+            'path'=>(string)($options['path']??$this->config->get('cookie.path','')),
+            'domain'=>(string)($options['domain']??$this->config->get('cookie.domain','')),
+            'secure'=>(bool)($options['secure']??$this->config->get('cookie.secure',false)),
+            'httponly'=>(bool)($options['httponly']??$this->config->get('cookie.httponly',false))
         );
     }
 

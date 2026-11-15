@@ -72,7 +72,7 @@ final class SwooleDriver {
         $worker=$this->worker;
         $server->on('request',function(\Swoole\Http\Request $request,\Swoole\Http\Response $response) use($worker,$compressor): void {
             try {
-                $server_data=$request->server??array();
+                $server_data=RequestFactory::normalizeServer($request->server??array());
                 $worker_request=RequestFactory::create(
                     (string)($server_data['request_method']??'GET'),
                     (string)($server_data['request_uri']??'/'),

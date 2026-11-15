@@ -20,6 +20,24 @@ abstract class Cookie {
     abstract public function setByArray(array $data): void;
 
     /**
+     * 按配置构建待下发的 Cookie 描述(不发送)
+     *
+     * - 供非 SAPI 入口导出响应使用; 套用前缀与默认属性
+     *
+     * @access public
+     * @param array<string,mixed> $data 数据
+     * @return array<string,array{
+     *     value:string,
+     *     expire:int,
+     *     path:string,
+     *     domain:string,
+     *     secure:bool,
+     *     httponly:bool
+     * }>
+     */
+    abstract public function buildByArray(array $data): array;
+
+    /**
      * 设置Cookie
      *
      * @access public

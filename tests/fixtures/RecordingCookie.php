@@ -26,6 +26,16 @@ final class RecordingCookie extends Cookie {
     }
 
     /**
+     * 按配置构建待下发的 Cookie 描述(本实现原样返回)
+     *
+     * @param array<string,mixed> $data 数据
+     * @return array<string,array<string,mixed>>
+     */
+    public function buildByArray(array $data): array {
+        return $data;
+    }
+
+    /**
      * 设置Cookie
      *
      * @param string $name 名称

@@ -139,10 +139,14 @@ final class WorkerStartCommand extends AbstractCommand {
         $workers=(int)$workers_raw;
         $compression=(bool)$this->config->get('worker.compression',false);
         $compression_level=(int)$this->config->get('worker.compression_level',4);
+        if($compression&&($compression_level<1||$compression_level>9)) {
+            $output->error('[ERROR] 压缩级别无效(Invalid compression level): '.$compression_level.' (应为 1..9)');
+            return self::INVALID;
+        }
         $swoole=extension_loaded('swoole')&&class_exists('Swoole\\Http\\Server');
         $output->info('监听(Worker): '.$host.':'.$port);
         $output->info('进程数(Workers): '.$workers);
-        $output->info('压缩(Compression): '.($compression?'gzip level '.max(1,min(9,$compression_level)):'off'));
+        $output->info('压缩(Compression): '.($compression?'gzip level '.$compression_level:'off'));
         $output->info('会话驱动(Session): '.(string)$this->config->get('session.class',''));
         $output->info('Swoole: '.($swoole?'可用(available)':'不可用(unavailable)'));
         if($input->hasOption('dry-run')) {

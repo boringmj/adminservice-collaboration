@@ -81,6 +81,33 @@ class ResponseCompressorTest extends TestCase {
     }
 
     /**
+     * 测试: `gzip;q=0` 视为不接受
+     *
+     * @return void
+     */
+    public function testSkipsWhenGzipQualityIsZero(): void {
+        $headers=array();
+        $compressor=new ResponseCompressor();
+        $this->assertNull($compressor->compress(str_repeat('a',2048),'gzip;q=0',$headers));
+        $this->assertArrayNotHasKey('content-encoding',$headers);
+    }
+
+    /**
+     * 测试: 正 q 值与通配符仍可压缩
+     *
+     * @return void
+     */
+    public function testCompressesForPositiveQualityAndWildcard(): void {
+        $compressor=new ResponseCompressor();
+        $headers=array();
+        $this->assertNotNull($compressor->compress(str_repeat('a',2048),'gzip;q=0.5',$headers));
+        $headers=array();
+        $this->assertNotNull($compressor->compress(str_repeat('a',2048),'*;q=1',$headers));
+        $headers=array();
+        $this->assertNull($compressor->compress(str_repeat('a',2048),'*;q=0',$headers));
+    }
+
+    /**
      * 测试: 压缩级别必须在 1-9
      *
      * @return void

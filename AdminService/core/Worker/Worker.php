@@ -9,13 +9,11 @@ use AdminService\Error;
 use AdminService\Exception;
 use AdminService\HttpRequest;
 use AdminService\NativeSession;
-use AdminService\Pipeline;
 use AdminService\RequestContext;
 use AdminService\Response;
 use base\Container as ContainerContract;
 use base\Database\Db as BaseDb;
 use base\Request;
-use base\Route;
 use Throwable;
 
 use function error_log;
@@ -96,17 +94,17 @@ final class Worker {
      */
     public function handle(WorkerRequest $request): WorkerResponse {
         $app=$this->boot();
+        // 请求上下文在闭包内捕获: 异常路径不能从进程级最近上下文取, 协程交错时会拿到别的请求
         $context=null;
+        $sources=$request->sources();
+        $factory=static function(ContainerContract $container) use($sources): HttpRequest {
+            return $container->build(HttpRequest::class,sources:$sources);
+        };
         try {
-            $context=$app->handle(function(ContainerContract $container) use($app): RequestContext {
-                $middlewares=Pipeline::order(Pipeline::normalize($app->config()->get('middlewares.request',array())));
-                (new Pipeline($middlewares,$container->get(Request::class),$container))->then(
-                    function() use($container): void {
-                        $container->fresh(Route::class)->run();
-                    }
-                );
-                return $container->get(RequestContext::class);
-            },true,new HttpRequest($request->sources()));
+            $app->handle(function(ContainerContract $container) use($app,&$context): RequestContext {
+                $context=$container->get(RequestContext::class);
+                return $app->runRequest($container);
+            },true,$factory);
             if(!$context instanceof RequestContext)
                 throw new Exception('Worker request produced no context.');
             $core_request=$context->request();
@@ -116,16 +114,12 @@ final class Worker {
             return (new ResponseEmitter())->emit($core_response,$core_request);
         } catch(Throwable $e) {
             error_log('Worker request failed: '.get_class($e).': '.$e->getMessage());
-            return $this->errorResponse($e,$app);
+            return $this->errorResponse($e,$app,$context);
         } finally {
             if($context!==null) {
+                // 失败请求同样要落盘元数据
                 $app->flushRequestMetadata($context->container());
                 $app->endRequest($context);
-            } else {
-                // handle 抛错时仍可能有最近上下文, 显式释放
-                $last=$app->requestContext();
-                if($last!==null)
-                    $app->endRequest($last);
             }
         }
     }
@@ -162,14 +156,18 @@ final class Worker {
      * @access private
      * @param Throwable $e 异常
      * @param Application $app 应用
+     * @param RequestContext|null $context 当前请求上下文
      * @return WorkerResponse
      */
-    private function errorResponse(Throwable $e,Application $app): WorkerResponse {
+    private function errorResponse(
+        Throwable $e,
+        Application $app,
+        ?RequestContext $context=null
+    ): WorkerResponse {
         // 请求上下文仍在时按框架错误页渲染并写日志; 上下文缺失(启动失败等)走纯文本兜底
-        $context=$app->requestContext();
         if($context!==null) {
             try {
-                $page=Error::renderRequestPage($e);
+                $page=Error::renderRequestPage($e,$context->container());
                 $response=$context->response();
                 if($page!==''&&$response instanceof Response) {
                     $response->status(500);

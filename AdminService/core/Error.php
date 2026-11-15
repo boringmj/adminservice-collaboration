@@ -59,7 +59,9 @@ final class Error extends BaseError {
      * @access private
      * @return ConfigInterface|null
      */
-    private static function config(): ?ConfigInterface {
+    private static function config(?ContainerContract $container=null): ?ConfigInterface {
+        if($container!==null&&$container->hasInstance(ConfigInterface::class))
+            return $container->get(ConfigInterface::class);
         $context=ContextStorage::current();
         if($context!==null)
             return $context->config();
@@ -78,8 +80,8 @@ final class Error extends BaseError {
      * @access public
      * @return bool
      */
-    public static function isDebug(): bool {
-        return (bool)(self::config()?->get('app.debug',false)??false);
+    public static function isDebug(?ContainerContract $container=null): bool {
+        return (bool)(self::config($container)?->get('app.debug',false)??false);
     }
 
 
@@ -361,20 +363,25 @@ final class Error extends BaseError {
      * 渲染当前请求的错误页并写入日志
      *
      * - 供常驻入口等自行捕获异常的调用方使用; 不发送响应头, 不退出进程
+     * - 传入容器时按该请求的配置、视图与日志写入, 不回落进程级状态
      * - 无已收集错误且未传入异常时返回空字符串
      *
      * @access public
      * @param \Throwable|null $exception 当前请求的异常
+     * @param ContainerContract|null $container 当前请求容器(null = 按现有回落)
      * @return string HTML 错误页
      */
-    public static function renderRequestPage(?\Throwable $exception=null): string {
+    public static function renderRequestPage(
+        ?\Throwable $exception=null,
+        ?ContainerContract $container=null
+    ): string {
         if($exception!==null)
             self::$errors[]=self::exceptionRecord($exception);
         if(self::$errors===array())
             return '';
         self::$handled=true;
-        $errorPage=self::renderErrors();
-        $logFailure=self::writeErrorLogs();
+        $errorPage=self::renderErrors($container);
+        $logFailure=self::writeErrorLogs($container);
         if($logFailure!==null) {
             self::writeOutletFailureLog('log',$logFailure);
             $errorPage.='<br>日志记录失败，请检查日志配置。';
@@ -512,9 +519,10 @@ final class Error extends BaseError {
      * - 引导未完成 / 容器不可用: 直写 PHP 错误日志(不依赖容器, 也不依赖配置)
      *
      * @access private
+     * @param ContainerContract|null $provided 指定请求容器(null = 按现有回落)
      * @return \Throwable|null 写入失败时的异常
      */
-    private static function writeErrorLogs(): ?\Throwable {
+    private static function writeErrorLogs(?ContainerContract $provided=null): ?\Throwable {
         try {
             foreach(self::$errors as $error) {
                 $errorType=self::$errorTypes[$error['type']]??'Unknown';
@@ -530,7 +538,7 @@ final class Error extends BaseError {
                     'file'=>$error['file'],
                     'line'=>$error['line']
                 );
-                $container=self::responseContainer();
+                $container=$provided??self::responseContainer();
                 if(!self::$initialized||$container===null)
                     self::writeFallbackLog($logMessage,$context);
                 else
@@ -591,12 +599,14 @@ final class Error extends BaseError {
 
     /**
      * 渲染错误信息为HTML
-     * 
+     *
      * @access private
+     * @param ContainerContract|null $provided 指定请求容器(null = 按现有回落)
      * @return string
      */
-    private static function renderErrors(): string {
-        $debug_mode=self::isDebug();
+    private static function renderErrors(?ContainerContract $provided=null): string {
+        $container=$provided??self::responseContainer();
+        $debug_mode=self::isDebug($container);
         // 预处理错误数据
         $processed_errors=[];
         foreach(self::$errors as $index=>$error) {
@@ -643,7 +653,6 @@ final class Error extends BaseError {
             'output_content'=>null,
         ];
         // 在调试模式下添加输出内容(优先当前请求的响应实例)
-        $container=self::responseContainer();
         if($debug_mode&&self::$initialized&&$container!==null) {
             try {
                 $response=$container->get(Response::class);
@@ -659,11 +668,11 @@ final class Error extends BaseError {
         // 使用模板引擎渲染
         try {
             // 容器不可用(引导未完成/容器出错)时走内置最小错误页, 不依赖视图服务
-            $view=self::responseContainer()?->get(View::class);
+            $view=$container?->get(View::class);
             if($view===null)
                 return self::renderMinimalErrors($processed_errors);
             // 设置模板路径
-            $template_path=self::config()?->get('app.error_template');
+            $template_path=self::config($container)?->get('app.error_template');
             if($template_path==null||!is_file($template_path))
                 $view->initWithContent(self::getDefaultErrorTemplate(),$template_data);
             else

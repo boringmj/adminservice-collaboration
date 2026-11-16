@@ -9,6 +9,12 @@ use AdminService\Router\Router;
 use ReflectionProperty;
 use Tests\Fixtures\ConcreteService;
 
+use function file_put_contents;
+use function is_file;
+use function sys_get_temp_dir;
+use function tempnam;
+use function unlink;
+
 /**
  * 路由缓存懒加载测试
  *
@@ -67,6 +73,27 @@ class RouterLazyImportTest extends TestCase {
             'produces',
             'controller_middlewares'
         );
+    }
+
+    /**
+     * 测试: 导入整张路由表时清空已加载文件记录
+     *
+     * @return void
+     */
+    public function testImportClearsLoadedFiles(): void {
+        $file=tempnam(sys_get_temp_dir(),'route_loaded_');
+        file_put_contents($file,"<?php\n\nreturn function(\\AdminService\\Router\\Router \$router): void {\n"
+            ."    \$router->get('/loaded',static fn(): string => 'x');\n};\n");
+        try {
+            $router=new Router();
+            $router->load($file);
+            $this->assertNotSame(array(),$router->getLoadedFiles());
+            $router->import(array(),true,true);
+            $this->assertSame(array(),$router->getLoadedFiles());
+        } finally {
+            if(is_file($file))
+                unlink($file);
+        }
     }
 
     /**

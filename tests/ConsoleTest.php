@@ -305,6 +305,19 @@ class ConsoleTest extends TestCase {
     }
 
     /**
+     * 测试: 显式 help 命令仍校验选项
+     *
+     * @return void
+     */
+    public function testExplicitHelpValidatesOptions(): void {
+        $app=$this->application();
+        $output=Output::buffer();
+        $console=new Console($app,$output);
+        $this->assertSame(2,$console->run(array('console','help','cache','build','--froce')));
+        $this->assertStringContainsString('Unknown option',$output->stderr());
+    }
+
+    /**
      * 测试未知选项返回 2
      *
      * @return void

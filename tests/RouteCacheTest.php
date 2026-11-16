@@ -7,6 +7,7 @@ use PHPUnit\Framework\TestCase;
 use AdminService\Cache\CompileStore;
 use AdminService\Config\Repository;
 use AdminService\Router\RouterFactory;
+use ReflectionMethod;
 use Tests\Fixtures\RouteCacheController;
 use Tests\Fixtures\RouteCacheMiddleware;
 
@@ -392,6 +393,41 @@ class RouteCacheTest extends TestCase {
         $this->assertNull($second->find('GET','/inner-a'),'间接路由文件变化后不得继续使用旧缓存');
         $this->assertNotNull($second->find('GET','/inner-b-long'));
         $this->assertSame(2,$GLOBALS['route_cache_builds'],'间接文件变化后应重新装配');
+    }
+
+    /**
+     * 测试: 属性路由指纹跳过应用根下的非应用条目
+     *
+     * @return void
+     */
+    public function testAttributeFingerprintSkipsNonAppEntries(): void {
+        $this->writeRoutes();
+        mkdir($this->app_dir.'/not-an-app',0755,true);
+        file_put_contents($this->app_dir.'/README.txt','x');
+        $config=$this->config(true,'always');
+        $config->put('route.attributes',array('scan'=>true,'classes'=>array()));
+        $store=new CompileStore($config);
+        $method=new ReflectionMethod(RouterFactory::class,'fingerprint');
+        $method->setAccessible(true);
+        $hash=$method->invoke(new RouterFactory(),$store,$config);
+        $this->assertIsString($hash);
+    }
+
+    /**
+     * 测试: 替换闭包中间件会改变不可序列化配置的路由键
+     *
+     * @return void
+     */
+    public function testUnserializableConfigDetectsClosureReplacement(): void {
+        $config=$this->config(true,'off');
+        $config->put('middlewares.controller',array(static function(): void {}));
+        $method=new ReflectionMethod(RouterFactory::class,'routeKey');
+        $method->setAccessible(true);
+        $factory=new RouterFactory();
+        $first=$method->invoke($factory,$config);
+        $config->put('middlewares.controller',array(static function(): void {}));
+        $second=$method->invoke($factory,$config);
+        $this->assertNotSame($first,$second,'替换闭包实例应改变路由配置键');
     }
 
     /**

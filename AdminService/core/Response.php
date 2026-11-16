@@ -238,7 +238,11 @@ final class Response extends BaseResponse {
                 array_keys($this->config()->get('response.default.type',array()))
             );
             if($type!==null) {
+                // 协商只改内容类型, 不清除预置的渲染内容
+                $rendered=$this->rendered();
                 $this->contentType($type);
+                if($rendered!==null)
+                    $this->rendered($rendered);
             } elseif($accept!==''&&$this->status()>=200&&$this->status()<300
                 &&$this->hasResponseBody()&&$this->negotiationFailurePolicy()==='strict') {
                 // 客户端明确列出的类型都不可用: 不再静默回落

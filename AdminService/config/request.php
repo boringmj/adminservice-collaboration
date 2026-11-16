@@ -16,7 +16,7 @@ return array(
             'ext_rule'=>'/[^a-z0-9]/', // 文件扩展名过滤规则 (default: /[^a-z0-9]/)
             'hash'=>array(
                 'algo'=>'sha1', // 文件哈希算法 (default: sha1)
-                'max_size'=>104857600 // 最大可计算哈希文件大小 (字节) (default: 100MB)
+                'max_size'=>104857600 // 最大可计算哈希文件大小 (字节, 超过时哈希为空) (default: 100MB)
             ),
             'save'=>array(
                 'dir'=>Runtime::path().'/uploads', // 上传目录 (default: runtime/uploads)

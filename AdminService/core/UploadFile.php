@@ -41,6 +41,8 @@ final class UploadFile extends AbstractUploadFile {
     /**
      * 计算文件哈希值
      *
+     * - 超过 `hash.max_size` 时返回空字符串, 表示未计算哈希
+     *
      * @access public
      * @param string|null $algo 哈希算法
      * @throws UploadException
@@ -51,11 +53,12 @@ final class UploadFile extends AbstractUploadFile {
         $file_path=$this->getTempPath();
         if(!file_exists($file_path)||!is_readable($file_path))
             throw new UploadException('文件不存在或不可读');
-        $size=filesize($file_path);
-        if($this->hash_max_size>0&&$size!==false&&$size>$this->hash_max_size)
-            throw new UploadException('文件超过可计算哈希的大小上限');
         if(!in_array($algo,hash_algos()))
             throw new UploadException('不支持的哈希算法');
+        $size=filesize($file_path);
+        // 超过可计算上限时返回空哈希, 不阻断上传保存
+        if($this->hash_max_size>0&&$size!==false&&$size>$this->hash_max_size)
+            return '';
         $hash=hash_file($algo,$file_path);
         if($hash===false) throw new UploadException('计算文件哈希值失败');
         return $hash;

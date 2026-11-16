@@ -20,6 +20,7 @@ use function file_get_contents;
 use function file_put_contents;
 use function filemtime;
 use function fclose;
+use function getcwd;
 use function flock;
 use function fopen;
 use function function_exists;
@@ -371,6 +372,8 @@ final class Cache implements CacheInterface {
      */
     public function clear(): bool {
         $path=$this->poolPath();
+        if(is_link($path))
+            return false;
         if(!is_dir($path))
             return true;
         return $this->removeDirectoryContents($path,true);
@@ -392,7 +395,7 @@ final class Cache implements CacheInterface {
         if($limit<=0)
             $limit=PHP_INT_MAX;
         $kv=$this->kvRoot();
-        if(!is_dir($kv))
+        if(!is_dir($kv)||is_link($kv))
             return 0;
         $visited=array();
         $result=$this->gcScan($kv,$this->readGcCursor(),$limit,$visited);
@@ -413,12 +416,18 @@ final class Cache implements CacheInterface {
         $root=$this->compileRoot();
         if($target===null) {
             $ok=true;
-            if(is_dir($root)&&!is_link($root))
+            if(is_link($root))
+                $ok=false;
+            elseif(is_dir($root))
                 $ok=$this->removeDirectoryContents($root);
             // 引导期快照固定写入 runtime; cache.path 改到别处时也要清掉它们
             $runtime=$this->runtimeCompileRoot();
-            if($runtime!==$root&&is_dir($runtime)&&!is_link($runtime))
-                $ok=$this->removeDirectoryContents($runtime)&&$ok;
+            if($runtime!==$root) {
+                if(is_link($runtime))
+                    $ok=false;
+                elseif(is_dir($runtime))
+                    $ok=$this->removeDirectoryContents($runtime)&&$ok;
+            }
             if(EnvCache::clear())
                 EnvSnapshot::reset();
             else
@@ -456,8 +465,10 @@ final class Cache implements CacheInterface {
     public function clearAll(): bool {
         $root=$this->cacheRoot();
         $ok=true;
-        // 符号链接指向的缓存目录同样清理内容, 链接本身保留
-        if(is_dir($root))
+        // 不跟随符号链接, 避免清理范围越过配置的缓存目录
+        if(is_link($root))
+            $ok=false;
+        elseif(is_dir($root))
             $ok=$this->removeDirectoryContents($root,true);
         // 配置快照是引导期例外, 即使 cache.path 自定义也要一并清理
         $runtime=$this->runtimeCompileRoot();
@@ -1224,17 +1235,31 @@ final class Cache implements CacheInterface {
         $path=rtrim(str_replace('\\','/',trim($path)),'/');
         if($path==='')
             return Runtime::path().'/cache';
-        $segments=explode('/',$path);
-        foreach($segments as $segment)
-            if($segment==='.'||$segment==='..')
-                throw new Exception('Cache path is invalid.',self::ERROR_INVALID_PATH,array('path'=>$path));
-        if(preg_match('#^(?:[a-zA-Z]:)?/*$#',$path)===1)
+        // 只拒绝解析后落在当前目录或文件系统根的路径; 相对路径中的 `.` / `..` 正常折叠
+        $normalized=array();
+        foreach(explode('/',$path) as $segment) {
+            if($segment===''||$segment==='.')
+                continue;
+            if($segment==='..') {
+                $last=count($normalized)-1;
+                if($last>=0&&$normalized[$last]!=='..')
+                    array_pop($normalized);
+                else
+                    $normalized[]='..';
+                continue;
+            }
+            $normalized[]=$segment;
+        }
+        $probe=implode('/',$normalized);
+        if($probe===''||$probe==='.'||$probe==='..'||preg_match('#^(?:[a-zA-Z]:)?/*$#',$probe)===1)
             throw new Exception('Cache path is invalid.',self::ERROR_INVALID_PATH,array('path'=>$path));
-        // 符号链接解析后同样不能落在文件系统根
+        // 符号链接解析后同样不能落在文件系统根或当前目录
         $real=realpath($path);
+        $cwd=getcwd();
         if($real!==false) {
             $real=rtrim(str_replace('\\','/',$real),'/');
-            if($real===''||preg_match('#^(?:[a-zA-Z]:)?/*$#',$real)===1)
+            $current=$cwd===false?'':rtrim(str_replace('\\','/',$cwd),'/');
+            if($real===''||$real===$current||preg_match('#^(?:[a-zA-Z]:)?/*$#',$real)===1)
                 throw new Exception('Cache path is invalid.',self::ERROR_INVALID_PATH,array('path'=>$path));
         }
         return $path;

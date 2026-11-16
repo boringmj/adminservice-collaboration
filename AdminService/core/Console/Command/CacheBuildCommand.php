@@ -420,8 +420,15 @@ final class CacheBuildCommand extends AbstractCommand {
             $this->addWarmMethod($entry::class,'handle');
             return;
         }
-        if(is_array($entry)&&array_key_exists('middleware',$entry))
-            $this->warmMiddleware($classes,$entry['middleware']);
+        if(is_array($entry)) {
+            if(array_key_exists('middleware',$entry)) {
+                $this->warmMiddleware($classes,$entry['middleware']);
+                return;
+            }
+            // `middleware` 也允许写成列表, 逐项展开
+            foreach($entry as $item)
+                $this->warmMiddleware($classes,$item);
+        }
     }
 
     /**

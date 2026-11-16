@@ -254,16 +254,17 @@ final class Error extends BaseError {
     }
 
     /**
-     * 复位错误处理器状态
+     * 复位当前执行流的错误状态
      *
      * - 清空已收集错误与当前请求引用, 允许下一次请求重新开始
+     * - 只影响当前执行流, 不抹掉其它请求的状态
      * - 不注销 PHP 处理器; 处理器本身是进程级资源
      *
      * @access public
      * @return void
      */
     public static function reset(): void {
-        self::$states=array();
+        unset(self::$states[self::executionKey()]);
     }
 
     /**
@@ -297,21 +298,57 @@ final class Error extends BaseError {
     /**
      * 请求结束
      *
-     * - 释放请求容器 / 上下文与已收集错误引用
+     * - 释放指定请求(默认栈顶)的容器 / 上下文与已收集错误引用
+     * - 栈回到基础状态时删除该执行流的条目, 避免常驻进程按执行流累积
      * - 错误出口已经渲染时也可安全调用; 不重置 `$handled`, 避免同一 shutdown 重复渲染
+     *
+     * @access public
+     * @param RequestContext|null $context 要结束的请求上下文(null = 当前执行流栈顶)
+     * @return void
+     */
+    public static function endRequest(?RequestContext $context=null): void {
+        $key=self::executionKey();
+        if(!isset(self::$states[$key])||self::$states[$key]===array())
+            return;
+        if($context!==null) {
+            $found=false;
+            for($index=count(self::$states[$key])-1;$index>0;$index--) {
+                if(self::$states[$key][$index]['context']!==$context)
+                    continue;
+                array_splice(self::$states[$key],$index,1);
+                $found=true;
+                break;
+            }
+            if(!$found)
+                return;
+        } elseif(count(self::$states[$key])>1)
+            array_pop(self::$states[$key]);
+        else {
+            unset(self::$states[$key]);
+            return;
+        }
+        if(count(self::$states[$key])===1)
+            unset(self::$states[$key]);
+    }
+
+    /**
+     * 丢弃未结束的请求状态
+     *
+     * - 请求边界使用: 保留基础状态(引导期错误), 删除残留的请求层
+     * - 用于未调用 `endRequest()` 的入口或请求开始前的异常路径
      *
      * @access public
      * @return void
      */
-    public static function endRequest(): void {
+    public static function resetRequestStates(): void {
         $key=self::executionKey();
         if(!isset(self::$states[$key])||self::$states[$key]===array())
             return;
-        if(count(self::$states[$key])>1) {
-            array_pop(self::$states[$key]);
-            return;
-        }
-        self::$states[$key]=array(self::freshState());
+        $base=self::$states[$key][0];
+        if($base['errors']===array()&&$base['container']===null&&$base['context']===null)
+            unset(self::$states[$key]);
+        else
+            self::$states[$key]=array($base);
     }
 
     /**

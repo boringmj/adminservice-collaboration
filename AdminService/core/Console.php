@@ -98,6 +98,12 @@ final class Console {
     private ?HelpCommand $help=null;
 
     /**
+     * 本次运行是否由全局 `--help` 注入帮助命令
+     * @var bool
+     */
+    private bool $help_option=false;
+
+    /**
      * 构造方法
      *
      * @access public
@@ -175,6 +181,7 @@ final class Console {
         if($output!==null)
             $this->output=$output;
         $tokens=array_slice($argv??(isset($_SERVER['argv'])?(array)$_SERVER['argv']:array()),1);
+        $this->help_option=false;
         $tokens=$this->extractGlobalOptions(array_values($tokens));
         $this->skip_boot_config_cache=$this->isStatusCommand($tokens);
         try {
@@ -265,8 +272,8 @@ final class Console {
         if($result['type']==='command'&&$result['command']!==null) {
             $command=$result['command'];
             $input=new Input($result['remaining'],$command->valueOptions());
-            // 全局 --help 会保留原命令选项, help 命令按路径展示帮助, 不校验这些选项
-            if(!$command instanceof HelpCommand)
+            // 全局 --help 会保留原命令选项, 只对这种注入的 help 调用跳过选项校验
+            if(!($command instanceof HelpCommand&&$this->help_option))
                 $this->validateOptions($command,$input);
             return $command->execute($input,$this->output);
         }
@@ -338,8 +345,10 @@ final class Console {
             }
             $filtered[]=$token;
         }
-        if($help&&($filtered[0]??null)!=='help')
+        if($help&&($filtered[0]??null)!=='help') {
+            $this->help_option=true;
             array_unshift($filtered,'help');
+        }
         return $filtered;
     }
 

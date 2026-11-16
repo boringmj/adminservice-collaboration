@@ -297,6 +297,8 @@ final class Application {
         if(!$is_nested) {
             $this->application_config=$this->config();
             BaseDb::releaseCurrentSessions();
+            // 未调用 endRequest() 的入口: 丢弃上一请求残留的错误状态
+            Error::resetRequestStates();
             // 隔离执行流中 request_container 可能属于其它请求, 只回收顺序执行流的上一轮
             if(!ContextStorage::isolated()&&$this->request_container!==null)
                 $this->request_container->reset();
@@ -304,15 +306,11 @@ final class Application {
         // 请求级 scope: 实例表独立; 绑定/别名/单例表在 fork 时复制; 反射缓存共享
         $container=$this->container->fork();
         $this->request_container=$container;
-        // 数据库事务会话按请求隔离: 嵌套请求共用执行流, 不能共用会话键
-        $previous_scope=BaseDb::setRequestScope('request:'.spl_object_id($container));
         // 容器元数据在请求处理期间只标脏, 结束时统一落盘
         if($container instanceof Container)
             $container->deferMetadataFlush();
         if($defer_metadata&&$this->container instanceof Container)
             $this->container->deferMetadataFlush();
-        // 错误出口需要当前请求的 Response; 在请求开始时同步给错误处理器
-        Error::beginRequest($container);
         // 请求开始时复制一份应用级配置: 请求内 setValue 只修改副本, 不泄漏到后续请求
         $repository=$this->applicationConfig();
         if($repository!==null) {
@@ -325,6 +323,9 @@ final class Application {
                 $container->instance(Repository::class,$request_config);
         }
         App::setInstance($container);
+        // 以下两步不抛异常; 放在 try 之前, 避免请求装配失败时泄漏作用域与错误状态
+        $previous_scope=BaseDb::setRequestScope('request:'.spl_object_id($container));
+        Error::beginRequest($container);
         $completed=false;
         try {
             $context=$this->bootRequest($container,$request_seed);
@@ -520,7 +521,9 @@ final class Application {
             $this->last_request_context=null;
         if($context!==null&&$this->request_container===$context->container())
             $this->request_container=null;
-        Error::endRequest();
+        // 无当前请求时不弹错误状态, 保持 Application 与 Error 两侧一致
+        if($context!==null)
+            Error::endRequest($context);
     }
 
     /**

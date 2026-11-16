@@ -9,6 +9,7 @@ use ReflectionClass;
 
 use function array_key_exists;
 use function count;
+use function get_class;
 use function is_array;
 use function is_dir;
 use function is_object;
@@ -128,8 +129,32 @@ final class RouterFactory {
                 $config->get('app.path'),
                 $config->get('middlewares.controller',array())
             );
-            return 'object:'.spl_object_hash($config).':'.md5(print_r($fallback,true));
+            return 'object:'.spl_object_hash($config).':'.md5(print_r($this->configSignature($fallback),true));
         }
+    }
+
+    /**
+     * 配置签名
+     *
+     * - 递归保留标量与数组, 对象替换为类名与对象标识
+     * - 用于不可序列化配置的失效判断; 闭包内容无法比较, 以对象替换作为变化
+     *
+     * @access private
+     * @param mixed $value 配置值
+     * @return mixed 可打印的签名
+     */
+    private function configSignature(mixed $value): mixed {
+        if(is_array($value)) {
+            $out=array();
+            foreach($value as $key=>$item)
+                $out[$key]=$this->configSignature($item);
+            return $out;
+        }
+        if($value instanceof \Closure)
+            return 'closure:'.spl_object_hash($value);
+        if(is_object($value))
+            return get_class($value).':'.spl_object_hash($value);
+        return $value;
     }
 
     /**
@@ -523,6 +548,9 @@ final class RouterFactory {
             if($app==='.'||$app==='..')
                 continue;
             $controller=$root.'/'.$app.'/controller';
+            // 应用根下可能有不含 controller 的目录或普通文件, 跳过而不是按不可读目录报错
+            if(!is_dir($controller))
+                continue;
             foreach($this->listPhpFiles($controller) as $file)
                 $this->collectFileStats($file,$stats);
         }

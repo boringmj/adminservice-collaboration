@@ -600,14 +600,14 @@ class CacheTest extends TestCase {
     }
 
     /**
-     * 测试: 缓存根指向当前目录或含 `.` / `..` 段时拒绝清理
+     * 测试: 缓存根解析为当前目录或文件系统根时拒绝清理
      *
      * @return void
      */
     public function testClearAllRejectsRootLikePath(): void {
         $marker=$this->dir.'/keep.txt';
         file_put_contents($marker,'keep');
-        foreach(array('.',$this->dir.'/.',$this->dir.'/sub/..') as $path) {
+        foreach(array('.','..','foo/..') as $path) {
             $config=$this->makeConfig(array('path'=>$path));
             $cache=new Cache($config);
             try {
@@ -621,11 +621,25 @@ class CacheTest extends TestCase {
     }
 
     /**
-     * 测试: 缓存根为符号链接时清理目标内容并保留链接
+     * 测试: 相对缓存路径中的 `.` / `..` 正常折叠
      *
      * @return void
      */
-    public function testClearAllFollowsSymlinkedCacheRoot(): void {
+    public function testCacheRootAcceptsRelativePath(): void {
+        $method=new ReflectionMethod(Cache::class,'cacheRoot');
+        $method->setAccessible(true);
+        foreach(array('./runtime/cache','../shared/runtime/cache',$this->dir.'/.') as $path) {
+            $cache=new Cache($this->makeConfig(array('path'=>$path)));
+            $this->assertSame(str_replace('\\','/',$path),$method->invoke($cache));
+        }
+    }
+
+    /**
+     * 测试: 缓存根为符号链接时不跟随清理
+     *
+     * @return void
+     */
+    public function testClearAllDoesNotFollowSymlinkedCacheRoot(): void {
         $target=$this->dir.'/target';
         mkdir($target,0755,true);
         file_put_contents($target.'/stale.txt','x');
@@ -634,8 +648,8 @@ class CacheTest extends TestCase {
             $this->markTestSkipped('当前系统无法创建目录符号链接');
         $config=$this->makeConfig(array('path'=>$link));
         $cache=new Cache($config);
-        $this->assertTrue($cache->clearAll());
-        $this->assertFalse(is_file($target.'/stale.txt'),'符号链接目标的缓存内容应被清理');
+        $this->assertFalse($cache->clearAll(),'符号链接根应返回失败');
+        $this->assertTrue(is_file($target.'/stale.txt'),'符号链接目标不得被清理');
         $this->assertTrue(is_link($link),'符号链接本身应保留');
     }
 

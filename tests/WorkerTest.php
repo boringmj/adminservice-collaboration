@@ -9,6 +9,7 @@ use AdminService\Application;
 use AdminService\Config;
 use AdminService\Config\Repository;
 use AdminService\Container;
+use AdminService\Error;
 use AdminService\Exception;
 use AdminService\NativeSession;
 use AdminService\RequestContext;
@@ -29,6 +30,7 @@ use Fiber;
 use ReflectionProperty;
 use RuntimeException;
 use Tests\Fixtures\FakePdo;
+use Tests\Fixtures\InitThrowingSession;
 use Tests\Fixtures\RenderProbeController;
 use Tests\Fixtures\RenderScopeProcessor;
 use Tests\Fixtures\StreamProbeController;
@@ -157,6 +159,37 @@ class WorkerTest extends TestCase {
             $this->assertSame(200,$response->status());
             $this->assertSame('Hello World!',trim($response->body()));
             $this->assertNull($app->requestContext());
+        } finally {
+            $worker->shutdown();
+            if($old_app!==null)
+                App::setInstance($old_app);
+            if($old_config!==null)
+                Config::setRepository($old_config);
+        }
+    }
+
+    /**
+     * 测试: 请求装配失败后不残留错误状态
+     *
+     * @return void
+     */
+    public function testBootFailureClearsErrorState(): void {
+        $old_config=Config::repository();
+        $old_app=App::hasInstance()?App::getInstance():null;
+        $configs=Config::all();
+        $configs['session']['class']=InitThrowingSession::class;
+        $configs['session']['start']=true;
+        $config=Config::new($configs);
+        $app=(new Application(new Container(),$config))->init();
+        $worker=new Worker($app);
+        Error::reset();
+        try {
+            $response=$worker->handle(RequestFactory::create('GET','/demo/index/index'));
+            $this->assertSame(500,$response->status());
+            $property=new ReflectionProperty(Error::class,'states');
+            $property->setAccessible(true);
+            $states=$property->getValue();
+            $this->assertSame(array(),$states['main']??array(),'失败请求不应留下错误状态');
         } finally {
             $worker->shutdown();
             if($old_app!==null)

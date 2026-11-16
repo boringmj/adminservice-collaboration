@@ -120,9 +120,20 @@ final class Worker {
             $response=$this->emitResponse($context,$core_response,$core_request);
         } catch(Throwable $e) {
             error_log('Worker request failed: '.get_class($e).': '.$e->getMessage());
-            $response=$context===null
-                ?$this->errorResponse($e,$app)
-                :ContextStorage::run($context,fn(): WorkerResponse => $this->errorResponse($e,$app,$context));
+            try {
+                $response=$context===null
+                    ?$this->errorResponse($e,$app)
+                    :ContextStorage::run($context,fn(): WorkerResponse => $this->errorResponse($e,$app,$context));
+            } catch(Throwable $response_failure) {
+                // 错误响应自身失败时仍要进入写出与收尾流程
+                error_log('Worker error response failed: '.get_class($response_failure).': '.$response_failure->getMessage());
+                $response=new WorkerResponse(
+                    500,
+                    array('Content-Type'=>array('text/plain; charset=utf-8')),
+                    array(),
+                    'Internal Server Error'
+                );
+            }
         }
         try {
             // 写出阶段恢复请求上下文: 门面仍指向本请求的容器与配置
@@ -148,6 +159,9 @@ final class Worker {
                     // 响应已写出, 收尾异常只记录, 避免驱动再次写响应
                     error_log('Worker request teardown failed: '.get_class($e).': '.$e->getMessage());
                 }
+            } else {
+                // 请求装配失败(没有上下文): 丢弃残留的错误请求态
+                Error::resetRequestStates();
             }
         }
         return $response;

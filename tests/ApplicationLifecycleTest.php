@@ -386,9 +386,33 @@ class ApplicationLifecycleTest extends TestCase {
 
         $application->endRequest();
         $this->assertSame($second,$application->requestContext(),'无参调用不应关闭其它请求的上下文');
+        $this->assertSame($second,Error::requestContext(),'无参调用不应改动错误状态');
 
         $application->endRequest($second);
         $this->assertNull($application->requestContext());
+        $this->assertNull(Error::requestContext());
+    }
+
+    /**
+     * 测试: 重复 handle 未调用 endRequest 时不累积错误状态
+     *
+     * @return void
+     */
+    public function testRepeatedHandleWithoutEndRequestDoesNotAccumulateErrorStates(): void {
+        $application=new Application();
+        for($i=0;$i<5;$i++)
+            $application->handle(static function(): void {});
+
+        $property=new ReflectionProperty(Error::class,'states');
+        $property->setAccessible(true);
+        $states=$property->getValue();
+        $stack=$states['main']??array();
+        $this->assertLessThanOrEqual(2,count($stack),'错误状态栈不应随请求累积');
+        $contexts=0;
+        foreach($stack as $state)
+            if($state['context']!==null)
+                $contexts++;
+        $this->assertLessThanOrEqual(1,$contexts,'最多保留一个请求上下文');
     }
 
     /**

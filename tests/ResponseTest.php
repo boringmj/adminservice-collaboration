@@ -70,15 +70,15 @@ class ResponseTest extends TestCase {
     }
 
     /**
-     * 测试: 预置 rendered() 内容仍补类型的响应头
+     * 测试: 预置 rendered() 内容经出口协商后仍保留并补类型响应头
      *
      * @return void
      */
     public function testPresetRenderedContentKeepsTypeHeaders(): void {
         $response=$this->responseWithConfig();
-        $response->contentType('text/plain');
         $response->rendered('manual');
-        $this->assertSame('manual',$response->render());
+        $data=$response->export($this->request('GET','text/plain'));
+        $this->assertSame('manual',$data['body'],'出口协商不得清除预置渲染内容');
         $this->assertSame('text/plain; charset=utf-8',$response->header('Content-Type'));
     }
 

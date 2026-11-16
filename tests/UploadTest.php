@@ -181,7 +181,7 @@ class UploadTest extends TestCase {
     }
 
     /**
-     * 测试: 超过哈希大小上限时拒绝计算
+     * 测试: 超过哈希大小上限时不计算哈希
      *
      * @return void
      */
@@ -198,9 +198,8 @@ class UploadTest extends TestCase {
             confirm_dir:sys_get_temp_dir(),
             hash_max_size:3
         );
-        $this->expectException(UploadException::class);
-        $this->expectExceptionMessage('文件超过可计算哈希的大小上限');
-        $file->getHash();
+        $this->assertSame('',$file->getHash(),'超过上限时应返回空哈希');
+        $this->assertSame('',$file->toArray()['hash']);
     }
 
     /**

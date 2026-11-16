@@ -1024,6 +1024,7 @@ final class Router implements RoutingInterface {
         // 校验全部通过后再替换, 失败时保持原有路由表
         $this->routes=array();
         $this->route_data=array();
+        $this->loaded_files=array();
         $this->lazy=false;
         $this->sorted_data=null;
         $this->named=null;

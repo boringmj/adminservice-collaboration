@@ -6,6 +6,7 @@ use AdminService\Exception;
 use AdminService\Pipeline;
 use base\Attribute\Method;
 use base\Attribute\Middleware;
+use base\Attribute\Produces;
 use base\Attribute\RouteParam;
 use Closure;
 use ReflectionClass;
@@ -111,6 +112,12 @@ final class RouteItem {
      * @var array<string|object>|null
      */
     private ?array $compiled_controller_middlewares=null;
+
+    /**
+     * 可生产内容类型(null = 尚未解析)
+     * @var array<string>|null
+     */
+    private ?array $produces=null;
 
     /**
      * 编译后的匹配正则
@@ -256,6 +263,18 @@ final class RouteItem {
                 &&$data[$key]!==null
                 &&!is_array($data[$key]))
                 throw new Exception('Invalid compiled route item.',-423);
+        }
+        if(array_key_exists('produces',$data)) {
+            if(!is_array($data['produces']))
+                throw new Exception('Invalid compiled route item.',-423);
+            // 空数组表示未声明可生产类型, 与声明入口的“至少一个类型”不同
+            if($data['produces']!==array()) {
+                try {
+                    $data['produces']=Produces::normalize($data['produces']);
+                } catch(\InvalidArgumentException) {
+                    throw new Exception('Invalid compiled route item.',-423);
+                }
+            }
         }
         return $data;
     }
@@ -735,6 +754,7 @@ final class RouteItem {
      *     optional:array<string>,
      *     constraints:array<string,string>,
      *     literal_length:int,
+     *     produces:array<string>,
      *     controller_middlewares:array<string|object>|null
      * }
      * @throws Exception 参数绑定或处理器无法解析
@@ -754,6 +774,7 @@ final class RouteItem {
             'optional'=>$this->optional,
             'constraints'=>$this->constraints,
             'literal_length'=>$this->literalLength,
+            'produces'=>$this->getProduces(),
             'controller_middlewares'=>$this->compiled_controller_middlewares
         );
     }
@@ -782,6 +803,7 @@ final class RouteItem {
         $route->name=isset($data['name'])&&is_string($data['name'])?$data['name']:null;
         if(isset($data['bindings'])&&is_array($data['bindings']))
             $route->bindings=$data['bindings'];
+        $route->produces=isset($data['produces'])&&is_array($data['produces'])?$data['produces']:array();
         $route->resolved_bindings=isset($data['resolved_bindings'])&&is_array($data['resolved_bindings'])
             ?$data['resolved_bindings']
             :null;
@@ -882,6 +904,48 @@ final class RouteItem {
      */
     public function getName(): ?string {
         return $this->name;
+    }
+
+    /**
+     * 设置可生产内容类型
+     *
+     * - 显式设置优先于处理器方法上的 `#[Produces]`
+     *
+     * @access public
+     * @param string|array<string> $types 内容类型(单个或数组)
+     * @return static
+     * @throws \InvalidArgumentException 类型为空或格式非法
+     */
+    public function produces(string|array $types): static {
+        $this->produces=Produces::normalize($types);
+        return $this;
+    }
+
+    /**
+     * 获取可生产内容类型
+     *
+     * - 未显式设置时读取处理器方法上的 `#[Produces]`
+     * - 处理器无法反射或未声明时返回空数组
+     *
+     * @access public
+     * @return array<string>
+     */
+    public function getProduces(): array {
+        if($this->produces!==null)
+            return $this->produces;
+        $this->produces=array();
+        try {
+            $reflection=$this->handlerReflection();
+        } catch(\Exception) {
+            return $this->produces;
+        }
+        foreach($reflection->getAttributes(Produces::class) as $attribute) {
+            /** @var Produces $declaration */
+            $declaration=$attribute->newInstance();
+            $this->produces=$declaration->getTypes();
+            break;
+        }
+        return $this->produces;
     }
 
     /**

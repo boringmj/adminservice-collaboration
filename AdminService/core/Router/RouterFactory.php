@@ -163,7 +163,7 @@ final class RouterFactory {
         } else {
             $payload=$inspect['payload'];
             if(!is_array($payload)
-                ||(int)($payload['version']??0)!==1
+                ||(int)($payload['version']??0)!==2
                 ||!isset($payload['routes'])
                 ||!is_array($payload['routes'])) {
                 $status='corrupted';
@@ -226,7 +226,7 @@ final class RouterFactory {
                 foreach($built->getRoutes() as $route)
                     $route->compileControllerMiddlewares($config->get('middlewares.controller',array()));
                 return array(
-                    'version'=>1,
+                    'version'=>2,
                     'sorted'=>true,
                     'routes'=>$built->export(),
                     'sources'=>$this->handlerSources($built->getRoutes())
@@ -243,7 +243,7 @@ final class RouterFactory {
             return $built;
         $validate_sources=$store->shouldValidate();
         if(is_array($payload)
-            &&(int)($payload['version']??0)===1
+            &&(int)($payload['version']??0)===2
             &&isset($payload['routes'])
             &&is_array($payload['routes'])
             &&(!$validate_sources||$this->sourcesMatch($payload['sources']??null))) {

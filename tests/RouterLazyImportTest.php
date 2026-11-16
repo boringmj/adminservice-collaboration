@@ -64,6 +64,7 @@ class RouterLazyImportTest extends TestCase {
             'optional',
             'constraints',
             'literal_length',
+            'produces',
             'controller_middlewares'
         );
     }

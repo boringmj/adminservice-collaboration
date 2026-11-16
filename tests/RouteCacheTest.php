@@ -348,6 +348,27 @@ class RouteCacheTest extends TestCase {
     }
 
     /**
+     * 测试: 路由缓存命中后保留 produces 声明
+     *
+     * @return void
+     */
+    public function testCacheKeepsProduces(): void {
+        $this->writeRoutes("\$router->get('/p/cached',array(\\Tests\\Fixtures\\ProducesController::class,'jsonOnly'));");
+        $config=$this->config(false,'auto');
+        $first=(new RouterFactory())->get($config);
+        $found=$first->find('GET','/p/cached');
+        $this->assertNotNull($found);
+        $this->assertSame(array('application/json'),$found[0]->getProduces());
+
+        unlink($this->route_file);
+        $second=(new RouterFactory())->get($config);
+        $found=$second->find('GET','/p/cached');
+        $this->assertNotNull($found);
+        $this->assertSame(array('application/json'),$found[0]->getProduces(),'缓存命中后 produces 不应丢失');
+        $this->assertSame(1,$GLOBALS['route_cache_builds'],'命中缓存时不得重新加载路由文件');
+    }
+
+    /**
      * 测试: 零探测模式仍按配置上下文区分缓存
      *
      * @return void

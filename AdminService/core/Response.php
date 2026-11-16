@@ -398,8 +398,8 @@ final class Response extends BaseResponse {
             $container->build($class,response:$this,config:$config)->handle();
         else
             (new $class(response:$this,config:$config))->handle();
-        // 合并该内容类型登记的Header
-        $this->headers($config['headers']??[]);
+        // 合并该内容类型登记的Header; 显式未登记类型原样下发
+        $this->applyTypeHeaders($config);
         return $this->return_content??'';
     }
 
@@ -502,13 +502,25 @@ final class Response extends BaseResponse {
      * @return void
      */
     private function streamHeaders(): void {
+        list(,$config)=$this->typeConfig();
+        $this->applyTypeHeaders($config);
+    }
+
+    /**
+     * 应用内容类型对应的响应头
+     *
+     * - 显式指定但未登记的类型原样下发 `Content-Type`, 不套用登记表的响应头
+     *
+     * @access private
+     * @param array<string,mixed> $config 类型登记配置
+     * @return void
+     */
+    private function applyTypeHeaders(array $config): void {
         $raw=strtolower(trim(explode(';',$this->contentType,2)[0]));
-        // 显式指定但未登记的类型原样下发, 不套用登记表的响应头
         if($raw!==''&&$raw!=='*/*'&&!$this->isRegisteredType($raw)) {
             $this->header('Content-Type',$this->contentType);
             return;
         }
-        list(,$config)=$this->typeConfig();
         $this->headers($config['headers']??[]);
     }
 

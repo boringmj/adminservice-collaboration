@@ -17,12 +17,16 @@ use ReflectionException;
 
 use function array_merge;
 use function array_key_exists;
+use function array_map;
 use function count;
+use function explode;
 use function implode;
 use function in_array;
 use function is_array;
 use function is_string;
 use function rawurldecode;
+use function strtolower;
+use function trim;
 
 /**
  * 路由协调器
@@ -197,6 +201,10 @@ final class Route extends BaseRoute {
         // 注册路由上下文(**请求级**对象): 控制器基类、视图路径推断与 App::getAppName 系列都从它取值
         $container=$this->container();
         $container->instance(RouteContextInterface::class,RouteContext::fromHandler($handler,$params));
+        $response=$container->get(Response::class);
+        // 声明了可生产类型时: 处理器执行前完成协商, 不可接受直接 406
+        if(!$this->negotiateProduces($route,$response))
+            return;
         $controller_middlewares=$route->getCompiledControllerMiddlewares();
         if($controller_middlewares===null)
             $controller_middlewares=$route->compileControllerMiddlewares($this->config()->get('middlewares.controller',array()));
@@ -205,10 +213,89 @@ final class Route extends BaseRoute {
             $route->getRouteMiddlewares(),
             $controller_middlewares
         );
-        $response=$container->get(Response::class);
         (new Pipeline($middlewares,$this->request,$container))->then(function() use ($route,$handler,$response): void {
             $response->body($this->callHandler($route,$handler));
         });
+        $this->assertProduces($route,$response);
+    }
+
+    /**
+     * 按路由声明的可生产类型完成前置协商
+     *
+     * @access private
+     * @param RouteItem $route 命中的路由
+     * @param Response $response 当前请求响应
+     * @return bool 是否继续执行处理器(false = 已应用 406)
+     * @throws Exception
+     */
+    private function negotiateProduces(RouteItem $route,Response $response): bool {
+        $produces=$route->getProduces();
+        if($produces===array())
+            return true;
+        $policy=(string)$this->config()->get('response.default.negotiation','strict');
+        // off: 不读 Accept、不追加 Vary、不返回 406
+        if($policy==='off') {
+            $response->contentType($produces[0]);
+            return true;
+        }
+        $this->addVaryAccept($response);
+        $accept=trim((string)$this->request->header('accept'));
+        if($accept==='') {
+            $response->contentType($produces[0]);
+            return true;
+        }
+        $type=Negotiator::best(Negotiator::parse($accept),$produces);
+        if($type!==null) {
+            $response->contentType($type);
+            return true;
+        }
+        if($policy==='fallback') {
+            $response->contentType($produces[0]);
+            return true;
+        }
+        HttpError::notAcceptable()->apply($response);
+        return false;
+    }
+
+    /**
+     * 校验响应内容类型是否属于路由声明的可生产类型
+     *
+     * - 只校验有正文的 2xx; 错误响应、406 与 204 / 205 不受 produces 约束
+     *
+     * @access private
+     * @param RouteItem $route 命中的路由
+     * @param Response $response 当前请求响应
+     * @return void
+     * @throws Exception 响应类型不在 produces 中
+     */
+    private function assertProduces(RouteItem $route,Response $response): void {
+        $produces=$route->getProduces();
+        if($produces===array())
+            return;
+        $status=$response->status();
+        if($status<200||$status>=300||$status===204||$status===205)
+            return;
+        $type=strtolower(trim(explode(';',$response->contentType(),2)[0]));
+        if(in_array($type,$produces,true))
+            return;
+        throw new Exception('Response content type "'.$type.'" is not declared by #[Produces] for route "'.$route->getPath().'".',-425,array(
+            'path'=>$route->getPath(),
+            'type'=>$type,
+            'produces'=>$produces
+        ));
+    }
+
+    /**
+     * 追加 Vary: Accept(已包含 Accept 或 * 时跳过)
+     *
+     * @access private
+     * @param Response $response 当前请求响应
+     * @return void
+     */
+    private function addVaryAccept(Response $response): void {
+        $vary=array_map('strtolower',array_map('trim',explode(',',$response->header('Vary'))));
+        if(!in_array('accept',$vary,true)&&!in_array('*',$vary,true))
+            $response->addHeader('Vary','Accept');
     }
 
     /**

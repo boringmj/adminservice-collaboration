@@ -5,6 +5,9 @@ use \app\demo\controller\Index;
 use \app\demo\controller\Autowire;
 use \app\demo\controller\DatabaseDemo;
 use \app\demo\controller\OrmDemo;
+use \app\demo\controller\ProducesDemo;
+use \app\demo\controller\StreamDemo;
+use \app\demo\controller\WorkerDemo;
 
 /**
  * demo 应用路由
@@ -46,6 +49,28 @@ return function(Router $router): void {
             // 子路径即方法名, 逐个注册
             foreach(array('index','schema','relation','prefixCheck','transaction','addUpdatedAt') as $method)
                 $router->any('/'.$method,array(OrmDemo::class,$method));
+        });
+
+        // 可生产内容类型: Accept: application/json / text/html / text/plain
+        $router->group(array('prefix'=>'/produces'),function(Router $router): void {
+            $router->get('/',array(ProducesDemo::class,'flexible'));
+            $router->get('/json',array(ProducesDemo::class,'jsonOnly'));
+            $router->get('/flexible',array(ProducesDemo::class,'flexible'));
+            $router->get('/text',array(ProducesDemo::class,'textOnly'));
+            $router->get('/chain',array(ProducesDemo::class,'chain'))->produces('application/json');
+        });
+
+        // 流式响应: /demo/stream/events (SSE) 与 /demo/stream/text
+        $router->group(array('prefix'=>'/stream'),function(Router $router): void {
+            $router->get('/',array(StreamDemo::class,'events'));
+            $router->get('/events',array(StreamDemo::class,'events'));
+            $router->get('/text',array(StreamDemo::class,'text'));
+        });
+
+        // 常驻 worker: 观察进程 / 协程 / 请求对象标识
+        $router->group(array('prefix'=>'/worker'),function(Router $router): void {
+            $router->get('/',array(WorkerDemo::class,'info'));
+            $router->get('/info',array(WorkerDemo::class,'info'));
         });
 
     });

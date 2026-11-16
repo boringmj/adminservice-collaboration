@@ -269,7 +269,7 @@ final class Application {
      * 处理一次请求(应用级入口)
      *
      * - **每请求一个干净的请求级容器**: 从应用级容器 `fork()` 派生, 保留到下一次请求开始时被 `reset()`;
-     *   绑定/别名/单例表是 fork 时的快照, 反射缓存共享
+     *   绑定/别名/单例表按派生时的内容复制, 反射缓存共享; 已登记实例不复制
      * - 进入请求作用域时把门面指针指向请求级容器; 请求结束收回应用级容器 —— 响应出口在关停阶段
      *   经 `Application::requestContainer()` 取请求级对象, 不依赖门面指针
      * - 请求级装配: 每请求只在请求容器本地新建请求 / 响应 / 会话; 父容器已有登记一律不复用;
@@ -299,7 +299,7 @@ final class Application {
             if(!ContextStorage::isolated()&&$this->request_container!==null)
                 $this->request_container->reset();
         }
-        // 请求级 scope: 实例表独立; 绑定/别名/单例为 fork 快照; 反射缓存共享
+        // 请求级 scope: 实例表独立; 绑定/别名/单例表在 fork 时复制; 反射缓存共享
         $container=$this->container->fork();
         $this->request_container=$container;
         // 容器元数据在请求处理期间只标脏, 结束时统一落盘

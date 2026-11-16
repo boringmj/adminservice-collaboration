@@ -131,11 +131,7 @@ final class Error extends BaseError {
     private static function executionKey(): string {
         if(class_exists(\Fiber::class,false)&&($fiber=\Fiber::getCurrent())!==null)
             return 'fiber:'.spl_object_id($fiber);
-        if(class_exists(\Swoole\Coroutine::class,false)&&\Swoole\Coroutine::getCid()>0)
-            return 'swoole:'.\Swoole\Coroutine::getCid();
-        if(class_exists(\OpenSwoole\Coroutine::class,false)&&\OpenSwoole\Coroutine::getCid()>0)
-            return 'openswoole:'.\OpenSwoole\Coroutine::getCid();
-        return 'main';
+        return Coroutine::key()??'main';
     }
 
     /**

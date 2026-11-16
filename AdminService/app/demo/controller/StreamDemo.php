@@ -2,6 +2,7 @@
 
 namespace app\demo\controller;
 
+use AdminService\Coroutine;
 use base\Controller;
 
 /**
@@ -24,7 +25,7 @@ class StreamDemo extends Controller {
         $this->stream(function(callable $write): void {
             for($i=1;$i<=5;$i++) {
                 $write('data: 第 '.$i.' 段'.PHP_EOL.PHP_EOL);
-                $this->pause();
+                Coroutine::sleep(0.2);
             }
         },'text/event-stream',array('on_disconnect'=>'continue'));
     }
@@ -39,25 +40,9 @@ class StreamDemo extends Controller {
         $this->stream(function(callable $write): void {
             for($i=1;$i<=5;$i++) {
                 $write('第 '.$i.' 段'.PHP_EOL);
-                $this->pause();
+                Coroutine::sleep(0.2);
             }
         },'text/plain');
-    }
-
-    /**
-     * 分段间隔
-     *
-     * - 协程环境下让出执行流, 普通 SAPI 下直接休眠
-     *
-     * @access private
-     * @return void
-     */
-    private function pause(): void {
-        if(class_exists(\Swoole\Coroutine::class,false)&&\Swoole\Coroutine::getCid()>0) {
-            \Swoole\Coroutine\System::sleep(0.2);
-            return;
-        }
-        usleep(200000);
     }
 
 }

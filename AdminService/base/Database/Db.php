@@ -3,6 +3,7 @@
 namespace base\Database;
 
 use Throwable;
+use AdminService\Coroutine;
 use base\Database\DatabaseConfigInterface;
 use base\Database\Connection\ConnectionConfig;
 use base\Database\Connection\ConnectionManagerInterface;
@@ -256,13 +257,7 @@ final class Db {
     private static function contextKey(): string {
         if(class_exists(\Fiber::class,false)&&($fiber=\Fiber::getCurrent())!==null)
             return 'fiber:'.spl_object_id($fiber);
-        if(class_exists(\Swoole\Coroutine::class,false)
-            &&\Swoole\Coroutine::getCid()>0)
-            return 'swoole:'.\Swoole\Coroutine::getCid();
-        if(class_exists(\OpenSwoole\Coroutine::class,false)
-            &&\OpenSwoole\Coroutine::getCid()>0)
-            return 'openswoole:'.\OpenSwoole\Coroutine::getCid();
-        return 'main';
+        return Coroutine::key()??'main';
     }
 
     /**

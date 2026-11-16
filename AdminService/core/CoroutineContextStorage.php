@@ -2,9 +2,6 @@
 
 namespace AdminService;
 
-use function call_user_func;
-use function class_exists;
-
 /**
  * 协程执行流的请求上下文存储
  *
@@ -43,7 +40,7 @@ final class CoroutineContextStorage implements ContextStorageInterface {
      * @return RequestContext|null
      */
     public function current(): ?RequestContext {
-        $cid=self::coroutineId();
+        $cid=Coroutine::id();
         if($cid<=0)
             return $this->fallback->current();
         return $this->contexts[$cid]??null;
@@ -58,7 +55,7 @@ final class CoroutineContextStorage implements ContextStorageInterface {
      * @return mixed
      */
     public function run(RequestContext $context,callable $callback): mixed {
-        $cid=self::coroutineId();
+        $cid=Coroutine::id();
         if($cid<=0)
             return $this->fallback->run($context,$callback);
         $previous=$this->contexts[$cid]??null;
@@ -80,34 +77,7 @@ final class CoroutineContextStorage implements ContextStorageInterface {
      * @return bool
      */
     public function isolated(): bool {
-        return self::coroutineId()>0||$this->fallback->isolated();
-    }
-
-    /**
-     * 当前协程 ID(无协程返回 0)
-     *
-     * @access private
-     * @return int
-     */
-    private static function coroutineId(): int {
-        $cid=self::extensionCoroutineId('Swoole\\Coroutine');
-        if($cid>0)
-            return $cid;
-        $cid=self::extensionCoroutineId('OpenSwoole\\Coroutine');
-        return $cid>0?$cid:0;
-    }
-
-    /**
-     * 读取协程扩展的当前协程 ID
-     *
-     * @access private
-     * @param string $class 协程类名
-     * @return int 无扩展或不在协程内时返回 0
-     */
-    private static function extensionCoroutineId(string $class): int {
-        if(!class_exists($class,false))
-            return 0;
-        return (int)call_user_func(array($class,'getCid'));
+        return Coroutine::inside()||$this->fallback->isolated();
     }
 
 }

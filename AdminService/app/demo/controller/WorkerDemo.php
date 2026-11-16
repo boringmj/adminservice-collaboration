@@ -2,9 +2,9 @@
 
 namespace app\demo\controller;
 
+use AdminService\Coroutine;
 use base\Controller;
 
-use function class_exists;
 use function getmypid;
 use function spl_object_id;
 
@@ -22,13 +22,10 @@ class WorkerDemo extends Controller {
      * @return array<string,int|string>
      */
     public function info(): array {
-        $coroutine=-1;
-        if(class_exists(\Swoole\Coroutine::class,false))
-            $coroutine=\Swoole\Coroutine::getCid();
         return array(
             'sapi'=>PHP_SAPI,
             'pid'=>getmypid(),
-            'coroutine'=>$coroutine,
+            'coroutine'=>Coroutine::id(),
             'request'=>spl_object_id($this->request),
             'uri'=>(string)$this->request->server('REQUEST_URI')
         );

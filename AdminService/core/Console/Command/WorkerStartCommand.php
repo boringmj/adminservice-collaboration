@@ -165,9 +165,13 @@ final class WorkerStartCommand extends AbstractCommand {
             $worker=new Worker($this->application);
             $worker->boot();
             $output->info('启动(Start): worker 正在运行, 按 Ctrl+C 停止');
-            (new SwooleDriver($worker))->serve($host,$port,$workers,$compression,$compression_level);
+            $started=(new SwooleDriver($worker))->serve($host,$port,$workers,$compression,$compression_level);
         } catch(Throwable $e) {
             $output->error('[ERROR] worker 启动失败(Worker start failed): '.$e->getMessage());
+            return self::FAILURE;
+        }
+        if(!$started) {
+            $output->error('[ERROR] worker 启动失败(Worker start failed)');
             return self::FAILURE;
         }
         $output->info('停止(Stop): worker 已退出');

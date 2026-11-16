@@ -81,6 +81,8 @@ final class Bootstrapper {
     /**
      * 执行完整引导
      *
+     * - 传入 env 时, 配置文件里的 `env()` 与路径键覆盖都使用该快照; 加载结束恢复进程快照
+     *
      * @access public
      * @param Env|null $env `.env` 快照(null = 进程级快照)
      * @param bool $use_config_cache 是否允许读取/写入配置编译缓存
@@ -139,6 +141,7 @@ final class Bootstrapper {
      *
      * - 优先读取 `runtime/cache/compile/config.cache.php`
      * - 未命中或快照非法时实时加载, 并尝试写入快照
+     * - 实时加载期间配置文件里的 `env()` 读取传入的 env, 与路径键覆盖同源
      *
      * @access public
      * @param Env $env `.env` 快照
@@ -151,7 +154,7 @@ final class Bootstrapper {
         $loader=new Loader($this->config_dir);
         if(!$use_cache||!$this->compileConfigEnabled($env)) {
             // 存在 .env 时固定关闭配置快照; 旧快照不参与读取, 由显式清理入口处理
-            return new Repository($loader->load(),$env);
+            return new Repository($this->loadRaw($loader,$env),$env);
         }
         $store=$this->configStore($env);
         if($force)
@@ -159,7 +162,7 @@ final class Bootstrapper {
         $payload=$store->load('config',function() use($store,$env): string {
             return $this->configFingerprint($store,$env);
         },function() use($loader,$env): array {
-            $raw=$loader->load();
+            $raw=$this->loadRaw($loader,$env);
             $repository=new Repository($raw,$env);
             Application::validateConfig($repository);
             return array(
@@ -172,7 +175,28 @@ final class Bootstrapper {
         if($this->validConfigPayload($payload))
             return Repository::fromValidated($payload['raw'],$payload['effective'],$env);
         $store->invalidate('config');
-        return new Repository($loader->load(),$env);
+        return new Repository($this->loadRaw($loader,$env),$env);
+    }
+
+    /**
+     * 在指定 env 作用域内加载配置
+     *
+     * - 配置文件里的 `env()` 与路径键覆盖使用同一份 env
+     * - 加载结束恢复进程快照, 请求期的 `env()` 不受影响
+     *
+     * @access private
+     * @param Loader $loader 配置加载器
+     * @param Env $env 本次装配使用的环境快照
+     * @return array<string,mixed> 配置树
+     * @throws Exception
+     */
+    private function loadRaw(Loader $loader,Env $env): array {
+        EnvSnapshot::pushScoped($env);
+        try {
+            return $loader->load();
+        } finally {
+            EnvSnapshot::popScoped();
+        }
     }
 
     /**

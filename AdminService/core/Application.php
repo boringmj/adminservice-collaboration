@@ -16,6 +16,7 @@ use function array_keys;
 use function array_merge;
 use function class_exists;
 use function interface_exists;
+use function error_log;
 use function in_array;
 use function is_int;
 use function spl_object_id;
@@ -498,7 +499,12 @@ final class Application {
         // 只认当前执行流: 进程级最近上下文可能属于其它并发请求
         $context??=ContextStorage::current();
         if($context!==null) {
-            $context->session()->close();
+            // 会话关闭失败不阻断其余请求级清理, 只记录日志
+            try {
+                $context->session()->close();
+            } catch(\Throwable $e) {
+                error_log('Session close failed: '.$e->getMessage());
+            }
             $container=$context->container();
             if($container->hasInstance(Router::class)) {
                 $router=$container->get(Router::class);

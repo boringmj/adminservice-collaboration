@@ -4,6 +4,8 @@ namespace AdminService\Config;
 
 use AdminService\Cache\EnvCache;
 
+use function array_pop;
+use function count;
 use function dirname;
 use function function_exists;
 use function getenv;
@@ -18,6 +20,7 @@ use function trim;
  * 进程级 `.env` 快照缓存
  *
  * - `env()` / `env_snapshot()` 共用同一份不可变快照
+ * - 配置装配期间可使用 `pushScoped()` 临时指定本次装配的 env, `popScoped()` 后恢复进程快照
  * - 存在环境快照文件时直接读取, 不再读取与解析 `.env`; 快照值为权威值
  * - `ADMINSERVICE_ENV_SNAPSHOT=0` 关闭快照读取; 该开关必须在读取 `.env` 前可用
  * - 提供显式复位入口, 供测试、CLI 子进程或自定义入口重新读取环境文件
@@ -29,6 +32,16 @@ final class EnvSnapshot {
      * @var Env|null
      */
     private static ?Env $snapshot=null;
+
+    /**
+     * 作用域内的环境快照栈
+     *
+     * - 配置加载期间由 `Bootstrapper` 压入本次装配使用的 env
+     * - 栈非空时 `get()` 返回栈顶, 不读取进程快照
+     *
+     * @var array<int,Env>
+     */
+    private static array $scoped=array();
 
     /**
      * 构造函数(禁止实例化)
@@ -45,6 +58,8 @@ final class EnvSnapshot {
      * @return Env
      */
     public static function get(): Env {
+        if(self::$scoped!==array())
+            return self::$scoped[count(self::$scoped)-1];
         if(self::$snapshot!==null)
             return self::$snapshot;
         $file=self::file();
@@ -129,6 +144,30 @@ final class EnvSnapshot {
     }
 
     /**
+     * 压入作用域快照
+     *
+     * - 仅用于配置装配: 期间 `env()` 读取传入的 env, 而不是进程快照
+     * - 必须与 `popScoped()` 成对调用
+     *
+     * @access public
+     * @param Env $env 作用域环境快照
+     * @return void
+     */
+    public static function pushScoped(Env $env): void {
+        self::$scoped[]=$env;
+    }
+
+    /**
+     * 弹出作用域快照
+     *
+     * @access public
+     * @return void
+     */
+    public static function popScoped(): void {
+        array_pop(self::$scoped);
+    }
+
+    /**
      * 清除缓存, 下次 `get()` 重新读取
      *
      * @access public
@@ -136,6 +175,7 @@ final class EnvSnapshot {
      */
     public static function reset(): void {
         self::$snapshot=null;
+        self::$scoped=array();
     }
 
 }

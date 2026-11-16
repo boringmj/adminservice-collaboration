@@ -4,10 +4,16 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
+use AdminService\Config\Bootstrapper;
+use AdminService\Config\Env;
+use AdminService\Config\EnvSnapshot;
 use AdminService\Config\Loader;
 use AdminService\Config\Repository;
 use AdminService\exception\ConfigException;
 use base\ConfigInterface;
+
+use function AdminService\env;
+use function AdminService\env_snapshot;
 
 use function array_keys;
 use function dirname;
@@ -205,6 +211,27 @@ class ConfigLoaderTest extends TestCase {
             $this->expectExceptionMessageMatches('/清单里的配置文件不存在/');
             (new Loader($dir,array('app.php','missing')))->load();
         } finally {
+            $this->removeDir($dir);
+        }
+    }
+
+    /**
+     * 测试: 配置加载期间 `env()` 使用传入的 env, 结束后恢复进程快照
+     *
+     * @return void
+     */
+    public function testLoadConfigUsesPassedEnvForEnvCalls(): void {
+        $old=env_snapshot();
+        $dir=$this->makeDir(array(
+            'probe.php'=>"<?php use function AdminService\\env; return array('value'=>env('PROBE','default'));"
+        ));
+        EnvSnapshot::replace(Env::fromArray(array('PROBE'=>'process')));
+        try {
+            $config=(new Bootstrapper($dir))->loadConfig(Env::fromArray(array('PROBE'=>'param')),false,false);
+            $this->assertSame('param',$config->get('probe.value'),'配置文件里的 env() 应读取传入的 env');
+            $this->assertSame('process',env('PROBE'),'加载结束后应恢复进程快照');
+        } finally {
+            EnvSnapshot::replace($old);
             $this->removeDir($dir);
         }
     }

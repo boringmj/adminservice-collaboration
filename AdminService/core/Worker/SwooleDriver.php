@@ -50,7 +50,7 @@ final class SwooleDriver {
      * @param int $workers 进程数
      * @param bool $compression 是否启用 gzip 响应压缩
      * @param int $compression_level 压缩级别 1-9
-     * @return void
+     * @return bool 是否正常退出(`Swoole\Server::start()` 的返回值)
      * @throws Exception Swoole 扩展不可用, 或压缩配置无效
      */
     public function serve(
@@ -59,7 +59,7 @@ final class SwooleDriver {
         int $workers=1,
         bool $compression=false,
         int $compression_level=4
-    ): void {
+    ): bool {
         if(!extension_loaded('swoole')||!class_exists('Swoole\\Http\\Server'))
             throw new Exception('Swoole extension is required for worker start.');
         $compressor=$compression?new ResponseCompressor($compression_level):null;
@@ -72,6 +72,7 @@ final class SwooleDriver {
         ));
         $worker=$this->worker;
         $server->on('request',function(\Swoole\Http\Request $request,\Swoole\Http\Response $response) use($worker,$compressor): void {
+            $written=false;
             try {
                 $server_data=RequestFactory::normalizeServer($request->server??array());
                 $worker_request=RequestFactory::create(
@@ -88,7 +89,7 @@ final class SwooleDriver {
                     true
                 );
                 // 写出在请求收尾前执行, 流式生成器可读取请求级状态
-                $worker->handle($worker_request,function(WorkerResponse $worker_response) use($response,$request,$compressor): void {
+                $worker->handle($worker_request,function(WorkerResponse $worker_response) use($response,$request,$compressor,&$written): void {
                     $body=$worker_response->body();
                     $stream=$worker_response->stream();
                     $headers=$worker_response->headers();
@@ -135,18 +136,23 @@ final class SwooleDriver {
                             error_log('Worker stream failed: '.$e->getMessage());
                         }
                         $response->end();
+                        $written=true;
                         return;
                     }
                     $response->end($body);
+                    $written=true;
                 });
             } catch(\Throwable $e) {
                 error_log('Worker request failed: '.$e->getMessage());
-                $response->status(500);
-                $response->header('Content-Type','text/plain; charset=utf-8');
-                $response->end('Internal Server Error');
+                // 响应已结束: 不再写第二个响应
+                if(!$written) {
+                    $response->status(500);
+                    $response->header('Content-Type','text/plain; charset=utf-8');
+                    $response->end('Internal Server Error');
+                }
             }
         });
-        $server->start();
+        return (bool)$server->start();
     }
 
 }

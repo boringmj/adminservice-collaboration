@@ -32,6 +32,7 @@ use Tests\Fixtures\FakePdo;
 use Tests\Fixtures\RenderProbeController;
 use Tests\Fixtures\RenderScopeProcessor;
 use Tests\Fixtures\StreamProbeController;
+use Tests\Fixtures\ThrowingSession;
 
 use function file_get_contents;
 use function file_put_contents;
@@ -135,6 +136,33 @@ class WorkerTest extends TestCase {
                 Config::setRepository($old_config);
             if(is_file($route))
                 unlink($route);
+        }
+    }
+
+    /**
+     * 测试: 请求收尾异常不影响已生成的响应
+     *
+     * @return void
+     */
+    public function testTeardownFailureDoesNotAffectResponse(): void {
+        $old_config=Config::repository();
+        $old_app=App::hasInstance()?App::getInstance():null;
+        $configs=Config::all();
+        $configs['session']['class']=ThrowingSession::class;
+        $config=Config::new($configs);
+        $app=(new Application(new Container(),$config))->init();
+        $worker=new Worker($app);
+        try {
+            $response=$worker->handle(RequestFactory::create('GET','/demo/index/index'));
+            $this->assertSame(200,$response->status());
+            $this->assertSame('Hello World!',trim($response->body()));
+            $this->assertNull($app->requestContext());
+        } finally {
+            $worker->shutdown();
+            if($old_app!==null)
+                App::setInstance($old_app);
+            if($old_config!==null)
+                Config::setRepository($old_config);
         }
     }
 

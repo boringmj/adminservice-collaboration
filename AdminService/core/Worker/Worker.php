@@ -137,8 +137,17 @@ final class Worker {
         } finally {
             if($context!==null) {
                 // 失败请求同样要落盘元数据
-                $app->flushRequestMetadata($context->container());
-                $app->endRequest($context);
+                try {
+                    $app->flushRequestMetadata($context->container());
+                } catch(Throwable $e) {
+                    error_log('Worker metadata flush failed: '.get_class($e).': '.$e->getMessage());
+                }
+                try {
+                    $app->endRequest($context);
+                } catch(Throwable $e) {
+                    // 响应已写出, 收尾异常只记录, 避免驱动再次写响应
+                    error_log('Worker request teardown failed: '.get_class($e).': '.$e->getMessage());
+                }
             }
         }
         return $response;

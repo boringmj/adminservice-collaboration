@@ -15,6 +15,7 @@ use AdminService\Router\RouterFactory;
 use base\AbstractCommand;
 use InvalidArgumentException;
 
+use function array_key_exists;
 use function array_unique;
 use function array_values;
 use function count;
@@ -359,11 +360,8 @@ final class CacheBuildCommand extends AbstractCommand {
         $middlewares=$this->config->get('middlewares',array());
         if(is_array($middlewares)) {
             foreach(array('request','controller') as $group) {
-                $entries=(array)($middlewares[$group]??array());
-                $this->addClasses($classes,$entries);
-                foreach($entries as $entry)
-                    if(is_string($entry))
-                        $this->addWarmMethod($entry,'handle');
+                foreach((array)($middlewares[$group]??array()) as $entry)
+                    $this->warmMiddleware($classes,$entry);
             }
         }
         $attributes=(array)$this->config->get('route.attributes',array());
@@ -392,17 +390,38 @@ final class CacheBuildCommand extends AbstractCommand {
                 $this->addClasses($classes,array($handler::class));
                 $this->addWarmMethod($handler::class,'__invoke');
             }
-            foreach($route->getMiddlewares() as $middleware) {
-                if(is_string($middleware)) {
-                    $this->addClasses($classes,array($middleware));
-                    $this->addWarmMethod($middleware,'handle');
-                } elseif(is_object($middleware)) {
-                    $this->addClasses($classes,array($middleware::class));
-                    $this->addWarmMethod($middleware::class,'handle');
-                }
-            }
+            // 配置级与控制器 / 方法上的属性中间件
+            foreach($route->compileControllerMiddlewares($this->config->get('middlewares.controller',array())) as $middleware)
+                $this->warmMiddleware($classes,$middleware);
+            foreach($route->getMiddlewares() as $middleware)
+                $this->warmMiddleware($classes,$middleware);
         }
         return array_values(array_unique($classes));
+    }
+
+    /**
+     * 登记中间件类与 `handle` 方法
+     *
+     * @access private
+     * @param array<int,class-string> $classes 类名(引用)
+     * @param mixed $entry 字符串 / 实例 / 含 middleware 的条目
+     * @return void
+     */
+    private function warmMiddleware(array &$classes,mixed $entry): void {
+        if(is_string($entry)) {
+            if($entry==='')
+                return;
+            $this->addClasses($classes,array($entry));
+            $this->addWarmMethod($entry,'handle');
+            return;
+        }
+        if(is_object($entry)) {
+            $this->addClasses($classes,array($entry::class));
+            $this->addWarmMethod($entry::class,'handle');
+            return;
+        }
+        if(is_array($entry)&&array_key_exists('middleware',$entry))
+            $this->warmMiddleware($classes,$entry['middleware']);
     }
 
     /**

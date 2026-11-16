@@ -8,11 +8,11 @@ use AdminService\Config;
 use AdminService\Container;
 use AdminService\Error;
 use ReflectionMethod;
-use ReflectionProperty;
 
 use function error_reporting;
 use function fclose;
 use function file_get_contents;
+use function ini_set;
 use function is_file;
 use function is_resource;
 use function proc_close;
@@ -57,6 +57,82 @@ class ErrorTest extends TestCase {
     protected function tearDown(): void {
         Error::reset();
         Error::setContainer(null);
+    }
+
+    /**
+     * 引导期错误在首个请求开始时写入日志
+     *
+     * @return void
+     */
+    public function testBootErrorsAreLoggedBeforeFirstRequest(): void {
+        Error::reset();
+        $previous=error_reporting(E_ALL);
+        $log=tempnam(sys_get_temp_dir(),'boot_error_');
+        $old_log=ini_set('error_log',$log);
+        try {
+            Error::handleError(E_USER_WARNING,'boot warning',__FILE__,1);
+            Error::beginRequest();
+            $this->assertStringContainsString('boot warning',(string)file_get_contents($log));
+            Error::endRequest();
+        } finally {
+            error_reporting($previous);
+            if($old_log!==false)
+                ini_set('error_log',$old_log);
+            if(is_file($log))
+                unlink($log);
+        }
+    }
+
+    /**
+     * 嵌套请求开始与结束只影响内层错误状态
+     *
+     * @return void
+     */
+    public function testNestedRequestKeepsOuterErrors(): void {
+        $previous=error_reporting(E_ALL);
+        Error::beginRequest();
+        try {
+            Error::handleError(E_USER_WARNING,'outer warning',__FILE__,1);
+            $outer=Error::getErrors();
+            $this->assertCount(1,$outer);
+
+            Error::beginRequest();
+            $this->assertSame(array(),Error::getErrors(),'内层请求应从空状态开始');
+            Error::handleError(E_USER_WARNING,'inner warning',__FILE__,2);
+            $this->assertCount(1,Error::getErrors());
+            Error::endRequest();
+
+            $this->assertSame($outer,Error::getErrors(),'内层结束不得清空外层错误');
+        } finally {
+            Error::endRequest();
+            error_reporting($previous);
+        }
+        $this->assertSame(array(),Error::getErrors());
+    }
+
+    /**
+     * 不同 Fiber 的错误状态互不影响
+     *
+     * @return void
+     */
+    public function testFiberErrorStatesAreIsolated(): void {
+        $previous=error_reporting(E_ALL);
+        $fiber_errors=null;
+        $fiber=new \Fiber(function() use (&$fiber_errors): void {
+            Error::beginRequest();
+            Error::handleError(E_USER_WARNING,'fiber warning',__FILE__,1);
+            $fiber_errors=Error::getErrors();
+            Error::endRequest();
+        });
+        Error::beginRequest();
+        try {
+            $fiber->start();
+            $this->assertCount(1,$fiber_errors);
+            $this->assertSame(array(),Error::getErrors(),'Fiber 内错误不得进入主流程');
+        } finally {
+            Error::endRequest();
+            error_reporting($previous);
+        }
     }
 
     /**
@@ -417,9 +493,20 @@ class ErrorTest extends TestCase {
      * @return void
      */
     private static function setErrors(array $errors): void {
-        $property=new ReflectionProperty(\base\Error::class,'errors');
-        $property->setAccessible(true);
-        $property->setValue(null,$errors);
+        Error::reset();
+        Error::beginRequest();
+        $previous=error_reporting(E_ALL);
+        try {
+            foreach($errors as $error)
+                Error::handleError(
+                    (int)$error['type'],
+                    (string)$error['message'],
+                    (string)$error['file'],
+                    (int)$error['line']
+                );
+        } finally {
+            error_reporting($previous);
+        }
     }
 
     /**

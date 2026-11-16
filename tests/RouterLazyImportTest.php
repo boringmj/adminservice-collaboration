@@ -70,6 +70,46 @@ class RouterLazyImportTest extends TestCase {
     }
 
     /**
+     * 测试: 缺省 params 时从路径推导, 含参路径仍可命中
+     *
+     * @return void
+     */
+    public function testImportDerivesMissingParams(): void {
+        foreach(array(true,false) as $lazy) {
+            $router=new Router();
+            $router->import(array(array(
+                'path'=>'/user/{id}',
+                'handler'=>array(ConcreteService::class,'execute'),
+                'pattern'=>'#^/user/(?P<id>[^/]+)$#'
+            )),true,$lazy);
+            $found=$router->find('GET','/user/42');
+            $this->assertNotNull($found);
+            $this->assertSame(array('id'=>'42'),$found[1]);
+        }
+    }
+
+    /**
+     * 测试: 导入失败时保留原有路由表
+     *
+     * @return void
+     */
+    public function testImportFailureKeepsPreviousRoutes(): void {
+        $router=new Router();
+        $router->get('/old',static fn(): string => 'old');
+        try {
+            $router->import(array(
+                array('path'=>'/a','handler'=>static fn(): string => 'a','pattern'=>'#^/a$#'),
+                array('bogus'=>1)
+            ),true,true);
+            $this->fail('非法路由数据应抛出异常');
+        } catch(Exception) {
+        }
+        $found=$router->find('GET','/old');
+        $this->assertNotNull($found);
+        $this->assertSame('/old',$found[0]->getPath());
+    }
+
+    /**
      * 测试: 懒加载导入后只实例化命中路由
      *
      * @return void
@@ -153,7 +193,7 @@ class RouterLazyImportTest extends TestCase {
     }
 
     /**
-     * 测试: 懒加载导出保留最小数据的键集合, 不实例化路由
+     * 测试: 懒加载导出保留最小数据并补齐匹配所需键, 不实例化路由
      *
      * @return void
      */
@@ -170,7 +210,10 @@ class RouterLazyImportTest extends TestCase {
             'path'=>'/minimal',
             'handler'=>array(ConcreteService::class,'execute'),
             'pattern'=>'#^/minimal$#',
-            'methods'=>array()
+            'methods'=>array(),
+            'params'=>array(),
+            'optional'=>array(),
+            'literal_length'=>8
         )),$router->export());
         $this->assertCount(0,$this->property($router,'routes'));
         $this->assertTrue($this->property($router,'lazy'));

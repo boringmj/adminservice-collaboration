@@ -369,6 +369,52 @@ class RouteCacheTest extends TestCase {
     }
 
     /**
+     * 测试: 路由文件内部 load() 的间接文件变化会使缓存失效
+     *
+     * @return void
+     */
+    public function testNestedRouteFileChangeInvalidatesCache(): void {
+        $inner=$this->dir.'/inner.php';
+        $writeInner=static function(string $path) use ($inner): void {
+            file_put_contents($inner,"<?php\n\nreturn function(\\AdminService\\Router\\Router \$router): void {\n"
+                ."    \$router->get('".$path."',array(\\Tests\\Fixtures\\RouteCacheController::class,'index'));\n};\n");
+            clearstatcache(true,$inner);
+        };
+        $this->writeRouteFile($this->route_file,"\$router->load(__DIR__.'/inner.php');");
+        $writeInner('/inner-a');
+        $config=$this->config(true,'always');
+
+        $first=(new RouterFactory())->get($config);
+        $this->assertNotNull($first->find('GET','/inner-a'));
+
+        $writeInner('/inner-b-long');
+        $second=(new RouterFactory())->get($config);
+        $this->assertNull($second->find('GET','/inner-a'),'间接路由文件变化后不得继续使用旧缓存');
+        $this->assertNotNull($second->find('GET','/inner-b-long'));
+        $this->assertSame(2,$GLOBALS['route_cache_builds'],'间接文件变化后应重新装配');
+    }
+
+    /**
+     * 测试: 配置不可序列化时路由配置变化仍会使缓存失效
+     *
+     * @return void
+     */
+    public function testUnserializableConfigStillInvalidatesOnRouteChange(): void {
+        $this->writeRoutes();
+        $other=$this->dir.'/other.php';
+        file_put_contents($other,"<?php\n\nreturn function(\\AdminService\\Router\\Router \$router): void {\n"
+            ."    \$router->get('/other',array(\\Tests\\Fixtures\\RouteCacheController::class,'index'));\n};\n");
+        $config=$this->config(true,'off');
+        $config->put('middlewares.controller',array(static function(): void {}));
+        $factory=new RouterFactory();
+        $this->assertNotNull($factory->get($config)->find('GET','/cached'));
+
+        $config->put('route.files',array($other));
+        $second=$factory->get($config);
+        $this->assertNotNull($second->find('GET','/other'),'路由配置变化后应重建 Router');
+    }
+
+    /**
      * 测试: 零探测模式仍按配置上下文区分缓存
      *
      * @return void

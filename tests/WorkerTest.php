@@ -29,6 +29,8 @@ use Fiber;
 use ReflectionProperty;
 use RuntimeException;
 use Tests\Fixtures\FakePdo;
+use Tests\Fixtures\RenderProbeController;
+use Tests\Fixtures\RenderScopeProcessor;
 use Tests\Fixtures\StreamProbeController;
 
 use function file_get_contents;
@@ -126,6 +128,44 @@ class WorkerTest extends TestCase {
             $this->assertNull($app->requestContext());
         } finally {
             StreamProbeController::$probe=null;
+            $worker->shutdown();
+            if($old_app!==null)
+                App::setInstance($old_app);
+            if($old_config!==null)
+                Config::setRepository($old_config);
+            if(is_file($route))
+                unlink($route);
+        }
+    }
+
+    /**
+     * 测试: 响应渲染阶段处于请求上下文内
+     *
+     * @return void
+     */
+    public function testResponseRenderingRunsInRequestContext(): void {
+        $old_config=Config::repository();
+        $old_app=App::hasInstance()?App::getInstance():null;
+        $route=tempnam(sys_get_temp_dir(),'worker_render_route_');
+        file_put_contents($route,"<?php\nreturn function(\\AdminService\\Router\\Router \$router): void {\n"
+            ."\$router->get('/render-probe',array(\\Tests\\Fixtures\\RenderProbeController::class,'index'));\n"
+            ."};\n");
+        $configs=Config::all();
+        $configs['route']['files']=array($route);
+        $configs['probe']=array('render'=>'app');
+        $configs['response']['default']['type']['text/html']['class']=RenderScopeProcessor::class;
+        $config=Config::new($configs);
+        $app=(new Application(new Container(),$config))->init();
+        $worker=new Worker($app);
+        RenderScopeProcessor::$marker=null;
+        RenderScopeProcessor::$has_context=false;
+        try {
+            $response=$worker->handle(RequestFactory::create('GET','/render-probe'));
+            $this->assertSame(200,$response->status());
+            $this->assertTrue(RenderScopeProcessor::$has_context,'渲染阶段应存在请求上下文');
+            $this->assertSame('request',RenderScopeProcessor::$marker,'渲染阶段门面应读取请求级配置');
+            $this->assertSame('request',$response->body());
+        } finally {
             $worker->shutdown();
             if($old_app!==null)
                 App::setInstance($old_app);

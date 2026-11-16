@@ -89,7 +89,7 @@ final class Worker {
     /**
      * 处理一个请求
      *
-     * - 写出回调在请求收尾前、请求上下文作用域内执行, 流式生成器可读取请求级对象
+     * - 渲染与写出在请求收尾前、请求上下文作用域内执行, 响应处理器与流式生成器可读取请求级对象
      *
      * @access public
      * @param WorkerRequest $request 请求
@@ -116,10 +116,13 @@ final class Worker {
             $core_response=$context->response();
             if(!$core_request instanceof Request||!$core_response instanceof Response)
                 throw new Exception('Worker request produced no response.');
-            $response=(new ResponseEmitter())->emit($core_response,$core_request);
+            // 渲染阶段同样处于请求上下文内: 响应处理器经门面读取请求级配置与容器
+            $response=$this->emitResponse($context,$core_response,$core_request);
         } catch(Throwable $e) {
             error_log('Worker request failed: '.get_class($e).': '.$e->getMessage());
-            $response=$this->errorResponse($e,$app,$context);
+            $response=$context===null
+                ?$this->errorResponse($e,$app)
+                :ContextStorage::run($context,fn(): WorkerResponse => $this->errorResponse($e,$app,$context));
         }
         try {
             // 写出阶段恢复请求上下文: 门面仍指向本请求的容器与配置
@@ -165,6 +168,24 @@ final class Worker {
         Error::setInitialized(false);
         $this->application=null;
         $this->booted=false;
+    }
+
+    /**
+     * 导出响应
+     *
+     * - 渲染阶段在请求上下文内执行, 与 FPM 响应出口一致
+     *
+     * @access private
+     * @param RequestContext|null $context 当前请求上下文
+     * @param Response $response 请求级响应
+     * @param Request $request 请求对象
+     * @return WorkerResponse
+     */
+    private function emitResponse(?RequestContext $context,Response $response,Request $request): WorkerResponse {
+        $emitter=new ResponseEmitter();
+        if($context===null)
+            return $emitter->emit($response,$request);
+        return ContextStorage::run($context,static fn(): WorkerResponse => $emitter->emit($response,$request));
     }
 
     /**

@@ -600,6 +600,46 @@ class CacheTest extends TestCase {
     }
 
     /**
+     * 测试: 缓存根指向当前目录或含 `.` / `..` 段时拒绝清理
+     *
+     * @return void
+     */
+    public function testClearAllRejectsRootLikePath(): void {
+        $marker=$this->dir.'/keep.txt';
+        file_put_contents($marker,'keep');
+        foreach(array('.',$this->dir.'/.',$this->dir.'/sub/..') as $path) {
+            $config=$this->makeConfig(array('path'=>$path));
+            $cache=new Cache($config);
+            try {
+                $cache->clearAll();
+                $this->fail('缓存路径 '.$path.' 应被拒绝');
+            } catch(Exception $e) {
+                $this->assertSame(100211,$e->getCode());
+            }
+            $this->assertFileExists($marker,'拒绝清理时不得删除任何文件');
+        }
+    }
+
+    /**
+     * 测试: 缓存根为符号链接时清理目标内容并保留链接
+     *
+     * @return void
+     */
+    public function testClearAllFollowsSymlinkedCacheRoot(): void {
+        $target=$this->dir.'/target';
+        mkdir($target,0755,true);
+        file_put_contents($target.'/stale.txt','x');
+        $link=$this->dir.'/link';
+        if(!@symlink($target,$link))
+            $this->markTestSkipped('当前系统无法创建目录符号链接');
+        $config=$this->makeConfig(array('path'=>$link));
+        $cache=new Cache($config);
+        $this->assertTrue($cache->clearAll());
+        $this->assertFalse(is_file($target.'/stale.txt'),'符号链接目标的缓存内容应被清理');
+        $this->assertTrue(is_link($link),'符号链接本身应保留');
+    }
+
+    /**
      * 测试: 非法键与非法池名必须被拒绝
      *
      * @return void

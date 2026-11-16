@@ -265,7 +265,9 @@ final class Console {
         if($result['type']==='command'&&$result['command']!==null) {
             $command=$result['command'];
             $input=new Input($result['remaining'],$command->valueOptions());
-            $this->validateOptions($command,$input);
+            // 全局 --help 会保留原命令选项, help 命令按路径展示帮助, 不校验这些选项
+            if(!$command instanceof HelpCommand)
+                $this->validateOptions($command,$input);
             return $command->execute($input,$this->output);
         }
         if($result['type']==='group') {
@@ -386,26 +388,12 @@ final class Console {
      */
     private function renderException(Throwable $e,int $code=1): int {
         $this->output->error('[ERROR] '.$e->getMessage());
-        if($this->verbose||$this->debugEnabled()) {
+        if($this->verbose) {
             $this->output->error('异常(Exception): '.$e::class);
             $this->output->error('文件(File): '.$e->getFile().':'.$e->getLine());
             $this->output->error($e->getTraceAsString());
         }
         return $code;
-    }
-
-    /**
-     * 是否开启调试
-     *
-     * @access private
-     * @return bool
-     */
-    private function debugEnabled(): bool {
-        try {
-            return $this->application!==null&&(bool)$this->application->config()->get('app.debug',false);
-        } catch(Throwable) {
-            return false;
-        }
     }
 
 }

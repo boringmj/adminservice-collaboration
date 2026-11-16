@@ -2,7 +2,6 @@
 
 namespace AdminService;
 use AdminService\Config\Repository;
-use base\Attribute\AutowireProperty;
 use base\ConfigInterface;
 use base\Container as ContainerContract;
 
@@ -19,10 +18,11 @@ use function is_string;
  */
 class UploadFilesForm extends AbstractUploadFilesForm {
     /**
-     * 配置(由容器装配时注入; 直接 new 时为 null → 每次回落门面当前那份)
+     * 配置(构造时注入; 未注入时回落门面当前那份)
+     *
+     * - 不使用属性自动注入: 构造参数显式传入的配置必须优先
      * @var ConfigInterface|null
      */
-    #[AutowireProperty(ConfigInterface::class)]
     private ?ConfigInterface $config=null;
 
     /**

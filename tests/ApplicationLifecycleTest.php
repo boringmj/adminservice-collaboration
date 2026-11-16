@@ -19,6 +19,7 @@ use AdminService\Runtime;
 use base\AbstractSession;
 use base\Request;
 use Fiber;
+use ReflectionProperty;
 use Tests\Fixtures\ConcreteService;
 
 use function count;
@@ -177,6 +178,56 @@ class ApplicationLifecycleTest extends TestCase {
 
             $this->assertTrue((bool)Config::get('app.debug'));
         });
+    }
+
+    /**
+     * 测试: 延迟落盘的请求失败时在请求边界落盘
+     *
+     * @return void
+     */
+    public function testFailedDeferredRequestFlushesMetadata(): void {
+        $application=new Application();
+        try {
+            $application->handle(static function(): void {
+                throw new \RuntimeException('boom');
+            },true);
+            $this->fail('异常应向外抛出');
+        } catch(\RuntimeException) {
+        }
+        $property=new ReflectionProperty(Container::class,'defer_metadata_flush');
+        $property->setAccessible(true);
+        $this->assertFalse(
+            (bool)$property->getValue($application->container()),
+            '异常路径应结束延迟模式并落盘'
+        );
+    }
+
+    /**
+     * 测试: 嵌套请求不覆盖外层的错误记录
+     *
+     * @return void
+     */
+    public function testNestedHandleKeepsOuterErrors(): void {
+        $application=new Application();
+        $previous=error_reporting(E_ALL);
+        try {
+            $application->handle(function() use ($application): void {
+                Error::handleError(E_USER_WARNING,'outer warning',__FILE__,1);
+                $this->assertCount(1,Error::getErrors());
+
+                $application->handle(function(): void {
+                    $this->assertSame(array(),Error::getErrors(),'内层请求应从空状态开始');
+                    Error::handleError(E_USER_WARNING,'inner warning',__FILE__,2);
+                });
+
+                $errors=Error::getErrors();
+                $this->assertCount(1,$errors);
+                $this->assertSame('outer warning',$errors[0]['message']);
+            });
+        } finally {
+            Error::reset();
+            error_reporting($previous);
+        }
     }
 
     /**

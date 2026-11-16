@@ -3,6 +3,7 @@
 namespace AdminService\Router;
 
 use AdminService\Cache\CompileStore;
+use AdminService\Exception;
 use base\ConfigInterface;
 use ReflectionClass;
 
@@ -14,6 +15,7 @@ use function is_object;
 use function is_string;
 use function ksort;
 use function md5;
+use function print_r;
 use function rtrim;
 use function scandir;
 use function serialize;
@@ -119,7 +121,14 @@ final class RouterFactory {
                 $config->get('middlewares.controller',array())
             )));
         } catch(\Throwable) {
-            return 'object:'.spl_object_hash($config);
+            // 含闭包等不可序列化值时, 仍让路由相关配置参与失效判断
+            $fallback=array(
+                $config->get('route',array()),
+                $config->get('cache.compile',array()),
+                $config->get('app.path'),
+                $config->get('middlewares.controller',array())
+            );
+            return 'object:'.spl_object_hash($config).':'.md5(print_r($fallback,true));
         }
     }
 
@@ -163,7 +172,7 @@ final class RouterFactory {
         } else {
             $payload=$inspect['payload'];
             if(!is_array($payload)
-                ||(int)($payload['version']??0)!==2
+                ||(int)($payload['version']??0)!==3
                 ||!isset($payload['routes'])
                 ||!is_array($payload['routes'])) {
                 $status='corrupted';
@@ -179,6 +188,10 @@ final class RouterFactory {
                 &&!$this->sourcesMatch($payload['sources']??null)) {
                 $status='stale';
                 $reason='路由处理器源文件已变化';
+            } elseif($store->shouldValidate()
+                &&!$this->sourcesMatch($payload['route_sources']??null)) {
+                $status='stale';
+                $reason='路由文件已变化';
             }
         }
         $inspect['status']=$status;
@@ -226,10 +239,11 @@ final class RouterFactory {
                 foreach($built->getRoutes() as $route)
                     $route->compileControllerMiddlewares($config->get('middlewares.controller',array()));
                 return array(
-                    'version'=>2,
+                    'version'=>3,
                     'sorted'=>true,
                     'routes'=>$built->export(),
-                    'sources'=>$this->handlerSources($built->getRoutes())
+                    'sources'=>$this->handlerSources($built->getRoutes()),
+                    'route_sources'=>$this->loadedFileStats($built)
                 );
             } catch(\Throwable) {
                 // 路由含闭包/对象或绑定无法预解析时保持实时路由, 不写缓存
@@ -243,10 +257,12 @@ final class RouterFactory {
             return $built;
         $validate_sources=$store->shouldValidate();
         if(is_array($payload)
-            &&(int)($payload['version']??0)===2
+            &&(int)($payload['version']??0)===3
             &&isset($payload['routes'])
             &&is_array($payload['routes'])
-            &&(!$validate_sources||$this->sourcesMatch($payload['sources']??null))) {
+            &&(!$validate_sources
+                ||($this->sourcesMatch($payload['sources']??null)
+                    &&$this->sourcesMatch($payload['route_sources']??null)))) {
             try {
                 $router=new Router();
                 $router->import($payload['routes'],!empty($payload['sorted']));
@@ -407,6 +423,23 @@ final class RouterFactory {
     }
 
     /**
+     * 收集装配期间读取的路由文件指纹
+     *
+     * - 含路由文件内部 `load()` 的间接文件; 缓存命中时这些文件不再执行, 由本清单校验
+     *
+     * @access private
+     * @param Router $router 已装配的路由表
+     * @return array<string,array{mtime:int,size:int}|null>
+     */
+    private function loadedFileStats(Router $router): array {
+        $stats=array();
+        foreach($router->getLoadedFiles() as $file)
+            $this->collectFileStats($file,$stats);
+        ksort($stats);
+        return $stats;
+    }
+
+    /**
      * 收集处理器类及其继承层次的文件指纹
      *
      * @access private
@@ -517,12 +550,13 @@ final class RouterFactory {
      * @access private
      * @param string $dir 目录
      * @return array<string>
+     * @throws Exception 目录不可读
      */
     private function listPhpFiles(string $dir): array {
         $dir=rtrim($dir,'/\\');
         $entries=@scandir($dir);
         if($entries===false)
-            return array();
+            throw new Exception('Route directory not readable.',-426,array('path'=>$dir));
         $files=array();
         foreach($entries as $entry)
             if(str_ends_with($entry,'.php'))

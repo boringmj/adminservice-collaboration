@@ -70,6 +70,19 @@ class ResponseTest extends TestCase {
     }
 
     /**
+     * 测试: 预置 rendered() 内容仍补类型的响应头
+     *
+     * @return void
+     */
+    public function testPresetRenderedContentKeepsTypeHeaders(): void {
+        $response=$this->responseWithConfig();
+        $response->contentType('text/plain');
+        $response->rendered('manual');
+        $this->assertSame('manual',$response->render());
+        $this->assertSame('text/plain; charset=utf-8',$response->header('Content-Type'));
+    }
+
+    /**
      * 测试状态码、Header与内容类型的读写
      * @return void
      */

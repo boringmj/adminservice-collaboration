@@ -65,13 +65,24 @@ final class Db {
     /**
      * 按执行流绑定的事务会话
      *
-     * - 键 = Db 实例标识 + 当前执行流标识
+     * - 键 = Db 实例标识 + 当前执行流标识 + 请求作用域标识
      * - 顺序执行用 `main`; Fiber / Swoole 协程各自独立
+     * - 请求作用域由应用层在请求边界设置, 嵌套请求各自独立
      * - 避免共享 Db 单例在交错执行时复用到别的事务会话
      *
      * @var array<string,ConnectionSessionInterface>
      */
     private static array $sessions=array();
+
+    /**
+     * 当前执行流的请求作用域标识
+     *
+     * - 键 = 执行流标识; 由应用层在请求边界设置, 结束时恢复上一层
+     * - 未设置时为空字符串(引导期 / 非请求代码)
+     *
+     * @var array<string,string>
+     */
+    private static array $scopes=array();
 
     /**
      * 按「连接名 + 配置指纹」缓存的数据库入口(纯配置调用共享单例)
@@ -114,6 +125,27 @@ final class Db {
         foreach(self::$instances as $instance)
             $instance->releaseSession();
         self::$instances=array();
+        self::$scopes=array();
+    }
+
+    /**
+     * 设置当前执行流的请求作用域
+     *
+     * - 应用层在请求开始时设置, 结束时恢复返回值
+     * - 传 null 清除当前执行流的作用域
+     *
+     * @access public
+     * @param string|null $scope 作用域标识
+     * @return string|null 上一层作用域(未设置时为 null)
+     */
+    public static function setRequestScope(?string $scope): ?string {
+        $key=self::contextKey();
+        $previous=self::$scopes[$key]??null;
+        if($scope===null)
+            unset(self::$scopes[$key]);
+        else
+            self::$scopes[$key]=$scope;
+        return $previous;
     }
 
     /**
@@ -208,7 +240,7 @@ final class Db {
      * @return string
      */
     private function sessionKey(): string {
-        return spl_object_hash($this).'|'.self::contextKey();
+        return spl_object_hash($this).'|'.self::contextKey().'|'.(self::$scopes[self::contextKey()]??'');
     }
 
     /**

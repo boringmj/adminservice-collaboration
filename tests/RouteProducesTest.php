@@ -10,6 +10,7 @@ use AdminService\HttpRequest;
 use AdminService\Main;
 use AdminService\Response as HttpResponse;
 use AdminService\Router\RouteItem;
+use AdminService\Router\Router;
 use base\Attribute\Method;
 use base\Attribute\Produces;
 use base\Response;
@@ -378,6 +379,31 @@ class RouteProducesTest extends TestCase {
         $this->assertSame(array('application/json'),$data['produces']);
         $restored=RouteItem::fromArray($data);
         $this->assertSame(array('application/json'),$restored->getProduces());
+    }
+
+    /**
+     * 测试: 导入数据缺少 produces 键时回落到方法注解
+     *
+     * @return void
+     */
+    public function testImportedDataFallsBackToAttribute(): void {
+        $data=array(
+            'path'=>'/p/import',
+            'handler'=>array(ProducesController::class,'jsonOnly'),
+            'pattern'=>'#^/p/import$#',
+            'methods'=>array('GET'),
+            'params'=>array()
+        );
+        $route=RouteItem::fromArray($data);
+        $this->assertSame(array('application/json'),$route->getProduces());
+
+        foreach(array(true,false) as $lazy) {
+            $router=new Router();
+            $router->import(array($data),true,$lazy);
+            $found=$router->find('GET','/p/import');
+            $this->assertNotNull($found);
+            $this->assertSame(array('application/json'),$found[0]->getProduces());
+        }
     }
 
     /**

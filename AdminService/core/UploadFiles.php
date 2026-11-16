@@ -45,6 +45,12 @@ final class UploadFiles extends AbstractUploadFiles {
     protected string $hash_algo='';
 
     /**
+     * 可计算哈希的文件大小上限(字节, <=0 表示不限制)
+     * @var int
+     */
+    protected int $hash_max_size=104857600;
+
+    /**
      * 请求级容器(用于构建 UploadFile)
      * @var ContainerContract|null
      */
@@ -79,6 +85,7 @@ final class UploadFiles extends AbstractUploadFiles {
         $this->name_rule=$rules['name_rule']??'/[^a-zA-Z\.0-9_\-]/';
         $this->ext_rule=$rules['ext_rule']??'/[^0-9a-z-]/';
         $this->hash_algo=$rules['hash']['algo']??'sha1';
+        $this->hash_max_size=(int)($rules['hash']['max_size']??104857600);
         $this->container=$container;
         $this->trusted_files=$trusted_files;
         parent::__construct($dir,$files);
@@ -164,7 +171,8 @@ final class UploadFiles extends AbstractUploadFiles {
                 'extension'=>$safe_ext,
                 'path'=>$tmp_file,
                 'confirm_dir'=>$this->dir,
-                'hash_algo'=>$this->hash_algo
+                'hash_algo'=>$this->hash_algo,
+                'hash_max_size'=>$this->hash_max_size
             );
             $upload_file=$this->container!==null
                 ? $this->container->build(UploadFile::class,...$arguments)

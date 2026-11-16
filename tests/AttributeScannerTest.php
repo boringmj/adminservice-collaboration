@@ -77,4 +77,17 @@ class AttributeScannerTest extends TestCase {
         (new AttributeScanner())->scan($this->tempDir);
     }
 
+    /**
+     * 测试目录不可读时抛异常
+     *
+     * - 静默返回空列表会让属性路由全部消失
+     *
+     * @return void
+     */
+    public function testScanThrowsOnUnreadableDirectory(): void {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Controller directory not readable.');
+        (new AttributeScanner())->scan(__FILE__);
+    }
+
 }

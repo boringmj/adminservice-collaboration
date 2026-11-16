@@ -400,7 +400,7 @@ final class CommandRegistry {
      *
      * @access private
      * @param array<int,string> $tokens 原始 token
-     * @return array{target:string,tokens:int}|null
+     * @return array{target:string,tokens:int,leftover:array<int,string>}|null
      */
     private function findShortcut(array $tokens): ?array {
         $segments=array();
@@ -408,14 +408,19 @@ final class CommandRegistry {
         foreach($tokens as $index=>$token) {
             if(str_starts_with($token,'-'))
                 break;
-            foreach($this->segments($token) as $segment)
+            $token_segments=$this->segments($token);
+            foreach($token_segments as $offset=>$segment) {
                 $segments[]=$segment;
-            $path=implode(' ',$segments);
-            if(isset($this->shortcuts[$path]))
+                $path=implode(' ',$segments);
+                if(!isset($this->shortcuts[$path]))
+                    continue;
                 $best=array(
                     'target'=>$this->shortcuts[$path],
-                    'tokens'=>$index+1
+                    'tokens'=>$index+1,
+                    // 冒号写法可能只消费了 token 的一部分
+                    'leftover'=>array_slice($token_segments,$offset+1)
                 );
+            }
         }
         return $best;
     }
@@ -430,18 +435,28 @@ final class CommandRegistry {
      */
     private function expandShortcut(array $shortcut,array $tokens): array {
         $target=explode(' ',$shortcut['target']);
-        $expanded=array_merge($target,array_slice($tokens,$shortcut['tokens']));
+        $leftover=$shortcut['leftover'];
+        $expanded=array_merge($target,$leftover,array_slice($tokens,$shortcut['tokens']));
         $result=$this->resolve($expanded);
         if($result['type']==='none')
             return $this->none($tokens);
-        $extra=max(0,$result['consumed']-count($target));
+        $target_count=count($target);
+        $leftover_count=count($leftover);
+        // 目标与 leftover 之外的段来自后续 token, 按一个 token 一段换算
+        $extra=max(0,$result['consumed']-$target_count-$leftover_count);
         $consumed=min(count($tokens),$shortcut['tokens']+$extra);
+        $remaining=array_slice($tokens,$consumed);
+        // leftover 中未被消费的段放回参数前
+        $leftover_used=min($leftover_count,max(0,$result['consumed']-$target_count));
+        $unused=array_slice($leftover,$leftover_used);
+        if($unused!==array())
+            array_unshift($remaining,...$unused);
         return array(
             'type'=>$result['type'],
             'name'=>$result['name'],
             'command'=>$result['command'],
             'consumed'=>$consumed,
-            'remaining'=>array_slice($tokens,$consumed)
+            'remaining'=>$remaining
         );
     }
 

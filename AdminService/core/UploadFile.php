@@ -8,6 +8,7 @@ use AdminService\exception\UploadException;
 use AdminService\exception\UploadStorageException;
 
 use function file_exists;
+use function filesize;
 use function hash_algos;
 use function hash_file;
 use function in_array;
@@ -50,6 +51,9 @@ final class UploadFile extends AbstractUploadFile {
         $file_path=$this->getTempPath();
         if(!file_exists($file_path)||!is_readable($file_path))
             throw new UploadException('文件不存在或不可读');
+        $size=filesize($file_path);
+        if($this->hash_max_size>0&&$size!==false&&$size>$this->hash_max_size)
+            throw new UploadException('文件超过可计算哈希的大小上限');
         if(!in_array($algo,hash_algos()))
             throw new UploadException('不支持的哈希算法');
         $hash=hash_file($algo,$file_path);

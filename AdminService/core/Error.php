@@ -8,8 +8,10 @@ use base\Container as ContainerContract;
 use base\Response;
 use base\View;
 
+use function array_pop;
 use function array_shift;
 use function call_user_func;
+use function class_exists;
 use function count;
 use function debug_backtrace;
 use function error_get_last;
@@ -37,6 +39,7 @@ use function preg_match;
 use function register_shutdown_function;
 use function set_error_handler;
 use function set_exception_handler;
+use function spl_object_id;
 use function sprintf;
 use function str_replace;
 use function strlen;
@@ -66,8 +69,9 @@ final class Error extends BaseError {
         if($context!==null)
             return $context->config();
         // 关停阶段的错误出口在上下文弹出后仍需使用最近请求的配置
-        if(self::$handled&&self::$request_context!==null)
-            return self::$request_context->config();
+        $state=self::state();
+        if($state['handled']&&$state['context']!==null)
+            return $state['context']->config();
         $container=self::$container;
         if($container!==null&&$container->hasInstance(ConfigInterface::class))
             return $container->get(ConfigInterface::class);
@@ -97,26 +101,90 @@ final class Error extends BaseError {
     private static ?ContainerContract $container=null;
 
     /**
-     * 当前(最近一次)请求级容器
+     * 按执行流隔离的请求态错误状态
      *
-     * - 由 `Application::handle()` 在请求开始时注入
-     * - 错误出口优先使用它, 保证取到的是当前请求的 `Response`, 而不是应用级容器里另建的响应
+     * - 每个执行流一个栈: 首项为基础状态, 每次 `beginRequest()` 压入请求状态, `endRequest()` 弹出
+     * - 避免常驻 worker 的协程并发请求共享错误记录与请求容器
+     * - 键为 Fiber / Swoole 协程 / 顺序主流程标识
      *
-     * @var ContainerContract|null
+     * @var array<string,array<int,array{
+     *     errors:array<int,array<string,mixed>>,
+     *     handled:bool,
+     *     container:ContainerContract|null,
+     *     context:RequestContext|null
+     * }>>
      */
-    private static ?ContainerContract $request_container=null;
-
-    /**
-     * 当前请求上下文
-     * @var RequestContext|null
-     */
-    private static ?RequestContext $request_context=null;
+    private static array $states=array();
 
     /**
      * 标记框架是否初始化完成(用于决定是否记录日志)
      * @var bool
      */
     private static $initialized=false;
+
+    /**
+     * 当前执行流标识
+     *
+     * @access private
+     * @return string
+     */
+    private static function executionKey(): string {
+        if(class_exists(\Fiber::class,false)&&($fiber=\Fiber::getCurrent())!==null)
+            return 'fiber:'.spl_object_id($fiber);
+        if(class_exists(\Swoole\Coroutine::class,false)&&\Swoole\Coroutine::getCid()>0)
+            return 'swoole:'.\Swoole\Coroutine::getCid();
+        if(class_exists(\OpenSwoole\Coroutine::class,false)&&\OpenSwoole\Coroutine::getCid()>0)
+            return 'openswoole:'.\OpenSwoole\Coroutine::getCid();
+        return 'main';
+    }
+
+    /**
+     * 新的空请求状态
+     *
+     * @access private
+     * @return array{errors:array<int,array<string,mixed>>,handled:bool,container:ContainerContract|null,context:RequestContext|null}
+     */
+    private static function freshState(): array {
+        return array(
+            'errors'=>array(),
+            'handled'=>false,
+            'container'=>null,
+            'context'=>null
+        );
+    }
+
+    /**
+     * 当前执行流的栈顶状态
+     *
+     * @access private
+     * @return array{errors:array<int,array<string,mixed>>,handled:bool,container:ContainerContract|null,context:RequestContext|null}
+     */
+    private static function &state(): array {
+        $key=self::executionKey();
+        if(!isset(self::$states[$key])||self::$states[$key]===array())
+            self::$states[$key]=array(self::freshState());
+        $index=count(self::$states[$key])-1;
+        return self::$states[$key][$index];
+    }
+
+    /**
+     * 记录引导期错误
+     *
+     * @access private
+     * @param array<int,array<string,mixed>> $errors 错误列表
+     * @return void
+     */
+    private static function logBootErrors(array $errors): void {
+        foreach($errors as $error) {
+            $type=self::$errorTypes[$error['type']??0]??'Unknown';
+            self::writeFallbackLog('[Boot] {type}: {message} in {file} on line {line}',array(
+                'type'=>$type,
+                'message'=>(string)($error['message']??''),
+                'file'=>(string)($error['file']??''),
+                'line'=>(string)($error['line']??'')
+            ));
+        }
+    }
 
     /**
      * 注入容器(引导期调用; 传 null 可卸载)
@@ -140,6 +208,17 @@ final class Error extends BaseError {
     }
 
     /**
+     * 获取当前执行流收集到的错误
+     *
+     * @access public
+     * @return array<int,array<string,mixed>>
+     */
+    public static function getErrors(): array {
+        $state=self::state();
+        return $state['errors'];
+    }
+
+    /**
      * 注入当前请求级容器(请求开始时调用; 传 null 可卸载)
      *
      * @access public
@@ -147,7 +226,8 @@ final class Error extends BaseError {
      * @return void
      */
     public static function setRequestContainer(?ContainerContract $container): void {
-        self::$request_container=$container;
+        $state=&self::state();
+        $state['container']=$container;
     }
 
     /**
@@ -158,7 +238,8 @@ final class Error extends BaseError {
      * @return void
      */
     public static function setRequestContext(?RequestContext $context): void {
-        self::$request_context=$context;
+        $state=&self::state();
+        $state['context']=$context;
     }
 
     /**
@@ -168,7 +249,8 @@ final class Error extends BaseError {
      * @return RequestContext|null
      */
     public static function requestContext(): ?RequestContext {
-        return ContextStorage::current()??self::$request_context;
+        $state=self::state();
+        return ContextStorage::current()??$state['context'];
     }
 
     /**
@@ -181,10 +263,7 @@ final class Error extends BaseError {
      * @return void
      */
     public static function reset(): void {
-        self::$errors=array();
-        self::$handled=false;
-        self::$request_container=null;
-        self::$request_context=null;
+        self::$states=array();
     }
 
     /**
@@ -199,10 +278,20 @@ final class Error extends BaseError {
      * @return void
      */
     public static function beginRequest(?ContainerContract $container=null,?RequestContext $context=null): void {
-        self::$errors=array();
-        self::$handled=false;
-        self::$request_container=$container;
-        self::$request_context=$context;
+        $key=self::executionKey();
+        if(!isset(self::$states[$key])||self::$states[$key]===array())
+            self::$states[$key]=array(self::freshState());
+        elseif(count(self::$states[$key])===1&&self::$states[$key][0]['errors']!==array()) {
+            // 引导期错误没有请求可展示, 记录到 PHP 错误日志后丢弃
+            self::logBootErrors(self::$states[$key][0]['errors']);
+            self::$states[$key][0]=self::freshState();
+        }
+        self::$states[$key][]=array(
+            'errors'=>array(),
+            'handled'=>false,
+            'container'=>$container,
+            'context'=>$context
+        );
     }
 
     /**
@@ -215,9 +304,14 @@ final class Error extends BaseError {
      * @return void
      */
     public static function endRequest(): void {
-        self::$request_container=null;
-        self::$request_context=null;
-        self::$errors=array();
+        $key=self::executionKey();
+        if(!isset(self::$states[$key])||self::$states[$key]===array())
+            return;
+        if(count(self::$states[$key])>1) {
+            array_pop(self::$states[$key]);
+            return;
+        }
+        self::$states[$key]=array(self::freshState());
     }
 
     /**
@@ -233,9 +327,10 @@ final class Error extends BaseError {
         if($context!==null)
             return $context->container();
         // 关停阶段的错误出口在上下文弹出后仍需使用最近请求的响应容器
-        if(self::$handled&&self::$request_context!==null)
-            return self::$request_context->container();
-        return self::$request_container??self::$container;
+        $state=self::state();
+        if($state['handled']&&$state['context']!==null)
+            return $state['context']->container();
+        return $state['container']??self::$container;
     }
 
     /**
@@ -333,7 +428,8 @@ final class Error extends BaseError {
         $stackTrace=debug_backtrace();
         // 移除错误处理器自身的调用
         array_shift($stackTrace);
-        self::$errors[]=array(
+        $state=&self::state();
+        $state['errors'][]=array(
             'type'=>$type,
             'message'=>$message,
             'file'=>$file,
@@ -354,7 +450,8 @@ final class Error extends BaseError {
      * @return void
      */
     public static function handleException(\Throwable $exception): void {
-        self::$errors[]=self::exceptionRecord($exception);
+        $state=&self::state();
+        $state['errors'][]=self::exceptionRecord($exception);
         // 处理并让脚本自然结束; 不主动 exit(), 保留后续 shutdown 回调
         self::handleShutdown();
     }
@@ -375,11 +472,12 @@ final class Error extends BaseError {
         ?\Throwable $exception=null,
         ?ContainerContract $container=null
     ): string {
+        $state=&self::state();
         if($exception!==null)
-            self::$errors[]=self::exceptionRecord($exception);
-        if(self::$errors===array())
+            $state['errors'][]=self::exceptionRecord($exception);
+        if($state['errors']===array())
             return '';
-        self::$handled=true;
+        $state['handled']=true;
         $errorPage=self::renderErrors($container);
         $logFailure=self::writeErrorLogs($container);
         if($logFailure!==null) {
@@ -415,8 +513,9 @@ final class Error extends BaseError {
      * @return void
      */
     public static function handleShutdown(): void {
+        $state=&self::state();
         // 如果已经处理过错误,则直接退出
-        if(self::$handled) {
+        if($state['handled']) {
             return;
         }
         // 捕获致命错误
@@ -434,7 +533,7 @@ final class Error extends BaseError {
                 // 移除shutdown函数调用
                 array_shift($stackTrace);
             }
-            self::$errors[]=array(
+            $state['errors'][]=array(
                 'type'=>$lastError['type'],
                 'message'=>trim($message),
                 'file'=>$lastError['file'],
@@ -445,7 +544,7 @@ final class Error extends BaseError {
             );
         }
         // 如果没有错误则正常退出
-        if(empty(self::$errors)) {
+        if(empty($state['errors'])) {
             if(is_callable(self::$normalExitCallback)) {
                 call_user_func(self::$normalExitCallback);
             }
@@ -453,7 +552,7 @@ final class Error extends BaseError {
             return;
         }
         // 标记已处理
-        self::$handled=true;
+        $state['handled']=true;
         // 渲染并退出
         self::renderAndExit();
     }
@@ -524,7 +623,8 @@ final class Error extends BaseError {
      */
     private static function writeErrorLogs(?ContainerContract $provided=null): ?\Throwable {
         try {
-            foreach(self::$errors as $error) {
+            $state=self::state();
+            foreach($state['errors'] as $error) {
                 $errorType=self::$errorTypes[$error['type']]??'Unknown';
                 $logMessage="[{$errorType}] {message} in {file} on line {line}";
                 if(!empty($error['stack_trace'])) {
@@ -609,7 +709,8 @@ final class Error extends BaseError {
         $debug_mode=self::isDebug($container);
         // 预处理错误数据
         $processed_errors=[];
-        foreach(self::$errors as $index=>$error) {
+        $state=self::state();
+        foreach($state['errors'] as $index=>$error) {
             // 确定错误类型名称
             $type_name=self::$errorTypes[$error['type']]??'Unknown Error';
             // 确定错误类型标签
@@ -647,7 +748,7 @@ final class Error extends BaseError {
         }
         // 准备模板数据
         $template_data=[
-            'error_count'=>count(self::$errors),
+            'error_count'=>count($state['errors']),
             'errors'=>$processed_errors,
             'debug_mode'=>$debug_mode,
             'output_content'=>null,

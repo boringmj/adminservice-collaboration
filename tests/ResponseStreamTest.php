@@ -83,6 +83,38 @@ class ResponseStreamTest extends TestCase {
     }
 
     /**
+     * 测试: 流式响应参与 strict 内容协商, 不可接受时不执行生成器
+     *
+     * @return void
+     */
+    public function testStreamParticipatesInStrictNegotiation(): void {
+        $response=new Response(new Repository(array(
+            'response'=>array('default'=>array(
+                'negotiation'=>'strict',
+                'type'=>array(
+                    'text/plain'=>array(
+                        'class'=>Http::class,
+                        'headers'=>array('Content-Type'=>'text/plain; charset=utf-8')
+                    )
+                )
+            ))
+        )));
+        $executed=false;
+        $response->stream(static function(callable $write) use (&$executed): void {
+            $executed=true;
+            $write('streamed');
+        });
+        $data=$response->export(new HttpRequest(array(
+            'headers'=>array('Accept'=>'application/xml'),
+            'server'=>array('REQUEST_METHOD'=>'GET')
+        )));
+        $this->assertSame(406,$data['status']);
+        $this->assertNull($data['stream'],'406 响应不得继续执行流式生成器');
+        $this->assertFalse($executed);
+        $this->assertSame('406 Not Acceptable',$data['body']);
+    }
+
+    /**
      * 测试: 流式断开处理方式取值无效时抛异常
      *
      * @return void

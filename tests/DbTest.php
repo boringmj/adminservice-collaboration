@@ -248,6 +248,31 @@ class DbTest extends TestCase {
     }
 
     /**
+     * 测试: 嵌套请求作用域的事务会话互不共享
+     *
+     * @return void
+     */
+    public function testRequestScopeIsolatesTransactionSessions(): void {
+        $pdo=new FakePdo();
+        $db=$this->createDb($pdo);
+        $previous=Db::setRequestScope('outer');
+        try {
+            $db->beginTransaction();
+            Db::setRequestScope('inner');
+            $db->beginTransaction();
+            // 内层请求结束: 只释放内层会话
+            $db->releaseCurrentSession();
+            Db::setRequestScope('outer');
+            $db->commit();
+            $this->assertSame(array('begin','begin','rollback','commit'),$pdo->transactionCalls);
+            $this->assertNull($db->getTransactionContext());
+        } finally {
+            $db->releaseSession();
+            Db::setRequestScope($previous);
+        }
+    }
+
+    /**
      * 测试: 两个 Fiber 的事务会话互不共享
      *
      * @return void

@@ -38,27 +38,27 @@ final class AttributeScanner {
      * @access public
      * @param string $appPath 应用根目录(其下每个子目录视为一个应用)
      * @return array<class-string> 控制器类名列表
-     * @throws Exception 文件名与类名不一致
+     * @throws Exception 目录不可读或文件名与类名不一致
      */
     public function scan(string $appPath): array {
         $classes=array();
         $root=rtrim($appPath,'/\\');
         $files=array();
         $apps=@scandir($root);
-        if($apps!==false) {
-            foreach($apps as $app) {
-                if($app==='.'||$app==='..')
-                    continue;
-                $controller=$root.'/'.$app.'/controller';
-                if(!is_dir($controller))
-                    continue;
-                $entries=@scandir($controller);
-                if($entries===false)
-                    continue;
-                foreach($entries as $entry)
-                    if(str_ends_with($entry,'.php')&&is_file($controller.'/'.$entry))
-                        $files[]=$controller.'/'.$entry;
-            }
+        if($apps===false)
+            throw new Exception('Controller directory not readable.',-426,array('path'=>$root));
+        foreach($apps as $app) {
+            if($app==='.'||$app==='..')
+                continue;
+            $controller=$root.'/'.$app.'/controller';
+            if(!is_dir($controller))
+                continue;
+            $entries=@scandir($controller);
+            if($entries===false)
+                throw new Exception('Controller directory not readable.',-426,array('path'=>$controller));
+            foreach($entries as $entry)
+                if(str_ends_with($entry,'.php')&&is_file($controller.'/'.$entry))
+                    $files[]=$controller.'/'.$entry;
         }
         sort($files);
         foreach($files as $file) {

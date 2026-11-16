@@ -280,7 +280,12 @@ final class HttpRequest extends Request {
                     config:$this->config(),
                     trusted_files:$this->trusted_files
                 )
-                : new UploadFilesForm($save_dir,$this->raw_files,trusted_files:$this->trusted_files);
+                : new UploadFilesForm(
+                    $save_dir,
+                    $this->raw_files,
+                    config:$this->config(),
+                    trusted_files:$this->trusted_files
+                );
         }
         return $this->file_form;
     }

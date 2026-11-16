@@ -18,6 +18,7 @@ use function class_exists;
 use function interface_exists;
 use function in_array;
 use function is_int;
+use function spl_object_id;
 
 /**
  * 应用
@@ -302,6 +303,8 @@ final class Application {
         // 请求级 scope: 实例表独立; 绑定/别名/单例表在 fork 时复制; 反射缓存共享
         $container=$this->container->fork();
         $this->request_container=$container;
+        // 数据库事务会话按请求隔离: 嵌套请求共用执行流, 不能共用会话键
+        $previous_scope=BaseDb::setRequestScope('request:'.spl_object_id($container));
         // 容器元数据在请求处理期间只标脏, 结束时统一落盘
         if($container instanceof Container)
             $container->deferMetadataFlush();
@@ -327,8 +330,7 @@ final class Application {
             $this->request_context=$context;
             $this->last_request_context=$context;
             Error::setRequestContext($context);
-            $completed=true;
-            return ContextStorage::run(
+            $result=ContextStorage::run(
                 $context,
                 function() use ($callback,$container): mixed {
                     try {
@@ -345,6 +347,8 @@ final class Application {
                     }
                 }
             );
+            $completed=true;
+            return $result;
         } finally {
             // 正常 HTTP 请求把落盘推迟到响应发送后; 异常或普通调用在请求边界落盘
             if(!$defer_metadata||!$completed)
@@ -354,6 +358,8 @@ final class Application {
             if($is_nested) {
                 $this->last_request_context=$previous_last;
                 $this->request_container=$previous_last?->container()??$this->request_container;
+                // 弹出内层错误状态, 恢复外层请求的错误记录与容器
+                Error::endRequest();
                 Error::setRequestContainer($previous_last?->container());
                 Error::setRequestContext($previous_last);
             }
@@ -363,6 +369,7 @@ final class Application {
                 App::setInstance($this->container);
             else
                 App::setInstance($previous_instance??$this->container);
+            BaseDb::setRequestScope($previous_scope);
         }
     }
 

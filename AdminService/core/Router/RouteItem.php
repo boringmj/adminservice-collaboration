@@ -276,6 +276,22 @@ final class RouteItem {
                 }
             }
         }
+        // 可选键缺省时从路径重新推导, 避免懒加载把含参路径当成静态路由
+        if(!isset($data['params'])||!is_array($data['params'])
+            ||!isset($data['optional'])||!is_array($data['optional'])
+            ||!array_key_exists('literal_length',$data)) {
+            $compiled=new self(
+                isset($data['methods'])&&is_array($data['methods'])?$data['methods']:array(),
+                $data['path'],
+                $data['handler']
+            );
+            if(!isset($data['params'])||!is_array($data['params']))
+                $data['params']=$compiled->params;
+            if(!isset($data['optional'])||!is_array($data['optional']))
+                $data['optional']=$compiled->optional;
+            if(!array_key_exists('literal_length',$data))
+                $data['literal_length']=$compiled->literalLength;
+        }
         return $data;
     }
 
@@ -803,20 +819,20 @@ final class RouteItem {
         $route->name=isset($data['name'])&&is_string($data['name'])?$data['name']:null;
         if(isset($data['bindings'])&&is_array($data['bindings']))
             $route->bindings=$data['bindings'];
-        $route->produces=isset($data['produces'])&&is_array($data['produces'])?$data['produces']:array();
+        // 缺省保持 null: 允许 getProduces() 回落到处理器方法上的注解
+        if(isset($data['produces'])&&is_array($data['produces']))
+            $route->produces=$data['produces'];
         $route->resolved_bindings=isset($data['resolved_bindings'])&&is_array($data['resolved_bindings'])
             ?$data['resolved_bindings']
             :null;
         if(isset($data['pattern'])&&is_string($data['pattern'])&&$data['pattern']!=='')
             $route->pattern=$data['pattern'];
-        if(isset($data['params'])&&is_array($data['params']))
-            $route->params=array_values($data['params']);
-        if(isset($data['optional'])&&is_array($data['optional']))
-            $route->optional=array_values($data['optional']);
+        // normalizeData() 已补齐 params / optional / literal_length
+        $route->params=array_values((array)($data['params']??array()));
+        $route->optional=array_values((array)($data['optional']??array()));
         if(isset($data['constraints'])&&is_array($data['constraints']))
             $route->constraints=$data['constraints'];
-        if(array_key_exists('literal_length',$data))
-            $route->literalLength=(int)$data['literal_length'];
+        $route->literalLength=(int)($data['literal_length']??0);
         $route->compiled_controller_middlewares=isset($data['controller_middlewares'])&&is_array($data['controller_middlewares'])
             ?$data['controller_middlewares']
             :null;

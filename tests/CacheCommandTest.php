@@ -15,6 +15,7 @@ use AdminService\Console\Input;
 use AdminService\Console\Output;
 use AdminService\Router\RouterFactory;
 use AdminService\Runtime;
+use Tests\Fixtures\FirstMiddleware;
 use Tests\Fixtures\RouteCacheController;
 
 use function AdminService\env_reset;
@@ -311,6 +312,24 @@ class CacheCommandTest extends TestCase {
         $this->assertSame(0,$command->execute(new Input(array('container','--force')),$output));
         $this->assertFileDoesNotExist($this->dir.'/cache/compile/routes.cache.php');
         $this->assertFileExists($this->dir.'/cache/compile/container.cache.php');
+    }
+
+    /**
+     * 测试容器预热覆盖条目写法与控制器属性中间件
+     *
+     * @return void
+     */
+    public function testContainerBuildWarmsConfiguredAndAttributeMiddlewares(): void {
+        $this->config->put('middlewares.request',array(
+            array('middleware'=>FirstMiddleware::class,'priority'=>10)
+        ));
+        $command=new CacheBuildCommand(new Bootstrapper(),$this->config);
+        $output=Output::buffer();
+        $this->assertSame(0,$command->execute(new Input(array('container','--force')),$output));
+        $cache=(string)file_get_contents($this->dir.'/cache/compile/container.cache.php');
+        // 缓存文件由 var_export 写出, 类名中的反斜杠会被转义
+        $this->assertStringContainsString('FirstMiddleware',$cache,'条目写法的中间件应被预热');
+        $this->assertStringContainsString('RouteCacheMiddleware',$cache,'控制器属性中间件应被预热');
     }
 
     /**

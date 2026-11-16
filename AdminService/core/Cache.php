@@ -36,6 +36,7 @@ use function mkdir;
 use function opcache_invalidate;
 use function preg_match;
 use function random_int;
+use function realpath;
 use function rename;
 use function rmdir;
 use function rtrim;
@@ -84,6 +85,7 @@ final class Cache implements CacheInterface {
     private const ERROR_NOT_INTEGER=100208;
     private const ERROR_SERIALIZE_FAILED=100209;
     private const ERROR_INVALID_CLEAR_TARGET=100210;
+    private const ERROR_INVALID_PATH=100211;
 
     /**
      * 编译缓存文件名映射
@@ -369,7 +371,7 @@ final class Cache implements CacheInterface {
      */
     public function clear(): bool {
         $path=$this->poolPath();
-        if(!is_dir($path)||is_link($path))
+        if(!is_dir($path))
             return true;
         return $this->removeDirectoryContents($path,true);
     }
@@ -390,7 +392,7 @@ final class Cache implements CacheInterface {
         if($limit<=0)
             $limit=PHP_INT_MAX;
         $kv=$this->kvRoot();
-        if(!is_dir($kv)||is_link($kv))
+        if(!is_dir($kv))
             return 0;
         $visited=array();
         $result=$this->gcScan($kv,$this->readGcCursor(),$limit,$visited);
@@ -454,7 +456,8 @@ final class Cache implements CacheInterface {
     public function clearAll(): bool {
         $root=$this->cacheRoot();
         $ok=true;
-        if(is_dir($root)&&!is_link($root))
+        // 符号链接指向的缓存目录同样清理内容, 链接本身保留
+        if(is_dir($root))
             $ok=$this->removeDirectoryContents($root,true);
         // 配置快照是引导期例外, 即使 cache.path 自定义也要一并清理
         $runtime=$this->runtimeCompileRoot();
@@ -1208,17 +1211,32 @@ final class Cache implements CacheInterface {
      * 缓存根目录
      *
      * - `cache.path` 缺失或为空时回落到 `Runtime::path().'/cache'`
+     * - 拒绝文件系统根与 `.` / `..` 路径段: 这些值会让清理操作越过缓存目录
      *
      * @access private
      * @return string
+     * @throws Exception 配置的缓存路径指向根目录或包含 `.` / `..` 段
      */
     private function cacheRoot(): string {
         $path=$this->config()->get('cache.path');
         if(!is_string($path)||trim($path)==='')
-            $path=Runtime::path().'/cache';
-        $path=rtrim(str_replace('\\','/',$path),'/');
+            return Runtime::path().'/cache';
+        $path=rtrim(str_replace('\\','/',trim($path)),'/');
         if($path==='')
-            $path=Runtime::path().'/cache';
+            return Runtime::path().'/cache';
+        $segments=explode('/',$path);
+        foreach($segments as $segment)
+            if($segment==='.'||$segment==='..')
+                throw new Exception('Cache path is invalid.',self::ERROR_INVALID_PATH,array('path'=>$path));
+        if(preg_match('#^(?:[a-zA-Z]:)?/*$#',$path)===1)
+            throw new Exception('Cache path is invalid.',self::ERROR_INVALID_PATH,array('path'=>$path));
+        // 符号链接解析后同样不能落在文件系统根
+        $real=realpath($path);
+        if($real!==false) {
+            $real=rtrim(str_replace('\\','/',$real),'/');
+            if($real===''||preg_match('#^(?:[a-zA-Z]:)?/*$#',$real)===1)
+                throw new Exception('Cache path is invalid.',self::ERROR_INVALID_PATH,array('path'=>$path));
+        }
         return $path;
     }
 

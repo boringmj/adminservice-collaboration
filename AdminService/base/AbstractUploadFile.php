@@ -68,6 +68,12 @@ abstract class AbstractUploadFile {
     protected string $hash_algo='';
 
     /**
+     * 可计算哈希的文件大小上限(字节, <=0 表示不限制)
+     * @var int
+     */
+    protected int $hash_max_size=104857600;
+
+    /**
      * 是否为驱动托管的本地文件
      * @var bool
      */
@@ -84,6 +90,7 @@ abstract class AbstractUploadFile {
      * @param string $path 临时文件路径
      * @param string $confirm_dir 确认上传目录
      * @param string $hash_algo 默认hash算法
+     * @param int $hash_max_size 可计算哈希的文件大小上限(字节, <=0 表示不限制)
      * @return void
      */
     public function __construct(
@@ -93,7 +100,8 @@ abstract class AbstractUploadFile {
         string $extension,
         string $path,
         string $confirm_dir,
-        string $hash_algo='sha1'
+        string $hash_algo='sha1',
+        int $hash_max_size=104857600
     ) {
         $this->name=$name;
         $this->type=$type;
@@ -102,6 +110,7 @@ abstract class AbstractUploadFile {
         $this->path=$path;
         $this->confirm_dir=$confirm_dir;
         $this->hash_algo=$hash_algo;
+        $this->hash_max_size=$hash_max_size;
     }
 
     /**
@@ -218,7 +227,7 @@ abstract class AbstractUploadFile {
      * @return string
      */
     public function getConfirmName(): string {
-        if(!empty($this->confirm_name))
+        if($this->confirm_name!==null&&$this->confirm_name!=='')
             return $this->confirm_name;
         return $this->confirm_name=$this->generateRandomName();
     }

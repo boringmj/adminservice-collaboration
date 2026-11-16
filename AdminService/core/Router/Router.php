@@ -27,7 +27,9 @@ use function implode;
 use function in_array;
 use function is_array;
 use function is_callable;
+use function array_keys;
 use function is_file;
+use function realpath;
 use function is_string;
 use function ltrim;
 use function range;
@@ -80,6 +82,13 @@ final class Router implements RoutingInterface {
      * @var bool
      */
     private bool $lazy=false;
+
+    /**
+     * 装配期间经由 `load()` 读取的路由文件
+     *
+     * @var array<string,true>
+     */
+    private array $loaded_files=array();
 
     /**
      * 排序后的缓存路由索引
@@ -604,12 +613,26 @@ final class Router implements RoutingInterface {
             throw new Exception('Route file not found.',-410,array(
                 'file'=>$file
             ));
+        $real=realpath($file);
+        $this->loaded_files[$real===false?$file:$real]=true;
         $definition=require $file;
         if(!is_callable($definition))
             throw new Exception('Route file must return a callable.',-417,array(
                 'file'=>$file
             ));
         $definition($this);
+    }
+
+    /**
+     * 装配期间经由 `load()` 读取的路由文件
+     *
+     * - 含路由文件内部再次 `load()` 的间接文件; 由缓存层记录并校验
+     *
+     * @access public
+     * @return array<string>
+     */
+    public function getLoadedFiles(): array {
+        return array_keys($this->loaded_files);
     }
 
     /**
@@ -951,7 +974,8 @@ final class Router implements RoutingInterface {
     /**
      * 导出已排序的路由表
      *
-     * - 懒加载模式返回 `import()` 时规范化后的路由数据, 不实例化 `RouteItem`, 也不补齐可选键;
+     * - 懒加载模式返回 `import()` 时规范化后的路由数据, 不实例化 `RouteItem`;
+     *   匹配所需的 `params` / `optional` / `literal_length` 已按路径补齐, 其余可选键不补齐;
      *   返回键集合取决于导入数据, 需要固定结构时先调用 `getRoutes()` 或使用 eager 导入
      * - 非懒加载模式返回 `RouteItem::export()` 的固定结构
      *
@@ -980,6 +1004,24 @@ final class Router implements RoutingInterface {
      */
     public function import(array $routes,bool $sorted=true,bool $lazy=true): void {
         // 懒加载数据会直接参与匹配, 必须先按构造 RouteItem 的规则规范化
+        $route_data=array();
+        $route_objects=array();
+        if($lazy) {
+            foreach($routes as $data) {
+                if(!is_array($data))
+                    throw new Exception('Invalid compiled route.',-423);
+                $route_data[]=RouteItem::normalizeData($data);
+            }
+            self::assertUniqueNamesData($route_data);
+        } else {
+            foreach($routes as $data) {
+                if(!is_array($data))
+                    throw new Exception('Invalid compiled route.',-423);
+                $route_objects[]=RouteItem::fromArray($data);
+            }
+            self::assertUniqueNamesRoutes($route_objects);
+        }
+        // 校验全部通过后再替换, 失败时保持原有路由表
         $this->routes=array();
         $this->route_data=array();
         $this->lazy=false;
@@ -993,23 +1035,62 @@ final class Router implements RoutingInterface {
         $this->static_index=null;
         $this->static_index_data=null;
         if($lazy) {
-            foreach($routes as $data) {
-                if(!is_array($data))
-                    throw new Exception('Invalid compiled route.',-423);
-                $this->route_data[]=RouteItem::normalizeData($data);
-            }
+            $this->route_data=$route_data;
             $this->lazy=true;
             if($sorted)
                 $this->sorted_data=$this->route_data===array()?array():range(0,count($this->route_data)-1);
         } else {
-            foreach($routes as $data) {
-                if(!is_array($data))
-                    throw new Exception('Invalid compiled route.',-423);
-                $this->routes[]=RouteItem::fromArray($data);
-            }
+            $this->routes=$route_objects;
             $this->sorted_cache=$sorted?$this->routes:null;
         }
-        $this->assertNamesUnique();
+    }
+
+    /**
+     * 校验缓存路由数据的重名
+     *
+     * @access private
+     * @param array<array<string,mixed>> $route_data 规范化后的路由数据
+     * @return void
+     * @throws Exception 存在重名
+     */
+    private static function assertUniqueNamesData(array $route_data): void {
+        $index=array();
+        foreach($route_data as $position=>$data) {
+            $name=$data['name']??null;
+            if(!is_string($name)||$name==='')
+                continue;
+            if(isset($index[$name]))
+                throw new Exception('Duplicate route name.',-419,array(
+                    'name'=>$name,
+                    'path'=>(string)($data['path']??''),
+                    'exists'=>(string)($route_data[$index[$name]]['path']??'')
+                ));
+            $index[$name]=$position;
+        }
+    }
+
+    /**
+     * 校验路由对象的重名
+     *
+     * @access private
+     * @param array<RouteItem> $routes 路由对象
+     * @return void
+     * @throws Exception 存在重名
+     */
+    private static function assertUniqueNamesRoutes(array $routes): void {
+        $index=array();
+        foreach($routes as $route) {
+            $name=$route->getName();
+            if($name===null||$name==='')
+                continue;
+            if(isset($index[$name]))
+                throw new Exception('Duplicate route name.',-419,array(
+                    'name'=>$name,
+                    'path'=>$route->getPath(),
+                    'exists'=>$index[$name]->getPath()
+                ));
+            $index[$name]=$route;
+        }
     }
 
     /**

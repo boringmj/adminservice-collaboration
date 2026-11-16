@@ -150,6 +150,60 @@ class UploadTest extends TestCase {
     }
 
     /**
+     * 测试: 直接构造时注入的配置同样决定上传规则
+     *
+     * @return void
+     */
+    public function testInjectedConfigAppliesUploadRules(): void {
+        $content='0123456789';
+        $source=tempnam(sys_get_temp_dir(),'upload_custom_config_');
+        file_put_contents($source,$content);
+        $this->tempFiles[]=$source;
+        $config=new Repository(array('request'=>array('default'=>array(
+            'upload'=>array(
+                'max_size'=>3,
+                'save'=>array('dir'=>sys_get_temp_dir())
+            )
+        ))));
+        $request=new HttpRequest(array(
+            'files'=>array('files'=>array(
+                'name'=>'big.txt',
+                'type'=>'text/plain',
+                'size'=>strlen($content),
+                'tmp_name'=>$source,
+                'error'=>UPLOAD_ERR_OK
+            )),
+            'trustedFiles'=>true
+        ),null,$config);
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Uploaded file size exceeded');
+        $request->file('files');
+    }
+
+    /**
+     * 测试: 超过哈希大小上限时拒绝计算
+     *
+     * @return void
+     */
+    public function testHashMaxSizeIsEnforced(): void {
+        $path=tempnam(sys_get_temp_dir(),'upload_hash_limit_');
+        file_put_contents($path,'0123456789');
+        $this->tempFiles[]=$path;
+        $file=new UploadFile(
+            name:'limited.txt',
+            type:'text/plain',
+            size:10,
+            extension:'txt',
+            path:$path,
+            confirm_dir:sys_get_temp_dir(),
+            hash_max_size:3
+        );
+        $this->expectException(UploadException::class);
+        $this->expectExceptionMessage('文件超过可计算哈希的大小上限');
+        $file->getHash();
+    }
+
+    /**
      * 测试: 上传文件绑定类型不符时抛异常
      *
      * @return void

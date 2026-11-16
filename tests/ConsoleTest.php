@@ -168,6 +168,12 @@ class ConsoleTest extends TestCase {
         $this->assertSame('cache build',$result['name']);
         $this->assertSame(2,$result['consumed']);
         $this->assertSame(array('--force'),$result['remaining']);
+
+        $colon=$registry->resolve(array('c:build','--force'));
+        $this->assertSame('command',$colon['type']);
+        $this->assertSame('cache build',$colon['name']);
+        $this->assertSame(1,$colon['consumed']);
+        $this->assertSame(array('--force'),$colon['remaining']);
         $group=$registry->resolve(array('c'));
         $this->assertSame('group',$group['type']);
         $this->assertSame('cache',$group['name']);
@@ -262,6 +268,40 @@ class ConsoleTest extends TestCase {
         $this->assertStringContainsString('command boom',$output->stderr());
         $this->assertStringContainsString('RuntimeException',$output->stderr());
         $this->assertStringNotContainsString('<html',$output->stdout().$output->stderr());
+    }
+
+    /**
+     * 测试: app.debug 不替代 --verbose 输出堆栈
+     *
+     * @return void
+     */
+    public function testDebugConfigDoesNotPrintStackWithoutVerbose(): void {
+        $configs=Config::all();
+        $configs['app']['debug']=true;
+        $configs['console']['default_command']='list';
+        $configs['console']['commands']=array(FailCommand::class);
+        $configs['console']['shortcuts']=array();
+        $config=new Repository($configs);
+        $app=(new Application(null,$config))->init();
+        $output=Output::buffer();
+        $console=new Console($app,$output);
+        $this->assertSame(1,$console->run(array('console','demo','fail')));
+        $this->assertStringContainsString('command boom',$output->stderr());
+        $this->assertStringNotContainsString('RuntimeException',$output->stderr());
+    }
+
+    /**
+     * 测试: 全局 --help 不校验原命令选项
+     *
+     * @return void
+     */
+    public function testHelpIgnoresOtherCommandOptions(): void {
+        $app=$this->application();
+        $output=Output::buffer();
+        $console=new Console($app,$output);
+        $this->assertSame(0,$console->run(array('console','cache','build','--force','--help')));
+        $this->assertStringContainsString('cache build',$output->stdout());
+        $this->assertSame('',$output->stderr());
     }
 
     /**

@@ -388,9 +388,13 @@ final class Response extends BaseResponse {
     public function render(): string {
         // 1xx / 204 / 205 / 304 不允许有正文
         if($this->hasNoBody()) return '';
-        if($this->return_content!==null) return $this->return_content;
         // 先取整棵类型表再按数组键取值: 媒体类型本身可能含点(如 vendor `+json`)
         list(,$config)=$this->typeConfig();
+        if($this->return_content!==null) {
+            // 预置内容同样补该类型的响应头
+            $this->applyTypeHeaders($config);
+            return $this->return_content;
+        }
         $class=$config['class']??Http::class;
         // 处理器需要写入本实例: 显式传入; 请求级容器负责解析处理器依赖
         $container=$this->container??ContextStorage::current()?->container();
@@ -595,7 +599,7 @@ final class Response extends BaseResponse {
     /**
      * 判断当前响应是否有可协商的内容
      *
-     * - 已渲染内容或控制器返回值非空时视为有内容
+     * - 已渲染内容、已设置的流式生成器或控制器返回值非空时视为有内容
      * - `null` 与空字符串不算内容; 数组、对象、0、false 仍参与协商
      *
      * @access private
@@ -604,6 +608,8 @@ final class Response extends BaseResponse {
     private function hasResponseBody(): bool {
         if($this->hasNoBody())
             return false;
+        if($this->hasStream())
+            return true;
         $rendered=$this->rendered();
         if($rendered!==null&&$rendered!=='')
             return true;

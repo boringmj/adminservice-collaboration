@@ -207,11 +207,17 @@ final class Cookie extends BaseCookie {
         }
         $path=(string)($options->path??$this->config->get('cookie.path',''));
         $domain=(string)($options->domain??$this->config->get('cookie.domain',''));
-        foreach(array('value'=>$options->value,'path'=>$path,'domain'=>$domain) as $field=>$item)
+        foreach(array('value'=>$options->value,'path'=>$path,'domain'=>$domain) as $field=>$item) {
             if(preg_match('/[\x00-\x1F\x7F]/',$item)===1)
                 throw new Exception('Cookie '.$field.' contains control characters.',self::ERROR_INVALID_COOKIE,array(
                     'field'=>$field
                 ));
+            // setcookie() 拒绝 path / domain 中的空格、逗号与分号
+            if($field!=='value'&&preg_match('/[\x20,;]/',$item)===1)
+                throw new Exception('Cookie '.$field.' contains invalid characters.',self::ERROR_INVALID_COOKIE,array(
+                    'field'=>$field
+                ));
+        }
         return array(
             'value'=>$options->value,
             'expire'=>$options->expires??time()+(int)$this->config->get('cookie.expire',3600),

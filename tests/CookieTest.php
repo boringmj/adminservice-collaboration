@@ -221,6 +221,20 @@ class CookieTest extends TestCase {
     }
 
     /**
+     * 测试 path / domain 中的非法字符被拒绝
+     *
+     * @return void
+     */
+    public function testPathWithInvalidCharactersThrows(): void {
+        $this->expectException(Exception::class);
+        $this->expectExceptionCode(100405);
+        $this->createCookie()->buildAll(array('name'=>array(
+            'value'=>'value',
+            'path'=>'/my dir/'
+        )));
+    }
+
+    /**
      * 测试 expire 与 expires 不能同时出现
      *
      * @return void

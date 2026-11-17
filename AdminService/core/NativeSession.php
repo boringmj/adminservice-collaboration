@@ -5,9 +5,11 @@ namespace AdminService;
 use base\AbstractSession;
 
 use function headers_sent;
+use function ini_set;
 use function is_array;
 use function session_destroy;
 use function session_id;
+use function session_regenerate_id;
 use function session_start;
 use function session_status;
 use function session_write_close;
@@ -30,11 +32,57 @@ class NativeSession extends AbstractSession {
         if(session_status()===PHP_SESSION_NONE) {
             if(headers_sent())
                 throw new Exception('会话无法启动: 响应头已发送');
+            $this->configure();
             if(!session_start()&&session_status()!==PHP_SESSION_ACTIVE)
                 throw new Exception('会话启动失败');
         }
         if(session_status()===PHP_SESSION_ACTIVE)
             $this->session_id=session_id();
+    }
+
+    /**
+     * 应用会话加固配置
+     *
+     * - 必须在 `session_start()` 之前调用
+     * - 显式调用过 `setId()` 时不启用严格模式, 由调用方负责该 ID 的可信性
+     * - 只设置与框架行为无关的固定项; HTTPS 判定由部署的 `session.cookie_secure` 决定
+     *
+     * @access private
+     * @return void
+     * @throws Exception 配置写入失败
+     */
+    private function configure(): void {
+        $options=array(
+            // 显式 setId() 表示调用方已确认该 ID, 不再由严格模式替换
+            'session.use_strict_mode'=>$this->session_id===null?'1':'0',
+            'session.use_only_cookies'=>'1',
+            'session.cookie_httponly'=>'1',
+            'session.cookie_samesite'=>'Lax'
+        );
+        foreach($options as $name=>$value)
+            if(ini_set($name,$value)===false)
+                throw new Exception('会话加固设置失败: '.$name);
+    }
+
+    /**
+     * 轮换会话 ID
+     *
+     * - 会话未开启或响应头已发送时抛异常
+     *
+     * @access public
+     * @param bool $delete_old_session 是否删除旧会话数据
+     * @return bool
+     * @throws Exception 会话未开启、响应头已发送或轮换失败
+     */
+    public function regenerate(bool $delete_old_session=false): bool {
+        if(session_status()!==PHP_SESSION_ACTIVE)
+            throw new Exception('会话未开启: 请先调用 init() 开启原生会话');
+        if(headers_sent())
+            throw new Exception('会话 ID 无法轮换: 响应头已发送');
+        if(!session_regenerate_id($delete_old_session))
+            throw new Exception('会话 ID 轮换失败');
+        $this->session_id=session_id();
+        return true;
     }
 
     /**

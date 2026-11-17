@@ -96,4 +96,18 @@ abstract class AbstractSession {
     public function close(): void {
     }
 
+    /**
+     * 轮换会话 ID
+     *
+     * - 默认实现没有持久化会话 ID, 返回 false
+     * - 原生会话应覆盖本方法并返回是否轮换成功
+     *
+     * @access public
+     * @param bool $delete_old_session 是否删除旧会话数据
+     * @return bool
+     */
+    public function regenerate(bool $delete_old_session=false): bool {
+        return false;
+    }
+
 }

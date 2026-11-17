@@ -193,6 +193,66 @@ class SessionTest extends TestCase {
     }
 
     /**
+     * 测试原生会话加固配置
+     *
+     * @return void
+     */
+    public function testNativeSessionHardening(): void {
+        $script=__DIR__.'/fixtures/native_session_hardening.php';
+        $process=proc_open(array(PHP_BINARY,$script),array(
+            1=>array('pipe','w'),
+            2=>array('pipe','w')
+        ),$pipes);
+        $this->assertTrue(is_resource($process),'无法启动子进程');
+        $stdout=(string)stream_get_contents($pipes[1]);
+        $stderr=(string)stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $status=proc_close($process);
+        $this->assertSame(0,$status,'子进程异常退出: '.$stderr);
+        $this->assertStringContainsString('|STRICT|1',$stdout);
+        $this->assertStringContainsString('|ONLYCOOKIES|1',$stdout);
+        $this->assertStringContainsString('|HTTPONLY|1',$stdout);
+        $this->assertStringContainsString('|SAMESITE|Lax',$stdout);
+    }
+
+    /**
+     * 测试显式 setId 后 init 保留指定 ID
+     *
+     * @return void
+     */
+    public function testNativeSessionAdoptsExplicitId(): void {
+        $script=__DIR__.'/fixtures/native_session_adopt_id.php';
+        $process=proc_open(array(PHP_BINARY,$script),array(
+            1=>array('pipe','w'),
+            2=>array('pipe','w')
+        ),$pipes);
+        $this->assertTrue(is_resource($process),'无法启动子进程');
+        $stdout=(string)stream_get_contents($pipes[1]);
+        $stderr=(string)stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $status=proc_close($process);
+        $this->assertSame(0,$status,'子进程异常退出: '.$stderr);
+        $this->assertStringContainsString('|SID=adoptfixedid123',$stdout);
+        $this->assertStringContainsString('|GET=adoptfixedid123',$stdout);
+    }
+
+    /**
+     * 测试原生会话未开启时轮换 ID 抛异常
+     *
+     * @return void
+     */
+    public function testNativeSessionRegenerateRequiresStart(): void {
+        if(session_status()===PHP_SESSION_ACTIVE)
+            $this->markTestSkipped('原生会话已启动');
+        $session=new NativeSession();
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('会话未开启');
+        $session->regenerate();
+    }
+
+    /**
      * 测试会话ID: 未显式设置时取当前会话ID
      * @return void
      */

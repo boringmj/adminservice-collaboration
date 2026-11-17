@@ -4,12 +4,16 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
+use AdminService\Config;
 use AdminService\Exception;
 use AdminService\View;
 use AdminService\View\Source\FileSource;
 use stdClass;
 
+use function chdir;
+use function dirname;
 use function file_put_contents;
+use function getcwd;
 use function in_array;
 use function mkdir;
 use function rmdir;
@@ -17,6 +21,7 @@ use function stream_get_wrappers;
 use function stream_wrapper_register;
 use function str_replace;
 use function sys_get_temp_dir;
+use function tempnam;
 use function uniqid;
 use function unlink;
 
@@ -124,6 +129,81 @@ class ViewTest extends TestCase {
         } finally {
             @unlink($file);
             @rmdir($dir);
+        }
+    }
+
+    /**
+     * 测试配置的允许根目录可以渲染模板
+     *
+     * @return void
+     */
+    public function testInitAcceptsConfiguredAllowedPath(): void {
+        $dir=sys_get_temp_dir().'/as_view_allowed_'.uniqid('',true);
+        mkdir($dir,0755,true);
+        $file=$dir.'/template.html';
+        file_put_contents($file,'Hi {{name}}');
+        $configs=Config::all();
+        $configs['view']['allowed_paths']=array($dir);
+        set_config($configs);
+        try {
+            $view=new View();
+            $view->init($file,array('name'=>'demo'));
+            $this->assertSame('Hi demo',$view->render());
+        } finally {
+            load_framework_config();
+            @unlink($file);
+            @rmdir($dir);
+        }
+    }
+
+    /**
+     * 测试相对允许根目录按项目根解析, 不依赖进程工作目录
+     *
+     * @return void
+     */
+    public function testRelativeAllowedPathResolvesFromProjectRoot(): void {
+        $relative='AdminService/runtime/view_allowed_'.uniqid('',true);
+        $dir=dirname(__DIR__).'/'.$relative;
+        mkdir($dir,0755,true);
+        $file=$dir.'/template.html';
+        file_put_contents($file,'relative');
+        $configs=Config::all();
+        $configs['view']['allowed_paths']=array($relative);
+        set_config($configs);
+        $cwd=getcwd();
+        try {
+            chdir(sys_get_temp_dir());
+            $view=new View();
+            $view->init($file);
+            $this->assertSame('relative',$view->render());
+        } finally {
+            chdir($cwd);
+            load_framework_config();
+            @unlink($file);
+            @rmdir($dir);
+        }
+    }
+
+    /**
+     * 测试所有允许根目录都无法解析时拒绝模板
+     *
+     * @return void
+     */
+    public function testUnavailableRootsRejectTemplate(): void {
+        $file=tempnam(sys_get_temp_dir(),'as_view_roots_');
+        $configs=Config::all();
+        $configs['app']['path']='/nonexistent-app';
+        $configs['app']['error_template']='/nonexistent-error.html';
+        $configs['view']['allowed_paths']=array();
+        set_config($configs);
+        try {
+            $view=new View();
+            $this->expectException(Exception::class);
+            $this->expectExceptionCode(100304);
+            $view->init($file);
+        } finally {
+            load_framework_config();
+            @unlink($file);
         }
     }
 

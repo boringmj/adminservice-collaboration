@@ -7,6 +7,10 @@ use ReflectionClass;
 use ReflectionParameter;
 use base\ConfigInterface;
 use base\ExecutionFlow;
+use ReflectionException;
+use AdminService\Exception;
+use AdminService\exception\CircularDependencyException;
+use AdminService\exception\ClassUnavailableException;
 
 use function array_key_exists;
 use function array_key_last;
@@ -18,10 +22,6 @@ use function interface_exists;
 use function is_array;
 use function is_object;
 use function is_string;
-use ReflectionException;
-use AdminService\Exception;
-use AdminService\exception\CircularDependencyException;
-use AdminService\exception\ClassUnavailableException;
 
 /**
  * 容器实现

@@ -16,7 +16,6 @@ use ReflectionMethod;
 use ReflectionParameter;
 use ReflectionProperty;
 
-use function array_key_exists;
 use function array_map;
 use function array_unique;
 use function array_values;

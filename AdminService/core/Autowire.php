@@ -20,6 +20,7 @@ use base\Attribute\AutowireProperty;
 use base\Attribute\AutowireMethod;
 use base\Attribute\AutowireLifecycle;
 use AdminService\exception\AutowireException;
+use AdminService\exception\CircularDependencyException;
 use Closure;
 
 use function array_key_exists;
@@ -597,13 +598,27 @@ final class Autowire implements AutowireInterface {
                 if($instance!==null)
                     return $instance;
             } else {
+                $first_failure=null;
                 foreach($type_array as $type) {
                     try {
                         return $this->resolveInstance($this->resolveClass($type),false,$flags);
-                    } catch(\Throwable) {
+                    } catch(AutowireException|CircularDependencyException|\ReflectionException $e) {
+                        // 只有"该分支无法构造"时继续尝试; 构造过程的其它异常直接外抛
+                        $first_failure??=$e;
                         continue;
                     }
                 }
+                throw new AutowireException(
+                    'No injectable type found for parameter "'.$parameter->getName().'" of class "'.
+                    $ref->getName().'".',
+                    0,
+                    array(
+                        'parameter'=>$parameter->getName(),
+                        'class'=>$ref->getName(),
+                        'types'=>$type_array
+                    ),
+                    $first_failure
+                );
             }
             throw new AutowireException(
                 'No injectable type found for parameter "'.$parameter->getName().'" of class "'.
@@ -616,7 +631,8 @@ final class Autowire implements AutowireInterface {
                 [
                     'property'=>$parameter->getName(),
                     'class'=>$ref->getName()
-                ]
+                ],
+                $e
             );
         }
     }
@@ -914,7 +930,8 @@ final class Autowire implements AutowireInterface {
                 [
                     'property'=>$method?->getName(),
                     'class'=>$ref->getName()
-                ]
+                ],
+                $e
             );
         }
     }
@@ -959,6 +976,11 @@ final class Autowire implements AutowireInterface {
                             '" cannot be annotated with both #[AutowireSetter] and #[AutowireLifecycle].',
                         );
                     // 生命周期方法: 全部参数按类型注入
+                    if($this->arguments===null)
+                        throw new AutowireException(
+                            'Method "'.$method->getName().'" of class "'.$ref->getName().
+                            '" uses #[AutowireLifecycle] but no ArgumentResolver is configured.',
+                        );
                     $args=$this->arguments->merge($method->getParameters(),array(),true);
                 } else {
                     if(empty($attributes))
@@ -1007,7 +1029,8 @@ final class Autowire implements AutowireInterface {
                 [
                     'method'=>$method?->getName(),
                     'class'=>$ref->getName()
-                ]
+                ],
+                $e
             );
         }
     }

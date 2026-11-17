@@ -503,23 +503,9 @@ final class Container implements \base\Container {
      * @throws Exception
      */
     public function get(string $name): object {
-        $is_root=$this->build_flags===array();
-        $snapshot=$is_root?$this->container:null;
-        $resolved_snapshot=$is_root?$this->resolved_container:null;
-        $singleton_snapshot=$is_root?$this->factory_singleton_class:null;
-        $flags=$this->build_flags;
-        try {
-            $object=$this->makeInternal($name,false,$flags);
-            if($is_root)
-                $this->autowire->flushDeferred();
-            return $object;
-        } catch(\Throwable $e) {
-            $this->rollbackRootContainer($snapshot,$resolved_snapshot,$singleton_snapshot);
-            throw $e;
-        } finally {
-            if($is_root)
-                $this->flushMetadataIfRoot();
-        }
+        return $this->runRootBuild(function(array &$flags) use($name): object {
+            return $this->makeInternal($name,false,$flags);
+        });
     }
 
     /**
@@ -969,23 +955,9 @@ final class Container implements \base\Container {
      * @throws Exception|ReflectionException
      */
     public function make(string $name): object {
-        $is_root=$this->build_flags===array();
-        $snapshot=$is_root?$this->container:null;
-        $resolved_snapshot=$is_root?$this->resolved_container:null;
-        $singleton_snapshot=$is_root?$this->factory_singleton_class:null;
-        $flags=$this->build_flags;
-        try {
-            $object=$this->makeInternal($name,false,$flags);
-            if($is_root)
-                $this->autowire->flushDeferred();
-            return $object;
-        } catch(\Throwable $e) {
-            $this->rollbackRootContainer($snapshot,$resolved_snapshot,$singleton_snapshot);
-            throw $e;
-        } finally {
-            if($is_root)
-                $this->flushMetadataIfRoot();
-        }
+        return $this->runRootBuild(function(array &$flags) use($name): object {
+            return $this->makeInternal($name,false,$flags);
+        });
     }
 
     /**
@@ -1008,13 +980,30 @@ final class Container implements \base\Container {
      * @throws Exception
      */
     public function fresh(string $name): object {
+        return $this->runRootBuild(function(array &$flags) use($name): object {
+            return $this->makeInternal($name,true,$flags);
+        });
+    }
+
+    /**
+     * 执行一次根构建
+     *
+     * - 根构建维护回滚快照、延迟任务刷新与元数据落盘; 嵌套构建不重复执行
+     * - `$build` 接收构建栈引用, 返回值原样返回
+     *
+     * @access private
+     * @param callable(array<int,mixed>&):object $build 构建回调
+     * @return object
+     * @throws \Throwable
+     */
+    private function runRootBuild(callable $build): object {
         $is_root=$this->build_flags===array();
         $snapshot=$is_root?$this->container:null;
         $resolved_snapshot=$is_root?$this->resolved_container:null;
         $singleton_snapshot=$is_root?$this->factory_singleton_class:null;
         $flags=$this->build_flags;
         try {
-            $object=$this->makeInternal($name,true,$flags);
+            $object=$build($flags);
             if($is_root)
                 $this->autowire->flushDeferred();
             return $object;

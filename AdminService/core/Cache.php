@@ -179,7 +179,7 @@ final class Cache implements CacheInterface {
      * @return mixed
      */
     public function get(string $key,mixed $default=null): mixed {
-        $entry=$this->readEntry($this->entryPath($key),$key);
+        $entry=$this->readEntryClean($this->entryPath($key),$key);
         return $entry===null?$default:$entry['value'];
     }
 
@@ -223,7 +223,7 @@ final class Cache implements CacheInterface {
      * @return bool
      */
     public function has(string $key,?string $version=null): bool {
-        $entry=$this->readEntry($this->entryPath($key),$key);
+        $entry=$this->readEntryClean($this->entryPath($key),$key);
         if($entry===null)
             return false;
         return $version===null||($entry['version']??null)===$version;
@@ -242,7 +242,7 @@ final class Cache implements CacheInterface {
      */
     public function remember(string $key,?int $ttl,callable $callback,?string $version=null): mixed {
         $path=$this->entryPath($key);
-        $entry=$this->readEntry($path,$key);
+        $entry=$this->readEntryClean($path,$key);
         if($entry!==null&&($version===null||($entry['version']??null)===$version))
             return $entry['value'];
         if($entry!==null)
@@ -263,7 +263,7 @@ final class Cache implements CacheInterface {
      */
     public function pull(string $key,mixed $default=null): mixed {
         $path=$this->entryPath($key);
-        $entry=$this->readEntry($path,$key);
+        $entry=$this->readEntryClean($path,$key);
         if($entry===null)
             return $default;
         $value=$entry['value'];
@@ -555,7 +555,7 @@ final class Cache implements CacheInterface {
             ));
         }
         try {
-            $entry=$this->readEntry($path,$key);
+            $entry=$this->readEntryClean($path,$key);
             if($entry===null) {
                 $value=$step;
                 $expire=$this->normalizeExpire($ttl);
@@ -702,9 +702,9 @@ final class Cache implements CacheInterface {
     }
 
     /**
-     * 读取缓存条目
+     * 读取缓存条目(纯读取, 不删除文件)
      *
-     * - 过期、损坏或键不匹配时立即删除并返回 null
+     * - 过期、损坏或键不匹配时返回 null, 由调用方决定是否清理
      *
      * @access private
      * @param string $path 条目路径
@@ -718,49 +718,51 @@ final class Cache implements CacheInterface {
         try {
             $entry=@include $path;
         } catch(\Throwable) {
-            $this->removeFile($path);
             return null;
         }
         if(!is_array($entry)
             ||!isset($entry['key'])
             ||!is_string($entry['key'])
             ||!array_key_exists('expire',$entry)
-            ||!array_key_exists('value',$entry)) {
-            $this->removeFile($path);
+            ||!array_key_exists('value',$entry))
             return null;
-        }
-        if($expected_key!==null&&$entry['key']!==$expected_key) {
-            $this->removeFile($path);
+        if($expected_key!==null&&$entry['key']!==$expected_key)
             return null;
-        }
         $expire=(int)$entry['expire'];
-        if($expire>0&&$expire<=time()) {
-            $this->removeFile($path);
+        if($expire>0&&$expire<=time())
             return null;
-        }
         if($decode&&!empty($entry['serialized'])) {
-            if(!is_string($entry['value'])) {
-                $this->removeFile($path);
+            if(!is_string($entry['value']))
                 return null;
-            }
             $raw=base64_decode($entry['value'],true);
-            if($raw===false) {
-                $this->removeFile($path);
+            if($raw===false)
                 return null;
-            }
             try {
                 $value=@unserialize($raw);
             } catch(\Throwable) {
-                $this->removeFile($path);
                 return null;
             }
-            if($value===false&&$raw!==serialize(false)) {
-                $this->removeFile($path);
+            if($value===false&&$raw!==serialize(false))
                 return null;
-            }
             $entry['value']=$value;
             $entry['serialized']=false;
         }
+        return $entry;
+    }
+
+    /**
+     * 读取缓存条目, 无效时删除文件
+     *
+     * @access private
+     * @param string $path 条目路径
+     * @param string|null $expected_key 期望键
+     * @param bool $decode 是否解码序列化值
+     * @return array<string,mixed>|null
+     */
+    private function readEntryClean(string $path,?string $expected_key=null,bool $decode=true): ?array {
+        $entry=$this->readEntry($path,$expected_key,$decode);
+        if($entry===null)
+            $this->removeFile($path);
         return $entry;
     }
 
@@ -981,10 +983,11 @@ final class Cache implements CacheInterface {
                         if($this->isAuxiliaryFile($file)) {
                             $this->gcAuxiliaryFile($path,$removed);
                         } else {
-                            $before=is_file($path);
-                            $this->readEntry($path,null,false);
-                            if($before&&!is_file($path))
+                            $entry=$this->readEntry($path,null,false);
+                            if($entry===null&&is_file($path)) {
+                                $this->removeFile($path);
                                 $removed++;
+                            }
                         }
                         if($checked>=$limit)
                             return;

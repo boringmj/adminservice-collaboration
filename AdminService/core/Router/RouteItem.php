@@ -214,23 +214,25 @@ final class RouteItem {
      * @throws Exception 数据字段非法
      */
     public static function normalizeData(array $data): array {
-        if(!isset($data['path'])||!is_string($data['path'])||$data['path']===''
-            ||!array_key_exists('handler',$data))
-            throw new Exception('Invalid compiled route item.',-423);
+        $route=isset($data['path'])&&is_string($data['path'])&&$data['path']!==''?$data['path']:null;
+        if(!isset($data['path'])||!is_string($data['path'])||$data['path']==='')
+            throw self::invalidData('path',$data['path']??null,$route);
+        if(!array_key_exists('handler',$data))
+            throw self::invalidData('handler',null,$route);
         if(!isset($data['pattern'])||!is_string($data['pattern'])||$data['pattern']==='')
-            throw new Exception('Invalid compiled route item.',-423);
+            throw self::invalidData('pattern',$data['pattern']??null,$route);
         $data['path']=self::expandWildcard(self::normalizePath($data['path']));
         $methods=array();
         if(array_key_exists('methods',$data)) {
             if(!is_array($data['methods']))
-                throw new Exception('Invalid compiled route item.',-423);
+                throw self::invalidData('methods',$data['methods'],$route);
             foreach($data['methods'] as $method) {
                 if(!is_string($method)&&!($method instanceof Method))
-                    throw new Exception('Invalid compiled route item.',-423);
+                    throw self::invalidData('methods',$method,$route);
                 try {
                     $methods[]=Method::normalize($method);
                 } catch(\InvalidArgumentException) {
-                    throw new Exception('Invalid compiled route item.',-423);
+                    throw self::invalidData('methods',$method,$route);
                 }
             }
         }
@@ -239,40 +241,40 @@ final class RouteItem {
             if(!array_key_exists($key,$data))
                 continue;
             if(!is_array($data[$key]))
-                throw new Exception('Invalid compiled route item.',-423);
+                throw self::invalidData($key,$data[$key],$route);
             foreach($data[$key] as $value)
                 if(!is_string($value))
-                    throw new Exception('Invalid compiled route item.',-423);
+                    throw self::invalidData($key,$value,$route);
             $data[$key]=array_values($data[$key]);
         }
         if(array_key_exists('name',$data)
             &&$data['name']!==null
             &&(!is_string($data['name'])||$data['name']===''))
-            throw new Exception('Invalid compiled route item.',-423);
+            throw self::invalidData('name',$data['name'],$route);
         if(array_key_exists('literal_length',$data)) {
             if(!is_numeric($data['literal_length']))
-                throw new Exception('Invalid compiled route item.',-423);
+                throw self::invalidData('literal_length',$data['literal_length'],$route);
             $data['literal_length']=(int)$data['literal_length'];
         }
         foreach(array('group_middlewares','route_middlewares','bindings','constraints') as $key) {
             if(array_key_exists($key,$data)&&!is_array($data[$key]))
-                throw new Exception('Invalid compiled route item.',-423);
+                throw self::invalidData($key,$data[$key],$route);
         }
         foreach(array('resolved_bindings','controller_middlewares') as $key) {
             if(array_key_exists($key,$data)
                 &&$data[$key]!==null
                 &&!is_array($data[$key]))
-                throw new Exception('Invalid compiled route item.',-423);
+                throw self::invalidData($key,$data[$key],$route);
         }
         if(array_key_exists('produces',$data)) {
             if(!is_array($data['produces']))
-                throw new Exception('Invalid compiled route item.',-423);
+                throw self::invalidData('produces',$data['produces'],$route);
             // 空数组表示未声明可生产类型, 与声明入口的“至少一个类型”不同
             if($data['produces']!==array()) {
                 try {
                     $data['produces']=Produces::normalize($data['produces']);
                 } catch(\InvalidArgumentException) {
-                    throw new Exception('Invalid compiled route item.',-423);
+                    throw self::invalidData('produces',$data['produces'],$route);
                 }
             }
         }
@@ -293,6 +295,23 @@ final class RouteItem {
                 $data['literal_length']=$compiled->literalLength;
         }
         return $data;
+    }
+
+    /**
+     * 构造编译路由数据异常
+     *
+     * @access private
+     * @param string $field 非法字段
+     * @param mixed $value 字段值
+     * @param string|null $route 路由路径
+     * @return Exception
+     */
+    private static function invalidData(string $field,mixed $value=null,?string $route=null): Exception {
+        return new Exception('Invalid compiled route item.',-423,array(
+            'field'=>$field,
+            'value'=>$value,
+            'route'=>$route
+        ));
     }
 
     /**

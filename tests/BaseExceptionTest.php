@@ -51,4 +51,16 @@ class BaseExceptionTest extends TestCase {
         };
     }
 
+    /**
+     * 测试异常基类保留原始异常
+     * @return void
+     */
+    public function testExceptionKeepsPrevious(): void {
+        $previous=new \RuntimeException('inner');
+        $exception=new DependencyException('outer',1,array('a'=>1),$previous);
+        $this->assertSame($previous,$exception->getPrevious());
+        $this->assertSame(array('a'=>1),$exception->getData());
+        $this->assertSame(1,$exception->getCode());
+    }
+
 }

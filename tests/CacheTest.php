@@ -342,6 +342,28 @@ class CacheTest extends TestCase {
     }
 
     /**
+     * 测试: 纯读取不删除损坏文件, 清理由调用方负责
+     *
+     * @return void
+     */
+    public function testReadEntryDoesNotDeleteInvalidFile(): void {
+        $cache=new Cache($this->config);
+        $cache->set('bad','value');
+        $path=$this->entryPath($cache,'bad');
+        file_put_contents($path,'<?php return array("not_key"=>1);');
+        if(function_exists('opcache_invalidate'))
+            @opcache_invalidate($path,true);
+
+        $method=new ReflectionMethod(Cache::class,'readEntry');
+        $method->setAccessible(true);
+        $this->assertNull($method->invoke($cache,$path,'bad'));
+        $this->assertFileExists($path);
+
+        $this->assertSame('fallback',$cache->get('bad','fallback'));
+        $this->assertFileDoesNotExist($path);
+    }
+
+    /**
      * 测试: 对象走序列化路径且可完整读回
      *
      * @return void

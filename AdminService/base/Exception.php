@@ -23,12 +23,13 @@ abstract class Exception extends \Exception {
      * @param string $message
      * @param int $error_code
      * @param array<string,mixed> $data
+     * @param \Throwable|null $previous 原始异常
      */
-    public function __construct(string $message,int $error_code=0,array $data=array()) {
+    public function __construct(string $message,int $error_code=0,array $data=array(),?\Throwable $previous=null) {
         $this->error_code=$error_code;
         $this->message=$message;
         $this->data=$data;
-        parent::__construct($message,$error_code);
+        parent::__construct($message,$error_code,$previous);
     }
 
     /**

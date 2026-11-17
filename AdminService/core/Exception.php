@@ -20,11 +20,12 @@ class Exception extends BaseException {
      * @param string $message
      * @param int $error_code
      * @param array<mixed> $data
+     * @param \Throwable|null $previous 原始异常
      * @throws Exception
      * @throws ReflectionException
      */
-    final public function __construct(string $message,int $error_code=0,array $data=array()) {
-        parent::__construct($message,$error_code,$data);
+    final public function __construct(string $message,int $error_code=0,array $data=array(),?\Throwable $previous=null) {
+        parent::__construct($message,$error_code,$data,$previous);
         if(!Error::isDebug())
             return;
         // 容器未就绪(引导期异常 / 容器不可用)时不写日志: 与生产环境一致, 避免引导期刷日志

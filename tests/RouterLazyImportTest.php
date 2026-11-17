@@ -351,6 +351,24 @@ class RouterLazyImportTest extends TestCase {
     }
 
     /**
+     * 测试: 编译路由异常携带字段与路由
+     *
+     * @return void
+     */
+    public function testLazyImportErrorCarriesField(): void {
+        $routes=$this->exportedRoutes();
+        $routes[0]['params']='id';
+        try {
+            (new Router())->import($routes,true);
+            $this->fail('非法 params 应被拒绝');
+        } catch(Exception $e) {
+            $data=$e->getData();
+            $this->assertSame('params',$data['field']);
+            $this->assertSame($routes[0]['path'],$data['route']);
+        }
+    }
+
+    /**
      * 测试: eager/lazy 导入都拒绝空路由名
      *
      * @return void

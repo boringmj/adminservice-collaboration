@@ -370,9 +370,20 @@ final class CacheBuildCommand extends AbstractCommand {
                 'failure'=>true
             );
         }
+        $pruned=$cache->pruneMissingSources();
+        if($pruned['failed']>0) {
+            return array(
+                'status'=>'failed',
+                'reason'=>$pruned['failed'].' 个过期产物清理失败',
+                'failure'=>true
+            );
+        }
+        $reason=$count.' 个模板';
+        if($pruned['removed']>0)
+            $reason.=', 清理 '.$pruned['removed'].' 个过期产物';
         return array(
             'status'=>$count>0?'built':'skipped',
-            'reason'=>$count.' 个模板',
+            'reason'=>$reason,
             'failure'=>false
         );
     }

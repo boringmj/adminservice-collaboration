@@ -207,6 +207,40 @@ final class FileCache implements TemplateCacheInterface {
     }
 
     /**
+     * 清理源模板已不存在的缓存产物
+     *
+     * - 只删除当前目录顶层的 `.php` 产物, 不跟随子目录
+     * - 结构无效的产物一并删除
+     *
+     * @access public
+     * @return array{removed:int,failed:int}
+     */
+    public function pruneMissingSources(): array {
+        $result=array('removed'=>0,'failed'=>0);
+        $dir=$this->directory();
+        if(!is_dir($dir)||is_link($dir))
+            return $result;
+        $entries=@scandir($dir);
+        if($entries===false)
+            return $result;
+        foreach($entries as $entry) {
+            if($entry==='.'||$entry==='..'||!str_ends_with($entry,'.php'))
+                continue;
+            $file=$dir.'/'.$entry;
+            if(!is_file($file))
+                continue;
+            $payload=$this->read($file);
+            if($payload!==null&&is_file($payload['source']))
+                continue;
+            if(@unlink($file))
+                $result['removed']++;
+            else
+                $result['failed']++;
+        }
+        return $result;
+    }
+
+    /**
      * 清理缓存
      *
      * @access public

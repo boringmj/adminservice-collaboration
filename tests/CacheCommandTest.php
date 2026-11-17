@@ -41,6 +41,7 @@ use function sys_get_temp_dir;
 use function time;
 use function touch;
 use function uniqid;
+use function unlink;
 use function var_export;
 
 /**
@@ -435,6 +436,31 @@ class CacheCommandTest extends TestCase {
             $this->assertFileExists($this->dir.'/cache/compile/view/'.sha1($real).'.php');
         }
         $this->assertFileDoesNotExist($this->dir.'/cache/compile/view/'.sha1((string)realpath($asset)).'.php');
+    }
+
+    /**
+     * 测试视图构建清理源文件已删除的产物
+     *
+     * @return void
+     */
+    public function testViewBuildPrunesMissingTemplates(): void {
+        $app=$this->dir.'/app';
+        mkdir($app.'/view',0755,true);
+        $template=$app.'/view/page.html';
+        file_put_contents($template,'{{$name}}');
+        $this->config->put('app.path',$app);
+        $cache_file=$this->dir.'/cache/compile/view/'.sha1((string)realpath($template)).'.php';
+
+        $build=new CacheBuildCommand(new Bootstrapper(),$this->config);
+        $output=Output::buffer();
+        $this->assertSame(0,$build->execute(new Input(array('view')),$output));
+        $this->assertFileExists($cache_file);
+
+        unlink($template);
+        $output=Output::buffer();
+        $this->assertSame(0,$build->execute(new Input(array('view')),$output));
+        $this->assertStringContainsString('清理 1 个过期产物',$output->stdout());
+        $this->assertFileDoesNotExist($cache_file);
     }
 
     /**

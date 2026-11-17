@@ -126,8 +126,9 @@ abstract class Controller {
      * @param int|null $expire 过期时间($params 参数为数组时此参数无效)
      * @param string|null $path 路径($params 参数为数组时此参数无效)
      * @param string|null $domain 域名($params 参数为数组时此参数无效)
-     * @param bool $secure 是否安全传输($params 参数为数组时此参数无效)
-     * @param bool $httponly 是否仅http传输($params 参数为数组时此参数无效)
+     * @param bool|null $secure 是否安全传输($params 参数为数组时此参数无效)
+     * @param bool|null $httponly 是否仅http传输($params 参数为数组时此参数无效)
+     * @param string|null $samesite 跨站发送策略($params 参数为数组时此参数无效)
      * @return void
      */
     final protected function cookie(
@@ -137,7 +138,8 @@ abstract class Controller {
         ?string $path=null,
         ?string $domain=null,
         ?bool $secure=null,
-        ?bool $httponly=null
+        ?bool $httponly=null,
+        ?string $samesite=null
     ): void {
         if(is_array($params)) {
             $this->response->cookies($params);
@@ -150,7 +152,8 @@ abstract class Controller {
             $path,
             $domain,
             $secure,
-            $httponly
+            $httponly,
+            $samesite
         );
     }
 

@@ -32,7 +32,8 @@ abstract class Cookie {
      *     path:string,
      *     domain:string,
      *     secure:bool,
-     *     httponly:bool
+     *     httponly:bool,
+     *     samesite:string
      * }>
      */
     abstract public function buildByArray(array $data): array;
@@ -46,14 +47,15 @@ abstract class Cookie {
      * @param int|null $expire 过期时间
      * @param string|null $path 路径
      * @param string|null $domain 域名
-     * @param bool $secure 是否仅https
-     * @param bool $httponly 是否仅http
+     * @param bool|null $secure 是否仅https
+     * @param bool|null $httponly 是否仅http
+     * @param string|null $samesite 跨站发送策略
      * @return void
      */
     abstract public function set(
         string $name,mixed $value,
         ?int $expire=null,?string $path=null,?string $domain=null,
-        ?bool $secure=null,?bool $httponly=null
+        ?bool $secure=null,?bool $httponly=null,?string $samesite=null
     ): void;
 
 }

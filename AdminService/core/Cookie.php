@@ -5,9 +5,12 @@ namespace AdminService;
 use base\ConfigInterface;
 use base\Cookie as BaseCookie;
 
+use function in_array;
 use function is_array;
 use function setcookie;
+use function strtolower;
 use function time;
+use function ucfirst;
 
 /**
  * Cookie 下发服务
@@ -50,7 +53,8 @@ final class Cookie extends BaseCookie {
                     $value['path']??null,
                     $value['domain']??null,
                     $value['secure']??null,
-                    $value['httponly']??null
+                    $value['httponly']??null,
+                    $value['samesite']??null
                 );
             else
                 $this->set($key,$value);
@@ -69,7 +73,8 @@ final class Cookie extends BaseCookie {
      *     path:string,
      *     domain:string,
      *     secure:bool,
-     *     httponly:bool
+     *     httponly:bool,
+     *     samesite:string
      * }>
      */
     public function buildByArray(array $data): array {
@@ -92,12 +97,14 @@ final class Cookie extends BaseCookie {
      * @param string|null $domain 域名
      * @param bool|null $secure 是否仅https
      * @param bool|null $httponly 是否仅http
+     * @param string|null $samesite 跨站发送策略
      * @return void
+     * @throws Exception SameSite 取值非法
      */
     public function set(
         string $name,mixed $value,
         ?int $expire=null,?string $path=null,?string $domain=null,
-        ?bool $secure=null,?bool $httponly=null
+        ?bool $secure=null,?bool $httponly=null,?string $samesite=null
     ): void {
         $options=array('value'=>$value);
         if($expire!==null)
@@ -110,15 +117,22 @@ final class Cookie extends BaseCookie {
             $options['secure']=$secure;
         if($httponly!==null)
             $options['httponly']=$httponly;
+        if($samesite!==null)
+            $options['samesite']=$samesite;
         $cookie=$this->normalize($options);
+        $header=array(
+            'expires'=>$cookie['expire'],
+            'path'=>$cookie['path'],
+            'domain'=>$cookie['domain'],
+            'secure'=>$cookie['secure'],
+            'httponly'=>$cookie['httponly']
+        );
+        if($cookie['samesite']!=='')
+            $header['samesite']=$cookie['samesite'];
         setcookie(
             $this->config->get('cookie.prefix','').$name,
             $cookie['value'],
-            $cookie['expire'],
-            $cookie['path'],
-            $cookie['domain'],
-            $cookie['secure'],
-            $cookie['httponly']
+            $header
         );
     }
 
@@ -126,6 +140,7 @@ final class Cookie extends BaseCookie {
      * 归一化单个 Cookie 描述
      *
      * - 相对过期时间转为绝对时间; 未给属性时套用配置默认值
+     * - SameSite 只接受 Lax / Strict / None, 空串表示不设置
      *
      * @access private
      * @param array<string,mixed> $options Cookie 选项
@@ -135,17 +150,33 @@ final class Cookie extends BaseCookie {
      *     path:string,
      *     domain:string,
      *     secure:bool,
-     *     httponly:bool
+     *     httponly:bool,
+     *     samesite:string
      * }
+     * @throws Exception SameSite 取值非法
      */
     private function normalize(array $options): array {
+        $samesite=(string)($options['samesite']??$this->config->get('cookie.samesite','Lax'));
+        $secure=(bool)($options['secure']??$this->config->get('cookie.secure',false));
+        if($samesite!=='') {
+            $samesite=ucfirst(strtolower($samesite));
+            if(!in_array($samesite,array('Lax','Strict','None'),true))
+                throw new Exception('Cookie SameSite value is invalid: '.$samesite,100402,array(
+                    'samesite'=>$samesite
+                ));
+            if($samesite==='None'&&!$secure)
+                throw new Exception('Cookie SameSite=None requires secure=true',100403,array(
+                    'samesite'=>$samesite
+                ));
+        }
         return array(
             'value'=>(string)($options['value']??''),
             'expire'=>time()+(int)($options['expire']??$this->config->get('cookie.expire',3600)),
             'path'=>(string)($options['path']??$this->config->get('cookie.path','')),
             'domain'=>(string)($options['domain']??$this->config->get('cookie.domain','')),
-            'secure'=>(bool)($options['secure']??$this->config->get('cookie.secure',false)),
-            'httponly'=>(bool)($options['httponly']??$this->config->get('cookie.httponly',false))
+            'secure'=>$secure,
+            'httponly'=>(bool)($options['httponly']??$this->config->get('cookie.httponly',true)),
+            'samesite'=>$samesite
         );
     }
 

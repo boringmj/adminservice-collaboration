@@ -330,8 +330,9 @@ final class Response extends BaseResponse {
      * @param int|null $expire 过期时间
      * @param string|null $path 路径
      * @param string|null $domain 域名
-     * @param bool $secure 是否安全传输
-     * @param bool $httponly 是否仅http传输
+     * @param bool|null $secure 是否安全传输
+     * @param bool|null $httponly 是否仅http传输
+     * @param string|null $samesite 跨站发送策略
      * @return string
      */
     public function cookie(
@@ -341,7 +342,8 @@ final class Response extends BaseResponse {
         ?string $path=null,
         ?string $domain=null,
         ?bool $secure=null,
-        ?bool $httponly=null
+        ?bool $httponly=null,
+        ?string $samesite=null
     ): string {
         if(func_num_args()>1&&$value!==null) {
             $this->cookies->set($name,array(
@@ -350,7 +352,8 @@ final class Response extends BaseResponse {
                 'path'=>$path,
                 'domain'=>$domain,
                 'secure'=>$secure,
-                'httponly'=>$httponly
+                'httponly'=>$httponly,
+                'samesite'=>$samesite
             ));
         }
         $cookie=$this->cookies->get($name,'');
@@ -376,7 +379,8 @@ final class Response extends BaseResponse {
                     $value['path']??null,
                     $value['domain']??null,
                     $value['secure']??null,
-                    $value['httponly']??null
+                    $value['httponly']??null,
+                    $value['samesite']??null
                 );
             else
                 $this->cookie((string)$name,(string)$value);
@@ -566,7 +570,8 @@ final class Response extends BaseResponse {
      *         path:string,
      *         domain:string,
      *         secure:bool,
-     *         httponly:bool
+     *         httponly:bool,
+     *         samesite:string
      *     }>,
      *     body:string,
      *     stream:callable(callable(string):void):void|null,

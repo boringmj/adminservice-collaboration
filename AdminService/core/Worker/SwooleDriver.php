@@ -111,7 +111,8 @@ final class SwooleDriver {
                                 (string)($item['path']??'/'),
                                 (string)($item['domain']??''),
                                 (bool)($item['secure']??false),
-                                (bool)($item['httponly']??false)
+                                (bool)($item['httponly']??false),
+                                (string)($item['samesite']??'')
                             );
                         } else
                             $response->cookie((string)$name,(string)$item);

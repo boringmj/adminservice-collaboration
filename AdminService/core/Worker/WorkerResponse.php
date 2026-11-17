@@ -37,7 +37,8 @@ final class WorkerResponse {
      *     path:string,
      *     domain:string,
      *     secure:bool,
-     *     httponly:bool
+     *     httponly:bool,
+     *     samesite:string
      * }> $cookies Cookie
      * @param string $body 正文
      * @param callable(callable(string):void):void|null $stream 流式响应生成器(非 null 时正文为空)

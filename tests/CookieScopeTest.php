@@ -31,9 +31,24 @@ class CookieScopeTest extends TestCase {
                 'path'=>null,
                 'domain'=>null,
                 'secure'=>null,
-                'httponly'=>null
+                'httponly'=>null,
+                'samesite'=>null
             )
         ),$cookie->data);
+    }
+
+    /**
+     * 测试: SameSite 透传到 Cookie 服务
+     *
+     * @return void
+     */
+    public function testResponsePassesSameSite(): void {
+        $cookie=new RecordingCookie();
+        $response=new Response(new Repository(array()),$cookie);
+        $response->cookie('name','value',null,null,null,null,null,'Strict');
+        $response->sendHeaders();
+
+        $this->assertSame('Strict',$cookie->data['name']['samesite']);
     }
 
 }

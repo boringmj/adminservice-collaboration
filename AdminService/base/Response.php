@@ -294,8 +294,9 @@ abstract class Response {
      * @param int|null $expire 过期时间
      * @param string|null $path 路径
      * @param string|null $domain 域名
-     * @param bool $secure 是否安全传输
-     * @param bool $httponly 是否仅http传输
+     * @param bool|null $secure 是否安全传输
+     * @param bool|null $httponly 是否仅http传输
+     * @param string|null $samesite 跨站发送策略
      * @return string
      */
     abstract public function cookie(
@@ -305,13 +306,14 @@ abstract class Response {
         ?string $path=null,
         ?string $domain=null,
         ?bool $secure=null,
-        ?bool $httponly=null
+        ?bool $httponly=null,
+        ?string $samesite=null
     ): string;
 
     /**
      * 批量设置Cookie
      *
-     * - 支持 `name => value` 与 `name => array(value / expire / path / domain / secure / httponly)` 两种写法
+     * - 支持 `name => value` 与 `name => array(value / expire / path / domain / secure / httponly / samesite)` 两种写法
      *
      * @access public
      * @param array<string,mixed> $cookies Cookie数组

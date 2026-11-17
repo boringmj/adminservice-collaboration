@@ -45,12 +45,13 @@ final class RecordingCookie extends Cookie {
      * @param string|null $domain 域名
      * @param bool|null $secure 是否仅https
      * @param bool|null $httponly 是否仅http
+     * @param string|null $samesite 跨站发送策略
      * @return void
      */
     public function set(
         string $name,mixed $value,
         ?int $expire=null,?string $path=null,?string $domain=null,
-        ?bool $secure=null,?bool $httponly=null
+        ?bool $secure=null,?bool $httponly=null,?string $samesite=null
     ): void {
     }
 

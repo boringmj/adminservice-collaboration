@@ -28,6 +28,7 @@ return array(
         'skip_on_debug'=>env('CACHE_COMPILE_SKIP_ON_DEBUG','config'), // debug+auto 跳过的缓存名(config/route/container, 逗号分隔); 配置缓存自身只读 .env
         'config'=>!is_file(dirname(__DIR__,2).'/.env'), // 存在 .env 时默认关闭; 生成环境快照后由 Bootstrapper 放行
         'route'=>true, // 路由表编译缓存
-        'container'=>true // 容器 Autowire 与反射签名编译缓存
+        'container'=>true, // 容器 Autowire 与反射签名编译缓存
+        'view'=>true // 模板编译产物缓存
     )
 );

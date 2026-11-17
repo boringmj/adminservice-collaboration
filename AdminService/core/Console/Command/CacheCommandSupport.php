@@ -26,10 +26,16 @@ final class CacheCommandSupport {
     public const TARGETS=array('config','routes','container');
 
     /**
-     * 全部目标(含环境快照, 按构建顺序)
+     * 全部构建目标(含环境快照, 不含视图)
      * @var array<int,string>
      */
     public const ALL_TARGETS=array('env','config','routes','container');
+
+    /**
+     * 状态查看目标(含环境快照与视图)
+     * @var array<int,string>
+     */
+    public const STATUS_TARGETS=array('env','config','routes','container','view');
 
     /**
      * 从参数解析目标
@@ -68,7 +74,7 @@ final class CacheCommandSupport {
             return null;
         if($target==='route')
             $target='routes';
-        if(!array_key_exists($target,array('env'=>true,'config'=>true,'routes'=>true,'container'=>true)))
+        if(!array_key_exists($target,array('env'=>true,'config'=>true,'routes'=>true,'container'=>true,'view'=>true)))
             throw new InvalidArgumentException('缓存目标无效(Cache target is invalid): '.$target);
         return $target;
     }

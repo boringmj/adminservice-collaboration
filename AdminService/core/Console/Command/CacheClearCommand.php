@@ -72,7 +72,7 @@ final class CacheClearCommand extends AbstractCommand {
      */
     public function optionHelp(): array {
         return array(
-            array('names'=>array('target'),'value'=>'all|env|config|routes|container','description'=>'清理范围, 默认 all'),
+            array('names'=>array('target'),'value'=>'all|env|config|routes|container|view','description'=>'清理范围, 默认 all'),
         );
     }
 
@@ -83,7 +83,7 @@ final class CacheClearCommand extends AbstractCommand {
      * @return string
      */
     public function usage(): string {
-        return 'cache clear [all|env|config|routes|container]';
+        return 'cache clear [all|env|config|routes|container|view]';
     }
 
     /**

@@ -15,6 +15,9 @@ use AdminService\Console\Input;
 use AdminService\Console\Output;
 use AdminService\Router\RouterFactory;
 use AdminService\Runtime;
+use AdminService\View\Cache\FileCache;
+use AdminService\View\Compiler\PhpCompiler;
+use AdminService\View\Source\FileSource;
 use Tests\Fixtures\FirstMiddleware;
 use Tests\Fixtures\RouteCacheController;
 
@@ -355,6 +358,50 @@ class CacheCommandTest extends TestCase {
         } finally {
             touch($file,$mtime);
         }
+    }
+
+    /**
+     * 测试视图缓存的构建、状态与清理
+     *
+     * @return void
+     */
+    public function testViewCacheBuildStatusAndClear(): void {
+        $build=new CacheBuildCommand(new Bootstrapper(),$this->config);
+        $output=Output::buffer();
+        $this->assertSame(0,$build->execute(new Input(array('view')),$output));
+        $this->assertStringContainsString('已构建',$output->stdout());
+
+        $status=new CacheStatusCommand($this->config);
+        $output=Output::buffer();
+        $this->assertSame(0,$status->execute(new Input(array('view')),$output));
+        $this->assertStringContainsString('有效(valid)',$output->stdout());
+
+        $clear=new CacheClearCommand($this->config);
+        $output=Output::buffer();
+        $this->assertSame(0,$clear->execute(new Input(array('view')),$output));
+        $this->assertFileDoesNotExist($this->dir.'/cache/compile/view');
+    }
+
+    /**
+     * 测试视图缓存状态能识别源文件变化
+     *
+     * @return void
+     */
+    public function testViewStatusDetectsStaleCache(): void {
+        $template=$this->dir.'/view-template.html';
+        file_put_contents($template,'{{$name}}');
+        $cache=new FileCache($this->config);
+        $this->assertTrue($cache->build(new FileSource($template),new PhpCompiler()));
+
+        $status=new CacheStatusCommand($this->config);
+        $output=Output::buffer();
+        $this->assertSame(0,$status->execute(new Input(array('view')),$output));
+        $this->assertStringContainsString('有效(valid)',$output->stdout());
+
+        touch($template,time()+3);
+        $output=Output::buffer();
+        $this->assertSame(0,$status->execute(new Input(array('view')),$output));
+        $this->assertStringContainsString('过期(stale)',$output->stdout());
     }
 
     /**

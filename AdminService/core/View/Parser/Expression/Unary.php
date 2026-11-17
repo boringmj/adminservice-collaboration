@@ -1,0 +1,45 @@
+<?php
+
+namespace AdminService\View\Parser\Expression;
+
+use AdminService\View\Runtime;
+
+/**
+ * 一元表达式
+ *
+ * @access public
+ * @package AdminService\View\Parser\Expression
+ * @version 1.0.0
+ */
+final class Unary implements ExpressionInterface {
+
+    /**
+     * 构造方法
+     *
+     * @access public
+     * @param string $operator 运算符
+     * @param ExpressionInterface $operand 操作数
+     */
+    public function __construct(
+        public string $operator,
+        public ExpressionInterface $operand
+    ) {
+    }
+
+    /**
+     * 计算表达式
+     *
+     * @access public
+     * @param array<string,mixed> $data 模板数据
+     * @return mixed
+     */
+    public function evaluate(array $data): mixed {
+        $value=$this->operand->evaluate($data);
+        return match($this->operator) {
+            '!' => !$value,
+            '-' => -Runtime::number($value),
+            default => null
+        };
+    }
+
+}

@@ -11,15 +11,28 @@ use AdminService\ContainerMetadata;
 use AdminService\ReflectionCache;
 use AdminService\Router\RouterFactory;
 use AdminService\Runtime;
+use AdminService\View\Compiler\PhpCompiler;
 use base\AbstractCommand;
 use base\Console\InputInterface;
 use base\Console\OutputInterface;
+use Closure;
 use InvalidArgumentException;
+use Throwable;
 
 use function date;
 use function dirname;
+use function filemtime;
+use function filesize;
+use function is_array;
+use function is_dir;
 use function is_file;
+use function is_string;
+use function max;
 use function number_format;
+use function scandir;
+use function sha1;
+use function stat;
+use function str_ends_with;
 
 /**
  * 查看编译缓存状态
@@ -92,7 +105,7 @@ final class CacheStatusCommand extends AbstractCommand {
      */
     public function optionHelp(): array {
         return array(
-            array('names'=>array('target'),'value'=>'all|env|config|routes|container','description'=>'查看范围, 默认 all'),
+            array('names'=>array('target'),'value'=>'all|env|config|routes|container|view','description'=>'查看范围, 默认 all'),
         );
     }
 
@@ -103,7 +116,7 @@ final class CacheStatusCommand extends AbstractCommand {
      * @return string
      */
     public function usage(): string {
-        return 'cache status [all|env|config|routes|container]';
+        return 'cache status [all|env|config|routes|container|view]';
     }
 
     /**
@@ -134,7 +147,7 @@ final class CacheStatusCommand extends AbstractCommand {
         $output->info('环境文件(.env): '.(is_file($env->path())?'存在(present)':'不存在(absent)'));
         $output->info('');
         $rows=array();
-        foreach($target===null?CacheCommandSupport::ALL_TARGETS:array($target) as $name) {
+        foreach($target===null?CacheCommandSupport::STATUS_TARGETS:array($target) as $name) {
             $inspect=$this->inspect($name,$store,$bootstrapper,$env);
             $created=is_int($inspect['created_at']??null)?date('Y-m-d H:i:s',$inspect['created_at']):'-';
             $size=is_int($inspect['size']??null)?number_format($inspect['size']):'-';
@@ -181,6 +194,80 @@ final class CacheStatusCommand extends AbstractCommand {
      * @return array<string,mixed>
      */
     private function inspect(string $target,CompileStore $store,Bootstrapper $bootstrapper,$env): array {
+        if($target==='view') {
+            $dir=dirname($store->path('view')).'/view';
+            $enabled=$store->enabled('view');
+            $files=array();
+            $size=0;
+            $mtime=null;
+            if(is_dir($dir)) {
+                $entries=@scandir($dir);
+                if(is_array($entries))
+                    foreach($entries as $entry) {
+                        if($entry==='.'||$entry==='..'||!str_ends_with($entry,'.php'))
+                            continue;
+                        $file=$dir.'/'.$entry;
+                        $files[]=$file;
+                        $file_size=@filesize($file);
+                        if($file_size!==false)
+                            $size+=(int)$file_size;
+                        $file_mtime=@filemtime($file);
+                        if($file_mtime!==false)
+                            $mtime=$mtime===null?$file_mtime:max($mtime,$file_mtime);
+                    }
+            }
+            $valid=0;
+            $stale=0;
+            $corrupted=0;
+            foreach($files as $file) {
+                try {
+                    $payload=@include $file;
+                } catch(Throwable) {
+                    $payload=null;
+                }
+                if(!is_array($payload)
+                    ||!isset($payload['version'],$payload['fingerprint'],$payload['source'],$payload['compiled'])
+                    ||!is_string($payload['version'])
+                    ||!is_string($payload['fingerprint'])
+                    ||!is_string($payload['source'])
+                    ||!$payload['compiled'] instanceof Closure
+                    ||$payload['version']!==PhpCompiler::VERSION) {
+                    $corrupted++;
+                    continue;
+                }
+                $source_stat=@stat($payload['source']);
+                if($source_stat===false
+                    ||sha1($source_stat['mtime'].':'.$source_stat['size'])!==$payload['fingerprint']) {
+                    $stale++;
+                    continue;
+                }
+                $valid++;
+            }
+            if(!$enabled)
+                $status='disabled';
+            elseif($files===array())
+                $status='missing';
+            elseif($corrupted>0)
+                $status='corrupted';
+            elseif($stale>0)
+                $status='stale';
+            else
+                $status='valid';
+            $reason=match($status) {
+                'disabled' => '配置中已禁用模板缓存',
+                'missing' => '尚未生成',
+                'corrupted' => $corrupted.' 个缓存结构无效',
+                'stale' => $stale.' 个模板已变化',
+                default => $valid.' 个模板'
+            };
+            return array(
+                'path'=>$dir,
+                'status'=>$status,
+                'size'=>$size,
+                'created_at'=>$mtime,
+                'reason'=>$reason
+            );
+        }
         if($target==='env') {
             if(EnvSnapshot::disabledBySwitch())
                 return array(
@@ -219,6 +306,8 @@ final class CacheStatusCommand extends AbstractCommand {
      * @return bool
      */
     private function enabled(string $target,CompileStore $store,Bootstrapper $bootstrapper,$env): bool {
+        if($target==='view')
+            return $store->enabled('view');
         if($target==='env')
             return EnvCache::exists()
                 &&!EnvSnapshot::disabledBySwitch()

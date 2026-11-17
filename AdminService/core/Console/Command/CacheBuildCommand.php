@@ -10,10 +10,16 @@ use AdminService\ContainerMetadata;
 use AdminService\ReflectionCache;
 use AdminService\Router\AttributeScanner;
 use AdminService\Router\RouterFactory;
+use AdminService\View\Cache\FileCache;
+use AdminService\View\Compiler\PhpCompiler;
+use AdminService\View\Source\FileSource;
 use base\AbstractCommand;
 use base\Console\InputInterface;
 use base\Console\OutputInterface;
 use InvalidArgumentException;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+use Throwable;
 
 use function array_key_exists;
 use function array_unique;
@@ -22,9 +28,14 @@ use function count;
 use function implode;
 use function in_array;
 use function is_array;
+use function is_dir;
+use function is_file;
 use function is_object;
-use function ltrim;
 use function is_string;
+use function ltrim;
+use function str_contains;
+use function str_replace;
+use function strtolower;
 use function strtoupper;
 
 /**
@@ -83,7 +94,7 @@ final class CacheBuildCommand extends AbstractCommand {
      * @return string
      */
     public function description(): string {
-        return '预构建环境、配置、路由与容器编译缓存';
+        return '预构建编译缓存(环境、配置、路由、容器; 视图需显式指定 view)';
     }
 
     /**
@@ -114,7 +125,7 @@ final class CacheBuildCommand extends AbstractCommand {
      */
     public function optionHelp(): array {
         return array(
-            array('names'=>array('target'),'value'=>'all|env|config|routes|container','description'=>'构建范围, 默认 all(不含 env)'),
+            array('names'=>array('target'),'value'=>'all|env|config|routes|container|view','description'=>'构建范围, 默认 all(不含 env/view)'),
             array('names'=>array('force','f'),'value'=>null,'description'=>'忽略缓存指纹, 强制重建'),
             array('names'=>array('with-env'),'value'=>null,'description'=>'all 同时构建环境快照(包含 .env 全部键值)'),
         );
@@ -127,7 +138,7 @@ final class CacheBuildCommand extends AbstractCommand {
      * @return string
      */
     public function usage(): string {
-        return 'cache build [all|env|config|routes|container] [--with-env] [--force]';
+        return 'cache build [all|env|config|routes|container|view] [--with-env] [--force]';
     }
 
     /**
@@ -166,6 +177,8 @@ final class CacheBuildCommand extends AbstractCommand {
                     $store->force(true);
             } elseif($name==='routes')
                 $result=$this->buildRoutes($store,$force);
+            elseif($name==='view')
+                $result=$this->buildView($force);
             else
                 $result=$this->buildContainer($store,$force);
             $output->info('['.$this->statusLabel($result['status']).'] '.$name.($result['reason']!==null?' - '.$result['reason']:''));
@@ -283,6 +296,79 @@ final class CacheBuildCommand extends AbstractCommand {
             'status'=>$inspect['status'],
             'reason'=>$inspect['reason'],
             'failure'=>true
+        );
+    }
+
+    /**
+     * 构建模板编译缓存
+     *
+     * @access private
+     * @param bool $force 是否先清理后重建
+     * @return array{status:string,reason:string|null,failure:bool}
+     */
+    private function buildView(bool $force): array {
+        $store=new CompileStore($this->config);
+        if($force)
+            $store->force(true);
+        if(!$store->enabled('view')) {
+            return array(
+                'status'=>'skipped',
+                'reason'=>'配置中已禁用模板缓存',
+                'failure'=>false
+            );
+        }
+        $app_path=$this->config->get('app.path');
+        if(!is_string($app_path)||!is_dir($app_path)) {
+            return array(
+                'status'=>'skipped',
+                'reason'=>'应用目录不存在',
+                'failure'=>false
+            );
+        }
+        $cache=new FileCache($this->config,$force);
+        if($force)
+            $cache->clear();
+        $compiler=new PhpCompiler();
+        $count=0;
+        $failed=0;
+        try {
+            $iterator=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($app_path));
+            foreach($iterator as $file) {
+                if(!$file->isFile()||strtolower($file->getExtension())!=='html')
+                    continue;
+                $path=str_replace('\\','/',$file->getPathname());
+                if(!str_contains($path,'/view/'))
+                    continue;
+                if($cache->build(new FileSource($file->getPathname()),$compiler))
+                    $count++;
+                else
+                    $failed++;
+            }
+            $error_template=$this->config->get('app.error_template');
+            if(is_string($error_template)&&is_file($error_template)) {
+                if($cache->build(new FileSource($error_template),$compiler))
+                    $count++;
+                else
+                    $failed++;
+            }
+        } catch(Throwable $e) {
+            return array(
+                'status'=>'failed',
+                'reason'=>'模板编译失败: '.$e->getMessage(),
+                'failure'=>true
+            );
+        }
+        if($failed>0) {
+            return array(
+                'status'=>'failed',
+                'reason'=>$failed.' 个模板写入失败',
+                'failure'=>true
+            );
+        }
+        return array(
+            'status'=>$count>0?'built':'skipped',
+            'reason'=>$count.' 个模板',
+            'failure'=>false
         );
     }
 

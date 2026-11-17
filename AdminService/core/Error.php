@@ -5,6 +5,7 @@ use base\ConfigInterface;
 
 use base\Error as BaseError;
 use base\Container as ContainerContract;
+use base\HttpStatusExceptionInterface;
 use base\Response;
 use base\View;
 use Fiber;
@@ -29,6 +30,7 @@ use function is_array;
 use function is_bool;
 use function is_callable;
 use function is_file;
+use function is_int;
 use function is_null;
 use function is_object;
 use function is_resource;
@@ -525,7 +527,7 @@ final class Error extends BaseError {
      *
      * @access private
      * @param \Throwable $exception 异常
-     * @return array{type:int,message:string,file:string,line:int,is_fatal:bool,stack_trace:array<mixed>,is_exception:bool}
+     * @return array{type:int,message:string,file:string,line:int,is_fatal:bool,stack_trace:array<mixed>,is_exception:bool,status:int}
      */
     private static function exceptionRecord(\Throwable $exception): array {
         return array(
@@ -535,8 +537,26 @@ final class Error extends BaseError {
             'line'=>$exception->getLine(),
             'is_fatal'=>true,
             'stack_trace'=>$exception->getTrace(),
-            'is_exception'=>true
+            'is_exception'=>true,
+            'status'=>self::statusFor($exception)
         );
+    }
+
+    /**
+     * 异常对应的 HTTP 状态码
+     *
+     * - 实现 `HttpStatusExceptionInterface` 时使用异常自身的状态码
+     * - 其余异常与 PHP 错误按 500 处理
+     *
+     * @access public
+     * @param \Throwable|null $exception 异常
+     * @return int
+     */
+    public static function statusFor(?\Throwable $exception): int {
+        if(!$exception instanceof HttpStatusExceptionInterface)
+            return 500;
+        $status=$exception->statusCode();
+        return $status>=400&&$status<600?$status:500;
     }
 
     /**
@@ -591,6 +611,22 @@ final class Error extends BaseError {
     }
 
     /**
+     * 已收集错误对应的 HTTP 状态码
+     *
+     * - 取第一条带状态码的异常记录; 没有时按 500
+     *
+     * @access private
+     * @param array<int,array<string,mixed>> $errors 错误记录
+     * @return int
+     */
+    private static function errorStatus(array $errors): int {
+        foreach($errors as $error)
+            if(isset($error['status'])&&is_int($error['status'])&&$error['status']>=400&&$error['status']<600)
+                return $error['status'];
+        return 500;
+    }
+
+    /**
      * 渲染错误信息
      *
      * - 不主动 exit(): 该方法可能在 shutdown 回调中执行, 主动退出会跳过后续 shutdown 回调
@@ -603,13 +639,15 @@ final class Error extends BaseError {
         while(ob_get_level()>0) {
             ob_end_clean();
         }
+        $state=self::state();
+        $status=self::errorStatus($state['errors']);
         // 准备错误信息(优先当前请求的响应实例)
         $container=self::responseContainer();
         $response=null;
         if(self::$initialized&&$container!==null) {
             try {
                 $response=$container->get(Response::class);
-                $response->status(500);
+                $response->status($status);
                 $response->html();
                 $response->header('Is-Error','true');
             } catch(\Throwable) {
@@ -621,9 +659,9 @@ final class Error extends BaseError {
         // 记录所有错误到日志(先于正文输出: 客户端断开后仍应留下日志)
         $logFailure=self::writeErrorLogs();
         $headerFailure=null;
-        // 发送正文前兜底 500: 响应对象取不到或 sendHeaders() 提前失败时也不能让客户端看到 200
+        // 发送正文前兜底: 响应对象取不到或 sendHeaders() 提前失败时也不能让客户端看到 200
         if(!headers_sent())
-            http_response_code(500);
+            http_response_code($status);
         if($response!==null) {
             try {
                 $response->sendHeaders();

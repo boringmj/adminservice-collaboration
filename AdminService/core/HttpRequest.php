@@ -155,6 +155,7 @@ final class HttpRequest extends Request {
      * @param ContainerContract|null $container 容器契约
      * @param ConfigInterface|null $config 配置契约实例(未注入时回落门面当前那份)
      * @param RuntimePathInterface|null $runtime_path 运行时路径解析器
+     * @throws Exception 请求体解析失败
      */
     public function __construct(
         array $sources=array(),
@@ -227,6 +228,7 @@ final class HttpRequest extends Request {
      *
      * @access private
      * @return void
+     * @throws Exception 请求体解析失败
      */
     private function parseInput(): void {
         // 获取Content-Type的值

@@ -6,7 +6,9 @@ use PHPUnit\Framework\TestCase;
 
 use AdminService\App;
 use AdminService\Config;
+use AdminService\exception\InvalidInputException;
 use AdminService\HttpRequest;
+use base\HttpStatusExceptionInterface;
 
 use function count;
 use function explode;
@@ -193,6 +195,24 @@ class RequestTest extends TestCase {
         $request=$this->jsonRequest('{"name":"fromjson","n":7}');
         $this->assertSame(array('name'=>'fromjson','n'=>7),$request->input());
         $this->assertSame('fromjson',$request->input('name'));
+    }
+
+    /**
+     * 测试损坏的 JSON 请求体抛出解析异常
+     *
+     * @return void
+     */
+    public function testMalformedJsonBodyThrows(): void {
+        try {
+            $this->jsonRequest('{"name":');
+            $this->fail('预期抛出异常');
+        } catch(InvalidInputException $e) {
+            $this->assertSame(100401,$e->getCode());
+            $this->assertStringContainsString('Syntax error',$e->getMessage());
+            $this->assertArrayHasKey('json_error',$e->getData());
+            $this->assertInstanceOf(HttpStatusExceptionInterface::class,$e);
+            $this->assertSame(400,$e->statusCode());
+        }
     }
 
     /**

@@ -227,13 +227,14 @@ final class Worker {
         Application $app,
         ?RequestContext $context=null
     ): WorkerResponse {
+        $status=Error::statusFor($e);
         // 请求上下文仍在时按框架错误页渲染并写日志; 上下文缺失(启动失败等)走纯文本兜底
         if($context!==null) {
             try {
                 $page=Error::renderRequestPage($e,$context->container());
                 $response=$context->response();
                 if($page!==''&&$response instanceof Response) {
-                    $response->status(500);
+                    $response->status($status);
                     $response->contentType('text/html');
                     // 已渲染内容会跳过类型表, 内容类型需显式下发
                     $response->header('Content-Type','text/html; charset=utf-8');
@@ -248,9 +249,9 @@ final class Worker {
         $debug=(bool)$app->config()->get('app.debug',false);
         $body=$debug
             ?get_class($e).': '.$e->getMessage()
-            :'Internal Server Error';
+            :($status>=400&&$status<500?'Bad Request':'Internal Server Error');
         return new WorkerResponse(
-            500,
+            $status,
             array('Content-Type'=>array('text/plain; charset=utf-8')),
             array(),
             $body

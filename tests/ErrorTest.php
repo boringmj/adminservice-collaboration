@@ -326,6 +326,18 @@ class ErrorTest extends TestCase {
     }
 
     /**
+     * 测试带状态码的异常使用异常自身状态码
+     * @return void
+     */
+    public function testHttpStatusExceptionSetsResponseStatus(): void {
+        list($status,$stdout,$stderr)=$this->runFixture(
+            __DIR__.'/fixtures/error_http_status_exception.php'
+        );
+        $this->assertSame(0,$status,$stderr);
+        $this->assertStringContainsString('|STATUS|400',$stdout);
+    }
+
+    /**
      * 运行夹具脚本
      *
      * @param string $script 脚本路径

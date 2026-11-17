@@ -11,10 +11,14 @@ use AdminService\Runtime;
 use function AdminService\env;
 use function AdminService\env_reset;
 use function AdminService\env_snapshot;
+use function clearstatcache;
 use function file_put_contents;
+use function fileperms;
 use function getenv;
+use function is_dir;
 use function is_file;
 use function putenv;
+use function rmdir;
 use function str_replace;
 use function sys_get_temp_dir;
 use function tempnam;
@@ -268,6 +272,104 @@ class EnvSnapshotTest extends TestCase {
             Runtime::reset();
             if(is_file($cache_file))
                 unlink($cache_file);
+            if(is_file($env_file))
+                unlink($env_file);
+        }
+    }
+
+    /**
+     * 测试: 环境快照目录与文件权限
+     *
+     * @return void
+     */
+    public function testEnvCachePermissions(): void {
+        if(DIRECTORY_SEPARATOR==='\\')
+            $this->markTestSkipped('Windows 不保留 Unix 权限');
+        $env_file=tempnam(sys_get_temp_dir(),'env_snapshot_perm_src_');
+        $dir=sys_get_temp_dir().'/env_snapshot_perm_'.uniqid('',true);
+        $cache_file=$dir.'/env.cache.php';
+        $previous_env=getenv('ADMINSERVICE_TEST_ENV_FILE');
+        $previous_cache=getenv('ADMINSERVICE_TEST_ENV_CACHE');
+        try {
+            file_put_contents($env_file,"KEY=one\n");
+            putenv('ADMINSERVICE_TEST_ENV_FILE='.$env_file);
+            putenv('ADMINSERVICE_TEST_ENV_CACHE='.$cache_file);
+            env_reset();
+            $this->assertSame('built',(new Bootstrapper())->buildEnvCache()['status']);
+            clearstatcache(true,$cache_file);
+            clearstatcache(true,$dir);
+            $this->assertSame(0600,fileperms($cache_file)&0777);
+            $this->assertSame(0700,fileperms($dir)&0777);
+        } finally {
+            if($previous_env===false)
+                putenv('ADMINSERVICE_TEST_ENV_FILE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_FILE='.$previous_env);
+            if($previous_cache===false)
+                putenv('ADMINSERVICE_TEST_ENV_CACHE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_CACHE='.$previous_cache);
+            env_reset();
+            Runtime::reset();
+            if(is_file($cache_file))
+                unlink($cache_file);
+            if(is_dir($dir))
+                rmdir($dir);
+            if(is_file($env_file))
+                unlink($env_file);
+        }
+    }
+
+    /**
+     * 测试: 环境快照权限可通过环境变量覆盖
+     *
+     * @return void
+     */
+    public function testEnvCachePermissionOverrides(): void {
+        if(DIRECTORY_SEPARATOR==='\\')
+            $this->markTestSkipped('Windows 不保留 Unix 权限');
+        $env_file=tempnam(sys_get_temp_dir(),'env_snapshot_mode_src_');
+        $dir=sys_get_temp_dir().'/env_snapshot_mode_'.uniqid('',true);
+        $cache_file=$dir.'/env.cache.php';
+        $previous_env=getenv('ADMINSERVICE_TEST_ENV_FILE');
+        $previous_cache=getenv('ADMINSERVICE_TEST_ENV_CACHE');
+        $previous_mode=getenv('ADMINSERVICE_ENV_CACHE_MODE');
+        $previous_dir_mode=getenv('ADMINSERVICE_ENV_CACHE_DIR_MODE');
+        try {
+            file_put_contents($env_file,"KEY=one\n");
+            putenv('ADMINSERVICE_TEST_ENV_FILE='.$env_file);
+            putenv('ADMINSERVICE_TEST_ENV_CACHE='.$cache_file);
+            putenv('ADMINSERVICE_ENV_CACHE_MODE=0640');
+            putenv('ADMINSERVICE_ENV_CACHE_DIR_MODE=0750');
+            env_reset();
+            $this->assertSame('built',(new Bootstrapper())->buildEnvCache()['status']);
+            clearstatcache(true,$cache_file);
+            clearstatcache(true,$dir);
+            $this->assertSame(0640,fileperms($cache_file)&0777);
+            $this->assertSame(0750,fileperms($dir)&0777);
+        } finally {
+            if($previous_env===false)
+                putenv('ADMINSERVICE_TEST_ENV_FILE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_FILE='.$previous_env);
+            if($previous_cache===false)
+                putenv('ADMINSERVICE_TEST_ENV_CACHE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_CACHE='.$previous_cache);
+            if($previous_mode===false)
+                putenv('ADMINSERVICE_ENV_CACHE_MODE');
+            else
+                putenv('ADMINSERVICE_ENV_CACHE_MODE='.$previous_mode);
+            if($previous_dir_mode===false)
+                putenv('ADMINSERVICE_ENV_CACHE_DIR_MODE');
+            else
+                putenv('ADMINSERVICE_ENV_CACHE_DIR_MODE='.$previous_dir_mode);
+            env_reset();
+            Runtime::reset();
+            if(is_file($cache_file))
+                unlink($cache_file);
+            if(is_dir($dir))
+                rmdir($dir);
             if(is_file($env_file))
                 unlink($env_file);
         }

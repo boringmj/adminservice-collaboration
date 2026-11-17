@@ -4,6 +4,7 @@ namespace AdminService\Cache;
 
 use AdminService\Config\Env;
 
+use function chmod;
 use function clearstatcache;
 use function dirname;
 use function file_put_contents;
@@ -11,6 +12,7 @@ use function filemtime;
 use function filesize;
 use function function_exists;
 use function getenv;
+use function intval;
 use function is_array;
 use function is_dir;
 use function is_file;
@@ -19,6 +21,7 @@ use function is_scalar;
 use function is_string;
 use function mkdir;
 use function opcache_invalidate;
+use function preg_match;
 use function rename;
 use function stat;
 use function str_replace;
@@ -37,6 +40,7 @@ use function var_export;
  * - 文件存在即启用; 普通请求只刷新已存在的快照, 不会隐式创建
  * - 快照是权威值, 读取时不比对来源文件; 修改 `.env` 后必须重新构建
  * - 快照包含 `.env` 的全部键值, 落盘前必须确认 runtime 不在文档根内
+ * - 快照目录默认为 `0700`, 文件默认为 `0600`(Unix); 可用 `ADMINSERVICE_ENV_CACHE_DIR_MODE` / `ADMINSERVICE_ENV_CACHE_MODE` 覆盖, 文件权限为 `0` 时跳过 chmod
  *
  * @access public
  * @package AdminService\Cache
@@ -58,6 +62,16 @@ final class EnvCache {
      * 测试用快照路径覆盖
      */
     private const TEST_PATH='ADMINSERVICE_TEST_ENV_CACHE';
+
+    /**
+     * 快照文件权限覆盖(八进制; 0 表示跳过 chmod)
+     */
+    private const MODE_ENV='ADMINSERVICE_ENV_CACHE_MODE';
+
+    /**
+     * 快照目录权限覆盖(八进制)
+     */
+    private const DIR_MODE_ENV='ADMINSERVICE_ENV_CACHE_DIR_MODE';
 
     /**
      * 快照文件路径
@@ -84,6 +98,51 @@ final class EnvCache {
     public static function hasPathOverride(): bool {
         $override=getenv(self::TEST_PATH);
         return is_string($override)&&trim($override)!=='';
+    }
+
+    /**
+     * 快照文件权限
+     *
+     * - 默认 `0600`; 可通过 `ADMINSERVICE_ENV_CACHE_MODE` 指定八进制权限
+     * - `0` 表示跳过 chmod
+     *
+     * @access private
+     * @return int
+     */
+    private static function fileMode(): int {
+        return self::modeFromEnv(self::MODE_ENV,0600);
+    }
+
+    /**
+     * 快照目录权限
+     *
+     * - 默认 `0700`; 可通过 `ADMINSERVICE_ENV_CACHE_DIR_MODE` 指定八进制权限
+     *
+     * @access private
+     * @return int
+     */
+    private static function dirMode(): int {
+        return self::modeFromEnv(self::DIR_MODE_ENV,0700);
+    }
+
+    /**
+     * 从环境变量读取八进制权限
+     *
+     * @access private
+     * @param string $name 环境变量名
+     * @param int $default 默认权限
+     * @return int
+     */
+    private static function modeFromEnv(string $name,int $default): int {
+        $value=getenv($name);
+        if(!is_string($value)||trim($value)==='')
+            return $default;
+        $value=trim($value);
+        if($value==='0')
+            return 0;
+        if(preg_match('/^0?[0-7]{3,4}$/',$value)!==1)
+            return $default;
+        return intval($value,8)&0777;
     }
 
     /**
@@ -137,7 +196,8 @@ final class EnvCache {
             return false;
         $path=self::path();
         $dir=dirname($path);
-        if(!is_dir($dir)&&!@mkdir($dir,0755,true)&&!is_dir($dir))
+        $dir_mode=self::dirMode();
+        if(!is_dir($dir)&&!@mkdir($dir,$dir_mode>0?$dir_mode:0700,true)&&!is_dir($dir))
             return false;
         $payload=array(
             'version'=>self::VERSION,
@@ -153,6 +213,12 @@ final class EnvCache {
         $tmp=$dir.'/.envtmp_'.str_replace('.','',uniqid('',true));
         $written=@file_put_contents($tmp,$content);
         if($written===false||$written<strlen($content)) {
+            @unlink($tmp);
+            return false;
+        }
+        // 快照包含 env 全部键值, 收紧权限; 无法收紧时不落盘
+        $file_mode=self::fileMode();
+        if($file_mode>0&&!@chmod($tmp,$file_mode)) {
             @unlink($tmp);
             return false;
         }

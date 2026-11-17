@@ -24,7 +24,7 @@ use function trim;
 /**
  * http请求工具类
  *
- * Class HttpHelper
+ * - URL 原样交给 cURL, 不限制 scheme 或目标网段; 传入不可信地址前由调用方校验
  */
 class HttpHelper {
 

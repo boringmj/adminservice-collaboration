@@ -6,6 +6,7 @@ use AdminService\Config\Repository;
 use base\ConfigInterface;
 use base\Container as ContainerContract;
 use base\Cookie as CookieContract;
+use base\CookieOptions;
 use base\Request;
 use base\Response as BaseResponse;
 use AdminService\ResponseProcessor\Http;
@@ -27,6 +28,7 @@ use function ignore_user_abort;
 use function implode;
 use function in_array;
 use function is_array;
+use function is_string;
 use function ob_flush;
 use function ob_get_level;
 use function str_contains;
@@ -352,64 +354,43 @@ final class Response extends BaseResponse {
      *
      * @access public
      * @param string $name Cookie名
-     * @param string|null $value Cookie值(null 时仅读取)
-     * @param int|null $expire 过期时间
-     * @param string|null $path 路径
-     * @param string|null $domain 域名
-     * @param bool|null $secure 是否安全传输
-     * @param bool|null $httponly 是否仅http传输
-     * @param string|null $samesite 跨站发送策略
+     * @param CookieOptions|string|null $value Cookie属性/值(null 时仅读取)
      * @return string
      */
     public function cookie(
         string $name,
-        ?string $value=null,
-        ?int $expire=null,
-        ?string $path=null,
-        ?string $domain=null,
-        ?bool $secure=null,
-        ?bool $httponly=null,
-        ?string $samesite=null
+        CookieOptions|string|null $value=null
     ): string {
-        if(func_num_args()>1&&$value!==null) {
-            $this->cookies->set($name,array(
-                'value'=>(string)$value,
-                'expire'=>$expire,
-                'path'=>$path,
-                'domain'=>$domain,
-                'secure'=>$secure,
-                'httponly'=>$httponly,
-                'samesite'=>$samesite
-            ));
-        }
+        if($value!==null)
+            $this->cookies->set($name,$value);
         $cookie=$this->cookies->get($name,'');
-        if(is_array($cookie))
-            return (string)($cookie['value']??'');
-        return (string)$cookie;
+        if($cookie instanceof CookieOptions)
+            return $cookie->value;
+        return is_string($cookie)?$cookie:'';
     }
 
     /**
      * 批量设置Cookie
      *
      * @access public
-     * @param array<string,mixed> $cookies Cookie数组
+     * @param array<string,CookieOptions|string|array<string,mixed>> $cookies Cookie数组
      * @return void
      */
     public function cookies(array $cookies): void {
         foreach($cookies as $name=>$value) {
-            if(is_array($value))
-                $this->cookie(
-                    (string)($value['name']??$name),
-                    $value['value']??'',
-                    $value['expire']??null,
-                    $value['path']??null,
-                    $value['domain']??null,
-                    $value['secure']??null,
-                    $value['httponly']??null,
-                    $value['samesite']??null
-                );
-            else
-                $this->cookie((string)$name,(string)$value);
+            if(is_array($value)) {
+                try {
+                    $options=CookieOptions::fromArray($value);
+                } catch(\InvalidArgumentException $e) {
+                    throw new Exception($e->getMessage(),100405,array('cookie'=>$name));
+                }
+                $this->cookies->set((string)($value['name']??$name),$options);
+                continue;
+            }
+            $this->cookies->set(
+                (string)$name,
+                $value instanceof CookieOptions?$value:(string)$value
+            );
         }
     }
 
@@ -460,7 +441,7 @@ final class Response extends BaseResponse {
                 }
             }
             if($this->cookies->all()!==array())
-                $this->cookieWriter()->setByArray($this->cookies->all());
+                $this->cookieWriter()->setAll($this->cookies->all());
         }
     }
 
@@ -606,7 +587,7 @@ final class Response extends BaseResponse {
      */
     public function export(Request $request): array {
         $this->prepare($request);
-        $cookies=$this->cookieWriter()->buildByArray($this->cookies->all());
+        $cookies=$this->cookieWriter()->buildAll($this->cookies->all());
         if($this->hasStream()) {
             $this->streamHeaders();
             return array(

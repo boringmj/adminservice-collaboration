@@ -7,6 +7,7 @@ use PHPUnit\Framework\TestCase;
 use AdminService\Config\Repository;
 use AdminService\HttpRequest;
 use AdminService\Response;
+use base\CookieOptions;
 
 use function time;
 
@@ -36,7 +37,7 @@ class ResponseExportTest extends TestCase {
         $response=new Response($config);
         $response->contentType('text/plain');
         $response->cookie('name','v');
-        $response->cookie('custom','x',10,'/raw','',false,false);
+        $response->cookie('custom',new CookieOptions('x',time()+10,'/raw','',false,false));
 
         $data=$response->export(new HttpRequest(array('server'=>array(
             'REQUEST_URI'=>'/',

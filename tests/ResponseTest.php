@@ -11,10 +11,12 @@ use AdminService\HttpError;
 use AdminService\HttpRequest;
 use AdminService\Response;
 use AdminService\ResponseProcessor\Json;
+use base\CookieOptions;
 
 use function array_replace_recursive;
 use function ob_get_clean;
 use function ob_start;
+use function time;
 
 /**
  * 响应实例测试
@@ -123,8 +125,8 @@ class ResponseTest extends TestCase {
         $response=new Response();
         $response->cookie('simple','v1');
         $this->assertSame('v1',$response->cookie('simple'));
-        // 带属性的写法(属性作为后续参数)
-        $response->cookie('with_attr','v2',60,'/');
+        // 带属性的写法
+        $response->cookie('with_attr',new CookieOptions('v2',time()+60,'/'));
         $this->assertSame('v2',$response->cookie('with_attr'));
         // 批量形式(键名为Cookie名)
         $response->cookies(array('named'=>array('value'=>'v3')));

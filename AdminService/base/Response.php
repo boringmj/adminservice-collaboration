@@ -286,37 +286,25 @@ abstract class Response {
     /**
      * 获取或设置单个Cookie
      *
-     * - 不传值即读取; 传值即下发, 其余参数为该Cookie的属性
+     * - 不传值即读取; 传字符串或 `CookieOptions` 即下发
      *
      * @access public
      * @param string $name Cookie名
-     * @param string|null $value Cookie值(null 时仅读取)
-     * @param int|null $expire 过期时间
-     * @param string|null $path 路径
-     * @param string|null $domain 域名
-     * @param bool|null $secure 是否安全传输
-     * @param bool|null $httponly 是否仅http传输
-     * @param string|null $samesite 跨站发送策略
+     * @param CookieOptions|string|null $value Cookie属性/值(null 时仅读取)
      * @return string
      */
     abstract public function cookie(
         string $name,
-        ?string $value=null,
-        ?int $expire=null,
-        ?string $path=null,
-        ?string $domain=null,
-        ?bool $secure=null,
-        ?bool $httponly=null,
-        ?string $samesite=null
+        CookieOptions|string|null $value=null
     ): string;
 
     /**
      * 批量设置Cookie
      *
-     * - 支持 `name => value` 与 `name => array(value / expire / path / domain / secure / httponly / samesite)` 两种写法
+     * - 支持 `name => value`、`name => CookieOptions` 与选项数组
      *
      * @access public
-     * @param array<string,mixed> $cookies Cookie数组
+     * @param array<string,CookieOptions|string|array<string,mixed>> $cookies Cookie数组
      * @return void
      */
     abstract public function cookies(array $cookies): void;

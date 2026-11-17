@@ -122,39 +122,18 @@ abstract class Controller {
      *
      * @access protected
      * @param string|array $params 参数(string时为cookie名,array时为cookie数组)
-     * @param string|null $value Cookie值($params 参数为数组时此参数无效)
-     * @param int|null $expire 过期时间($params 参数为数组时此参数无效)
-     * @param string|null $path 路径($params 参数为数组时此参数无效)
-     * @param string|null $domain 域名($params 参数为数组时此参数无效)
-     * @param bool|null $secure 是否安全传输($params 参数为数组时此参数无效)
-     * @param bool|null $httponly 是否仅http传输($params 参数为数组时此参数无效)
-     * @param string|null $samesite 跨站发送策略($params 参数为数组时此参数无效)
+     * @param CookieOptions|string|null $value Cookie属性/值($params 参数为数组时此参数无效)
      * @return void
      */
     final protected function cookie(
         string|array $params,
-        ?string $value=null,
-        ?int $expire=null,
-        ?string $path=null,
-        ?string $domain=null,
-        ?bool $secure=null,
-        ?bool $httponly=null,
-        ?string $samesite=null
+        CookieOptions|string|null $value=null
     ): void {
         if(is_array($params)) {
             $this->response->cookies($params);
             return;
         }
-        $this->response->cookie(
-            $params,
-            $value,
-            $expire,
-            $path,
-            $domain,
-            $secure,
-            $httponly,
-            $samesite
-        );
+        $this->response->cookie($params,$value);
     }
 
     /**

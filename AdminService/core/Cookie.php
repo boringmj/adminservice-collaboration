@@ -4,9 +4,11 @@ namespace AdminService;
 
 use base\ConfigInterface;
 use base\Cookie as BaseCookie;
+use base\CookieOptions;
 
 use function in_array;
 use function is_array;
+use function preg_match;
 use function setcookie;
 use function strtolower;
 use function time;
@@ -19,6 +21,13 @@ use function ucfirst;
  * - 由 Response 在发送阶段调用，不读取门面或全局容器
  */
 final class Cookie extends BaseCookie {
+
+    /**
+     * 错误码
+     */
+    private const ERROR_INVALID_SAMESITE=100402;
+    private const ERROR_SAMESITE_REQUIRES_SECURE=100403;
+    private const ERROR_INVALID_COOKIE=100405;
 
     /**
      * 配置
@@ -37,89 +46,30 @@ final class Cookie extends BaseCookie {
     }
 
     /**
-     * 通过数组的方式设置cookie
+     * 批量设置 Cookie
      *
      * @access public
-     * @param array<string,mixed> $data 数据
+     * @param array<string,CookieOptions|string|array<string,mixed>> $cookies 名称 => 属性
      * @return void
      */
-    public function setByArray(array $data): void {
-        foreach($data as $key=>$value)
-            if(is_array($value))
-                $this->set(
-                    $key,
-                    $value['value']??'',
-                    $value['expire']??null,
-                    $value['path']??null,
-                    $value['domain']??null,
-                    $value['secure']??null,
-                    $value['httponly']??null,
-                    $value['samesite']??null
-                );
-            else
-                $this->set($key,$value);
+    public function setAll(array $cookies): void {
+        foreach($cookies as $name=>$value)
+            $this->set((string)$name,$this->toOptions($value));
     }
 
     /**
-     * 按配置构建待下发的 Cookie 描述(不发送)
-     *
-     * - 键名带 `cookie.prefix`; 未指定属性时套用配置默认值
-     *
-     * @access public
-     * @param array<string,mixed> $data 数据
-     * @return array<string,array{
-     *     value:string,
-     *     expire:int,
-     *     path:string,
-     *     domain:string,
-     *     secure:bool,
-     *     httponly:bool,
-     *     samesite:string
-     * }>
-     */
-    public function buildByArray(array $data): array {
-        $cookies=array();
-        foreach($data as $key=>$value) {
-            $options=is_array($value)?$value:array('value'=>$value);
-            $cookies[$this->config->get('cookie.prefix','').$key]=$this->normalize($options);
-        }
-        return $cookies;
-    }
-
-    /**
-     * 设置Cookie
+     * 设置单个 Cookie
      *
      * @access public
      * @param string $name 名称
-     * @param mixed $value 值
-     * @param int|null $expire 过期时间
-     * @param string|null $path 路径
-     * @param string|null $domain 域名
-     * @param bool|null $secure 是否仅https
-     * @param bool|null $httponly 是否仅http
-     * @param string|null $samesite 跨站发送策略
+     * @param CookieOptions|string $value 属性或值
      * @return void
-     * @throws Exception SameSite 取值非法
+     * @throws Exception 名称或属性非法
      */
-    public function set(
-        string $name,mixed $value,
-        ?int $expire=null,?string $path=null,?string $domain=null,
-        ?bool $secure=null,?bool $httponly=null,?string $samesite=null
-    ): void {
-        $options=array('value'=>$value);
-        if($expire!==null)
-            $options['expire']=$expire;
-        if($path!==null)
-            $options['path']=$path;
-        if($domain!==null)
-            $options['domain']=$domain;
-        if($secure!==null)
-            $options['secure']=$secure;
-        if($httponly!==null)
-            $options['httponly']=$httponly;
-        if($samesite!==null)
-            $options['samesite']=$samesite;
-        $cookie=$this->normalize($options);
+    public function set(string $name,CookieOptions|string $value): void {
+        $full_name=$this->config->get('cookie.prefix','').$name;
+        $this->assertName($full_name);
+        $cookie=$this->normalize($value);
         $header=array(
             'expires'=>$cookie['expire'],
             'path'=>$cookie['path'],
@@ -130,20 +80,39 @@ final class Cookie extends BaseCookie {
         if($cookie['samesite']!=='')
             $header['samesite']=$cookie['samesite'];
         setcookie(
-            $this->config->get('cookie.prefix','').$name,
+            $full_name,
             $cookie['value'],
             $header
         );
     }
 
     /**
-     * 归一化单个 Cookie 描述
+     * 删除 Cookie
      *
-     * - 相对过期时间转为绝对时间; 未给属性时套用配置默认值
-     * - SameSite 只接受 Lax / Strict / None, 空串表示不设置
+     * @access public
+     * @param string $name 名称
+     * @param CookieOptions|null $options 保留的路径 / 域名等属性
+     * @return void
+     */
+    public function delete(string $name,?CookieOptions $options=null): void {
+        $options??=new CookieOptions();
+        $this->set($name,new CookieOptions(
+            '',
+            1,
+            $options->path,
+            $options->domain,
+            $options->secure,
+            $options->httponly,
+            $options->samesite
+        ));
+    }
+
+    /**
+     * 构建单个待下发的 Cookie 描述
      *
-     * @access private
-     * @param array<string,mixed> $options Cookie 选项
+     * @access public
+     * @param string $name 名称
+     * @param CookieOptions|string $value 属性或值
      * @return array{
      *     value:string,
      *     expire:int,
@@ -153,31 +122,120 @@ final class Cookie extends BaseCookie {
      *     httponly:bool,
      *     samesite:string
      * }
-     * @throws Exception SameSite 取值非法
      */
-    private function normalize(array $options): array {
-        $samesite=(string)($options['samesite']??$this->config->get('cookie.samesite','Lax'));
-        $secure=(bool)($options['secure']??$this->config->get('cookie.secure',false));
+    public function build(string $name,CookieOptions|string $value): array {
+        $this->assertName($this->config->get('cookie.prefix','').$name);
+        return $this->normalize($value);
+    }
+
+    /**
+     * 批量构建待下发的 Cookie 描述
+     *
+     * @access public
+     * @param array<string,CookieOptions|string|array<string,mixed>> $cookies 名称 => 属性
+     * @return array<string,array{
+     *     value:string,
+     *     expire:int,
+     *     path:string,
+     *     domain:string,
+     *     secure:bool,
+     *     httponly:bool,
+     *     samesite:string
+     * }>
+     */
+    public function buildAll(array $cookies): array {
+        $result=array();
+        foreach($cookies as $name=>$value)
+            $result[$this->config->get('cookie.prefix','').$name]=$this->build((string)$name,$this->toOptions($value));
+        return $result;
+    }
+
+    /**
+     * 转为 Cookie 属性对象
+     *
+     * @access private
+     * @param CookieOptions|string|array<string,mixed> $value 属性或值
+     * @return CookieOptions
+     */
+    private function toOptions(CookieOptions|string|array $value): CookieOptions {
+        if($value instanceof CookieOptions)
+            return $value;
+        if(is_array($value)) {
+            try {
+                return CookieOptions::fromArray($value);
+            } catch(\InvalidArgumentException $e) {
+                throw new Exception($e->getMessage(),self::ERROR_INVALID_COOKIE,array(
+                    'options'=>$value
+                ));
+            }
+        }
+        return new CookieOptions($value);
+    }
+
+    /**
+     * 归一化 Cookie 属性
+     *
+     * - 未给属性时套用配置默认值; SameSite 只接受 Lax / Strict / None
+     *
+     * @access private
+     * @param CookieOptions|string $value 属性或值
+     * @return array{
+     *     value:string,
+     *     expire:int,
+     *     path:string,
+     *     domain:string,
+     *     secure:bool,
+     *     httponly:bool,
+     *     samesite:string
+     * }
+     * @throws Exception 属性非法
+     */
+    private function normalize(CookieOptions|string $value): array {
+        $options=$value instanceof CookieOptions?$value:new CookieOptions($value);
+        $samesite=(string)($options->samesite??$this->config->get('cookie.samesite','Lax'));
+        $secure=(bool)($options->secure??$this->config->get('cookie.secure',false));
         if($samesite!=='') {
             $samesite=ucfirst(strtolower($samesite));
             if(!in_array($samesite,array('Lax','Strict','None'),true))
-                throw new Exception('Cookie SameSite value is invalid: '.$samesite,100402,array(
+                throw new Exception('Cookie SameSite value is invalid: '.$samesite,self::ERROR_INVALID_SAMESITE,array(
                     'samesite'=>$samesite
                 ));
             if($samesite==='None'&&!$secure)
-                throw new Exception('Cookie SameSite=None requires secure=true',100403,array(
+                throw new Exception('Cookie SameSite=None requires secure=true',self::ERROR_SAMESITE_REQUIRES_SECURE,array(
                     'samesite'=>$samesite
                 ));
         }
+        $path=(string)($options->path??$this->config->get('cookie.path',''));
+        $domain=(string)($options->domain??$this->config->get('cookie.domain',''));
+        foreach(array('value'=>$options->value,'path'=>$path,'domain'=>$domain) as $field=>$item)
+            if(preg_match('/[\x00-\x1F\x7F]/',$item)===1)
+                throw new Exception('Cookie '.$field.' contains control characters.',self::ERROR_INVALID_COOKIE,array(
+                    'field'=>$field
+                ));
         return array(
-            'value'=>(string)($options['value']??''),
-            'expire'=>time()+(int)($options['expire']??$this->config->get('cookie.expire',3600)),
-            'path'=>(string)($options['path']??$this->config->get('cookie.path','')),
-            'domain'=>(string)($options['domain']??$this->config->get('cookie.domain','')),
+            'value'=>$options->value,
+            'expire'=>$options->expires??time()+(int)$this->config->get('cookie.expire',3600),
+            'path'=>$path,
+            'domain'=>$domain,
             'secure'=>$secure,
-            'httponly'=>(bool)($options['httponly']??$this->config->get('cookie.httponly',true)),
+            'httponly'=>(bool)($options->httponly??$this->config->get('cookie.httponly',true)),
             'samesite'=>$samesite
         );
+    }
+
+    /**
+     * 校验 Cookie 名称
+     *
+     * @access private
+     * @param string $name 名称
+     * @return void
+     * @throws Exception 名称非法
+     */
+    private function assertName(string $name): void {
+        if(preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+\z/',$name)!==1)
+            throw new Exception('Cookie name is invalid.',self::ERROR_INVALID_COOKIE,array(
+                'name'=>$name
+            ));
     }
 
 }

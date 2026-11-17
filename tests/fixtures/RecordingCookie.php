@@ -3,6 +3,7 @@
 namespace Tests\Fixtures;
 
 use base\Cookie;
+use base\CookieOptions;
 
 /**
  * 记录待下发 Cookie 的测试实现
@@ -16,43 +17,54 @@ final class RecordingCookie extends Cookie {
     public array $data=array();
 
     /**
-     * 通过数组的方式设置cookie
+     * 批量设置 Cookie
      *
-     * @param array<string,mixed> $data 数据
+     * @param array<string,CookieOptions|string|array<string,mixed>> $cookies 数据
      * @return void
      */
-    public function setByArray(array $data): void {
-        $this->data=$data;
+    public function setAll(array $cookies): void {
+        $this->data=$cookies;
     }
 
     /**
-     * 按配置构建待下发的 Cookie 描述(本实现原样返回)
-     *
-     * @param array<string,mixed> $data 数据
-     * @return array<string,array<string,mixed>>
-     */
-    public function buildByArray(array $data): array {
-        return $data;
-    }
-
-    /**
-     * 设置Cookie
+     * 构建 Cookie(本实现原样返回)
      *
      * @param string $name 名称
-     * @param mixed $value 值
-     * @param int|null $expire 过期时间
-     * @param string|null $path 路径
-     * @param string|null $domain 域名
-     * @param bool|null $secure 是否仅https
-     * @param bool|null $httponly 是否仅http
-     * @param string|null $samesite 跨站发送策略
+     * @param CookieOptions|string $value 属性或值
+     * @return array{name:string,value:CookieOptions|string}
+     */
+    public function build(string $name,CookieOptions|string $value): array {
+        return array('name'=>$name,'value'=>$value);
+    }
+
+    /**
+     * 批量构建 Cookie(本实现原样返回)
+     *
+     * @param array<string,CookieOptions|string|array<string,mixed>> $cookies 数据
+     * @return array<string,CookieOptions|string|array<string,mixed>>
+     */
+    public function buildAll(array $cookies): array {
+        return $cookies;
+    }
+
+    /**
+     * 设置 Cookie(不发送)
+     *
+     * @param string $name 名称
+     * @param CookieOptions|string $value 属性或值
      * @return void
      */
-    public function set(
-        string $name,mixed $value,
-        ?int $expire=null,?string $path=null,?string $domain=null,
-        ?bool $secure=null,?bool $httponly=null,?string $samesite=null
-    ): void {
+    public function set(string $name,CookieOptions|string $value): void {
+    }
+
+    /**
+     * 删除 Cookie(不发送)
+     *
+     * @param string $name 名称
+     * @param CookieOptions|null $options 属性
+     * @return void
+     */
+    public function delete(string $name,?CookieOptions $options=null): void {
     }
 
 }

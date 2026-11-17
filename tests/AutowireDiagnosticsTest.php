@@ -36,6 +36,35 @@ class AutowireDiagnosticsTest extends TestCase {
     }
 
     /**
+     * 测试必需构造参数导致的分支失败会回退
+     *
+     * @return void
+     */
+    public function testUnionFallsBackOnArgumentCountError(): void {
+        $autowire=new Autowire(new ReflectionCache());
+        $target=new RequiredCtorUnionTarget();
+        $autowire->autowire($target);
+        $this->assertInstanceOf(UnionBranchB::class,$target->dep);
+    }
+
+    /**
+     * 测试类不可用异常会触发分支回退
+     *
+     * @return void
+     */
+    public function testUnionFallsBackOnClassUnavailable(): void {
+        $autowire=new Autowire(new ReflectionCache());
+        $autowire->setInstanceResolver(function(string $class,bool $is_force,array &$flags): object {
+            if($class===UnionBranchA::class)
+                throw new \AdminService\exception\ClassUnavailableException('unavailable');
+            return new UnionBranchB();
+        });
+        $target=new UnionTarget();
+        $autowire->autowire($target);
+        $this->assertInstanceOf(UnionBranchB::class,$target->dep);
+    }
+
+    /**
      * 测试联合类型分支的其它异常不被吞掉
      *
      * @return void
@@ -67,6 +96,7 @@ class AutowireDiagnosticsTest extends TestCase {
             $autowire->autowire(new UnionTarget());
             $this->fail('联合类型全部失败时应抛出异常');
         } catch(AutowireException $e) {
+            $this->assertSame(array(UnionBranchA::class,UnionBranchB::class),$e->getData()['types']);
             $union=$e->getPrevious();
             $this->assertInstanceOf(AutowireException::class,$union);
             $this->assertSame('branch a failed',$union->getPrevious()?->getMessage());
@@ -74,7 +104,19 @@ class AutowireDiagnosticsTest extends TestCase {
     }
 
     /**
-     * 测试生命周期方法缺少参数解析器时抛出受控异常
+     * 测试无参生命周期方法不需要参数解析器
+     *
+     * @return void
+     */
+    public function testParameterlessLifecycleDoesNotRequireArgumentResolver(): void {
+        $autowire=new Autowire(new ReflectionCache());
+        $target=new LifecycleTarget();
+        $autowire->autowire($target);
+        $this->assertTrue($target->booted);
+    }
+
+    /**
+     * 测试带参生命周期方法缺少参数解析器时抛出受控异常
      *
      * @return void
      */
@@ -82,7 +124,7 @@ class AutowireDiagnosticsTest extends TestCase {
         $autowire=new Autowire(new ReflectionCache());
         $this->expectException(AutowireException::class);
         $this->expectExceptionMessage('no ArgumentResolver is configured');
-        $autowire->autowire(new LifecycleTarget());
+        $autowire->autowire(new LifecycleWithParamTarget());
     }
 
 }
@@ -100,10 +142,35 @@ final class UnionTarget {
 
 }
 
+final class RequiredCtorBranch {
+
+    public function __construct(\stdClass $dependency) {
+    }
+
+}
+
+final class RequiredCtorUnionTarget {
+
+    #[AutowireProperty]
+    public RequiredCtorBranch|UnionBranchB $dep;
+
+}
+
 final class LifecycleTarget {
+
+    public bool $booted=false;
 
     #[AutowireLifecycle]
     public function boot(): void {
+        $this->booted=true;
+    }
+
+}
+
+final class LifecycleWithParamTarget {
+
+    #[AutowireLifecycle]
+    public function boot(\stdClass $dependency): void {
     }
 
 }

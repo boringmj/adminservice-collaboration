@@ -221,7 +221,11 @@ final class RouteItem {
             throw self::invalidData('handler',null,$route);
         if(!isset($data['pattern'])||!is_string($data['pattern'])||$data['pattern']==='')
             throw self::invalidData('pattern',$data['pattern']??null,$route);
-        $data['path']=self::expandWildcard(self::normalizePath($data['path']));
+        try {
+            $data['path']=self::expandWildcard(self::normalizePath($data['path']));
+        } catch(Exception $e) {
+            throw self::invalidData('path',$data['path'],$route,$e);
+        }
         $methods=array();
         if(array_key_exists('methods',$data)) {
             if(!is_array($data['methods']))
@@ -282,11 +286,15 @@ final class RouteItem {
         if(!isset($data['params'])||!is_array($data['params'])
             ||!isset($data['optional'])||!is_array($data['optional'])
             ||!array_key_exists('literal_length',$data)) {
-            $compiled=new self(
-                isset($data['methods'])&&is_array($data['methods'])?$data['methods']:array(),
-                $data['path'],
-                $data['handler']
-            );
+            try {
+                $compiled=new self(
+                    isset($data['methods'])&&is_array($data['methods'])?$data['methods']:array(),
+                    $data['path'],
+                    $data['handler']
+                );
+            } catch(Exception $e) {
+                throw self::invalidData('path',$data['path'],$route,$e);
+            }
             if(!isset($data['params'])||!is_array($data['params']))
                 $data['params']=$compiled->params;
             if(!isset($data['optional'])||!is_array($data['optional']))
@@ -304,14 +312,15 @@ final class RouteItem {
      * @param string $field 非法字段
      * @param mixed $value 字段值
      * @param string|null $route 路由路径
+     * @param \Throwable|null $previous 原始异常
      * @return Exception
      */
-    private static function invalidData(string $field,mixed $value=null,?string $route=null): Exception {
+    private static function invalidData(string $field,mixed $value=null,?string $route=null,?\Throwable $previous=null): Exception {
         return new Exception('Invalid compiled route item.',-423,array(
             'field'=>$field,
             'value'=>$value,
             'route'=>$route
-        ));
+        ),$previous);
     }
 
     /**

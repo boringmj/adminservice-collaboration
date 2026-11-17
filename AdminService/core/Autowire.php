@@ -21,6 +21,7 @@ use base\Attribute\AutowireMethod;
 use base\Attribute\AutowireLifecycle;
 use AdminService\exception\AutowireException;
 use AdminService\exception\CircularDependencyException;
+use AdminService\exception\ClassUnavailableException;
 use Closure;
 
 use function array_key_exists;
@@ -602,7 +603,7 @@ final class Autowire implements AutowireInterface {
                 foreach($type_array as $type) {
                     try {
                         return $this->resolveInstance($this->resolveClass($type),false,$flags);
-                    } catch(AutowireException|CircularDependencyException|\ReflectionException $e) {
+                    } catch(AutowireException|CircularDependencyException|ClassUnavailableException|\ReflectionException|\ArgumentCountError $e) {
                         // 只有"该分支无法构造"时继续尝试; 构造过程的其它异常直接外抛
                         $first_failure??=$e;
                         continue;
@@ -625,13 +626,13 @@ final class Autowire implements AutowireInterface {
                 $ref->getName().'".',
             );
         } catch(Exception $e) {
+            $data=$e instanceof AutowireException?$e->getData():array();
+            $data['property']=$parameter->getName();
+            $data['class']=$ref->getName();
             throw new AutowireException(
                 $e->getMessage(),
                 0,
-                [
-                    'property'=>$parameter->getName(),
-                    'class'=>$ref->getName()
-                ],
+                $data,
                 $e
             );
         }
@@ -663,7 +664,6 @@ final class Autowire implements AutowireInterface {
                     AutowireMode::Normal,
                     $flags
                 );
-                $property->setAccessible(true);
                 $property->setValue($instance,$value);
             } catch(\Throwable $e) {
                 throw new AutowireException(
@@ -674,7 +674,8 @@ final class Autowire implements AutowireInterface {
                         'property'=>$property->getName(),
                         'class'=>$ref->getName(),
                         'mode'=>AutowireMode::Deferred->value
-                    )
+                    ),
+                    $e
                 );
             }
         });
@@ -708,7 +709,6 @@ final class Autowire implements AutowireInterface {
                     AutowireMode::Normal,
                     $flags
                 );
-                $method->setAccessible(true);
                 $method->invoke($instance,$value);
             } catch(\Throwable $e) {
                 throw new AutowireException(
@@ -719,7 +719,8 @@ final class Autowire implements AutowireInterface {
                         'method'=>$method->getName(),
                         'class'=>$ref->getName(),
                         'mode'=>AutowireMode::Deferred->value
-                    )
+                    ),
+                    $e
                 );
             }
         });
@@ -753,7 +754,6 @@ final class Autowire implements AutowireInterface {
                     AutowireMode::Normal,
                     $flags
                 );
-                $method->setAccessible(true);
                 $method->invokeArgs($instance,array($value));
             } catch(\Throwable $e) {
                 throw new AutowireException(
@@ -764,7 +764,8 @@ final class Autowire implements AutowireInterface {
                         'method'=>$method->getName(),
                         'class'=>$ref->getName(),
                         'mode'=>AutowireMode::Deferred->value
-                    )
+                    ),
+                    $e
                 );
             }
         });
@@ -801,7 +802,6 @@ final class Autowire implements AutowireInterface {
                 $types=$this->arguments->getStandardTypes($this->reflectionTypeToArray($property->getType(),false));
                 // 键缺失时的取值顺序: 注解 default: > 属性自身默认值 > null
                 $fallback=$property->hasDefaultValue()?$property->getDefaultValue():null;
-                $property->setAccessible(true);
                 $property->setValue($instance,$this->arguments->configValue($config,$types,$fallback));
                 continue;
             }
@@ -826,7 +826,6 @@ final class Autowire implements AutowireInterface {
                 $flags
             );
             // 注入对象
-            $property->setAccessible(true);
             $property->setValue($instance, $make_object);
         }
     }
@@ -870,7 +869,6 @@ final class Autowire implements AutowireInterface {
                         );
                     $param=$params[0];
                     $types=$this->arguments->getStandardTypes($this->reflectionTypeToArray($param->getType(),false));
-                    $method->setAccessible(true);
                     $method->invoke($instance,$this->arguments->configValue(
                         $config,
                         $types,
@@ -920,17 +918,16 @@ final class Autowire implements AutowireInterface {
                     $flags
                 );
                 // 注入对象
-                $method->setAccessible(true);
                 $method->invoke($instance, $make_object);
             }
         } catch(Exception $e) {
+            $data=$e instanceof AutowireException?$e->getData():array();
+            $data['property']=$method?->getName();
+            $data['class']=$ref->getName();
             throw new AutowireException(
                 $e->getMessage(),
                 0,
-                [
-                    'property'=>$method?->getName(),
-                    'class'=>$ref->getName()
-                ],
+                $data,
                 $e
             );
         }
@@ -975,13 +972,18 @@ final class Autowire implements AutowireInterface {
                             'Method "'.$method->getName().'" of class "'.$ref->getName().
                             '" cannot be annotated with both #[AutowireSetter] and #[AutowireLifecycle].',
                         );
-                    // 生命周期方法: 全部参数按类型注入
-                    if($this->arguments===null)
-                        throw new AutowireException(
-                            'Method "'.$method->getName().'" of class "'.$ref->getName().
-                            '" uses #[AutowireLifecycle] but no ArgumentResolver is configured.',
-                        );
-                    $args=$this->arguments->merge($method->getParameters(),array(),true);
+                    // 生命周期方法: 全部参数按类型注入; 无参方法不需要参数解析器
+                    $params=$method->getParameters();
+                    if($params===array()) {
+                        $args=array();
+                    } else {
+                        if($this->arguments===null)
+                            throw new AutowireException(
+                                'Method "'.$method->getName().'" of class "'.$ref->getName().
+                                '" uses #[AutowireLifecycle] but no ArgumentResolver is configured.',
+                            );
+                        $args=$this->arguments->merge($params,array(),true);
+                    }
                 } else {
                     if(empty($attributes))
                         continue;
@@ -1019,17 +1021,16 @@ final class Autowire implements AutowireInterface {
                     ));
                 }
                 // 调用方法
-                $method->setAccessible(true);
                 $method->invokeArgs($instance,$args);
             }
         } catch(Exception $e) {
+            $data=$e instanceof AutowireException?$e->getData():array();
+            $data['method']=$method?->getName();
+            $data['class']=$ref->getName();
             throw new AutowireException(
                 $e->getMessage(),
                 0,
-                [
-                    'method'=>$method?->getName(),
-                    'class'=>$ref->getName()
-                ],
+                $data,
                 $e
             );
         }

@@ -5,6 +5,7 @@ namespace Tests;
 use PHPUnit\Framework\TestCase;
 
 use AdminService\Exception;
+use AdminService\Router\RouteItem;
 use AdminService\Router\Router;
 use ReflectionProperty;
 use Tests\Fixtures\ConcreteService;
@@ -365,6 +366,27 @@ class RouterLazyImportTest extends TestCase {
             $data=$e->getData();
             $this->assertSame('params',$data['field']);
             $this->assertSame($routes[0]['path'],$data['route']);
+        }
+    }
+
+    /**
+     * 测试: 通配符编译失败也携带字段
+     *
+     * @return void
+     */
+    public function testCompiledRouteWildcardErrorCarriesField(): void {
+        try {
+            RouteItem::normalizeData(array(
+                'path'=>'/a/*/b',
+                'pattern'=>'/a/*/b',
+                'handler'=>'demo'
+            ));
+            $this->fail('非法通配符应被拒绝');
+        } catch(Exception $e) {
+            $data=$e->getData();
+            $this->assertSame('path',$data['field']);
+            $this->assertSame('/a/*/b',$data['route']);
+            $this->assertNotNull($e->getPrevious());
         }
     }
 

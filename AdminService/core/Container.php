@@ -19,6 +19,7 @@ use function is_string;
 use ReflectionException;
 use AdminService\Exception;
 use AdminService\exception\CircularDependencyException;
+use AdminService\exception\ClassUnavailableException;
 
 /**
  * 容器实现
@@ -482,7 +483,7 @@ final class Container implements \base\Container {
         try {
             return $this->reflections->getClass($name);
         } catch(ReflectionException) {
-            throw new Exception('Class "'.$name.'" not found.');
+            throw new ClassUnavailableException('Class "'.$name.'" not found.');
         }
     }
 
@@ -529,7 +530,7 @@ final class Container implements \base\Container {
             return $bound;
         $ref=$this->getReflection($name);
         if(!$ref->isInstantiable())
-            throw new Exception('Class "'.$name.'" is not instantiable.');
+            throw new ClassUnavailableException('Class "'.$name.'" is not instantiable.');
         $constructor=$ref->getConstructor();
         if($constructor!==null&&$constructor->getNumberOfRequiredParameters()>0) {
             $stack=$this->build_flags;
@@ -1104,14 +1105,14 @@ final class Container implements \base\Container {
                 // 寻找一个可实例化的子类
                 $real_class=$this->classes->getFirstInstantiableClass(array($name));
                 if($real_class===null)
-                    throw new Exception('Class "'.$name.'" is not instantiable.');
+                    throw new ClassUnavailableException('Class "'.$name.'" is not instantiable.');
                 $object=$this->makeInternal($real_class,$is_force,$flags);
                 $this->refreshAbstractRegistration($name,$object,$bound,$is_force);
                 return $object;
             }
             // 判断类或接口是否存在
             if(!class_exists($name))
-                throw new Exception('Class "'.$name.'" not found.');
+                throw new ClassUnavailableException('Class "'.$name.'" not found.');
             // 将当前对象添加到标识中
             $flags[]=$name;
             $pushed=true;
@@ -1121,7 +1122,7 @@ final class Container implements \base\Container {
                 // 寻找一个可实例化的子类
                 $real_class=$this->classes->getFirstInstantiableClass(array($name));
                 if($real_class===null)
-                    throw new Exception('Class "'.$name.'" is not instantiable.');
+                    throw new ClassUnavailableException('Class "'.$name.'" is not instantiable.');
                 // 抽象名只是"查找入口", 不能留在构建栈里: 否则同一抽象类型的第二个属性会误判为循环
                 array_pop($flags);
                 $pushed=false;
@@ -1179,63 +1180,52 @@ final class Container implements \base\Container {
      * @throws Exception|ReflectionException
      */
     public function build(string $__name,...$args): object {
-        $is_root=$this->build_flags===array();
-        $snapshot=$is_root?$this->container:null;
-        $resolved_snapshot=$is_root?$this->resolved_container:null;
-        $singleton_snapshot=$is_root?$this->factory_singleton_class:null;
-        // 获取真实类名
-        $__name=$this->resolve($__name);
-        if(isset($this->factory_container[$__name]))
-            throw new Exception('Closure binding "'.$__name.'" cannot be built with build(); use get()/make()/fresh().');
-        if(in_array($__name,$this->build_flags,true)) {
-            $stack=$this->build_flags;
-            $stack[]=$__name;
-            throw new CircularDependencyException(
-                'Circular dependency detected while building "'.$__name.'" ('.implode(' -> ',$stack).').',
-                0,
-                array('class'=>$__name,'build_stack'=>$stack)
-            );
-        }
-        // 判断类或接口是否存在(取不到反射即不存在)
-        $ref=$this->getReflection($__name);
-        // 判断是否可以被实例化,如果不能则尝试寻找一个可实例化的子类
-        if(!$ref->isInstantiable()) {
-            $real_class=$this->classes->getFirstInstantiableClass(array($__name));
-            if($real_class===null)
-                throw new Exception('Class "'.$__name.'" is not instantiable.');
-            return $this->build($real_class,...$args);
-        }
-        // 本对象本身不登记, 但仍以它作为构建栈起点, 让构造参数 / 属性里的自引用能被截断
-        $flags=$this->build_flags;
-        $flags[]=$__name;
-        $previous_flags=$this->build_flags;
-        $this->build_flags=&$flags;
-        try {
-            // 获取构造函数的参数
-            $constructor=$ref->getConstructor();
-            if($constructor===null)
-                // 如果构造函数不存在则直接实例化一个对象
-                $object=$ref->newInstance();
-            else {
-                $params=$constructor->getParameters();
-                $args_temp=$this->arguments->merge($params,$args,true);
-                $object=$ref->newInstanceArgs($args_temp);
+        return $this->runRootBuild(function(array &$flags) use($__name,$args): object {
+            // 获取真实类名
+            $name=$this->resolve($__name);
+            if(isset($this->factory_container[$name]))
+                throw new Exception('Closure binding "'.$name.'" cannot be built with build(); use get()/make()/fresh().');
+            if(in_array($name,$flags,true)) {
+                $stack=$flags;
+                $stack[]=$name;
+                throw new CircularDependencyException(
+                    'Circular dependency detected while building "'.$name.'" ('.implode(' -> ',$stack).').',
+                    0,
+                    array('class'=>$name,'build_stack'=>$stack)
+                );
             }
-            // 完整装配
-            $this->autowire->autowire($object,$flags);
-            // 最外层构建成功后统一刷新延迟注入队列
-            if($is_root)
-                $this->autowire->flushDeferred();
-            // 直接返回对象,不添加到实例容器中
-            return $object;
-        } catch(\Throwable $e) {
-            $this->rollbackRootContainer($snapshot,$resolved_snapshot,$singleton_snapshot);
-            throw $e;
-        } finally {
-            $this->build_flags=$previous_flags;
-            if($is_root)
-                $this->flushMetadataIfRoot();
-        }
+            // 判断类或接口是否存在(取不到反射即不存在)
+            $ref=$this->getReflection($name);
+            // 判断是否可以被实例化,如果不能则尝试寻找一个可实例化的子类
+            if(!$ref->isInstantiable()) {
+                $real_class=$this->classes->getFirstInstantiableClass(array($name));
+                if($real_class===null)
+                    throw new ClassUnavailableException('Class "'.$name.'" is not instantiable.');
+                return $this->build($real_class,...$args);
+            }
+            // 本对象本身不登记, 但仍以它作为构建栈起点, 让构造参数 / 属性里的自引用能被截断
+            $flags[]=$name;
+            $previous_flags=$this->build_flags;
+            $this->build_flags=&$flags;
+            try {
+                // 获取构造函数的参数
+                $constructor=$ref->getConstructor();
+                if($constructor===null)
+                    // 如果构造函数不存在则直接实例化一个对象
+                    $object=$ref->newInstance();
+                else {
+                    $params=$constructor->getParameters();
+                    $args_temp=$this->arguments->merge($params,$args,true);
+                    $object=$ref->newInstanceArgs($args_temp);
+                }
+                // 完整装配
+                $this->autowire->autowire($object,$flags);
+                // 直接返回对象,不添加到实例容器中
+                return $object;
+            } finally {
+                $this->build_flags=$previous_flags;
+            }
+        });
     }
 
     /**

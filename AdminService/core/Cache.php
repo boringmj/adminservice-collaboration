@@ -8,6 +8,7 @@ use AdminService\Config\Repository;
 use base\CacheInterface;
 use base\ConfigInterface;
 use Closure;
+use ReflectionReference;
 
 use function array_key_exists;
 use function array_keys;
@@ -46,6 +47,7 @@ use function rtrim;
 use function scandir;
 use function serialize;
 use function sha1;
+use function spl_object_id;
 use function str_ends_with;
 use function str_replace;
 use function str_starts_with;
@@ -89,6 +91,14 @@ final class Cache implements CacheInterface {
     private const ERROR_SERIALIZE_FAILED=100209;
     private const ERROR_INVALID_CLEAR_TARGET=100210;
     private const ERROR_INVALID_PATH=100211;
+
+    /**
+     * 缓存值遍历深度上限
+     *
+     * - 超过上限按不可缓存处理, 避免深层结构绕过对象与资源检查
+     * - 数组引用环与对象环会被去重; 只有没有引用的超深结构会被拒绝
+     */
+    private const VALUE_SCAN_MAX_DEPTH=512;
 
     /**
      * 编译缓存文件名映射
@@ -638,18 +648,12 @@ final class Cache implements CacheInterface {
      * @access private
      * @param mixed $value 缓存值
      * @return array{0:bool,1:mixed} [是否序列化, 落盘值]
-     * @throws Exception 资源或不可序列化值
+     * @throws Exception 值不可缓存或不可序列化
      */
     private function encodeValue(mixed $value): array {
         if($this->isExportable($value))
             return array(false,$value);
-        if($this->containsUnsupported($value))
-            throw new Exception('Cache value contains a resource or closure.',self::ERROR_ENCODE_FAILED);
-        $allowed=$this->allowedUnserializeClasses();
-        if($allowed!==true&&$this->containsDisallowedClass($value,$allowed))
-            throw new Exception('Cache value contains a class not allowed by cache.unserialize_allowed_classes.',self::ERROR_ENCODE_FAILED,array(
-                'allowed_classes'=>$allowed
-            ));
+        $this->assertCacheableValue($value,$this->allowedUnserializeClasses());
         try {
             $serialized=serialize($value);
         } catch(\Throwable $e) {
@@ -682,29 +686,70 @@ final class Cache implements CacheInterface {
     }
 
     /**
-     * 判断值是否包含资源或闭包
+     * 校验值能否写入缓存
+     *
+     * - 拒绝资源、闭包、白名单之外的对象与超过遍历深度上限的结构
      *
      * @access private
      * @param mixed $value 值
+     * @param array<int,string>|bool $allowed 允许的类
      * @param int $depth 当前深度
-     * @return bool
+     * @param array<int,bool>|null $seen 已检查的对象(引用)
+     * @param array<string,bool>|null $array_seen 已检查的数组引用(引用)
+     * @return void
+     * @throws Exception 值不可缓存
      */
-    private function containsUnsupported(mixed $value,int $depth=0): bool {
-        if($depth>=64)
-            return false;
+    private function assertCacheableValue(mixed $value,array|bool $allowed,int $depth=0,?array &$seen=null,?array &$array_seen=null): void {
+        if($depth>=self::VALUE_SCAN_MAX_DEPTH)
+            throw new Exception('Cache value exceeds the scan depth limit.',self::ERROR_ENCODE_FAILED,array(
+                'max_depth'=>self::VALUE_SCAN_MAX_DEPTH
+            ));
         if(is_resource($value)||$value instanceof Closure)
-            return true;
-        if(is_array($value)) {
-            foreach($value as $item)
-                if($this->containsUnsupported($item,$depth+1))
-                    return true;
-            return false;
-        }
+            throw new Exception('Cache value contains a resource or closure.',self::ERROR_ENCODE_FAILED);
         if(is_object($value)) {
+            if($allowed!==true&&($allowed===false||!in_array(get_class($value),$allowed,true)))
+                throw new Exception('Cache value contains a class not allowed by cache.unserialize_allowed_classes.',self::ERROR_ENCODE_FAILED,array(
+                    'allowed_classes'=>$allowed,
+                    'class'=>get_class($value)
+                ));
+            $seen??=array();
+            $id=spl_object_id($value);
+            if(isset($seen[$id]))
+                return;
+            $seen[$id]=true;
             foreach((array)$value as $item)
-                if($this->containsUnsupported($item,$depth+1))
-                    return true;
+                $this->assertCacheableValue($item,$allowed,$depth+1,$seen,$array_seen);
+            return;
         }
+        if(is_array($value)) {
+            $array_seen??=array();
+            foreach($value as $key=>$item) {
+                if($this->seenArrayReference($value,$key,$array_seen))
+                    continue;
+                $this->assertCacheableValue($item,$allowed,$depth+1,$seen,$array_seen);
+            }
+        }
+    }
+
+    /**
+     * 数组元素引用是否已经检查过
+     *
+     * - 用于跳过自引用数组; 非引用元素返回 false
+     *
+     * @access private
+     * @param array<mixed> $value 数组
+     * @param int|string $key 键
+     * @param array<string,bool> $seen 已检查的引用(引用)
+     * @return bool 已检查过时为 true
+     */
+    private function seenArrayReference(array $value,int|string $key,array &$seen): bool {
+        $reference=ReflectionReference::fromArrayElement($value,$key);
+        if($reference===null)
+            return false;
+        $id=$reference->getId();
+        if(isset($seen[$id]))
+            return true;
+        $seen[$id]=true;
         return false;
     }
 
@@ -725,63 +770,46 @@ final class Cache implements CacheInterface {
         $allowed=array();
         foreach($value as $class)
             if(is_string($class)&&$class!=='')
-                $allowed[]=$class;
+                $allowed[]=ltrim($class,'\\');
         return $allowed;
-    }
-
-    /**
-     * 判断值是否包含白名单之外的对象
-     *
-     * @access private
-     * @param mixed $value 值
-     * @param array<int,string>|bool $allowed 允许的类
-     * @param int $depth 当前深度
-     * @return bool
-     */
-    private function containsDisallowedClass(mixed $value,array|bool $allowed,int $depth=0): bool {
-        if($allowed===true||$depth>=64)
-            return false;
-        if(is_object($value)) {
-            if($allowed===false)
-                return true;
-            if(!in_array(get_class($value),$allowed,true))
-                return true;
-            foreach((array)$value as $item)
-                if($this->containsDisallowedClass($item,$allowed,$depth+1))
-                    return true;
-            return false;
-        }
-        if(is_array($value)) {
-            foreach($value as $item)
-                if($this->containsDisallowedClass($item,$allowed,$depth+1))
-                    return true;
-        }
-        return false;
     }
 
     /**
      * 判断值是否包含未完成反序列化的对象
      *
+     * - 超过遍历深度上限时按包含处理, 避免深层结构绕过检查
+     *
      * @access private
      * @param mixed $value 值
      * @param int $depth 当前深度
+     * @param array<int,bool>|null $seen 已检查的对象(引用)
+     * @param array<string,bool>|null $array_seen 已检查的数组引用(引用)
      * @return bool
      */
-    private function containsIncompleteClass(mixed $value,int $depth=0): bool {
-        if($depth>=64)
-            return false;
+    private function containsIncompleteClass(mixed $value,int $depth=0,?array &$seen=null,?array &$array_seen=null): bool {
+        if($depth>=self::VALUE_SCAN_MAX_DEPTH)
+            return true;
         if(is_object($value)) {
             if(get_class($value)==='__PHP_Incomplete_Class')
                 return true;
+            $seen??=array();
+            $id=spl_object_id($value);
+            if(isset($seen[$id]))
+                return false;
+            $seen[$id]=true;
             foreach((array)$value as $item)
-                if($this->containsIncompleteClass($item,$depth+1))
+                if($this->containsIncompleteClass($item,$depth+1,$seen,$array_seen))
                     return true;
             return false;
         }
         if(is_array($value)) {
-            foreach($value as $item)
-                if($this->containsIncompleteClass($item,$depth+1))
+            $array_seen??=array();
+            foreach($value as $key=>$item) {
+                if($this->seenArrayReference($value,$key,$array_seen))
+                    continue;
+                if($this->containsIncompleteClass($item,$depth+1,$seen,$array_seen))
                     return true;
+            }
         }
         return false;
     }

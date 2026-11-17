@@ -35,8 +35,11 @@ use function is_object;
 use function is_string;
 use function ltrim;
 use function realpath;
+use function rtrim;
 use function str_contains;
 use function str_replace;
+use function str_starts_with;
+use function strlen;
 use function strtolower;
 use function strtoupper;
 
@@ -345,7 +348,7 @@ final class CacheBuildCommand extends AbstractCommand {
                     if(!$file->isFile()||strtolower($file->getExtension())!=='html')
                         continue;
                     $path=$file->getPathname();
-                    if($only_view&&!str_contains(str_replace('\\','/',$path),'/view/'))
+                    if($only_view&&!$this->inViewDirectory($root,$path))
                         continue;
                     $this->buildViewFile($path,$cache,$compiler,$seen,$count,$failed);
                 }
@@ -372,6 +375,24 @@ final class CacheBuildCommand extends AbstractCommand {
             'reason'=>$count.' 个模板',
             'failure'=>false
         );
+    }
+
+    /**
+     * 判断模板是否位于根目录下名为 view 的路径段内
+     *
+     * - 按相对根目录的路径判断, 避免项目绝对路径包含 view 时误匹配
+     *
+     * @access private
+     * @param string $root 允许根目录
+     * @param string $path 模板路径
+     * @return bool
+     */
+    private function inViewDirectory(string $root,string $path): bool {
+        $root=str_replace('\\','/',rtrim($root,'/\\')).'/';
+        $path=str_replace('\\','/',$path);
+        if(str_starts_with($path,$root))
+            $path=substr($path,strlen($root));
+        return str_contains('/'.ltrim($path,'/'),'/view/');
     }
 
     /**

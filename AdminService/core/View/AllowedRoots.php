@@ -8,11 +8,13 @@ use function array_filter;
 use function array_unique;
 use function array_values;
 use function dirname;
+use function explode;
 use function is_array;
 use function is_string;
 use function ltrim;
 use function preg_match;
 use function realpath;
+use function str_replace;
 use function str_starts_with;
 
 /**
@@ -38,8 +40,14 @@ final class AllowedRoots {
         $roots=array();
         $roots[]=self::appPath($config);
         $error_template=$config->get('app.error_template');
-        if(is_string($error_template)&&$error_template!=='')
-            $roots[]=self::resolve(dirname($error_template));
+        if(is_string($error_template)&&$error_template!=='') {
+            $error_dir=dirname($error_template);
+            // 裸文件名、父级路径与文件系统根会把项目根 / 上级目录放进允许列表
+            if($error_dir!=='.'&&$error_dir!==''&&$error_dir!==DIRECTORY_SEPARATOR
+                &&preg_match('#^[A-Za-z]:[\\\\/]*$#',$error_dir)!==1
+                &&!self::containsParentSegment($error_dir))
+                $roots[]=self::resolve($error_dir);
+        }
         $allowed_paths=$config->get('view.allowed_paths',array());
         if(is_array($allowed_paths))
             foreach($allowed_paths as $path)
@@ -73,6 +81,22 @@ final class AllowedRoots {
             $path=dirname(__DIR__,3).'/'.ltrim($path,'/\\');
         $real=realpath($path);
         return is_string($real)&&$real!==''?$real:null;
+    }
+
+    /**
+     * 判断相对路径是否包含上级目录段
+     *
+     * @access private
+     * @param string $path 路径
+     * @return bool
+     */
+    private static function containsParentSegment(string $path): bool {
+        if(self::isAbsolutePath($path))
+            return false;
+        foreach(explode('/',str_replace('\\','/',$path)) as $segment)
+            if($segment==='..')
+                return true;
+        return false;
     }
 
     /**

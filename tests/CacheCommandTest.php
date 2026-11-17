@@ -409,7 +409,7 @@ class CacheCommandTest extends TestCase {
      * @return void
      */
     public function testViewBuildCoversAllAllowedRoots(): void {
-        $app=$this->dir.'/app';
+        $app=$this->dir.'/work/view/app';
         $themes=$this->dir.'/themes';
         mkdir($app.'/view/nested',0755,true);
         mkdir($app.'/static',0755,true);
@@ -457,6 +457,22 @@ class CacheCommandTest extends TestCase {
         $output=Output::buffer();
         $this->assertSame(0,$status->execute(new Input(array('view')),$output));
         $this->assertStringContainsString('过期(stale)',$output->stdout());
+    }
+
+    /**
+     * 测试视图缓存结构损坏可被识别
+     *
+     * @return void
+     */
+    public function testViewStatusDetectsCorruptedCache(): void {
+        $dir=$this->dir.'/cache/compile/view';
+        if(!is_dir($dir))
+            mkdir($dir,0755,true);
+        file_put_contents($dir.'/broken.php','<?php return array("version"=>"old");');
+        $status=new CacheStatusCommand($this->config);
+        $output=Output::buffer();
+        $this->assertSame(0,$status->execute(new Input(array('view')),$output));
+        $this->assertStringContainsString('损坏(corrupted)',$output->stdout());
     }
 
     /**

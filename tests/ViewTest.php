@@ -185,6 +185,33 @@ class ViewTest extends TestCase {
     }
 
     /**
+     * 测试裸文件名错误模板不会把项目根加入允许目录
+     *
+     * @return void
+     */
+    public function testBareErrorTemplateDoesNotAllowProjectRoot(): void {
+        $config=new \AdminService\Config\Repository(array(
+            'app'=>array(
+                'path'=>'/nonexistent-app',
+                'error_template'=>'error.html'
+            ),
+            'view'=>array('allowed_paths'=>array())
+        ));
+        $roots=\AdminService\View\AllowedRoots::fromConfig($config);
+        $this->assertNotContains(dirname(__DIR__),$roots);
+        $this->assertSame(array(),$roots);
+
+        $config=new \AdminService\Config\Repository(array(
+            'app'=>array(
+                'path'=>'/nonexistent-app',
+                'error_template'=>'../error.html'
+            ),
+            'view'=>array('allowed_paths'=>array())
+        ));
+        $this->assertSame(array(),\AdminService\View\AllowedRoots::fromConfig($config));
+    }
+
+    /**
      * 测试所有允许根目录都无法解析时拒绝模板
      *
      * @return void

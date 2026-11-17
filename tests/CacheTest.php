@@ -18,6 +18,7 @@ use base\ConfigInterface;
 use function AdminService\env;
 use function AdminService\env_reset;
 use function AdminService\env_snapshot;
+use function base64_encode;
 use function dirname;
 use function fclose;
 use function file_get_contents;
@@ -33,12 +34,14 @@ use function opcache_invalidate;
 use function putenv;
 use function rmdir;
 use function scandir;
+use function serialize;
 use function sha1;
 use function strcmp;
 use function sys_get_temp_dir;
 use function time;
 use function touch;
 use function uniqid;
+use function unserialize;
 use function usort;
 use function var_export;
 
@@ -422,6 +425,134 @@ class CacheTest extends TestCase {
         $outer->inner=new CacheFixtureValue('nested',array());
         $this->expectException(Exception::class);
         $cache->set('object',$outer);
+    }
+
+    /**
+     * 测试: 白名单类名允许前导反斜杠
+     *
+     * @return void
+     */
+    public function testAllowedClassWithLeadingBackslash(): void {
+        $cache=new Cache($this->makeConfig(array(
+            'unserialize_allowed_classes'=>array('\\'.CacheFixtureValue::class)
+        )));
+        $value=new CacheFixtureValue('slash',array());
+
+        $this->assertTrue($cache->set('object',$value));
+        $restored=$cache->get('object');
+        $this->assertInstanceOf(CacheFixtureValue::class,$restored);
+    }
+
+    /**
+     * 测试: 深层嵌套的未白名单对象也会被拒绝
+     *
+     * @return void
+     */
+    public function testObjectCacheRejectsDeeplyNestedDisallowedClass(): void {
+        $cache=new Cache($this->config);
+        $value=new CacheFixtureValue('deep',array());
+        for($i=0;$i<70;$i++)
+            $value=array('n'=>$value);
+        $this->expectException(Exception::class);
+        $cache->set('deep',$value);
+    }
+
+    /**
+     * 测试: 深层嵌套的白名单对象可完整读写
+     *
+     * @return void
+     */
+    public function testObjectCacheRoundTripsDeeplyNestedAllowedClass(): void {
+        $cache=new Cache($this->makeConfig(array(
+            'unserialize_allowed_classes'=>array(CacheFixtureValue::class)
+        )));
+        $value=new CacheFixtureValue('deep',array());
+        for($i=0;$i<70;$i++)
+            $value=array('n'=>$value);
+
+        $this->assertTrue($cache->set('deep',$value));
+        $restored=$cache->get('deep');
+        for($i=0;$i<70;$i++)
+            $restored=$restored['n'];
+        $this->assertInstanceOf(CacheFixtureValue::class,$restored);
+        $this->assertSame('deep',$restored->name);
+    }
+
+    /**
+     * 测试: 循环引用对象可读写且检查不会无限递归
+     *
+     * @return void
+     */
+    public function testObjectCacheSupportsCyclicGraph(): void {
+        $cache=new Cache($this->makeConfig(array(
+            'unserialize_allowed_classes'=>array(\stdClass::class)
+        )));
+        $value=new \stdClass();
+        $value->name='cycle';
+        $value->self=$value;
+
+        $this->assertTrue($cache->set('cycle',$value));
+        $restored=$cache->get('cycle');
+        $this->assertInstanceOf(\stdClass::class,$restored);
+        $this->assertSame('cycle',$restored->name);
+        $this->assertSame($restored,$restored->self);
+    }
+
+    /**
+     * 测试: 自引用数组可读写且检查不会无限递归
+     *
+     * @return void
+     */
+    public function testCacheSupportsSelfReferencingArray(): void {
+        $cache=new Cache($this->config);
+        $value=array('n'=>1);
+        $value['self']=&$value;
+
+        $this->assertTrue($cache->set('recursive',$value));
+        $restored=$cache->get('recursive');
+        $this->assertSame(1,$restored['n']);
+        $this->assertSame(1,$restored['self']['n']);
+        $this->assertSame(1,$restored['self']['self']['n']);
+    }
+
+    /**
+     * 测试: 超过遍历深度上限的值被拒绝
+     *
+     * @return void
+     */
+    public function testCacheRejectsValueBeyondScanDepth(): void {
+        $cache=new Cache($this->config);
+        $value='leaf';
+        for($i=0;$i<520;$i++)
+            $value=array($value);
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('scan depth limit');
+        $cache->set('deep',$value);
+    }
+
+    /**
+     * 测试: 深层嵌套的未完成对象不会被读出
+     *
+     * @return void
+     */
+    public function testCacheRejectsDeeplyNestedIncompleteClass(): void {
+        $cache=new Cache($this->config);
+        $this->assertTrue($cache->set('deep','seed'));
+        $path=$this->entryPath($cache,'deep');
+
+        $value=new CacheFixtureValue('deep',array());
+        for($i=0;$i<70;$i++)
+            $value=array('n'=>$value);
+        $incomplete=unserialize(serialize($value),array('allowed_classes'=>false));
+        $entry=include $path;
+        $entry['serialized']=true;
+        $entry['value']=base64_encode(serialize($incomplete));
+        file_put_contents($path,"<?php\n\nreturn ".var_export($entry,true).";\n");
+        if(function_exists('opcache_invalidate'))
+            @opcache_invalidate($path,true);
+
+        $this->assertNull($cache->get('deep'));
+        $this->assertFileDoesNotExist($path);
     }
 
     /**

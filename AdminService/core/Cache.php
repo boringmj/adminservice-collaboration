@@ -744,7 +744,12 @@ final class Cache implements CacheInterface {
         if(is_object($value)) {
             if($allowed===false)
                 return true;
-            return !in_array(get_class($value),$allowed,true);
+            if(!in_array(get_class($value),$allowed,true))
+                return true;
+            foreach((array)$value as $item)
+                if($this->containsDisallowedClass($item,$allowed,$depth+1))
+                    return true;
+            return false;
         }
         if(is_array($value)) {
             foreach($value as $item)
@@ -765,8 +770,14 @@ final class Cache implements CacheInterface {
     private function containsIncompleteClass(mixed $value,int $depth=0): bool {
         if($depth>=64)
             return false;
-        if(is_object($value)&&get_class($value)==='__PHP_Incomplete_Class')
-            return true;
+        if(is_object($value)) {
+            if(get_class($value)==='__PHP_Incomplete_Class')
+                return true;
+            foreach((array)$value as $item)
+                if($this->containsIncompleteClass($item,$depth+1))
+                    return true;
+            return false;
+        }
         if(is_array($value)) {
             foreach($value as $item)
                 if($this->containsIncompleteClass($item,$depth+1))

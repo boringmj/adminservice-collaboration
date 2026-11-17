@@ -410,6 +410,21 @@ class CacheTest extends TestCase {
     }
 
     /**
+     * 测试: 嵌套对象也按白名单校验
+     *
+     * @return void
+     */
+    public function testObjectCacheRejectsNestedDisallowedClass(): void {
+        $cache=new Cache($this->makeConfig(array(
+            'unserialize_allowed_classes'=>array(\stdClass::class)
+        )));
+        $outer=new \stdClass();
+        $outer->inner=new CacheFixtureValue('nested',array());
+        $this->expectException(Exception::class);
+        $cache->set('object',$outer);
+    }
+
+    /**
      * 测试: 无法序列化的值必须抛受控异常
      *
      * @return void

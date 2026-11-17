@@ -8,6 +8,7 @@ use base\Database\Connection\PdoConnectionManager;
 use base\Database\Connection\PdoConnectionPool;
 use base\Database\Connection\PdoConnectionSession;
 use base\Database\Db;
+use base\Database\Exception\TransactionException;
 use base\Database\Query\Query;
 use base\Database\Sql\Dialect\MysqlDialect;
 use Fiber;
@@ -131,6 +132,36 @@ class DbTest extends TestCase {
     }
 
     /**
+     * 测试回滚失败时保留原始异常并标记连接为脏
+     *
+     * @return void
+     */
+    public function testTransactionRollbackFailurePreservesOriginalAndMarksDirty(): void {
+        $pdo=new FakePdo();
+        $pdo->rollbackError='Simulated rollback failure.';
+        $created=array();
+        $factory=function() use ($pdo,&$created) {
+            $session=new PdoConnectionSession($pdo,new MysqlDialect());
+            $created[]=$session;
+            return $session;
+        };
+        $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
+        $db=new Db($manager);
+        try {
+            $db->transaction(static function(): void {
+                throw new \RuntimeException('boom');
+            });
+            $this->fail('预期抛出异常');
+        } catch(\RuntimeException $e) {
+            $this->assertSame('boom',$e->getMessage());
+        }
+        $this->assertCount(1,$created);
+        $this->assertTrue($created[0]->isDirty());
+        $this->assertSame('begin',$pdo->transactionCalls[0]);
+        $this->assertContains('rollback',$pdo->transactionCalls);
+    }
+
+    /**
      * 测试事务回调返回失败 Result 时自动回滚
      * @return void
      */
@@ -214,6 +245,60 @@ class DbTest extends TestCase {
         });
         $this->assertSame(['begin','commit'],$pdo->transactionCalls);
         $this->assertCount(2,$pdo->executed);
+    }
+
+    /**
+     * 测试手动提交失败后标记连接为脏并解除绑定
+     *
+     * @return void
+     */
+    public function testManualCommitFailureMarksDirtyAndDetaches(): void {
+        $pdo=new FakePdo();
+        $pdo->commitError='Simulated commit failure.';
+        $created=array();
+        $factory=function() use ($pdo,&$created) {
+            $session=new PdoConnectionSession($pdo,new MysqlDialect());
+            $created[]=$session;
+            return $session;
+        };
+        $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
+        $db=new Db($manager);
+        $db->beginTransaction();
+        try {
+            $db->commit();
+            $this->fail('预期抛出异常');
+        } catch(TransactionException) {
+        }
+        $this->assertNull($db->getTransactionContext());
+        $this->assertCount(1,$created);
+        $this->assertTrue($created[0]->isDirty());
+    }
+
+    /**
+     * 测试手动回滚失败后标记连接为脏并解除绑定
+     *
+     * @return void
+     */
+    public function testManualRollbackFailureMarksDirtyAndDetaches(): void {
+        $pdo=new FakePdo();
+        $pdo->rollbackError='Simulated rollback failure.';
+        $created=array();
+        $factory=function() use ($pdo,&$created) {
+            $session=new PdoConnectionSession($pdo,new MysqlDialect());
+            $created[]=$session;
+            return $session;
+        };
+        $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
+        $db=new Db($manager);
+        $db->beginTransaction();
+        try {
+            $db->rollBack();
+            $this->fail('预期抛出异常');
+        } catch(TransactionException) {
+        }
+        $this->assertNull($db->getTransactionContext());
+        $this->assertCount(1,$created);
+        $this->assertTrue($created[0]->isDirty());
     }
 
     /**

@@ -3,7 +3,7 @@
 namespace base\Database\Connection;
 
 use PDO;
-use base\Database\Exception\TransactionException;
+use Throwable;
 use base\Database\Execution\PdoSqlExecutor;
 use base\Database\Execution\SqlExecutorInterface;
 use base\Database\Execution\TransactionExecutorInterface;
@@ -272,17 +272,20 @@ final class PdoConnectionSession implements ConnectionSessionInterface {
     /**
      * 重置连接会话
      *
-     * - 回滚未完成的事务, 清理会话状态
+     * - 逐层回滚未完成的事务, 清理会话状态
+     * - 回滚失败时标记会话为脏, 归还连接池时丢弃, 不复用
      *
      * @access public
      * @return void
      */
     public function reset(): void {
-        if($this->transactionContext->isActive()) {
+        while($this->transactionContext->isActive()) {
             try {
                 $this->transactionExecutor->rollback();
-            } catch(TransactionException $ignored) {
-                // 清理过程中的回滚失败不阻断
+            } catch(Throwable) {
+                // 清理过程中的回滚失败不阻断, 但连接事务状态未知
+                $this->markDirty();
+                return;
             }
         }
     }

@@ -514,7 +514,9 @@ final class Db {
                 if($context->isActive()) {
                     try {
                         $tx->rollback();
-                    } catch(Throwable $ignored) {
+                    } catch(Throwable) {
+                        // 回滚失败后事务状态未知, 标记污染: 归还连接池时丢弃, 不复用
+                        $session->markDirty();
                     }
                 }
                 throw $e;
@@ -545,11 +547,16 @@ final class Db {
      *
      * @access public
      * @return void
+     * @throws Throwable
      */
     public function commit(): void {
         $session=$this->currentSession();
         if($session!==null) {
-            $session->getTransactionExecutor()->commit();
+            try {
+                $session->getTransactionExecutor()->commit();
+            } catch(Throwable $e) {
+                $this->failManualTransaction($session,$e);
+            }
             $session->release();
             $this->setCurrentSession(null);
         }
@@ -560,14 +567,37 @@ final class Db {
      *
      * @access public
      * @return void
+     * @throws Throwable
      */
     public function rollBack(): void {
         $session=$this->currentSession();
         if($session!==null) {
-            $session->getTransactionExecutor()->rollback();
+            try {
+                $session->getTransactionExecutor()->rollback();
+            } catch(Throwable $e) {
+                $this->failManualTransaction($session,$e);
+            }
             $session->release();
             $this->setCurrentSession(null);
         }
+    }
+
+    /**
+     * 手动事务失败后的清理
+     *
+     * - 事务状态未知时标记会话为脏并解除绑定
+     * - 释放会话会触发残留事务回滚, 回滚失败由会话自行标记
+     *
+     * @access private
+     * @param ConnectionSessionInterface $session 会话
+     * @param Throwable $exception 原始异常
+     * @return never
+     */
+    private function failManualTransaction(ConnectionSessionInterface $session,Throwable $exception): never {
+        $session->markDirty();
+        $session->release();
+        $this->setCurrentSession(null);
+        throw $exception;
     }
 
     /**

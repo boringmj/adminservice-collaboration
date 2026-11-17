@@ -123,6 +123,60 @@ class DbalConnectionTest extends TestCase {
     }
 
     /**
+     * 测试重置时回滚失败会标记会话为脏
+     *
+     * @return void
+     */
+    public function testSessionResetRollbackFailureMarksDirty(): void {
+        $pdo=new FakePdo();
+        $pdo->rollbackError='Simulated rollback failure.';
+        $session=new PdoConnectionSession($pdo,new MysqlDialect());
+        $session->getTransactionExecutor()->begin();
+        $session->reset();
+        $this->assertTrue($session->isDirty());
+        $this->assertTrue($session->getTransactionContext()->isActive());
+    }
+
+    /**
+     * 测试重置逐层回滚嵌套事务
+     *
+     * @return void
+     */
+    public function testSessionResetUnwindsNestedTransaction(): void {
+        $pdo=new FakePdo();
+        $session=new PdoConnectionSession($pdo,new MysqlDialect());
+        $session->getTransactionExecutor()->begin();
+        $session->getTransactionExecutor()->begin();
+        $session->reset();
+        $this->assertFalse($session->getTransactionContext()->isActive());
+        $this->assertFalse($session->isDirty());
+        $this->assertSame(array('begin','rollback'),$pdo->transactionCalls);
+        $this->assertSame(array('SAVEPOINT sp_1','ROLLBACK TO SAVEPOINT sp_1'),$pdo->execCalls);
+    }
+
+    /**
+     * 测试回滚失败的会话归还后不复用
+     *
+     * @return void
+     */
+    public function testPoolDiscardsSessionWithFailedRollback(): void {
+        $pdo=new FakePdo();
+        $pdo->rollbackError='Simulated rollback failure.';
+        $factoryCalls=0;
+        $factory=function() use ($pdo,&$factoryCalls) {
+            $factoryCalls++;
+            return new PdoConnectionSession($pdo,new MysqlDialect());
+        };
+        $pool=new PdoConnectionPool($factory);
+        $session=$pool->acquire();
+        $session->getTransactionExecutor()->begin();
+        $session->release();
+        $second=$pool->acquire();
+        $this->assertNotSame($session,$second);
+        $this->assertSame(2,$factoryCalls);
+    }
+
+    /**
      * 测试共享与独占连接
      * @return void
      */

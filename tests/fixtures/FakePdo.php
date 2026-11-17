@@ -50,6 +50,18 @@ final class FakePdo extends PDO {
     public ?int $errorOnExecution=null;
 
     /**
+     * 设置后提交事务时抛出该错误
+     * @var string|null
+     */
+    public ?string $commitError=null;
+
+    /**
+     * 设置后回滚事务时抛出该错误
+     * @var string|null
+     */
+    public ?string $rollbackError=null;
+
+    /**
      * 已执行语句计数
      * @var int
      */
@@ -207,6 +219,8 @@ final class FakePdo extends PDO {
      */
     public function commit(): bool {
         $this->transactionCalls[]='commit';
+        if($this->commitError!==null)
+            throw new PDOException($this->commitError);
         $this->inTransactionFlag=false;
         return true;
     }
@@ -219,6 +233,8 @@ final class FakePdo extends PDO {
      */
     public function rollBack(): bool {
         $this->transactionCalls[]='rollback';
+        if($this->rollbackError!==null)
+            throw new PDOException($this->rollbackError);
         $this->inTransactionFlag=false;
         return true;
     }

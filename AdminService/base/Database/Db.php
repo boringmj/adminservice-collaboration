@@ -3,6 +3,7 @@
 namespace base\Database;
 
 use Throwable;
+use Fiber;
 use AdminService\Coroutine;
 use base\Database\DatabaseConfigInterface;
 use base\Database\Connection\ConnectionConfig;
@@ -24,7 +25,6 @@ use base\Database\Transaction\TransactionContextInterface;
 use base\Database\Type\QueryType;
 
 use function array_merge;
-use function class_exists;
 use function get_class;
 use function get_debug_type;
 use function implode;
@@ -255,7 +255,7 @@ final class Db {
      * @return string
      */
     private static function contextKey(): string {
-        if(class_exists(\Fiber::class,false)&&($fiber=\Fiber::getCurrent())!==null)
+        if(($fiber=Fiber::getCurrent())!==null)
             return 'fiber:'.spl_object_id($fiber);
         return Coroutine::key()??'main';
     }

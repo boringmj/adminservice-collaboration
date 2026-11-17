@@ -5,8 +5,6 @@ namespace AdminService;
 use Fiber;
 use WeakMap;
 
-use function class_exists;
-
 /**
  * Fiber 执行流的请求上下文存储
  *
@@ -42,7 +40,7 @@ final class FiberContextStorage implements ContextStorageInterface {
      * @return RequestContext|null
      */
     public function current(): ?RequestContext {
-        $fiber=class_exists(Fiber::class)?Fiber::getCurrent():null;
+        $fiber=Fiber::getCurrent();
         if($fiber===null)
             return $this->main->current();
         return $this->contexts[$fiber]??null;
@@ -57,7 +55,7 @@ final class FiberContextStorage implements ContextStorageInterface {
      * @return mixed
      */
     public function run(RequestContext $context,callable $callback): mixed {
-        $fiber=class_exists(Fiber::class)?Fiber::getCurrent():null;
+        $fiber=Fiber::getCurrent();
         if($fiber===null)
             return $this->main->run($context,$callback);
         $previous=$this->contexts[$fiber]??null;
@@ -79,7 +77,7 @@ final class FiberContextStorage implements ContextStorageInterface {
      * @return bool
      */
     public function isolated(): bool {
-        return class_exists(Fiber::class)&&Fiber::getCurrent()!==null;
+        return Fiber::getCurrent()!==null;
     }
 
 }

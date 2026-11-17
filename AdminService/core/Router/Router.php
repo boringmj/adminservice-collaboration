@@ -15,11 +15,11 @@ use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionMethod;
+use Fiber;
 
 use function array_intersect;
 use function array_merge;
 use function array_pop;
-use function class_exists;
 use function count;
 use function explode;
 use function gettype;
@@ -950,7 +950,7 @@ final class Router implements RoutingInterface {
         $context=ContextStorage::current();
         if($context!==null)
             return 'context:'.spl_object_id($context);
-        if(class_exists(\Fiber::class,false)&&($fiber=\Fiber::getCurrent())!==null)
+        if(($fiber=Fiber::getCurrent())!==null)
             return 'fiber:'.spl_object_id($fiber);
         return 'main';
     }

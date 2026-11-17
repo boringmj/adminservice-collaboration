@@ -7,11 +7,11 @@ use base\Error as BaseError;
 use base\Container as ContainerContract;
 use base\Response;
 use base\View;
+use Fiber;
 
 use function array_pop;
 use function array_shift;
 use function call_user_func;
-use function class_exists;
 use function count;
 use function debug_backtrace;
 use function error_get_last;
@@ -129,7 +129,7 @@ final class Error extends BaseError {
      * @return string
      */
     private static function executionKey(): string {
-        if(class_exists(\Fiber::class,false)&&($fiber=\Fiber::getCurrent())!==null)
+        if(($fiber=Fiber::getCurrent())!==null)
             return 'fiber:'.spl_object_id($fiber);
         return Coroutine::key()??'main';
     }

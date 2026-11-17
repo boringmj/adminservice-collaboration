@@ -5,9 +5,6 @@ namespace app\demo\model;
 use AdminService\App;
 use AdminService\File;
 use AdminService\Exception;
-use ReflectionException;
-
-use function is_null;
 
 class Count {
 
@@ -20,14 +17,10 @@ class Count {
      * 构造方法
      *
      * @access public
-     * @param ?File $file 文件对象
      * @throws Exception
-     * @throws ReflectionException
      */
-    public function __construct(?File $file=null) {
-        if(is_null($file))
-            $file=App::get(File::class,'count');
-        $this->file=$file;
+    public function __construct() {
+        $this->file=App::get(File::class,'count');
     }
 
     /**

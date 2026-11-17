@@ -16,18 +16,23 @@ use Throwable;
 
 use function dirname;
 use function file_put_contents;
+use function filemtime;
+use function filesize;
 use function function_exists;
 use function is_array;
 use function is_dir;
 use function is_file;
 use function is_link;
 use function is_string;
+use function max;
 use function mkdir;
 use function opcache_invalidate;
 use function rename;
 use function rmdir;
 use function scandir;
 use function sha1;
+use function stat;
+use function str_ends_with;
 use function strlen;
 use function uniqid;
 use function unlink;
@@ -116,6 +121,89 @@ final class FileCache implements TemplateCacheInterface {
         $fingerprint=$source->fingerprint();
         $code=$compiler->code($source);
         return $this->write($this->file($path),$fingerprint,$code,$path);
+    }
+
+    /**
+     * 只读检查模板缓存状态
+     *
+     * - 不删除、不重建文件
+     *
+     * @access public
+     * @return array{path:string,status:string,size:int,created_at:int|null,reason:string}
+     */
+    public function inspect(): array {
+        $dir=$this->directory();
+        $enabled=$this->store->enabled('view');
+        $files=array();
+        $size=0;
+        $mtime=null;
+        if(is_dir($dir)) {
+            $entries=@scandir($dir);
+            if(is_array($entries))
+                foreach($entries as $entry) {
+                    if($entry==='.'||$entry==='..'||!str_ends_with($entry,'.php'))
+                        continue;
+                    $file=$dir.'/'.$entry;
+                    $files[]=$file;
+                    $file_size=@filesize($file);
+                    if($file_size!==false)
+                        $size+=(int)$file_size;
+                    $file_mtime=@filemtime($file);
+                    if($file_mtime!==false)
+                        $mtime=$mtime===null?$file_mtime:max($mtime,$file_mtime);
+                }
+        }
+        $valid=0;
+        $stale=0;
+        $corrupted=0;
+        foreach($files as $file) {
+            try {
+                $payload=@include $file;
+            } catch(Throwable) {
+                $payload=null;
+            }
+            if(!is_array($payload)
+                ||!isset($payload['version'],$payload['fingerprint'],$payload['source'],$payload['compiled'])
+                ||!is_string($payload['version'])
+                ||!is_string($payload['fingerprint'])
+                ||!is_string($payload['source'])
+                ||!$payload['compiled'] instanceof Closure
+                ||$payload['version']!==PhpCompiler::VERSION) {
+                $corrupted++;
+                continue;
+            }
+            $source_stat=@stat($payload['source']);
+            if($source_stat===false
+                ||sha1($source_stat['mtime'].':'.$source_stat['size'])!==$payload['fingerprint']) {
+                $stale++;
+                continue;
+            }
+            $valid++;
+        }
+        if(!$enabled)
+            $status='disabled';
+        elseif($files===array())
+            $status='missing';
+        elseif($corrupted>0)
+            $status='corrupted';
+        elseif($stale>0)
+            $status='stale';
+        else
+            $status='valid';
+        $reason=match($status) {
+            'disabled' => '配置中已禁用模板缓存',
+            'missing' => '尚未生成',
+            'corrupted' => $corrupted.' 个缓存结构无效',
+            'stale' => $stale.' 个模板已变化',
+            default => $valid.' 个模板'
+        };
+        return array(
+            'path'=>$dir,
+            'status'=>$status,
+            'size'=>$size,
+            'created_at'=>$mtime,
+            'reason'=>$reason
+        );
     }
 
     /**

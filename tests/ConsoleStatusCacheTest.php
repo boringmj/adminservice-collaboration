@@ -17,6 +17,7 @@ use AdminService\Runtime;
 use base\Database\Db as BaseDb;
 
 use function AdminService\env_reset;
+use function array_filter;
 use function copy;
 use function dirname;
 use function file_get_contents;
@@ -24,6 +25,7 @@ use function file_put_contents;
 use function getenv;
 use function is_dir;
 use function is_file;
+use function json_decode;
 use function mkdir;
 use function putenv;
 use function rmdir;
@@ -221,6 +223,85 @@ class ConsoleStatusCacheTest extends TestCase {
         $this->assertSame(0,$code,$output->stderr());
         $this->assertStringContainsString('配置加载失败',$output->stderr());
         $this->assertStringContainsString('缓存已清理',$output->stdout());
+        $this->assertFileDoesNotExist($routes);
+    }
+
+    /**
+     * 测试: system check 不写配置缓存
+     *
+     * @return void
+     */
+    public function testSystemCheckDoesNotWriteConfigCache(): void {
+        $root=$this->workspace(array(
+            'default_command'=>'list',
+            'shortcuts'=>array()
+        ));
+        $output=Output::buffer();
+        $console=new Console(null,$output,new Bootstrapper($root.'/config'));
+        $code=$console->run(array('console','system','check','--no-db','--format','plain','--compact'));
+
+        $this->assertContains($code,array(0,1),$output->stderr());
+        $this->assertStringNotContainsString('输出形式无效',$output->stderr());
+        $this->assertFileDoesNotExist($root.'/runtime/cache/compile/config.cache.php','system check 不得写配置缓存');
+    }
+
+    /**
+     * 测试: 配置损坏时 system check 以降级方式输出
+     *
+     * @return void
+     */
+    public function testSystemCheckRunsWhenRawConfigIsBroken(): void {
+        $root=$this->workspace(array(
+            'default_command'=>'list',
+            'shortcuts'=>array()
+        ));
+        file_put_contents($root.'/config/app.php',"<?php\n\nreturn array(\n");
+
+        $output=Output::buffer();
+        $console=new Console(null,$output,new Bootstrapper($root.'/config'));
+        $code=$console->run(array('console','system','check','--no-db','--json'));
+
+        $this->assertSame(1,$code,$output->stderr());
+        $data=json_decode($output->stdout(),true);
+        $this->assertIsArray($data);
+        $failed=array_filter($data['checks'],static fn(array $check): bool => $check['name']==='配置加载'&&$check['status']==='fail');
+        $this->assertCount(1,$failed);
+
+        // 降级路径也要支持空格形式的 --format
+        $output=Output::buffer();
+        $console=new Console(null,$output,new Bootstrapper($root.'/config'));
+        $this->assertContains($console->run(array('console','system','check','--no-db','--format','plain')),array(0,1),$output->stderr());
+        $this->assertStringNotContainsString('输出形式无效',$output->stderr());
+    }
+
+    /**
+     * 测试: .env 无法解析时 cache clear 仍可执行
+     *
+     * @return void
+     */
+    public function testCacheClearRunsWhenEnvIsBroken(): void {
+        $root=$this->workspace(array(
+            'default_command'=>'list',
+            'shortcuts'=>array()
+        ));
+        $routes=$root.'/runtime/cache/compile/routes.cache.php';
+        if(!is_dir(dirname($routes)))
+            mkdir(dirname($routes),0755,true);
+        file_put_contents($routes,'<?php return array();');
+        file_put_contents($root.'/config/app.php',"<?php\n\nreturn array(\n");
+        file_put_contents($root.'/env',"BROKEN_LINE\n");
+        putenv('ADMINSERVICE_TEST_ENV_CACHE='.$root.'/missing-env.cache.php');
+        env_reset();
+        // 模拟进程已经解析过 runtime, 避免测试清理到仓库真实缓存
+        Runtime::setPath($root.'/runtime');
+
+        $output=Output::buffer();
+        $console=new Console(null,$output,new Bootstrapper($root.'/config'));
+        $code=$console->run(array('console','cache','clear','routes'));
+
+        $this->assertSame(0,$code,$output->stderr());
+        $this->assertStringContainsString('配置加载失败',$output->stderr());
+        $this->assertStringContainsString('环境无法加载',$output->stdout());
         $this->assertFileDoesNotExist($routes);
     }
 

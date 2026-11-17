@@ -202,6 +202,26 @@ final class Bootstrapper {
     }
 
     /**
+     * 检查原始配置能否加载
+     *
+     * - 只读取配置目录, 不写缓存
+     * - 用于确认配置缓存命中时源文件本身仍然可用
+     *
+     * @access public
+     * @param Env $env `.env` 快照
+     * @return array{valid:bool,reason:string|null}
+     */
+    public function rawConfigStatus(Env $env): array {
+        try {
+            $raw=$this->loadRaw(new Loader($this->config_dir),$env);
+            Application::validateConfig(new Repository($raw,$env));
+            return array('valid'=>true,'reason'=>null);
+        } catch(\Throwable $e) {
+            return array('valid'=>false,'reason'=>$e->getMessage());
+        }
+    }
+
+    /**
      * 在指定 env 作用域内加载配置
      *
      * - 配置文件里的 `env()` 与路径键覆盖使用同一份 env

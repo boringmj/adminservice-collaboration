@@ -83,6 +83,7 @@ php console start                # 启动开发服务器
 php console cache status         # 查看编译缓存状态
 php console cache build          # 预热编译缓存
 php console cache clear          # 清理编译缓存
+php console system check         # 检查环境、配置、缓存、路径与数据库
 ```
 
 完整命令、参数和自定义命令说明见 [命令行](https://github.com/boringmj/adminservice-collaboration/wiki/命令行)。

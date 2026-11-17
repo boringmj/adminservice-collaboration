@@ -3,6 +3,7 @@
 namespace AdminService;
 
 use AdminService\Config\Bootstrapper;
+use AdminService\Config\Env;
 use AdminService\Config\Repository;
 use AdminService\Console\Command\CacheBuildCommand;
 use AdminService\Console\Command\CacheClearCommand;
@@ -10,6 +11,7 @@ use AdminService\Console\Command\CacheStatusCommand;
 use AdminService\Console\Command\HelpCommand;
 use AdminService\Console\Command\ListCommand;
 use AdminService\Console\Command\ServerStartCommand;
+use AdminService\Console\Command\SystemCheckCommand;
 use AdminService\Console\Command\WorkerStartCommand;
 use AdminService\Console\CommandRegistry;
 use AdminService\Console\Input;
@@ -24,6 +26,7 @@ use function array_slice;
 use function array_unshift;
 use function array_values;
 use function count;
+use function dirname;
 use function implode;
 use function is_array;
 use function is_string;
@@ -160,6 +163,7 @@ final class Console {
         $this->register(new CacheStatusCommand($config,$this->bootstrapper));
         $this->register(new CacheClearCommand($config));
         $this->register(new CacheBuildCommand($this->bootstrapper,$config));
+        $this->register(new SystemCheckCommand($config,$this->bootstrapper));
         $commands=$config->get('console.commands',array());
         if(!is_array($commands))
             throw new Exception('console.commands must be an array.',100701);
@@ -206,6 +210,10 @@ final class Console {
             $this->skip_boot_config_cache=$this->isStatusCommand($tokens);
             $this->init();
         } catch(Throwable $e) {
+            // system check 用于诊断引导失败, 不依赖引导成功
+            $code=$this->recoverSystemCheck($tokens,$e);
+            if($code!==null)
+                return $code;
             // 原始配置损坏时仍允许执行 cache clear
             if($this->preboot_config_error!==null) {
                 $code=$this->recoverCacheClear($tokens,$e);
@@ -393,10 +401,10 @@ final class Console {
     }
 
     /**
-     * 判断命令是否解析到 cache status
+     * 判断命令是否只读诊断命令
      *
-     * - 状态命令应看到引导前的配置缓存状态, 因此不能由 boot 写配置快照
-     * - 快捷绑定与默认命令来自配置, 需在引导前单独读取; 非状态命令会多读一次配置
+     * - `cache status` 与 `system check` 应看到引导前的配置缓存状态, 不能由 boot 写配置快照
+     * - 快捷绑定与默认命令来自配置, 需在引导前单独读取; 其它命令会多读一次配置
      *
      * @access private
      * @param array<int,string> $tokens 命令 token
@@ -407,7 +415,7 @@ final class Console {
         if($this->application!==null||version_compare(PHP_VERSION,'8.2.0','<'))
             return false;
         $parts=$this->commandParts($tokens);
-        if($this->startsWithStatus($parts))
+        if($this->startsWithReadOnly($parts))
             return true;
         $this->bootstrapper??=new Bootstrapper();
         try {
@@ -415,26 +423,30 @@ final class Console {
         } catch(Throwable $e) {
             // 快捷绑定与默认命令来自配置, 解析失败时交给引导阶段
             $this->preboot_config_error=$e;
-            // 引导失败会删除过期快照, 先取出缓存路径供恢复命令使用
-            $this->recovery_config=$this->bootstrapper->recoveryConfig($this->bootstrapper->env());
+            // 引导失败会删除过期快照, 先取出缓存路径供恢复命令使用; env 也无法解析时跳过
+            try {
+                $this->recovery_config=$this->bootstrapper->recoveryConfig($this->bootstrapper->env());
+            } catch(Throwable) {
+                $this->recovery_config=null;
+            }
             return false;
         }
         if($parts===array())
             $parts=$this->splitCommand((string)$config->get('console.default_command','list'));
-        return $this->matchesStatus($parts,$this->shortcutPaths($config->get('console.shortcuts',array())));
+        return $this->matchesReadOnly($parts,$this->shortcutPaths($config->get('console.shortcuts',array())));
     }
 
     /**
-     * 命令路径是否以 cache status 开头
-     *
-     * - 后续段是参数, 命令仍然是 cache status
+     * 命令路径是否以只读诊断命令开头
      *
      * @access private
      * @param array<int,string> $parts 命令路径段
      * @return bool
      */
-    private function startsWithStatus(array $parts): bool {
-        return ($parts[0]??null)==='cache'&&($parts[1]??null)==='status';
+    private function startsWithReadOnly(array $parts): bool {
+        if(($parts[0]??null)==='cache'&&($parts[1]??null)==='status')
+            return true;
+        return ($parts[0]??null)==='system'&&($parts[1]??null)==='check';
     }
 
     /**
@@ -479,7 +491,7 @@ final class Console {
     }
 
     /**
-     * 判断命令路径经快捷绑定展开后是否为 cache status
+     * 判断命令路径经快捷绑定展开后是否为只读诊断命令
      *
      * - 与命令注册表一致取最长的快捷绑定前缀; 目标为分组时后续段继续拼接
      *
@@ -488,8 +500,8 @@ final class Console {
      * @param array<string,array<int,string>> $paths 快捷绑定
      * @return bool
      */
-    private function matchesStatus(array $parts,array $paths): bool {
-        if($this->startsWithStatus($parts))
+    private function matchesReadOnly(array $parts,array $paths): bool {
+        if($this->startsWithReadOnly($parts))
             return true;
         $match=null;
         $prefix=array();
@@ -502,7 +514,7 @@ final class Console {
         if($match===null)
             return false;
         $expanded=array_merge($paths[$match[0]],array_slice($parts,$match[1]));
-        return $this->startsWithStatus($expanded);
+        return $this->startsWithReadOnly($expanded);
     }
 
     /**
@@ -523,11 +535,10 @@ final class Console {
         if($consumed===null)
             return null;
         $bootstrapper=$this->bootstrapper??=new Bootstrapper();
-        $env=$bootstrapper->env();
-        Runtime::setPath(Runtime::path($env));
-        $command=new CacheClearCommand($this->recovery_config??$bootstrapper->recoveryConfig($env));
+        $env=$this->recoveryEnv($bootstrapper);
+        $command=new CacheClearCommand($this->recoveryConfig($bootstrapper,$env));
         try {
-            $input=new Input(array_slice($tokens,$consumed),array('target'));
+            $input=new Input(array_slice($tokens,$consumed),$command->valueOptions());
             $this->validateOptions($command,$input);
         } catch(InvalidArgumentException $invalid) {
             $this->output->error('[ERROR] '.$invalid->getMessage());
@@ -535,9 +546,104 @@ final class Console {
         }
         $this->output->error('[WARN] 配置加载失败(Config load failed): '.$e->getMessage());
         $code=$command->execute($input,$this->output);
-        if($code===self::EXIT_SUCCESS)
+        if($code===self::EXIT_SUCCESS) {
             $this->output->info('缓存路径来自上下文一致的配置快照或 runtime 默认目录。');
+            if($env===null)
+                $this->output->info('环境无法加载, 缓存路径使用 runtime 默认目录。');
+        }
         return $code;
+    }
+
+    /**
+     * 配置无法加载时执行系统检查
+     *
+     * @access private
+     * @param array<int,string> $tokens 命令 token
+     * @param Throwable $e 引导失败原因
+     * @return int|null null = 不是 `system check`, 未处理
+     */
+    private function recoverSystemCheck(array $tokens,Throwable $e): ?int {
+        if($this->application!==null)
+            return null;
+        $consumed=$this->systemCheckTokens($tokens);
+        if($consumed===null)
+            return null;
+        $bootstrapper=$this->bootstrapper??=new Bootstrapper();
+        $env=$this->recoveryEnv($bootstrapper);
+        $command=new SystemCheckCommand($this->recoveryConfig($bootstrapper,$env),$bootstrapper,$e->getMessage());
+        try {
+            $input=new Input(array_slice($tokens,$consumed),$command->valueOptions());
+            $this->validateOptions($command,$input);
+        } catch(InvalidArgumentException $invalid) {
+            $this->output->error('[ERROR] '.$invalid->getMessage());
+            return self::EXIT_INVALID;
+        }
+        return $command->execute($input,$this->output);
+    }
+
+    /**
+     * 恢复路径的环境与 runtime
+     *
+     * - `.env` 无法解析时使用框架默认 runtime, 不抛出异常
+     *
+     * @access private
+     * @param Bootstrapper $bootstrapper 引导器
+     * @return Env|null null = 环境无法加载
+     */
+    private function recoveryEnv(Bootstrapper $bootstrapper): ?Env {
+        try {
+            $env=$bootstrapper->env();
+            Runtime::setPath(Runtime::path($env));
+            return $env;
+        } catch(Throwable) {
+            // 已解析过的 runtime 保留; 否则使用安装目录默认值
+            try {
+                Runtime::path();
+            } catch(Throwable) {
+                Runtime::setPath(dirname(__DIR__).'/runtime');
+            }
+            return null;
+        }
+    }
+
+    /**
+     * 恢复路径的配置
+     *
+     * @access private
+     * @param Bootstrapper $bootstrapper 引导器
+     * @param Env|null $env 环境快照
+     * @return Repository
+     */
+    private function recoveryConfig(Bootstrapper $bootstrapper,?Env $env): Repository {
+        $config=$this->recovery_config;
+        if($config===null&&$env!==null) {
+            try {
+                $config=$bootstrapper->recoveryConfig($env);
+            } catch(Throwable) {
+                $config=null;
+            }
+        }
+        return $config??new Repository(array(
+            'cache'=>array('path'=>Runtime::path().'/cache')
+        ));
+    }
+
+    /**
+     * 取 `system check` 命令占用的 token 数
+     *
+     * - 只接受 `system:check` 与 `system check` 两种写法
+     *
+     * @access private
+     * @param array<int,string> $tokens 命令 token
+     * @return int|null null = 不是 `system check`
+     */
+    private function systemCheckTokens(array $tokens): ?int {
+        $first=$this->splitCommand($tokens[0]??'');
+        if($first===array('system','check'))
+            return 1;
+        if($first===array('system')&&$this->splitCommand($tokens[1]??'')===array('check'))
+            return 2;
+        return null;
     }
 
     /**

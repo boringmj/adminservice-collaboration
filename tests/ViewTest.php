@@ -193,7 +193,7 @@ class ViewTest extends TestCase {
         $file=tempnam(sys_get_temp_dir(),'as_view_roots_');
         $configs=Config::all();
         $configs['app']['path']='/nonexistent-app';
-        $configs['app']['error_template']='/nonexistent-error.html';
+        $configs['app']['error_template']='/nonexistent-root/error.html';
         $configs['view']['allowed_paths']=array();
         set_config($configs);
         try {

@@ -139,6 +139,7 @@ final class WorkerStartCommand extends AbstractCommand {
         $workers=(int)$workers_raw;
         $compression=(bool)$this->config->get('worker.compression',false);
         $compression_level=(int)$this->config->get('worker.compression_level',4);
+        $package_max_length=(int)$this->config->get('worker.package_max_length',2097152);
         if($compression&&($compression_level<1||$compression_level>9)) {
             $output->error('[ERROR] 压缩级别无效(Invalid compression level): '.$compression_level.' (应为 1..9)');
             return self::INVALID;
@@ -165,7 +166,7 @@ final class WorkerStartCommand extends AbstractCommand {
             $worker=new Worker($this->application);
             $worker->boot();
             $output->info('启动(Start): worker 正在运行, 按 Ctrl+C 停止');
-            $started=(new SwooleDriver($worker))->serve($host,$port,$workers,$compression,$compression_level);
+            $started=(new SwooleDriver($worker))->serve($host,$port,$workers,$compression,$compression_level,$package_max_length);
         } catch(Throwable $e) {
             $output->error('[ERROR] worker 启动失败(Worker start failed): '.$e->getMessage());
             return self::FAILURE;

@@ -50,6 +50,7 @@ final class SwooleDriver {
      * @param int $workers 进程数
      * @param bool $compression 是否启用 gzip 响应压缩
      * @param int $compression_level 压缩级别 1-9
+     * @param int $package_max_length 单个请求最大字节数(<=0 使用 Swoole 默认值)
      * @return bool 是否正常退出(`Swoole\Server::start()` 的返回值)
      * @throws Exception Swoole 扩展不可用, 或压缩配置无效
      */
@@ -58,18 +59,22 @@ final class SwooleDriver {
         int $port,
         int $workers=1,
         bool $compression=false,
-        int $compression_level=4
+        int $compression_level=4,
+        int $package_max_length=0
     ): bool {
         if(!extension_loaded('swoole')||!class_exists('Swoole\\Http\\Server'))
             throw new Exception('Swoole extension is required for worker start.');
         $compressor=$compression?new ResponseCompressor($compression_level):null;
         $server=new \Swoole\Http\Server($host,$port);
-        $server->set(array(
+        $settings=array(
             'worker_num'=>max(1,$workers),
             'enable_coroutine'=>true,
             // 压缩统一由驱动处理, 避免 Swoole 内置压缩重复处理正文
             'http_compression'=>false
-        ));
+        );
+        if($package_max_length>0)
+            $settings['package_max_length']=$package_max_length;
+        $server->set($settings);
         $worker=$this->worker;
         $server->on('request',function(\Swoole\Http\Request $request,\Swoole\Http\Response $response) use($worker,$compressor): void {
             $written=false;

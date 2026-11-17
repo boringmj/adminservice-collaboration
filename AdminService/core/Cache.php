@@ -20,10 +20,12 @@ use function file_get_contents;
 use function file_put_contents;
 use function filemtime;
 use function fclose;
+use function get_class;
 use function getcwd;
 use function flock;
 use function fopen;
 use function function_exists;
+use function in_array;
 use function is_array;
 use function is_dir;
 use function is_file;
@@ -643,6 +645,11 @@ final class Cache implements CacheInterface {
             return array(false,$value);
         if($this->containsUnsupported($value))
             throw new Exception('Cache value contains a resource or closure.',self::ERROR_ENCODE_FAILED);
+        $allowed=$this->allowedUnserializeClasses();
+        if($allowed!==true&&$this->containsDisallowedClass($value,$allowed))
+            throw new Exception('Cache value contains a class not allowed by cache.unserialize_allowed_classes.',self::ERROR_ENCODE_FAILED,array(
+                'allowed_classes'=>$allowed
+            ));
         try {
             $serialized=serialize($value);
         } catch(\Throwable $e) {
@@ -702,6 +709,73 @@ final class Cache implements CacheInterface {
     }
 
     /**
+     * 反序列化允许的类
+     *
+     * - `false`: 禁止对象; 数组: 类名白名单; `true`: 全部允许
+     *
+     * @access private
+     * @return array<int,string>|bool
+     */
+    private function allowedUnserializeClasses(): array|bool {
+        $value=$this->config()->get('cache.unserialize_allowed_classes',false);
+        if(is_bool($value))
+            return $value;
+        if(!is_array($value))
+            return false;
+        $allowed=array();
+        foreach($value as $class)
+            if(is_string($class)&&$class!=='')
+                $allowed[]=$class;
+        return $allowed;
+    }
+
+    /**
+     * 判断值是否包含白名单之外的对象
+     *
+     * @access private
+     * @param mixed $value 值
+     * @param array<int,string>|bool $allowed 允许的类
+     * @param int $depth 当前深度
+     * @return bool
+     */
+    private function containsDisallowedClass(mixed $value,array|bool $allowed,int $depth=0): bool {
+        if($allowed===true||$depth>=64)
+            return false;
+        if(is_object($value)) {
+            if($allowed===false)
+                return true;
+            return !in_array(get_class($value),$allowed,true);
+        }
+        if(is_array($value)) {
+            foreach($value as $item)
+                if($this->containsDisallowedClass($item,$allowed,$depth+1))
+                    return true;
+        }
+        return false;
+    }
+
+    /**
+     * 判断值是否包含未完成反序列化的对象
+     *
+     * @access private
+     * @param mixed $value 值
+     * @param int $depth 当前深度
+     * @return bool
+     */
+    private function containsIncompleteClass(mixed $value,int $depth=0): bool {
+        if($depth>=64)
+            return false;
+        if(is_object($value)&&get_class($value)==='__PHP_Incomplete_Class')
+            return true;
+        if(is_array($value)) {
+            foreach($value as $item)
+                if($this->containsIncompleteClass($item,$depth+1))
+                    return true;
+        }
+        return false;
+    }
+
+    /**
      * 读取缓存条目(纯读取, 不删除文件)
      *
      * - 过期、损坏或键不匹配时返回 null, 由调用方决定是否清理
@@ -710,10 +784,12 @@ final class Cache implements CacheInterface {
      * @param string $path 条目路径
      * @param string|null $expected_key 期望键(null = 不校验, GC 用)
      * @param bool $decode 是否解码序列化值(GC 不需要)
+     * @param bool $exists 文件是否存在(引用返回, 避免调用方重复 stat)
      * @return array<string,mixed>|null
      */
-    private function readEntry(string $path,?string $expected_key=null,bool $decode=true): ?array {
-        if(!is_file($path))
+    private function readEntry(string $path,?string $expected_key=null,bool $decode=true,bool &$exists=false): ?array {
+        $exists=is_file($path);
+        if(!$exists)
             return null;
         try {
             $entry=@include $path;
@@ -738,11 +814,15 @@ final class Cache implements CacheInterface {
             if($raw===false)
                 return null;
             try {
-                $value=@unserialize($raw);
+                $value=@unserialize($raw,array(
+                    'allowed_classes'=>$this->allowedUnserializeClasses()
+                ));
             } catch(\Throwable) {
                 return null;
             }
             if($value===false&&$raw!==serialize(false))
+                return null;
+            if($this->containsIncompleteClass($value))
                 return null;
             $entry['value']=$value;
             $entry['serialized']=false;
@@ -760,8 +840,9 @@ final class Cache implements CacheInterface {
      * @return array<string,mixed>|null
      */
     private function readEntryClean(string $path,?string $expected_key=null,bool $decode=true): ?array {
-        $entry=$this->readEntry($path,$expected_key,$decode);
-        if($entry===null)
+        $exists=false;
+        $entry=$this->readEntry($path,$expected_key,$decode,$exists);
+        if($entry===null&&$exists)
             $this->removeFile($path);
         return $entry;
     }
@@ -983,11 +1064,10 @@ final class Cache implements CacheInterface {
                         if($this->isAuxiliaryFile($file)) {
                             $this->gcAuxiliaryFile($path,$removed);
                         } else {
-                            $entry=$this->readEntry($path,null,false);
-                            if($entry===null&&is_file($path)) {
-                                $this->removeFile($path);
+                            $exists=false;
+                            $entry=$this->readEntry($path,null,false,$exists);
+                            if($entry===null&&$exists&&$this->removeFile($path))
                                 $removed++;
-                            }
                         }
                         if($checked>=$limit)
                             return;
@@ -1091,8 +1171,9 @@ final class Cache implements CacheInterface {
     }
 
     /**
-     * 清理超过一小时的崩溃残留临时文件
+     * 清理超过保留期的崩溃残留临时文件
      *
+     * - 保留期由 `cache.aux_ttl` 控制, `<=0` 表示不清理
      * - 锁文件不在此处清理; 删除锁文件会破坏并发 increment/decrement 的 inode 互斥
      * - 检查失败时保留文件, 不影响本次 GC
      *
@@ -1102,10 +1183,11 @@ final class Cache implements CacheInterface {
      * @return void
      */
     private function gcAuxiliaryFile(string $path,int &$removed): void {
-        if(!is_file($path))
+        $ttl=(int)$this->config()->get('cache.aux_ttl',3600);
+        if($ttl<=0||!is_file($path))
             return;
         $mtime=@filemtime($path);
-        if($mtime===false||$mtime>time()-3600)
+        if($mtime===false||$mtime>time()-$ttl)
             return;
         $handle=@fopen($path,'c');
         if($handle===false)

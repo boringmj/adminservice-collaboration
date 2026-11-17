@@ -369,7 +369,9 @@ class CacheTest extends TestCase {
      * @return void
      */
     public function testObjectIsSerializedAndRestored(): void {
-        $cache=new Cache($this->config);
+        $cache=new Cache($this->makeConfig(array(
+            'unserialize_allowed_classes'=>array(CacheFixtureValue::class)
+        )));
         $value=new CacheFixtureValue('demo',array('a'=>1));
 
         $this->assertTrue($cache->set('object',$value));
@@ -381,6 +383,30 @@ class CacheTest extends TestCase {
 
         $entry=include $this->entryPath($cache,'object');
         $this->assertTrue($entry['serialized']);
+    }
+
+    /**
+     * 测试: 默认禁止缓存对象
+     *
+     * @return void
+     */
+    public function testObjectCacheRequiresAllowedClasses(): void {
+        $cache=new Cache($this->config);
+        $this->expectException(Exception::class);
+        $cache->set('object',new CacheFixtureValue('demo',array()));
+    }
+
+    /**
+     * 测试: 白名单之外的类被拒绝
+     *
+     * @return void
+     */
+    public function testObjectCacheRejectsClassOutsideWhitelist(): void {
+        $cache=new Cache($this->makeConfig(array(
+            'unserialize_allowed_classes'=>array('stdClass')
+        )));
+        $this->expectException(Exception::class);
+        $cache->set('object',new CacheFixtureValue('demo',array()));
     }
 
     /**
@@ -748,6 +774,24 @@ class CacheTest extends TestCase {
         $this->assertGreaterThanOrEqual(1,$cache->gc(0));
         $this->assertFileExists($lock,'锁文件不能被 GC 删除');
         $this->assertFileDoesNotExist($tmp);
+    }
+
+    /**
+     * 测试: 辅助文件保留期可配置
+     *
+     * @return void
+     */
+    public function testGcHonorsAuxiliaryTtl(): void {
+        $cache=new Cache($this->makeConfig(array('aux_ttl'=>10800)));
+        $pool=$this->dir.'/cache/kv/default';
+        $shard=$pool.'/ab/cd';
+        mkdir($shard,0755,true);
+        $tmp=$shard.'/.cachetmp_recent';
+        file_put_contents($tmp,'');
+        touch($tmp,time()-7200);
+
+        $cache->gc(0);
+        $this->assertFileExists($tmp,'未超过保留期的辅助文件不应被清理');
     }
 
     /**

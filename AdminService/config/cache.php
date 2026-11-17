@@ -20,6 +20,8 @@ return array(
     'gc_probability'=>1, // 写时触发自动 GC 的概率分子(<=0 关闭自动触发)
     'gc_divisor'=>100, // 写时触发自动 GC 的概率分母(默认 1/100)
     'gc_max_files'=>200, // 单次自动 GC 最多检查文件数(<=0 表示不限制)
+    'aux_ttl'=>3600, // 崩溃残留的临时文件保留秒数(<=0 表示不清理)
+    'unserialize_allowed_classes'=>false, // 缓存对象反序列化白名单: false=禁止, 数组=类名, true=全部允许(不推荐)
 
     // 系统编译缓存(环境/配置/路由/容器已接入; 存在 .env 时配置缓存需环境快照放行)
     'compile'=>array(

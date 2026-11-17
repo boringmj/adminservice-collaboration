@@ -12,8 +12,9 @@ use AdminService\ResponseProcessor\Http;
 use AdminService\exception\ClientDisconnectedException;
 
 use function array_keys;
-use function connection_aborted;
 use function array_map;
+use function array_merge;
+use function connection_aborted;
 use function error_log;
 use function explode;
 use function flush;
@@ -275,8 +276,10 @@ final class Response extends BaseResponse {
             // 显式传 null 表示移除该Header
             if($value===null)
                 $this->headers->delete($name);
-            else
+            else {
+                self::assertHeaderName($name);
                 $this->headers->set($name,self::normalizeHeaderValues($value));
+            }
         }
         return implode(', ',(array)$this->headers->get($name,array()));
     }
@@ -290,8 +293,9 @@ final class Response extends BaseResponse {
      * @return void
      */
     public function addHeader(string $name,string $value): void {
+        self::assertHeaderName($name);
         $values=(array)$this->headers->get($name,array());
-        $values[]=$value;
+        $values=array_merge($values,self::normalizeHeaderValues($value));
         $this->headers->set($name,$values);
     }
 
@@ -304,6 +308,7 @@ final class Response extends BaseResponse {
      */
     public function headers(array $headers): void {
         foreach($headers as $name=>$value) {
+            self::assertHeaderName((string)$name);
             $this->headers->set($name,self::normalizeHeaderValues($value));
         }
     }
@@ -316,9 +321,30 @@ final class Response extends BaseResponse {
      * @return array<string>
      */
     private static function normalizeHeaderValues(string|array $value): array {
-        if(is_array($value))
-            return array_map('strval',$value);
-        return array($value);
+        $values=is_array($value)?array_map('strval',$value):array($value);
+        foreach($values as $item)
+            if(str_contains($item,"\r")||str_contains($item,"\n"))
+                throw new Exception('Header value contains CR/LF.',100404,array(
+                    'value'=>$item
+                ));
+        return $values;
+    }
+
+    /**
+     * 校验Header名称
+     *
+     * - 名称不能包含 CR/LF 或冒号, 避免响应头注入
+     *
+     * @access private
+     * @param string $name Header名
+     * @return void
+     * @throws Exception Header名非法
+     */
+    private static function assertHeaderName(string $name): void {
+        if($name===''||str_contains($name,"\r")||str_contains($name,"\n")||str_contains($name,':'))
+            throw new Exception('Header name is invalid.',100404,array(
+                'name'=>$name
+            ));
     }
 
     /**

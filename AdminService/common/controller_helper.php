@@ -28,7 +28,6 @@ function view(null|string|array $template=null,array $data=array()): string {
     $controller=App::get($controller_class);
     $reflector=App::getReflectionByObject($controller);
     $method=$reflector->getMethod('view');
-    $method->setAccessible(true);
     return $method->invoke($controller,$template,$data);
 }
 

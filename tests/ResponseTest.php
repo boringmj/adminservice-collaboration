@@ -349,6 +349,23 @@ class ResponseTest extends TestCase {
     }
 
     /**
+     * 测试Header值拒绝CR/LF注入
+     *
+     * @return void
+     */
+    public function testHeaderRejectsCrlfInjection(): void {
+        $response=new Response();
+        try {
+            $response->header('X-Test',"value\r\nInjected: 1");
+            $this->fail('Header值包含CR/LF时应抛出异常');
+        } catch(Exception $e) {
+            $this->assertSame(100404,$e->getCode());
+        }
+        $this->expectException(Exception::class);
+        $response->addHeader('X-Test',"value\nInjected: 1");
+    }
+
+    /**
      * 测试发送输出响应体
      * @return void
      */

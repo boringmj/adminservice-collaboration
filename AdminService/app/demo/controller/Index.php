@@ -7,7 +7,6 @@ use base\Controller;
 // 系统核心类
 use AdminService\App;
 use AdminService\Log;
-use AdminService\Config;
 use AdminService\Exception;
 use AdminService\UploadStorage;
 // 模型
@@ -18,7 +17,6 @@ use app\demo\validator\Test as TestValidator;
 use AdminService\common\HttpHelper;
 
 use function count;
-use function realpath;
 
 // 控制器助手函数
 use function AdminService\common\view;
@@ -105,8 +103,7 @@ class Index extends Controller {
         App::get(Log::class,'debug')->write("This is a debug message in {app}.",array(
             'app'=>App::getAppName()
         ));
-        // 输出日志文件路径
-        return "日志存放目录: ".realpath(Config::get('log.path',''));
+        return "日志已写入。";
     }
 
     public function exec(): mixed {

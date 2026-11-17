@@ -31,7 +31,7 @@ class JsonInput extends AbstractInputProcessor {
     protected function handle(string $data): array {
         if($data==='')
             return array();
-        $decoded=json_decode($data,true);
+        $decoded=json_decode($data,true,512);
         if(is_array($decoded))
             return $decoded;
         $error=json_last_error();

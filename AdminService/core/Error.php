@@ -384,14 +384,6 @@ final class Error extends BaseError {
     private static bool $registered=false;
 
     /**
-     * 标记当前请求是否已经处理过错误
-     *
-     * - 由 `beginRequest()` 复位; 不再作为进程级永久闩锁
-     * @var bool
-     */
-    private static $handled=false;
-
-    /**
      * 错误类型映射
      * @var array
      */

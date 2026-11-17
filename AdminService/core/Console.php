@@ -22,6 +22,8 @@ use function array_merge;
 use function array_slice;
 use function array_unshift;
 use function array_values;
+use function count;
+use function implode;
 use function is_array;
 use function is_string;
 use function preg_split;
@@ -109,10 +111,12 @@ final class Console {
      * @access public
      * @param Application|null $application 应用(null = 自动引导)
      * @param Output|null $output 输出
+     * @param Bootstrapper|null $bootstrapper 引导器(null = 自动新建)
      */
-    public function __construct(?Application $application=null,?Output $output=null) {
+    public function __construct(?Application $application=null,?Output $output=null,?Bootstrapper $bootstrapper=null) {
         $this->application=$application;
         $this->output=$output??new Output();
+        $this->bootstrapper=$bootstrapper;
         $this->registry=new CommandRegistry();
     }
 
@@ -183,8 +187,8 @@ final class Console {
         $tokens=array_slice($argv??(isset($_SERVER['argv'])?(array)$_SERVER['argv']:array()),1);
         $this->help_option=false;
         $tokens=$this->extractGlobalOptions(array_values($tokens));
-        $this->skip_boot_config_cache=$this->isStatusCommand($tokens);
         try {
+            $this->skip_boot_config_cache=$this->isStatusCommand($tokens);
             $this->init();
         } catch(Throwable $e) {
             return $this->renderException($e);
@@ -368,15 +372,50 @@ final class Console {
     }
 
     /**
-     * 判断命令是否为 cache status
+     * 判断命令是否解析到 cache status
      *
      * - 状态命令应看到引导前的配置缓存状态, 因此不能由 boot 写配置快照
+     * - 快捷绑定与默认命令来自配置, 需在引导前单独读取; 非状态命令会多读一次配置
      *
      * @access private
      * @param array<int,string> $tokens 命令 token
      * @return bool
      */
     private function isStatusCommand(array $tokens): bool {
+        // 已注入应用时不执行自动引导, 不会写配置缓存; 版本检查交给 init
+        if($this->application!==null||version_compare(PHP_VERSION,'8.2.0','<'))
+            return false;
+        $parts=$this->commandParts($tokens);
+        if($this->startsWithStatus($parts))
+            return true;
+        $this->bootstrapper??=new Bootstrapper();
+        $config=$this->bootstrapper->loadConfig($this->bootstrapper->env(),false,false);
+        if($parts===array())
+            $parts=$this->splitCommand((string)$config->get('console.default_command','list'));
+        return $this->matchesStatus($parts,$this->shortcutPaths($config->get('console.shortcuts',array())));
+    }
+
+    /**
+     * 命令路径是否以 cache status 开头
+     *
+     * - 后续段是参数, 命令仍然是 cache status
+     *
+     * @access private
+     * @param array<int,string> $parts 命令路径段
+     * @return bool
+     */
+    private function startsWithStatus(array $parts): bool {
+        return ($parts[0]??null)==='cache'&&($parts[1]??null)==='status';
+    }
+
+    /**
+     * 取命令路径段
+     *
+     * @access private
+     * @param array<int,string> $tokens 命令 token
+     * @return array<int,string>
+     */
+    private function commandParts(array $tokens): array {
         $parts=array();
         foreach($tokens as $token) {
             if(!is_string($token)||str_starts_with($token,'-'))
@@ -384,7 +423,57 @@ final class Console {
             foreach($this->splitCommand($token) as $part)
                 $parts[]=$part;
         }
-        return ($parts[0]??null)==='cache'&&($parts[1]??null)==='status';
+        return $parts;
+    }
+
+    /**
+     * 归一化快捷绑定
+     *
+     * @access private
+     * @param mixed $shortcuts 配置里的快捷绑定
+     * @return array<string,array<int,string>> 快捷绑定路径 => 目标路径段
+     */
+    private function shortcutPaths(mixed $shortcuts): array {
+        if(!is_array($shortcuts))
+            return array();
+        $paths=array();
+        foreach($shortcuts as $shortcut=>$target) {
+            if(!is_string($shortcut)||!is_string($target))
+                continue;
+            $key=implode(' ',$this->splitCommand($shortcut));
+            $value=$this->splitCommand($target);
+            if($key===''||$value===array())
+                continue;
+            $paths[$key]=$value;
+        }
+        return $paths;
+    }
+
+    /**
+     * 判断命令路径经快捷绑定展开后是否为 cache status
+     *
+     * - 与命令注册表一致取最长的快捷绑定前缀; 目标为分组时后续段继续拼接
+     *
+     * @access private
+     * @param array<int,string> $parts 命令路径段
+     * @param array<string,array<int,string>> $paths 快捷绑定
+     * @return bool
+     */
+    private function matchesStatus(array $parts,array $paths): bool {
+        if($this->startsWithStatus($parts))
+            return true;
+        $match=null;
+        $prefix=array();
+        foreach($parts as $part) {
+            $prefix[]=$part;
+            $key=implode(' ',$prefix);
+            if(isset($paths[$key]))
+                $match=array($key,count($prefix));
+        }
+        if($match===null)
+            return false;
+        $expanded=array_merge($paths[$match[0]],array_slice($parts,$match[1]));
+        return $this->startsWithStatus($expanded);
     }
 
     /**

@@ -14,6 +14,7 @@ use base\Attribute\AutowireMethod;
 use base\Attribute\AutowireMode;
 use base\Attribute\AutowireProperty;
 use base\Attribute\AutowireSetter;
+use base\ProxyInterface;
 
 /**
  * 自动注入模式与注解拆分用例
@@ -201,6 +202,16 @@ class AutowireModesTest extends TestCase {
         $proxy->setContainer(App::getInstance());
         $this->assertSame('from-args',$proxy->value);
         $this->assertFalse(App::getInstance()->hasInstance(ProxyArgsTarget::class));
+    }
+
+    /**
+     * 代理可以注入到 base 代理契约
+     * @return void
+     */
+    public function testProxyAcceptsBaseContractType(): void {
+        $holder=App::make(ProxyContractConsumer::class);
+        $this->assertInstanceOf(ProxyInterface::class,$holder->target);
+        $this->assertInstanceOf(DynamicProxy::class,$holder->target);
     }
 
     /**
@@ -545,6 +556,16 @@ final class ProxyIdentityHolder {
 
     #[AutowireProperty(ProxyIdentityTarget::class,mode:AutowireMode::Proxy)]
     public DynamicProxy $target;
+
+}
+
+/**
+ * 声明为 base 代理契约的持有者
+ */
+final class ProxyContractConsumer {
+
+    #[AutowireProperty(ProxyIdentityTarget::class,mode:AutowireMode::Proxy)]
+    public ProxyInterface $target;
 
 }
 

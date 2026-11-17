@@ -6,7 +6,7 @@ namespace base;
  * 请求抽象基类
  *
  * - 契约以**实例**为准: 输入在构造时一次就位, 不使用静态初始化
- * - 构造函数约定见 {@see \AdminService\HttpRequest::__construct}(可选输入源数组, 缺省读超全局)
+ * - 构造函数可选输入源数组, 缺省读超全局
  * - 输入区(query / post / cookie / header / input / server): 传参数名取单个, 不传取该区全部
  * - attributes 区存放程序内部附加数据(如路由参数), 不属于输入, 但在 {@see param()} 中优先于任一输入区
  * - 相关方法(修改请求参数)为中间件提供便利, 有效期仅限本次请求

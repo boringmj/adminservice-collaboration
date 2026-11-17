@@ -12,7 +12,7 @@ use Attribute;
  * - 形参上的 `#[Config]` 同样生效
  * - 不支持 Proxy / Deferred; 需要延迟能力请使用真正的依赖注入模式
  *
- * 装配实现在 `AdminService\Autowire`(见 `autowireMethod()`), 契约层不引用实现层。
+ * 装配由框架在容器构建期完成。
  */
 #[Attribute(Attribute::TARGET_METHOD)]
 final class AutowireLifecycle {

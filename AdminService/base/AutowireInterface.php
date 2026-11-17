@@ -7,7 +7,7 @@ namespace base;
  *
  * - 职责: 按 `#[AutowireProperty]` / `#[AutowireSetter]` / `#[AutowireLifecycle]` / `#[AutowireMethod]` 装配对象
  * - 注入模式由目标注解的 `AutowireMode` 参数指定; 延迟任务需由调用方在根对象登记后刷新
- * - 实现见 `AdminService\Autowire`; 当前 `Container` 直接依赖实现类, 契约供自定义构建流程使用
+ * - 契约供自定义构建流程使用; 默认装配由框架容器完成
  * - 契约层不得引用实现层
  *
  * @access public

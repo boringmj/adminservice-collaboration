@@ -93,7 +93,7 @@ final class Db {
     /**
      * 数据库配置提供者(契约)
      *
-     * - 由**应用层在引导期安装**: `Db::setConfig(new \AdminService\Database\DatabaseConfig())`
+     * - 由**应用层在引导期通过 `Db::setConfig()` 安装**
      * - 未安装且未提供手动配置时, 按"连接未配置"处理(抛 `ConfigException`)
      *
      * @var DatabaseConfigInterface|null

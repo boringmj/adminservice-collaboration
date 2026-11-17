@@ -3,6 +3,7 @@
 namespace AdminService;
 
 use base\Container as ContainerContract;
+use base\ProxyInterface;
 use ReflectionClass;
 use ReflectionException;
 
@@ -19,7 +20,7 @@ use function property_exists;
  * @template T of object
  * @mixin T
  */
-class DynamicProxy {
+class DynamicProxy implements ProxyInterface {
 
     /**
      * 容器契约(由创建代理的一方注入)

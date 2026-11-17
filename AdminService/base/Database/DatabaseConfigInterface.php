@@ -7,7 +7,7 @@ namespace base\Database;
  *
  * - 数据库层(契约层)自己不去读全局配置, 只向应用层要三样东西:
  *   连接配置 / 中间件配置 / 中间件实例化
- * - 实现由应用层在引导期安装: `Db::setConfig(new \AdminService\Database\DatabaseConfig())`
+ * - 由应用层在引导期通过 `Db::setConfig()` 安装
  * - 契约层不得引用实现层
  *
  * @access public

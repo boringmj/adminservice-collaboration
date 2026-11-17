@@ -17,7 +17,7 @@ use function func_num_args;
  *   - 构造函数形参: `public function __construct(#[Config('data.path')] string $path='') {}`
  * - **生效条件(一句话)**: 凡是由框架解析实参的地方, 显式标注的 `#[Config]` 都会生效 —— 包括
  *   构造函数形参、`#[AutowireLifecycle]` / `#[AutowireMethod]` 方法的形参, 以及经
- *   `App::exec_class_function()` / `exec_function()` 调用的方法/函数形参
+ *   应用层按方法名/函数名调用时的形参
  *   (控制器由框架经前者调用, 因此控制器方法形参上的标注同样生效)。
  *   框架不参与解析的地方(你直接 `$obj->method()`)自然不生效
  * - **实参优先**: 具名实参 / 顺位实参 > `#[Config]` > 按类型注入 —— 例如路由参数与配置键同名时, 路由参数优先

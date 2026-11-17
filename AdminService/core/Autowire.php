@@ -12,6 +12,7 @@ use ReflectionIntersectionType;
 use ReflectionProperty;
 use base\AutowireInterface;
 use base\ArgumentResolverInterface;
+use base\ProxyInterface;
 use AdminService\DynamicProxy;
 use base\Attribute\AutowireMode;
 use base\Attribute\AutowireSetter;
@@ -454,8 +455,8 @@ final class Autowire implements AutowireInterface {
      * 代理声明类型是否兼容
      *
      * - 未声明类型: 兼容
-     * - `DynamicProxy` / `mixed` / `object`: 兼容
-     * - 联合类型: 必须包含 `DynamicProxy`
+     * - 代理契约 / `DynamicProxy` / `mixed` / `object`: 兼容
+     * - 联合类型: 必须包含代理契约或 `DynamicProxy`
      * - 交叉类型 / DNF: 当前不支持
      *
      * @access private
@@ -471,11 +472,37 @@ final class Autowire implements AutowireInterface {
         if($type instanceof ReflectionNamedType) {
             if($type->isBuiltin())
                 return in_array($type->getName(),array('mixed','object'),true);
-            return $type->getName()===DynamicProxy::class
-                ||in_array(DynamicProxy::class,$type_array,true);
+            return $this->isProxyType($type->getName())
+                ||$this->hasProxyType($type_array);
         }
         if($type instanceof ReflectionUnionType)
-            return in_array(DynamicProxy::class,$type_array,true);
+            return $this->hasProxyType($type_array);
+        return false;
+    }
+
+    /**
+     * 类名是否为代理类型
+     *
+     * @access private
+     * @param string $name 类名
+     * @return bool
+     */
+    private function isProxyType(string $name): bool {
+        return $name===DynamicProxy::class||$name===ProxyInterface::class;
+    }
+
+    /**
+     * 类型列表是否包含代理类型
+     *
+     * @access private
+     * @param array<string> $type_array 类型名列表
+     * @return bool
+     */
+    private function hasProxyType(array $type_array): bool {
+        foreach($type_array as $name) {
+            if($this->isProxyType($name))
+                return true;
+        }
         return false;
     }
 

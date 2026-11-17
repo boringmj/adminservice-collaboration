@@ -80,7 +80,7 @@ abstract class Controller {
     ) {
         if($container===null) {
             if($request===null||$response===null||$view===null)
-                throw new DependencyException('控制器须由容器构建(或同时传入请求/响应/视图): 请使用 App::make(控制器类)');
+                throw new DependencyException('控制器须由容器构建(或同时传入请求/响应/视图)');
         } else {
             $request??=$container->get(Request::class);
             $response??=$container->get(Response::class);
@@ -212,7 +212,7 @@ abstract class Controller {
     /**
      * 根据路由名生成 URL
      *
-     * - 通过容器中的路由契约取实现, 控制器不依赖具体 Router 类
+     * - 通过容器中的路由契约取实现, 控制器不依赖具体路由实现类
      * - 未分发或容器未注入路由契约时抛出明确异常
      *
      * @access protected

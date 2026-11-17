@@ -5,7 +5,7 @@ namespace base;
 /**
  * 控制器侧路由契约
  *
- * - 控制器只依赖本契约, 不感知具体路由实现(实现层见 `AdminService\Router\Router`)
+ * - 控制器只依赖本契约, 不感知具体路由实现
  * - 当前请求的路由信息仍由 `base\RouteContextInterface` 提供, 避免把实现层对象带进契约
  *
  * @access public

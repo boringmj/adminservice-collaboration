@@ -7,13 +7,13 @@ use Attribute;
 /**
  * RESTful 资源路由声明(控制器级)
  *
- * - 等价于在路由文件中调用 {@see \AdminService\Router\Router::resource()}
+ * - 等价于在路由文件中注册该资源
  * - 默认按控制器已实现的 public 标准动作自动裁剪; `$only` / `$except` 可显式裁剪
  * - `$only` 与 `$except` 不能同时非空; 过滤后的动作按标准顺序注册
  * - 同一控制器可重复声明多个资源根, 按类上的声明顺序注册
  * - 类级注解不随继承传递; 带资源声明的控制器必须可实例化
  * - 与 `#[RouteGroup]` 组合时, 分组前缀会与资源路径拼接
- * - `{id}` 占位符与路由名规则见 {@see \AdminService\Router\Router::resource()}
+ * - `{id}` 占位符与路由名规则与资源路由一致
  */
 #[Attribute(Attribute::TARGET_CLASS | Attribute::IS_REPEATABLE)]
 final class Resource {

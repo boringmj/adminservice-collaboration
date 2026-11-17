@@ -7,7 +7,7 @@ namespace base;
  *
  * - 面向用户业务代码与框架运行期动态数据, 与系统编译缓存(`runtime/cache/compile`)分离
  * - 单键独立过期、版本指纹、原子计数与分池隔离
- * - 具体实现见 `AdminService\Cache`; 未命中 / 已过期 / 文件损坏时统一返回默认值
+ * - 未命中 / 已过期 / 文件损坏时统一返回默认值
  *
  * @access public
  * @package base
@@ -37,7 +37,7 @@ interface CacheInterface {
      * @param int|null $ttl 过期秒数; null = 使用默认 TTL, <=0 = 永不过期
      * @param string|null $version 版本指纹; 读取时可选校验
      * @return bool
-     * @throws \AdminService\Exception 写入失败
+     * @throws \base\Exception 写入失败
      */
     public function set(string $key,mixed $value,?int $ttl=null,?string $version=null): bool;
 
@@ -71,7 +71,7 @@ interface CacheInterface {
      * @param callable $callback 回源回调(无参数)
      * @param string|null $version 版本指纹
      * @return mixed
-     * @throws \AdminService\Exception 回调后的值无法缓存
+     * @throws \base\Exception 回调后的值无法缓存
      */
     public function remember(string $key,?int $ttl,callable $callback,?string $version=null): mixed;
 
@@ -93,7 +93,7 @@ interface CacheInterface {
      * @param int $step 步长
      * @param int|null $ttl 键不存在时的过期秒数; 已存在时保留原过期时间
      * @return int
-     * @throws \AdminService\Exception 缓存值不是整数
+     * @throws \base\Exception 缓存值不是整数
      */
     public function increment(string $key,int $step=1,?int $ttl=null): int;
 
@@ -105,7 +105,7 @@ interface CacheInterface {
      * @param int $step 步长
      * @param int|null $ttl 键不存在时的过期秒数; 已存在时保留原过期时间
      * @return int
-     * @throws \AdminService\Exception 缓存值不是整数
+     * @throws \base\Exception 缓存值不是整数
      */
     public function decrement(string $key,int $step=1,?int $ttl=null): int;
 
@@ -135,7 +135,7 @@ interface CacheInterface {
      * @param iterable<string,mixed> $values 键值表
      * @param int|null $ttl 过期秒数
      * @return bool
-     * @throws \AdminService\Exception 写入失败
+     * @throws \base\Exception 写入失败
      */
     public function setMultiple(iterable $values,?int $ttl=null): bool;
 

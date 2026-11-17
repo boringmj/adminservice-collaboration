@@ -23,7 +23,7 @@ use function token_get_all;
  * - 检查请求级对象不新增可变静态属性
  * - 检查 Router 命中态按执行流隔离
  * - 检查请求对象不写入应用级容器
- * - 检查 base 不反向依赖实现层
+ * - 检查 base 不反向依赖或提到实现层
  */
 final class ArchitectureGuardTest extends TestCase {
 
@@ -181,16 +181,7 @@ final class ArchitectureGuardTest extends TestCase {
      * @return void
      */
     public function testBaseDoesNotDependOnImplementationLayer(): void {
-        $iterator=new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($this->core.'/base')
-        );
-        foreach($iterator as $file) {
-            if(!$file->isFile()||$file->getExtension()!=='php')
-                continue;
-            $relative=substr(
-                str_replace('\\','/',$file->getPathname()),
-                strlen($this->core)+1
-            );
+        foreach($this->baseFiles() as $relative) {
             $code=$this->code($relative);
             $this->assertSame(
                 0,
@@ -203,6 +194,53 @@ final class ArchitectureGuardTest extends TestCase {
                 $relative.' 不应直接引用实现层类名'
             );
         }
+    }
+
+    /**
+     * 检查 base 的注释与字符串不提到实现层
+     *
+     * @access public
+     * @return void
+     */
+    public function testBaseDoesNotMentionImplementationLayer(): void {
+        $patterns=array(
+            '/AdminService/',
+            '/\bApp\b/',
+            '/\bRouter\b/',
+            '/\bDynamicProxy\b/',
+            '/\bHttpRequest\b/'
+        );
+        foreach($this->baseFiles() as $relative) {
+            $source=(string)file_get_contents($this->core.'/'.$relative);
+            foreach($patterns as $pattern)
+                $this->assertSame(
+                    0,
+                    preg_match($pattern,$source),
+                    $relative.' 不应提到实现层: '.$pattern
+                );
+        }
+    }
+
+    /**
+     * base 下的 PHP 文件
+     *
+     * @access private
+     * @return array<int,string> 相对核心目录的路径
+     */
+    private function baseFiles(): array {
+        $files=array();
+        $iterator=new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($this->core.'/base')
+        );
+        foreach($iterator as $file) {
+            if(!$file->isFile()||$file->getExtension()!=='php')
+                continue;
+            $files[]=substr(
+                str_replace('\\','/',$file->getPathname()),
+                strlen($this->core)+1
+            );
+        }
+        return $files;
     }
 
 }

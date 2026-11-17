@@ -27,7 +27,7 @@ abstract class Autowire {
      * @param ?string $name 依赖的类名
      * @param AutowireMode $mode 注入模式
      *  - `Proxy` 需要 `$name` 不为 `null`
-     *  - `Proxy` 需要属性/形参未声明类型, 或类型包含 `DynamicProxy`
+     *  - `Proxy` 需要属性/形参未声明类型, 或类型包含 `\base\ProxyInterface`
      *  - `Deferred` 在根对象完成属性 / Setter / 生命周期装配后解析
      */
     public function __construct(

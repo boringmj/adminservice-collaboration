@@ -11,7 +11,7 @@ use function is_array;
  *
  * - 声明在控制器类上, 为其下所有 `#[Route]` / `#[Resource]` / `#[ApiResource]` 提供统一路径前缀与中间件
  * - 方法路径为**子路径**: 类声明 `/index`、方法声明 `/{name?}` 时完整路径为 `/index/{name?}`
- * - 与 {@see \AdminService\Router\Router::group()} 的分组语义一致(前缀 + 中间件)
+ * - 与路由分组的分组语义一致(前缀 + 中间件)
  */
 #[Attribute(Attribute::TARGET_CLASS)]
 final class RouteGroup {

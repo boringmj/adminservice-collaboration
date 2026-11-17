@@ -11,7 +11,7 @@ use base\Attribute\Config as ConfigAttribute;
  * 参数解析契约
  *
  * - 职责: 参数合并(按名 / 按位 / 可变参数)、类型校验与转换、类型标准化、按签名调用
- * - 实现见 `AdminService\ArgumentResolver`; 控制器 / 管道 / 路由等按**契约**依赖它
+ * - 控制器 / 管道 / 路由等按**契约**依赖它; 默认实现由框架提供
  * - 契约层不得引用实现层
  *
  * @access public

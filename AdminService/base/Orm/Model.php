@@ -217,7 +217,7 @@ abstract class Model {
      *
      * - 解析顺序: 请求作用域注入 → 进程级注入 → Db::fromConfig(static::$connection)
      * - 共享单例意味着模型写入与 Db::transaction() 落在同一连接, 可跨模型进事务
-     *   (此处 Db 为底层 base\Database\Db, 用户侧事务请用 AdminService\Db::connection()->transaction())
+     *   (此处 Db 为底层 base\Database\Db; 用户侧事务请通过数据库门面开启)
      *
      * @access protected
      * @return Db

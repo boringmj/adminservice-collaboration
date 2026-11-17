@@ -12,7 +12,7 @@ use function trim;
  * 路由请求方法
  *
  * - 与历史字符串写法兼容: `'GET'` 与 `Method::GET` 等价
- * - `ANY` 的值为 `*`, 与 `Router::any()` 的既有语义一致
+ * - `ANY` 的值为 `*`, 与路由注册入口的通配语义一致
  */
 enum Method: string {
 

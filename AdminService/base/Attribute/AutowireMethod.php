@@ -11,7 +11,7 @@ use Attribute;
  * - 支持 `AutowireMode::Normal` / `Proxy` / `Deferred`
  * - 生命周期钩子请使用 {@see AutowireLifecycle}
  *
- * 装配实现在 `AdminService\Autowire`(见 `autowireMethod()`), 契约层不引用实现层。
+ * 装配由框架在容器构建期完成。
  */
 #[Attribute(Attribute::TARGET_METHOD)]
 class AutowireMethod extends Autowire { }

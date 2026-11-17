@@ -6,7 +6,7 @@ namespace base\Attribute;
  * 自动注入模式
  *
  * - `Normal`: 直接注入真实对象
- * - `Proxy`: 注入 `AdminService\DynamicProxy`, 目标由容器惰性解析
+ * - `Proxy`: 注入代理对象, 目标由容器惰性解析
  * - `Deferred`: 根对象完成装配后再解析并注入真实对象
  *
  * 模式是注入目标注解的参数, 不是独立注解:

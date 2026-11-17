@@ -150,6 +150,16 @@ final class Db {
     }
 
     /**
+     * 当前执行流的请求作用域
+     *
+     * @access public
+     * @return string|null 未设置时为 null
+     */
+    public static function requestScope(): ?string {
+        return self::$scopes[self::contextKey()]??null;
+    }
+
+    /**
      * 释放所有已缓存数据库入口上的事务会话
      *
      * - 供请求边界清理: 未手动 commit/rollBack 的会话在此回滚并归还连接

@@ -64,10 +64,21 @@ abstract class Model {
      *
      * - 使用 self::(而非 static::)确保所有模型共享这一块存储, 按类名区分
      * - 模型自身的连接经 Db::fromConfig(static::$connection) 解析(每类独立)
+     * - 写入仅限没有请求作用域时; 读取时作为请求作用域注入之后的回落
      *
      * @var array<string,Db>
      */
     private static array $dbCache=array();
+
+    /**
+     * 请求作用域内的注入缓存
+     *
+     * - 结构: 请求作用域 → 模型类名 → 数据库入口
+     * - 请求结束由 `Application` 调用 `releaseRequestScope()` 释放
+     *
+     * @var array<string,array<string,Db>>
+     */
+    private static array $scopedDbCache=array();
 
     /**
      * 数据库连接名(经 Db::fromConfig 注册表解析, 同名连接共享单例)
@@ -150,34 +161,61 @@ abstract class Model {
     /**
      * 注入数据库入口(供测试/自定义连接)
      *
+     * - 请求作用域内只对当前请求生效; 请求外为进程级注入
+     *
      * @access public
      * @param Db|null $db 数据库入口
      * @return void
      */
     public static function setDb(?Db $db): void {
-        if($db===null)
-            unset(self::$dbCache[static::class]);
-        else
-            self::$dbCache[static::class]=$db;
+        $scope=Db::requestScope();
+        if($scope===null) {
+            if($db===null)
+                unset(self::$dbCache[static::class]);
+            else
+                self::$dbCache[static::class]=$db;
+            return;
+        }
+        if($db!==null) {
+            self::$scopedDbCache[$scope][static::class]=$db;
+            return;
+        }
+        unset(self::$scopedDbCache[$scope][static::class]);
+        if((self::$scopedDbCache[$scope]??array())===array())
+            unset(self::$scopedDbCache[$scope]);
+    }
+
+    /**
+     * 释放指定请求作用域的注入缓存
+     *
+     * @access public
+     * @param string|null $scope 请求作用域(null = 当前作用域)
+     * @return void
+     */
+    public static function releaseRequestScope(?string $scope=null): void {
+        $scope??=Db::requestScope();
+        if($scope!==null)
+            unset(self::$scopedDbCache[$scope]);
     }
 
     /**
      * 清空模型注入的数据库入口缓存
      *
      * - 测试复位、配置替换或常驻 worker 重启时调用
-     * - 清除后模型回落到 `Db::fromConfig(static::$connection)`
+     * - 同时清空进程级与请求作用域缓存; 清除后模型回落到 `Db::fromConfig(static::$connection)`
      *
      * @access public
      * @return void
      */
     public static function resetDbCache(): void {
         self::$dbCache=array();
+        self::$scopedDbCache=array();
     }
 
     /**
      * 获取数据库入口(未注入时经注册表按连接名解析, 同名连接共享单例)
      *
-     * - setDb 注入优先(测试/自定义连接); 未注入则 Db::fromConfig(static::$connection)
+     * - 解析顺序: 请求作用域注入 → 进程级注入 → Db::fromConfig(static::$connection)
      * - 共享单例意味着模型写入与 Db::transaction() 落在同一连接, 可跨模型进事务
      *   (此处 Db 为底层 base\Database\Db, 用户侧事务请用 AdminService\Db::connection()->transaction())
      *
@@ -185,7 +223,9 @@ abstract class Model {
      * @return Db
      */
     protected static function db(): Db {
-        // setDb 注入优先(测试); 否则按本类 $connection 经注册表解析(每类独立)
+        $scope=Db::requestScope();
+        if($scope!==null&&isset(self::$scopedDbCache[$scope][static::class]))
+            return self::$scopedDbCache[$scope][static::class];
         if(isset(self::$dbCache[static::class]))
             return self::$dbCache[static::class];
         return Db::fromConfig(static::$connection);

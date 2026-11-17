@@ -8,6 +8,7 @@ use AdminService\Router\RouterFactory;
 use base\AbstractSession;
 use base\Container as ContainerContract;
 use base\Database\Db as BaseDb;
+use base\Orm\Model;
 use base\Request;
 use base\Response;
 use base\Route;
@@ -323,8 +324,9 @@ final class Application {
                 $container->instance(Repository::class,$request_config);
         }
         App::setInstance($container);
-        // 以下两步不抛异常; 放在 try 之前, 避免请求装配失败时泄漏作用域与错误状态
-        $previous_scope=BaseDb::setRequestScope('request:'.spl_object_id($container));
+        // 以下几步不抛异常; 放在 try 之前, 避免请求装配失败时泄漏作用域与错误状态
+        $request_scope='request:'.spl_object_id($container);
+        $previous_scope=BaseDb::setRequestScope($request_scope);
         Error::beginRequest($container);
         $completed=false;
         try {
@@ -372,6 +374,7 @@ final class Application {
             else
                 App::setInstance($previous_instance??$this->container);
             BaseDb::setRequestScope($previous_scope);
+            Model::releaseRequestScope($request_scope);
         }
     }
 

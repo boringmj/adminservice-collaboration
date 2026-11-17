@@ -14,6 +14,7 @@ use AdminService\RequestContext;
 use AdminService\Response;
 use base\Container as ContainerContract;
 use base\Database\Db as BaseDb;
+use base\Orm\Model;
 use base\Request;
 use Throwable;
 
@@ -187,6 +188,7 @@ final class Worker {
         if($this->application===null)
             return;
         BaseDb::clearInstances();
+        Model::resetDbCache();
         Error::setContainer(null);
         Error::setInitialized(false);
         $this->application=null;

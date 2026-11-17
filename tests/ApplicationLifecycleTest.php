@@ -17,10 +17,17 @@ use AdminService\RequestContext;
 use AdminService\Response;
 use AdminService\Runtime;
 use base\AbstractSession;
+use base\Database\Connection\PdoConnectionManager;
+use base\Database\Connection\PdoConnectionPool;
+use base\Database\Connection\PdoConnectionSession;
+use base\Database\Db;
+use base\Database\Sql\Dialect\MysqlDialect;
 use base\Request;
 use Fiber;
 use ReflectionProperty;
 use Tests\Fixtures\ConcreteService;
+use Tests\Fixtures\FakePdo;
+use Tests\Fixtures\User;
 
 use function count;
 use function error_reporting;
@@ -485,6 +492,90 @@ class ApplicationLifecycleTest extends TestCase {
         $this->assertTrue($first->isTerminated());
         $this->assertTrue($second->isTerminated());
         $this->assertSame(array('first'=>true,'second'=>true),$seen);
+    }
+
+    /**
+     * 测试: 模型注入在请求边界释放
+     *
+     * @return void
+     */
+    public function testModelInjectionReleasedAtRequestBoundary(): void {
+        $application=new Application();
+        User::setDb($this->dbWithName('global'));
+        $scoped=$this->dbWithName('scoped');
+        try {
+            $application->handle(function() use ($scoped): void {
+                User::setDb($scoped);
+                $this->assertSame('scoped',User::query()->first()?->name);
+            });
+            $this->assertSame('global',User::query()->first()?->name,'请求边界应释放请求级注入');
+        } finally {
+            User::resetDbCache();
+        }
+    }
+
+    /**
+     * 测试: 嵌套请求不继承外层模型注入
+     *
+     * @return void
+     */
+    public function testNestedRequestDoesNotInheritModelInjection(): void {
+        $application=new Application();
+        User::setDb($this->dbWithName('global'));
+        $outer=$this->dbWithName('outer');
+        try {
+            $application->handle(function() use ($application,$outer): void {
+                User::setDb($outer);
+                $this->assertSame('outer',User::query()->first()?->name);
+                $application->handle(function(): void {
+                    $this->assertSame('global',User::query()->first()?->name,'内层请求不应继承外层注入');
+                });
+                $this->assertSame('outer',User::query()->first()?->name,'内层结束不应清除外层注入');
+            });
+            $this->assertSame('global',User::query()->first()?->name);
+        } finally {
+            User::resetDbCache();
+        }
+    }
+
+    /**
+     * 测试: 请求异常同样释放模型注入
+     *
+     * @return void
+     */
+    public function testModelInjectionReleasedAfterException(): void {
+        $application=new Application();
+        User::setDb($this->dbWithName('global'));
+        try {
+            try {
+                $application->handle(function() use ($application): void {
+                    User::setDb($this->dbWithName('scoped'));
+                    throw new \RuntimeException('boom');
+                });
+                $this->fail('异常应向外抛出');
+            } catch(\RuntimeException) {
+            }
+            $this->assertSame('global',User::query()->first()?->name,'异常路径也应释放请求级注入');
+        } finally {
+            User::resetDbCache();
+        }
+    }
+
+    /**
+     * 创建返回指定 name 的假数据库入口
+     *
+     * @access private
+     * @param string $name 行数据中的 name
+     * @return Db
+     */
+    private function dbWithName(string $name): Db {
+        $pdo=new FakePdo();
+        $pdo->selectRows=array(array('id'=>1,'name'=>$name,'age'=>20,'status'=>1));
+        $factory=function() use ($pdo) {
+            return new PdoConnectionSession($pdo,new MysqlDialect());
+        };
+        $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
+        return new Db($manager);
     }
 
 }

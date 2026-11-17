@@ -33,7 +33,6 @@ use function is_string;
 use function preg_match;
 use function serialize;
 use function spl_object_hash;
-use function spl_object_id;
 use function str_starts_with;
 
 /**

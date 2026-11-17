@@ -3,6 +3,7 @@
 namespace AdminService;
 
 use AdminService\Config\Bootstrapper;
+use AdminService\Config\Repository;
 use AdminService\Console\Command\CacheBuildCommand;
 use AdminService\Console\Command\CacheClearCommand;
 use AdminService\Console\Command\CacheStatusCommand;
@@ -92,6 +93,18 @@ final class Console {
      * @var bool
      */
     private bool $skip_boot_config_cache=false;
+
+    /**
+     * 引导前解析原始配置的失败原因
+     * @var Throwable|null
+     */
+    private ?Throwable $preboot_config_error=null;
+
+    /**
+     * 引导前从配置快照恢复的配置
+     * @var Repository|null
+     */
+    private ?Repository $recovery_config=null;
 
     /**
      * 帮助命令
@@ -186,11 +199,19 @@ final class Console {
             $this->output=$output;
         $tokens=array_slice($argv??(isset($_SERVER['argv'])?(array)$_SERVER['argv']:array()),1);
         $this->help_option=false;
+        $this->preboot_config_error=null;
+        $this->recovery_config=null;
         $tokens=$this->extractGlobalOptions(array_values($tokens));
         try {
             $this->skip_boot_config_cache=$this->isStatusCommand($tokens);
             $this->init();
         } catch(Throwable $e) {
+            // 原始配置损坏时仍允许执行 cache clear
+            if($this->preboot_config_error!==null) {
+                $code=$this->recoverCacheClear($tokens,$e);
+                if($code!==null)
+                    return $code;
+            }
             return $this->renderException($e);
         }
         if($tokens===array()) {
@@ -389,7 +410,15 @@ final class Console {
         if($this->startsWithStatus($parts))
             return true;
         $this->bootstrapper??=new Bootstrapper();
-        $config=$this->bootstrapper->loadConfig($this->bootstrapper->env(),false,false);
+        try {
+            $config=$this->bootstrapper->loadConfig($this->bootstrapper->env(),false,false);
+        } catch(Throwable $e) {
+            // 快捷绑定与默认命令来自配置, 解析失败时交给引导阶段
+            $this->preboot_config_error=$e;
+            // 引导失败会删除过期快照, 先取出缓存路径供恢复命令使用
+            $this->recovery_config=$this->bootstrapper->recoveryConfig($this->bootstrapper->env());
+            return false;
+        }
         if($parts===array())
             $parts=$this->splitCommand((string)$config->get('console.default_command','list'));
         return $this->matchesStatus($parts,$this->shortcutPaths($config->get('console.shortcuts',array())));
@@ -474,6 +503,60 @@ final class Console {
             return false;
         $expanded=array_merge($paths[$match[0]],array_slice($parts,$match[1]));
         return $this->startsWithStatus($expanded);
+    }
+
+    /**
+     * 配置无法加载时执行缓存清理
+     *
+     * - 只处理直接写出的 `cache clear`; 快捷绑定依赖配置, 此时不可用
+     * - 缓存路径取自上下文一致的配置快照, 否则使用 runtime 默认目录
+     *
+     * @access private
+     * @param array<int,string> $tokens 命令 token
+     * @param Throwable $e 引导失败原因
+     * @return int|null null = 不是 `cache clear`, 未处理
+     */
+    private function recoverCacheClear(array $tokens,Throwable $e): ?int {
+        if($this->application!==null)
+            return null;
+        $consumed=$this->cacheClearTokens($tokens);
+        if($consumed===null)
+            return null;
+        $bootstrapper=$this->bootstrapper??=new Bootstrapper();
+        $env=$bootstrapper->env();
+        Runtime::setPath(Runtime::path($env));
+        $command=new CacheClearCommand($this->recovery_config??$bootstrapper->recoveryConfig($env));
+        try {
+            $input=new Input(array_slice($tokens,$consumed),array('target'));
+            $this->validateOptions($command,$input);
+        } catch(InvalidArgumentException $invalid) {
+            $this->output->error('[ERROR] '.$invalid->getMessage());
+            return self::EXIT_INVALID;
+        }
+        $this->output->error('[WARN] 配置加载失败(Config load failed): '.$e->getMessage());
+        $code=$command->execute($input,$this->output);
+        if($code===self::EXIT_SUCCESS)
+            $this->output->info('缓存路径来自上下文一致的配置快照或 runtime 默认目录。');
+        return $code;
+    }
+
+    /**
+     * 取 `cache clear` 命令占用的 token 数
+     *
+     * - 只接受 `cache:clear` 与 `cache clear` 两种写法
+     * - 多余路径段属于未知命令, 不能按 `cache clear` 处理
+     *
+     * @access private
+     * @param array<int,string> $tokens 命令 token
+     * @return int|null null = 不是 `cache clear`
+     */
+    private function cacheClearTokens(array $tokens): ?int {
+        $first=$this->splitCommand($tokens[0]??'');
+        if($first===array('cache','clear'))
+            return 1;
+        if($first===array('cache')&&$this->splitCommand($tokens[1]??'')===array('clear'))
+            return 2;
+        return null;
     }
 
     /**

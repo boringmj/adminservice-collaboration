@@ -32,8 +32,10 @@ use function is_dir;
 use function is_file;
 use function mkdir;
 use function putenv;
+use function realpath;
 use function rmdir;
 use function scandir;
+use function sha1;
 use function str_ends_with;
 use function sys_get_temp_dir;
 use function time;
@@ -139,6 +141,7 @@ class CacheCommandTest extends TestCase {
                 'attributes'=>array('scan'=>false,'classes'=>array())
             ),
             'middlewares'=>array('controller'=>array(),'request'=>array()),
+            'view'=>array('allowed_paths'=>array()),
             'console'=>array(
                 'default_command'=>'list',
                 'commands'=>array(),
@@ -227,6 +230,24 @@ class CacheCommandTest extends TestCase {
         $this->assertSame(0,$command->execute(new Input(array()),$output));
         $this->assertFileDoesNotExist($compile.'/config.cache.php');
         $this->assertFileExists($kv.'/business.data.json');
+    }
+
+    /**
+     * 测试缓存构造失败时返回失败码
+     *
+     * @return void
+     */
+    public function testClearReportsInvalidPool(): void {
+        $config=new Repository(array(
+            'cache'=>array(
+                'path'=>$this->dir.'/cache',
+                'default_pool'=>'bad pool'
+            )
+        ));
+        $command=new CacheClearCommand($config);
+        $output=Output::buffer();
+        $this->assertSame(1,$command->execute(new Input(array('routes')),$output));
+        $this->assertStringContainsString('缓存清理失败',$output->stderr());
     }
 
     /**
@@ -380,6 +401,40 @@ class CacheCommandTest extends TestCase {
         $output=Output::buffer();
         $this->assertSame(0,$clear->execute(new Input(array('view')),$output));
         $this->assertFileDoesNotExist($this->dir.'/cache/compile/view');
+    }
+
+    /**
+     * 测试视图构建覆盖全部允许根目录
+     *
+     * @return void
+     */
+    public function testViewBuildCoversAllAllowedRoots(): void {
+        $app=$this->dir.'/app';
+        $themes=$this->dir.'/themes';
+        mkdir($app.'/view/nested',0755,true);
+        mkdir($app.'/static',0755,true);
+        mkdir($themes,0755,true);
+        $templates=array(
+            $app.'/view/page.html',
+            $app.'/view/nested/Upper.html',
+            $themes.'/theme.html'
+        );
+        foreach($templates as $template)
+            file_put_contents($template,'{{$name}}');
+        $asset=$app.'/static/page.html';
+        file_put_contents($asset,'{{ unsupported | syntax }}');
+        $this->config->put('app.path',$app);
+        $this->config->put('view.allowed_paths',array($themes));
+
+        $command=new CacheBuildCommand(new Bootstrapper(),$this->config);
+        $output=Output::buffer();
+        $this->assertSame(0,$command->execute(new Input(array('view','--force')),$output));
+        $this->assertStringContainsString('3 个模板',$output->stdout());
+        foreach($templates as $template) {
+            $real=(string)realpath($template);
+            $this->assertFileExists($this->dir.'/cache/compile/view/'.sha1($real).'.php');
+        }
+        $this->assertFileDoesNotExist($this->dir.'/cache/compile/view/'.sha1((string)realpath($asset)).'.php');
     }
 
     /**

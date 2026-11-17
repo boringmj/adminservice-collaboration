@@ -10,6 +10,7 @@ use AdminService\ContainerMetadata;
 use AdminService\ReflectionCache;
 use AdminService\Router\AttributeScanner;
 use AdminService\Router\RouterFactory;
+use AdminService\View\AllowedRoots;
 use AdminService\View\Cache\FileCache;
 use AdminService\View\Compiler\PhpCompiler;
 use AdminService\View\Source\FileSource;
@@ -33,6 +34,7 @@ use function is_file;
 use function is_object;
 use function is_string;
 use function ltrim;
+use function realpath;
 use function str_contains;
 use function str_replace;
 use function strtolower;
@@ -317,11 +319,12 @@ final class CacheBuildCommand extends AbstractCommand {
                 'failure'=>false
             );
         }
-        $app_path=$this->config->get('app.path');
-        if(!is_string($app_path)||!is_dir($app_path)) {
+        $roots=AllowedRoots::fromConfig($this->config);
+        $app_root=AllowedRoots::appPath($this->config);
+        if($roots===array()) {
             return array(
                 'status'=>'skipped',
-                'reason'=>'应用目录不存在',
+                'reason'=>'没有可用的模板根目录',
                 'failure'=>false
             );
         }
@@ -331,26 +334,25 @@ final class CacheBuildCommand extends AbstractCommand {
         $compiler=new PhpCompiler();
         $count=0;
         $failed=0;
+        $seen=array();
         try {
-            $iterator=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($app_path));
-            foreach($iterator as $file) {
-                if(!$file->isFile()||strtolower($file->getExtension())!=='html')
+            foreach($roots as $root) {
+                if(!is_dir($root))
                     continue;
-                $path=str_replace('\\','/',$file->getPathname());
-                if(!str_contains($path,'/view/'))
-                    continue;
-                if($cache->build(new FileSource($file->getPathname()),$compiler))
-                    $count++;
-                else
-                    $failed++;
+                $only_view=$app_root!==null&&$root===$app_root;
+                $iterator=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root));
+                foreach($iterator as $file) {
+                    if(!$file->isFile()||strtolower($file->getExtension())!=='html')
+                        continue;
+                    $path=$file->getPathname();
+                    if($only_view&&!str_contains(str_replace('\\','/',$path),'/view/'))
+                        continue;
+                    $this->buildViewFile($path,$cache,$compiler,$seen,$count,$failed);
+                }
             }
             $error_template=$this->config->get('app.error_template');
-            if(is_string($error_template)&&is_file($error_template)) {
-                if($cache->build(new FileSource($error_template),$compiler))
-                    $count++;
-                else
-                    $failed++;
-            }
+            if(is_string($error_template)&&is_file($error_template))
+                $this->buildViewFile($error_template,$cache,$compiler,$seen,$count,$failed);
         } catch(Throwable $e) {
             return array(
                 'status'=>'failed',
@@ -370,6 +372,33 @@ final class CacheBuildCommand extends AbstractCommand {
             'reason'=>$count.' 个模板',
             'failure'=>false
         );
+    }
+
+    /**
+     * 构建单个模板缓存
+     *
+     * - 同一模板可能落在多个允许根目录下, 按真实路径去重
+     *
+     * @access private
+     * @param string $path 模板路径
+     * @param FileCache $cache 模板缓存
+     * @param PhpCompiler $compiler 编译器
+     * @param array<string,bool> $seen 已处理的真实路径(引用)
+     * @param int $count 成功数(引用)
+     * @param int $failed 失败数(引用)
+     * @return void
+     * @throws Throwable 模板读取失败
+     */
+    private function buildViewFile(string $path,FileCache $cache,PhpCompiler $compiler,array &$seen,int &$count,int &$failed): void {
+        $real=realpath($path);
+        $key=$real!==false?$real:str_replace('\\','/',$path);
+        if(isset($seen[$key]))
+            return;
+        $seen[$key]=true;
+        if($cache->build(new FileSource($path),$compiler))
+            $count++;
+        else
+            $failed++;
     }
 
     /**

@@ -2,19 +2,13 @@
 
 namespace AdminService;
 
+use AdminService\View\AllowedRoots;
 use AdminService\View\Engine;
 use AdminService\View\Source\FileSource;
 use AdminService\View\Source\StringSource;
 use base\View as BaseView;
 use base\View\TemplateSourceInterface;
 
-use function array_filter;
-use function array_values;
-use function dirname;
-use function is_array;
-use function is_string;
-use function ltrim;
-use function preg_match;
 use function realpath;
 use function rtrim;
 use function str_starts_with;
@@ -123,19 +117,7 @@ final class View extends BaseView {
         $config=Config::repository();
         if($config===null)
             return;
-        $roots=array();
-        $app_path=$config->get('app.path');
-        if(is_string($app_path)&&$app_path!=='')
-            $roots[]=$this->resolveRoot($app_path);
-        $error_template=$config->get('app.error_template');
-        if(is_string($error_template)&&$error_template!=='')
-            $roots[]=$this->resolveRoot(dirname($error_template));
-        $allowed_paths=$config->get('view.allowed_paths',array());
-        if(is_array($allowed_paths))
-            foreach($allowed_paths as $allowed)
-                if(is_string($allowed)&&$allowed!=='')
-                    $roots[]=$this->resolveRoot($allowed);
-        $roots=array_values(array_filter($roots,static fn($root): bool => is_string($root)&&$root!==''));
+        $roots=AllowedRoots::fromConfig($config);
         if($roots===array())
             throw new Exception('Template allowed roots are unavailable.',100304,array(
                 'template_path'=>$path
@@ -153,36 +135,6 @@ final class View extends BaseView {
         throw new Exception('Template path is outside allowed roots.',100304,array(
             'template_path'=>$path
         ));
-    }
-
-    /**
-     * 解析模板根目录
-     *
-     * - 相对路径按项目根目录解析
-     * - 无法解析时返回 null
-     *
-     * @access private
-     * @param string $path 根目录
-     * @return string|null
-     */
-    private function resolveRoot(string $path): ?string {
-        if(!$this->isAbsolutePath($path))
-            $path=dirname(__DIR__,2).'/'.ltrim($path,'/\\');
-        $real=realpath($path);
-        return is_string($real)&&$real!==''?$real:null;
-    }
-
-    /**
-     * 判断路径是否为绝对路径
-     *
-     * @access private
-     * @param string $path 路径
-     * @return bool
-     */
-    private function isAbsolutePath(string $path): bool {
-        return preg_match('#^[A-Za-z]:[\\\\/]#',$path)===1
-            ||str_starts_with($path,'/')
-            ||str_starts_with($path,'\\\\');
     }
 
 }

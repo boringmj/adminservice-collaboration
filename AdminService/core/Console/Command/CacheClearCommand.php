@@ -101,8 +101,8 @@ final class CacheClearCommand extends AbstractCommand {
             $output->error('[ERROR] '.$e->getMessage());
             return self::INVALID;
         }
-        $cache=new Cache($this->config);
         try {
+            $cache=new Cache($this->config);
             $ok=$cache->clearCompile($target);
         } catch(\Throwable $e) {
             $output->error('[ERROR] 缓存清理失败(Cache clear failed): '.CacheCommandSupport::label($target).': '.$e->getMessage());

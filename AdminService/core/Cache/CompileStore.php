@@ -185,13 +185,14 @@ final class CompileStore {
         $validate=$this->shouldValidate();
         $current=$validate?(string)$fingerprint():null;
         $cached=$this->read($file);
-        if($cached!==null) {
-            if(($context===null||$cached['context']===$context)
-                &&(!$validate||$cached['fingerprint']===$current))
-                return $cached['payload'];
-            $this->removeFile($file);
-        }
+        if($cached!==null
+            &&($context===null||$cached['context']===$context)
+            &&(!$validate||$cached['fingerprint']===$current))
+            return $cached['payload'];
+        // 重建成功后才删除旧文件; 构建抛异常时保留快照, 供配置恢复命令定位缓存路径
         $payload=$builder();
+        if($cached!==null)
+            $this->removeFile($file);
         if($payload===null||!$this->isExportable($payload))
             return $payload;
         $this->write($file,$validate?$current:(string)$fingerprint(),$payload,$context);

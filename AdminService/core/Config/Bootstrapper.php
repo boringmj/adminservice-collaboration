@@ -179,6 +179,29 @@ final class Bootstrapper {
     }
 
     /**
+     * 配置无法加载时构造缓存路径配置
+     *
+     * - 优先取结构与上下文都有效的配置快照, 使用其中的生效值定位自定义 `cache.path`
+     * - 快照不可用时使用 runtime 默认缓存目录
+     *
+     * @access public
+     * @param Env $env `.env` 快照
+     * @return Repository
+     */
+    public function recoveryConfig(Env $env): Repository {
+        $store=$this->configStore($env);
+        $inspect=$store->inspect('config');
+        if($inspect['valid']
+            &&$inspect['context']===$this->configContext($store,$env)
+            &&$this->validConfigPayload($inspect['payload']))
+            return Repository::fromValidated($inspect['payload']['raw'],$inspect['payload']['effective'],$env);
+        // 不合并 env: 缺少完整配置树时, env 里带点的路径键会因目标键不存在而报错
+        return new Repository(array(
+            'cache'=>array('path'=>Runtime::path().'/cache')
+        ));
+    }
+
+    /**
      * 在指定 env 作用域内加载配置
      *
      * - 配置文件里的 `env()` 与路径键覆盖使用同一份 env

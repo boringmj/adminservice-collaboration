@@ -134,10 +134,11 @@ interface CacheInterface {
      * @access public
      * @param iterable<string,mixed> $values 键值表
      * @param int|null $ttl 过期秒数
+     * @param string|null $version 版本指纹
      * @return bool
      * @throws \base\Exception 写入失败
      */
-    public function setMultiple(iterable $values,?int $ttl=null): bool;
+    public function setMultiple(iterable $values,?int $ttl=null,?string $version=null): bool;
 
     /**
      * 批量删除

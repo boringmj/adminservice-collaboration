@@ -406,6 +406,21 @@ class CacheTest extends TestCase {
     }
 
     /**
+     * 测试: 批量写入携带版本号
+     *
+     * @return void
+     */
+    public function testSetMultipleCarriesVersion(): void {
+        $cache=new Cache($this->config);
+
+        $this->assertTrue($cache->setMultiple(array('a'=>1,'b'=>2),null,'v1'));
+        $this->assertTrue($cache->has('a','v1'));
+        $this->assertTrue($cache->has('b','v1'));
+        $this->assertFalse($cache->has('a','v2'));
+        $this->assertSame(1,$cache->get('a'));
+    }
+
+    /**
      * 测试: pull 读取后立即删除
      *
      * @return void

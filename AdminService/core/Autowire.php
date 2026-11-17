@@ -12,6 +12,7 @@ use ReflectionIntersectionType;
 use ReflectionProperty;
 use base\AutowireInterface;
 use base\ArgumentResolverInterface;
+use base\ExecutionFlow;
 use base\ProxyInterface;
 use AdminService\DynamicProxy;
 use base\Attribute\AutowireMode;
@@ -104,18 +105,18 @@ final class Autowire implements AutowireInterface {
     private ?Closure $proxy_resolver=null;
 
     /**
-     * 延迟注入任务队列
+     * 各执行流的延迟注入任务队列
      *
      * 任务只在最外层容器入口成功构建后执行; 任务内可以继续追加任务。
-     * @var array<int,Closure():void>
+     * @var array<string,array<int,Closure():void>>
      */
     private array $deferred=array();
 
     /**
-     * 是否正在刷新延迟队列(防止任务内的公共容器调用再次刷新)
-     * @var bool
+     * 各执行流是否正在刷新延迟队列(防止任务内的公共容器调用再次刷新)
+     * @var array<string,bool>
      */
-    private bool $flushing_deferred=false;
+    private array $flushing_deferred=array();
 
     /**
      * 构造方法
@@ -198,20 +199,21 @@ final class Autowire implements AutowireInterface {
      * @return void
      */
     public function flushDeferred(): void {
-        if($this->flushing_deferred)
+        $key=ExecutionFlow::key();
+        if($this->flushing_deferred[$key]??false)
             return;
-        $this->flushing_deferred=true;
+        $this->flushing_deferred[$key]=true;
         try {
             $index=0;
-            while(array_key_exists($index,$this->deferred)) {
-                $task=$this->deferred[$index];
-                unset($this->deferred[$index]);
+            while(array_key_exists($index,$this->deferred[$key]??array())) {
+                $task=$this->deferred[$key][$index];
+                unset($this->deferred[$key][$index]);
                 $index++;
                 $task();
             }
         } finally {
-            $this->deferred=array();
-            $this->flushing_deferred=false;
+            unset($this->deferred[$key]);
+            unset($this->flushing_deferred[$key]);
         }
     }
 
@@ -224,7 +226,7 @@ final class Autowire implements AutowireInterface {
      * @return void
      */
     public function clearDeferred(): void {
-        $this->deferred=array();
+        unset($this->deferred[ExecutionFlow::key()]);
     }
 
     /**
@@ -235,7 +237,7 @@ final class Autowire implements AutowireInterface {
      * @return void
      */
     private function defer(Closure $task): void {
-        $this->deferred[]=$task;
+        $this->deferred[ExecutionFlow::key()][]=$task;
     }
 
     /**

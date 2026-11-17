@@ -6,7 +6,9 @@ use Closure;
 use ReflectionClass;
 use ReflectionParameter;
 use base\ConfigInterface;
+use base\ExecutionFlow;
 
+use function array_key_exists;
 use function array_key_last;
 use function array_pop;
 use function class_exists;
@@ -46,14 +48,14 @@ final class Container implements \base\Container {
     private ?Container $parent=null;
 
     /**
-     * 当前构建栈(`makeInternal()` / `build()` 的构建标识)
+     * 各执行流的构建栈
      *
-     * - 参数解析器回调与嵌套公共入口据此解析依赖
-     * - 进入构建时同步, 退出时恢复为上一层; 顶层调用为空数组, 嵌套公共入口沿用当前栈
+     * - 键为 `base\ExecutionFlow::key()`, 值是该执行流当前的构建标识
+     * - 参数解析器回调与嵌套公共入口据此解析依赖; 顶层调用为空数组
      *
-     * @var array<int,string>
+     * @var array<string,array<int,string>>
      */
-    private array $build_flags=array();
+    private array $build_stacks=array();
 
     /**
      * 对象实例容器
@@ -219,7 +221,7 @@ final class Container implements \base\Container {
             return $this->resolve($class);
         });
         // 参数解析器: 按类型解析出实例(先看容器里已有的实例, 再找可实例化的类交给容器装配)
-        // 构造参数与生命周期方法参数沿用当前构建栈(`$this->build_flags`)
+        // 构造参数与生命周期方法参数沿用当前执行流的构建栈
         $this->arguments->setInstanceResolver(function(array $types,?ReflectionParameter $param=null): ?object {
             $bound=$this->getBoundInstance($types);
             if($bound!==null)
@@ -227,12 +229,13 @@ final class Container implements \base\Container {
             $real_class=$this->classes->getFirstInstantiableClass($types);
             if($real_class===null)
                 return null;
+            $stack=&$this->currentBuildStack();
             // 可选的自引用参数交给参数解析器取默认值 / null, 不生成裸实例
-            if(in_array($real_class,$this->build_flags,true)
+            if(in_array($real_class,$stack,true)
                 &&$param!==null
                 &&($param->isDefaultValueAvailable()||$param->allowsNull()))
                 return null;
-            return $this->makeInternal($real_class,false,$this->build_flags);
+            return $this->makeInternal($real_class,false,$stack);
         });
         // 容器自身登记: 按契约 `base\Container` 或按实现类名都能取到"当前容器"
         // (控制器/路由基类按契约依赖它)
@@ -276,7 +279,7 @@ final class Container implements \base\Container {
      * @return void
      */
     private function flushMetadataIfRoot(): void {
-        if($this->build_flags!==array()||$this->defer_metadata_flush)
+        if($this->buildStack()!==array()||$this->defer_metadata_flush)
             return;
         $this->metadata->flush();
     }
@@ -303,8 +306,10 @@ final class Container implements \base\Container {
             if($bound!==null)
                 return $bound;
             // 闭包工厂绑定优先于自动实现类查找; 已登记实例仍优先
-            if(isset($this->factory_container[$real]))
-                return $this->makeInternal($real,false,$this->build_flags);
+            if(isset($this->factory_container[$real])) {
+                $stack=&$this->currentBuildStack();
+                return $this->makeInternal($real,false,$stack);
+            }
             if(interface_exists($real)||(class_exists($real)&&$this->reflections->getClass($real)->isAbstract())) {
                 $implementation=$this->findBoundImplementation($real);
                 if($implementation!==null)
@@ -533,7 +538,7 @@ final class Container implements \base\Container {
             throw new ClassUnavailableException('Class "'.$name.'" is not instantiable.');
         $constructor=$ref->getConstructor();
         if($constructor!==null&&$constructor->getNumberOfRequiredParameters()>0) {
-            $stack=$this->build_flags;
+            $stack=$this->buildStack();
             $stack[]=$name;
             throw new CircularDependencyException(
                 'Circular dependency detected while resolving "'.$name.'" ('.implode(' -> ',$stack).
@@ -998,11 +1003,12 @@ final class Container implements \base\Container {
      * @throws \Throwable
      */
     private function runRootBuild(callable $build): object {
-        $is_root=$this->build_flags===array();
+        $key=ExecutionFlow::key();
+        $flags=&$this->currentBuildStack();
+        $is_root=$flags===array();
         $snapshot=$is_root?$this->container:null;
         $resolved_snapshot=$is_root?$this->resolved_container:null;
         $singleton_snapshot=$is_root?$this->factory_singleton_class:null;
-        $flags=$this->build_flags;
         try {
             $object=$build($flags);
             if($is_root)
@@ -1013,8 +1019,33 @@ final class Container implements \base\Container {
             throw $e;
         } finally {
             if($is_root)
+                unset($this->build_stacks[$key]);
+            if($is_root)
                 $this->flushMetadataIfRoot();
         }
+    }
+
+    /**
+     * 当前执行流的构建栈(副本)
+     *
+     * @access private
+     * @return array<int,string>
+     */
+    private function buildStack(): array {
+        return $this->build_stacks[ExecutionFlow::key()]??array();
+    }
+
+    /**
+     * 当前执行流的构建栈(引用)
+     *
+     * @access private
+     * @return array<int,string>
+     */
+    private function &currentBuildStack(): array {
+        $key=ExecutionFlow::key();
+        if(!array_key_exists($key,$this->build_stacks))
+            $this->build_stacks[$key]=array();
+        return $this->build_stacks[$key];
     }
 
     /**
@@ -1078,8 +1109,11 @@ final class Container implements \base\Container {
      * @throws Exception
      */
     private function makeInternal(string $name,bool $is_force,array &$flags): object {
-        $previous_flags=$this->build_flags;
-        $this->build_flags=&$flags;
+        $key=ExecutionFlow::key();
+        $had_stack=array_key_exists($key,$this->build_stacks);
+        if($had_stack)
+            $previous_stack=&$this->build_stacks[$key];
+        $this->build_stacks[$key]=&$flags;
         $pushed=false;
         try {
             $name=$this->resolve($name);
@@ -1154,7 +1188,10 @@ final class Container implements \base\Container {
                 if($last!==null&&$flags[$last]===$name)
                     array_pop($flags);
             }
-            $this->build_flags=$previous_flags;
+            if($had_stack)
+                $this->build_stacks[$key]=&$previous_stack;
+            else
+                unset($this->build_stacks[$key]);
         }
     }
 
@@ -1205,8 +1242,6 @@ final class Container implements \base\Container {
             }
             // 本对象本身不登记, 但仍以它作为构建栈起点, 让构造参数 / 属性里的自引用能被截断
             $flags[]=$name;
-            $previous_flags=$this->build_flags;
-            $this->build_flags=&$flags;
             try {
                 // 获取构造函数的参数
                 $constructor=$ref->getConstructor();
@@ -1223,7 +1258,7 @@ final class Container implements \base\Container {
                 // 直接返回对象,不添加到实例容器中
                 return $object;
             } finally {
-                $this->build_flags=$previous_flags;
+                array_pop($flags);
             }
         });
     }

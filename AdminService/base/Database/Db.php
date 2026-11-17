@@ -3,8 +3,6 @@
 namespace base\Database;
 
 use Throwable;
-use Fiber;
-use AdminService\Coroutine;
 use base\Database\DatabaseConfigInterface;
 use base\Database\Connection\ConnectionConfig;
 use base\Database\Connection\ConnectionManagerInterface;
@@ -23,6 +21,7 @@ use base\Database\Sql\Compiler\MysqlCompiler;
 use base\Database\Sql\Compiler\SqlCompilerInterface;
 use base\Database\Transaction\TransactionContextInterface;
 use base\Database\Type\QueryType;
+use base\ExecutionFlow;
 
 use function array_merge;
 use function get_class;
@@ -257,17 +256,13 @@ final class Db {
     /**
      * 当前执行流标识
      *
-     * - Fiber: 按对象身份区分
-     * - Swoole / OpenSwoole 协程: 按协程 ID 区分
-     * - 其余: 顺序主流程
+     * - Fiber、Swoole 协程、OpenSwoole 协程与主流程各自独立
      *
      * @access private
      * @return string
      */
     private static function contextKey(): string {
-        if(($fiber=Fiber::getCurrent())!==null)
-            return 'fiber:'.spl_object_id($fiber);
-        return Coroutine::key()??'main';
+        return ExecutionFlow::key();
     }
 
     /**

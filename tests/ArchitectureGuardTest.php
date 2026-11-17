@@ -3,12 +3,17 @@
 namespace Tests;
 
 use PHPUnit\Framework\TestCase;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 
 use function dirname;
 use function file_get_contents;
 use function in_array;
 use function is_array;
 use function preg_match;
+use function strlen;
+use function str_replace;
+use function substr;
 use function token_get_all;
 
 /**
@@ -18,6 +23,7 @@ use function token_get_all;
  * - 检查请求级对象不新增可变静态属性
  * - 检查 Router 命中态按执行流隔离
  * - 检查请求对象不写入应用级容器
+ * - 检查 base 不反向依赖实现层
  */
 final class ArchitectureGuardTest extends TestCase {
 
@@ -38,7 +44,7 @@ final class ArchitectureGuardTest extends TestCase {
     }
 
     /**
-     * 读取源码并移除注释
+     * 读取源码并移除注释与字符串
      *
      * @access private
      * @param string $relative 相对核心目录的路径
@@ -49,7 +55,14 @@ final class ArchitectureGuardTest extends TestCase {
         $code='';
         foreach(token_get_all($source) as $token) {
             if(is_array($token)) {
-                if(in_array($token[0],array(T_COMMENT,T_DOC_COMMENT),true))
+                if(in_array($token[0],array(
+                    T_COMMENT,
+                    T_DOC_COMMENT,
+                    T_CONSTANT_ENCAPSED_STRING,
+                    T_ENCAPSED_AND_WHITESPACE,
+                    T_START_HEREDOC,
+                    T_END_HEREDOC
+                ),true))
                     continue;
                 $code.=$token[1];
                 continue;
@@ -159,6 +172,37 @@ final class ArchitectureGuardTest extends TestCase {
             '$repository->fork()',
             $this->code('core/Application.php')
         );
+    }
+
+    /**
+     * 检查 base 不反向依赖实现层
+     *
+     * @access public
+     * @return void
+     */
+    public function testBaseDoesNotDependOnImplementationLayer(): void {
+        $iterator=new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($this->core.'/base')
+        );
+        foreach($iterator as $file) {
+            if(!$file->isFile()||$file->getExtension()!=='php')
+                continue;
+            $relative=substr(
+                str_replace('\\','/',$file->getPathname()),
+                strlen($this->core)+1
+            );
+            $code=$this->code($relative);
+            $this->assertSame(
+                0,
+                preg_match('/\buse\s+AdminService\\\\/i',$code),
+                $relative.' 不应导入实现层命名空间'
+            );
+            $this->assertSame(
+                0,
+                preg_match('/\\\\AdminService\\\\/i',$code),
+                $relative.' 不应直接引用实现层类名'
+            );
+        }
     }
 
 }

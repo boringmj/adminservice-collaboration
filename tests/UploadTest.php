@@ -395,4 +395,14 @@ class UploadTest extends TestCase {
         }
     }
 
+    /**
+     * 测试上传异常同时满足契约层与兼容入口
+     * @return void
+     */
+    public function testUploadExceptionImplementsBaseContract(): void {
+        $exception=new UploadException('上传失败');
+        $this->assertInstanceOf(\base\UploadExceptionInterface::class,$exception);
+        $this->assertInstanceOf(\AdminService\exception\UploadExceptionInterface::class,$exception);
+    }
+
 }

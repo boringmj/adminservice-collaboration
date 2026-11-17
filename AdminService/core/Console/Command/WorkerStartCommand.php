@@ -4,11 +4,11 @@ namespace AdminService\Console\Command;
 
 use AdminService\Application;
 use AdminService\Config\Repository;
-use AdminService\Console\Input;
-use AdminService\Console\Output;
 use AdminService\Worker\SwooleDriver;
 use AdminService\Worker\Worker;
 use base\AbstractCommand;
+use base\Console\InputInterface;
+use base\Console\OutputInterface;
 use Throwable;
 
 use function class_exists;
@@ -117,11 +117,11 @@ final class WorkerStartCommand extends AbstractCommand {
      * 执行命令
      *
      * @access public
-     * @param Input $input 已解析参数
-     * @param Output $output 输出
+     * @param InputInterface $input 已解析参数
+     * @param OutputInterface $output 输出
      * @return int
      */
-    public function execute(Input $input,Output $output): int {
+    public function execute(InputInterface $input,OutputInterface $output): int {
         $host=(string)$input->option('host','H',$this->config->get('worker.host','127.0.0.1'));
         $port_raw=$input->option('port','p',$this->config->get('worker.port',9501));
         $workers_raw=$input->option('workers','w',$this->config->get('worker.workers',1));

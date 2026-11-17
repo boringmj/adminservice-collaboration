@@ -3,10 +3,10 @@
 namespace Tests\Fixtures\command;
 
 use AdminService\Config\Repository;
-use AdminService\Console\Input;
-use AdminService\Console\Output;
 use base\AbstractCommand;
 use base\Attribute\Config;
+use base\Console\InputInterface;
+use base\Console\OutputInterface;
 
 /**
  * 命令行测试命令
@@ -65,11 +65,11 @@ final class GreetCommand extends AbstractCommand {
     /**
      * 执行
      *
-     * @param Input $input 参数
-     * @param Output $output 输出
+     * @param InputInterface $input 参数
+     * @param OutputInterface $output 输出
      * @return int
      */
-    public function execute(Input $input,Output $output): int {
+    public function execute(InputInterface $input,OutputInterface $output): int {
         $name=$input->option('name',null,$input->argument(0,'world'));
         $output->writeln('Hello '.$name);
         $output->writeln('timezone='.$this->timezone);

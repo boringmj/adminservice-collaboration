@@ -2,6 +2,8 @@
 
 namespace AdminService\Console;
 
+use base\Console\OutputInterface;
+
 use function array_map;
 use function fwrite;
 use function function_exists;
@@ -24,7 +26,7 @@ use function stream_get_contents;
  * @package AdminService\Console
  * @version 1.0.0
  */
-final class Output {
+final class Output implements OutputInterface {
 
     /**
      * 标准输出流

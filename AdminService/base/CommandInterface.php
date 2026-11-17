@@ -2,8 +2,8 @@
 
 namespace base;
 
-use AdminService\Console\Input;
-use AdminService\Console\Output;
+use base\Console\InputInterface;
+use base\Console\OutputInterface;
 
 /**
  * 命令行命令契约
@@ -75,10 +75,10 @@ interface CommandInterface {
      * 执行命令
      *
      * @access public
-     * @param Input $input 已解析参数
-     * @param Output $output 输出
+     * @param InputInterface $input 已解析参数
+     * @param OutputInterface $output 输出
      * @return int 退出码(0 = 成功)
      */
-    public function execute(Input $input,Output $output): int;
+    public function execute(InputInterface $input,OutputInterface $output): int;
 
 }

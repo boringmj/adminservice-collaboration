@@ -3,9 +3,9 @@
 namespace AdminService\Console\Command;
 
 use AdminService\Config\Repository;
-use AdminService\Console\Input;
-use AdminService\Console\Output;
 use base\AbstractCommand;
+use base\Console\InputInterface;
+use base\Console\OutputInterface;
 
 use function escapeshellarg;
 use function is_dir;
@@ -121,11 +121,11 @@ final class ServerStartCommand extends AbstractCommand {
      * 执行命令
      *
      * @access public
-     * @param Input $input 已解析参数
-     * @param Output $output 输出
+     * @param InputInterface $input 已解析参数
+     * @param OutputInterface $output 输出
      * @return int
      */
-    public function execute(Input $input,Output $output): int {
+    public function execute(InputInterface $input,OutputInterface $output): int {
         $host=(string)$input->option('host','H',$this->config->get('console.serve.host','localhost'));
         $port_raw=$input->option('port','p',$this->config->get('console.serve.port',8000));
         $docroot=(string)$input->option('docroot','t',$this->config->get('console.serve.docroot',__DIR__.'/../../../../public'));

@@ -2,7 +2,7 @@
 
 namespace AdminService\Console\Command;
 
-use AdminService\Console\Input;
+use base\Console\InputInterface;
 use InvalidArgumentException;
 
 use function array_key_exists;
@@ -35,11 +35,11 @@ final class CacheCommandSupport {
      * 从参数解析目标
      *
      * @access public
-     * @param Input $input 已解析参数
+     * @param InputInterface $input 已解析参数
      * @return string|null null = 全部
      * @throws InvalidArgumentException 目标非法
      */
-    public static function target(Input $input): ?string {
+    public static function target(InputInterface $input): ?string {
         if($input->hasOption('target')) {
             $target=$input->option('target');
             if(!is_string($target)||trim($target)==='')

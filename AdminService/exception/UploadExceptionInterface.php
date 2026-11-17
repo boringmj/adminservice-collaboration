@@ -2,9 +2,10 @@
 
 namespace AdminService\exception;
 
-use Throwable;
-
 /**
- * 文件上传异常接口
+ * 文件上传异常接口(兼容入口)
+ *
+ * @deprecated 使用 `base\UploadExceptionInterface`
  */
-interface UploadExceptionInterface extends Throwable {}
+interface UploadExceptionInterface extends \base\UploadExceptionInterface {
+}

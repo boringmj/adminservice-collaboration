@@ -2,7 +2,8 @@
 
 namespace AdminService;
 
-use function class_exists;
+use base\ExecutionFlow;
+
 use function round;
 use function usleep;
 
@@ -89,11 +90,7 @@ final class Coroutine {
      * @return array{0:string|null,1:int} 驱动名与协程 ID; 不在协程内为 `array(null,0)`
      */
     private static function current(): array {
-        if(class_exists(\Swoole\Coroutine::class,false)&&($cid=\Swoole\Coroutine::getCid())>0)
-            return array('swoole',(int)$cid);
-        if(class_exists(\OpenSwoole\Coroutine::class,false)&&($cid=\OpenSwoole\Coroutine::getCid())>0)
-            return array('openswoole',(int)$cid);
-        return array(null,0);
+        return ExecutionFlow::coroutine();
     }
 
 }

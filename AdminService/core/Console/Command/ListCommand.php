@@ -3,10 +3,10 @@
 namespace AdminService\Console\Command;
 
 use AdminService\Console;
-use AdminService\Console\Input;
-use AdminService\Console\Output;
 use base\AbstractCommand;
 use base\CommandInterface;
+use base\Console\InputInterface;
+use base\Console\OutputInterface;
 
 use function dirname;
 use function implode;
@@ -72,11 +72,11 @@ final class ListCommand extends AbstractCommand {
      * 执行命令
      *
      * @access public
-     * @param Input $input 已解析参数
-     * @param Output $output 输出
+     * @param InputInterface $input 已解析参数
+     * @param OutputInterface $output 输出
      * @return int
      */
-    public function execute(Input $input,Output $output): int {
+    public function execute(InputInterface $input,OutputInterface $output): int {
         $group=$input->argument(0);
         $registry=$this->console->registry();
         $output->info('AdminService Console');
@@ -114,12 +114,12 @@ final class ListCommand extends AbstractCommand {
      * 输出分组
      *
      * @access private
-     * @param Output $output 输出
+     * @param OutputInterface $output 输出
      * @param string $group 分组名
      * @param array<int,CommandInterface> $commands 命令
      * @return void
      */
-    private function renderGroup(Output $output,string $group,array $commands): void {
+    private function renderGroup(OutputInterface $output,string $group,array $commands): void {
         $bin='bin/'.$group;
         $usage=is_file(dirname(__DIR__,4).'/'.$bin)?'php '.$bin:'php console '.$group;
         $output->info('分组(Group): '.$group);
@@ -131,11 +131,11 @@ final class ListCommand extends AbstractCommand {
      * 输出命令表
      *
      * @access private
-     * @param Output $output 输出
+     * @param OutputInterface $output 输出
      * @param array<int,CommandInterface> $commands 命令
      * @return void
      */
-    private function renderCommands(Output $output,array $commands): void {
+    private function renderCommands(OutputInterface $output,array $commands): void {
         $rows=array();
         foreach($commands as $command) {
             $aliases=$this->aliasesFor($command->name());

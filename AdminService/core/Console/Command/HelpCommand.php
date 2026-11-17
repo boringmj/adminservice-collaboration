@@ -3,9 +3,9 @@
 namespace AdminService\Console\Command;
 
 use AdminService\Console;
-use AdminService\Console\Input;
-use AdminService\Console\Output;
 use base\AbstractCommand;
+use base\Console\InputInterface;
+use base\Console\OutputInterface;
 
 use function array_slice;
 use function count;
@@ -81,11 +81,11 @@ final class HelpCommand extends AbstractCommand {
      * 执行命令
      *
      * @access public
-     * @param Input $input 已解析参数
-     * @param Output $output 输出
+     * @param InputInterface $input 已解析参数
+     * @param OutputInterface $output 输出
      * @return int
      */
-    public function execute(Input $input,Output $output): int {
+    public function execute(InputInterface $input,OutputInterface $output): int {
         return $this->show($input->arguments(),$output);
     }
 
@@ -94,10 +94,10 @@ final class HelpCommand extends AbstractCommand {
      *
      * @access public
      * @param array<int,string> $tokens 目标命令 token
-     * @param Output $output 输出
+     * @param OutputInterface $output 输出
      * @return int
      */
-    public function show(array $tokens,Output $output): int {
+    public function show(array $tokens,OutputInterface $output): int {
         $registry=$this->console->registry();
         if($tokens===array()) {
             $output->info('AdminService Console');

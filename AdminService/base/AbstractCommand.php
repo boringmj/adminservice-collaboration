@@ -2,8 +2,8 @@
 
 namespace base;
 
-use AdminService\Console\Input;
-use AdminService\Console\Output;
+use base\Console\InputInterface;
+use base\Console\OutputInterface;
 
 /**
  * 命令行命令基类
@@ -92,10 +92,10 @@ abstract class AbstractCommand implements CommandInterface {
      * 执行命令
      *
      * @access public
-     * @param Input $input 已解析参数
-     * @param Output $output 输出
+     * @param InputInterface $input 已解析参数
+     * @param OutputInterface $output 输出
      * @return int
      */
-    abstract public function execute(Input $input,Output $output): int;
+    abstract public function execute(InputInterface $input,OutputInterface $output): int;
 
 }

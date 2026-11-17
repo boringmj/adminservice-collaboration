@@ -2,6 +2,7 @@
 
 namespace AdminService\Console;
 
+use base\Console\InputInterface;
 use InvalidArgumentException;
 
 use function array_key_exists;
@@ -27,7 +28,7 @@ use function trim;
  * @package AdminService\Console
  * @version 1.0.0
  */
-final class Input {
+final class Input implements InputInterface {
 
     /**
      * 位置参数

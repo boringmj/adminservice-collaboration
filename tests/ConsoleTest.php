@@ -14,6 +14,8 @@ use AdminService\Console\Input;
 use AdminService\Console\Output;
 use AdminService\Runtime;
 use base\AbstractCommand;
+use base\Console\InputInterface;
+use base\Console\OutputInterface;
 use InvalidArgumentException;
 use Tests\Fixtures\command\FailCommand;
 use Tests\Fixtures\command\GreetCommand;
@@ -618,7 +620,7 @@ class ConsoleTest extends TestCase {
             public function name(): string { return 'server start'; }
             public function description(): string { return 'server'; }
             public function aliases(): array { return array('serve'); }
-            public function execute(Input $input,Output $output): int { return self::SUCCESS; }
+            public function execute(InputInterface $input,OutputInterface $output): int { return self::SUCCESS; }
         };
     }
 
@@ -631,7 +633,7 @@ class ConsoleTest extends TestCase {
         return new class extends AbstractCommand {
             public function name(): string { return 'cache build'; }
             public function description(): string { return 'cache'; }
-            public function execute(Input $input,Output $output): int { return self::SUCCESS; }
+            public function execute(InputInterface $input,OutputInterface $output): int { return self::SUCCESS; }
         };
     }
 

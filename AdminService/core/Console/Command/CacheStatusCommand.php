@@ -7,13 +7,13 @@ use AdminService\Cache\EnvCache;
 use AdminService\Config\Bootstrapper;
 use AdminService\Config\EnvSnapshot;
 use AdminService\Config\Repository;
-use AdminService\Console\Input;
-use AdminService\Console\Output;
 use AdminService\ContainerMetadata;
 use AdminService\ReflectionCache;
 use AdminService\Router\RouterFactory;
 use AdminService\Runtime;
 use base\AbstractCommand;
+use base\Console\InputInterface;
+use base\Console\OutputInterface;
 use InvalidArgumentException;
 
 use function date;
@@ -110,11 +110,11 @@ final class CacheStatusCommand extends AbstractCommand {
      * 执行命令
      *
      * @access public
-     * @param Input $input 已解析参数
-     * @param Output $output 输出
+     * @param InputInterface $input 已解析参数
+     * @param OutputInterface $output 输出
      * @return int
      */
-    public function execute(Input $input,Output $output): int {
+    public function execute(InputInterface $input,OutputInterface $output): int {
         try {
             $target=CacheCommandSupport::target($input);
         } catch(InvalidArgumentException $e) {

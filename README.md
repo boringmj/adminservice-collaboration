@@ -71,6 +71,7 @@
 | 缓存 | [缓存](https://github.com/boringmj/adminservice-collaboration/wiki/缓存) |
 | 命令行 | [命令行](https://github.com/boringmj/adminservice-collaboration/wiki/命令行) |
 | 常驻入口 | [常驻入口](https://github.com/boringmj/adminservice-collaboration/wiki/常驻入口) |
+| 部署 | [部署](https://github.com/boringmj/adminservice-collaboration/wiki/部署) |
 | 数据库 | [数据库](https://github.com/boringmj/adminservice-collaboration/wiki/数据库) |
 | ORM | [ORM 使用指南](https://github.com/boringmj/adminservice-collaboration/wiki/Orm) |
 | 版本迁移 | [新旧版本调整](https://github.com/boringmj/adminservice-collaboration/wiki/新旧版本调整) |

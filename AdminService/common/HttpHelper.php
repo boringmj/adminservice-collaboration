@@ -310,12 +310,22 @@ class HttpHelper {
 
     /**
      * 获取响应错误
-     * 
+     *
      * @access public
      * @return string|null
      */
     public function getError(): ?string {
         return $this->response['error'];
+    }
+
+    /**
+     * 获取传输信息(curl_getinfo 结果)
+     *
+     * @access public
+     * @return array
+     */
+    public function getInfo(): array {
+        return $this->response['info']??array();
     }
 
     /**

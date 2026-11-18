@@ -116,6 +116,9 @@ class FormValidator extends SceneValidator {
     protected function checkRule(string $field,string $rule,mixed $value,mixed $param=null): bool {
         // 规则名大小写不敏感; 空白归一为下划线, 保证标量保护与消息模板命中
         $rule=str_replace(' ','_',strtolower(trim($rule)));
+        // 非 required 字段值为 null 时, 格式规则一律跳过(可选字段可不填); 脱敏标记不受影响
+        if($value===null&&$rule!=='required'&&$rule!=='sensitive')
+            return true;
         $method='validate'.str_replace(' ','',ucwords(str_replace('_',' ',$rule)));
         if(method_exists($this,$method)) {
             if(in_array($rule,$this->scalar_rules,true)&&(is_array($value)||is_object($value)))
@@ -326,6 +329,8 @@ class FormValidator extends SceneValidator {
     }
 
     protected function validateMin(string $field,mixed $value,mixed $param): bool {
+        if(!is_numeric($param))
+            return $this->addError($field,'min',$param,'{field} 的区间参数无效');
         if(is_numeric($value)&&$value<$param) {
             return $this->addError($field,'min',$param);
         }
@@ -333,6 +338,8 @@ class FormValidator extends SceneValidator {
     }
 
     protected function validateMax(string $field,mixed $value,mixed $param): bool {
+        if(!is_numeric($param))
+            return $this->addError($field,'max',$param,'{field} 的区间参数无效');
         if(is_numeric($value)&&$value>$param) {
             return $this->addError($field,'max',$param);
         }
@@ -340,6 +347,8 @@ class FormValidator extends SceneValidator {
     }
 
     protected function validateMinLength(string $field,mixed $value,mixed $param): bool {
+        if(!is_numeric($param))
+            return $this->addError($field,'min_length',$param,'{field} 的区间参数无效');
         if(is_string($value)&&$this->stringLength($value)<$param) {
             return $this->addError($field,'min_length',$param);
         }
@@ -347,6 +356,8 @@ class FormValidator extends SceneValidator {
     }
 
     protected function validateMaxLength(string $field,mixed $value,mixed $param): bool {
+        if(!is_numeric($param))
+            return $this->addError($field,'max_length',$param,'{field} 的区间参数无效');
         if(is_string($value)&&$this->stringLength($value)>$param) {
             return $this->addError($field,'max_length',$param);
         }

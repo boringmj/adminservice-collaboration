@@ -12,16 +12,24 @@ use stdClass;
 
 use function chdir;
 use function dirname;
+use function escapeshellarg;
+use function fclose;
 use function file_put_contents;
 use function getcwd;
 use function in_array;
+use function is_file;
+use function is_resource;
 use function mkdir;
+use function proc_close;
+use function proc_open;
 use function rmdir;
+use function stream_get_contents;
 use function stream_get_wrappers;
 use function stream_wrapper_register;
 use function str_replace;
 use function sys_get_temp_dir;
 use function tempnam;
+use function touch;
 use function uniqid;
 use function unlink;
 
@@ -32,6 +40,38 @@ use function unlink;
  * - {{{var}}} / {{!var}} 保持不转义语义
  */
 class ViewTest extends TestCase {
+
+    /**
+     * 测试文件来源指纹能探测其他进程的修改
+     *
+     * - PHP 的 stat 结果在进程内缓存; 不清缓存时常驻进程探测不到其他进程的部署更新
+     *
+     * @return void
+     */
+    public function testFileSourceFingerprintDetectsExternalModification(): void {
+        $file=tempnam(sys_get_temp_dir(),'view_fp_');
+        file_put_contents($file,'A');
+        touch($file,1000);
+        try {
+            $source=new FileSource($file);
+            $before=$source->fingerprint();
+            // 同进程修改会自动清 stat 缓存, 必须经另一进程修改
+            $process=proc_open(
+                array(PHP_BINARY,'-d','display_errors=0',__DIR__.'/fixtures/file_modify.php',$file,'2000'),
+                array(1=>array('pipe','w'),2=>array('pipe','w')),
+                $pipes
+            );
+            $this->assertTrue(is_resource($process),'无法启动子进程');
+            $stderr=(string)stream_get_contents($pipes[2]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            $this->assertSame(0,proc_close($process),$stderr);
+            $this->assertNotSame($before,$source->fingerprint(),'其他进程修改文件后指纹应变化');
+        } finally {
+            if(is_file($file))
+                unlink($file);
+        }
+    }
 
     /**
      * 默认标签输出数组时必须转义 HTML

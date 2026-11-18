@@ -383,6 +383,24 @@ class DbTest extends TestCase {
     }
 
     /**
+     * 测试无活动事务时手动提交/回滚抛出受控异常
+     * @return void
+     */
+    public function testManualCommitAndRollbackWithoutTransactionThrows(): void {
+        $pdo=new FakePdo();
+        $db=$this->createDb($pdo);
+        foreach(array('commit','rollBack') as $method) {
+            try {
+                $db->{$method}();
+                $this->fail($method.' 无活动事务应抛出受控异常');
+            } catch(TransactionException $e) {
+                $this->assertSame(100604,$e->getCode(),$method);
+            }
+        }
+        $this->assertSame(array(),$pdo->transactionCalls);
+    }
+
+    /**
      * 测试: 嵌套请求作用域的事务会话互不共享
      *
      * @return void

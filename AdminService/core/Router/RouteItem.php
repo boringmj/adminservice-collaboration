@@ -477,6 +477,9 @@ final class RouteItem {
             $offset=$match['offset']+$match['length'];
         }
         $path=$uri.$this->encodeStaticLiteral(substr($this->path,$offset));
+        // 根级路由省略全部参数后不得生成空串(空串在模板里指向当前页)
+        if($path==='')
+            $path='/';
         // 未出现在路径模板里的参数按查询串附加(Laravel 风格), 不再静默丢弃
         $extra=array_diff_key($params,$used);
         if($extra!==array())

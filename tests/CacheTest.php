@@ -863,10 +863,22 @@ class CacheTest extends TestCase {
     }
 
     /**
-     * 测试: 非法键与非法池名必须被拒绝
+     * 测试: 编译缓存根解析为当前目录或文件系统根时拒绝使用
      *
      * @return void
      */
+    public function testCompileStoreRejectsRootLikeCachePath(): void {
+        foreach(array('.','..','foo/..') as $path) {
+            $store=new CompileStore($this->makeConfig(array('path'=>$path)));
+            try {
+                $store->inspect('routes');
+                $this->fail('编译缓存路径 '.$path.' 应被拒绝');
+            } catch(Exception $e) {
+                $this->assertSame(100211,$e->getCode());
+            }
+        }
+    }
+
     /**
      * 测试: `.env` 的字符串 `0` 与布尔 false 一样关闭编译缓存
      *

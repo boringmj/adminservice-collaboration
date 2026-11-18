@@ -385,6 +385,38 @@ class RequestTest extends TestCase {
     }
 
     /**
+     * 测试参数类型掩码支持按位组合
+     *
+     * - `GET_PARAM|POST_PARAM` 等组合值在读取/设置/删除/键名四处一致生效
+     *
+     * @return void
+     */
+    public function testParamTypeMasksCombine(): void {
+        $request=new HttpRequest(array(
+            'query'=>array('a'=>'from-query'),
+            'post'=>array('b'=>'from-post'),
+            'cookie'=>array('c'=>'from-cookie')
+        ));
+        $mask=HttpRequest::GET_PARAM|HttpRequest::POST_PARAM;
+        $this->assertSame('from-query',$request->param('a',$mask));
+        $this->assertSame('from-post',$request->param('b',$mask));
+        $this->assertNull($request->param('c',$mask),'组合掩码不含 COOKIE 时不得命中 Cookie');
+        $request->setParam('both','x',$mask);
+        $this->assertSame('x',$request->query('both'));
+        $this->assertSame('x',$request->post('both'));
+        $this->assertNull($request->cookie('both'));
+        $request->setParam('gone','y',HttpRequest::ALL_PARAM);
+        $request->removeParam('gone',$mask);
+        $this->assertNull($request->query('gone'));
+        $this->assertNull($request->post('gone'));
+        $this->assertSame('y',$request->cookie('gone'));
+        $keys=$request->paramKeys($mask);
+        $this->assertContains('a',$keys);
+        $this->assertContains('b',$keys);
+        $this->assertNotContains('c',$keys);
+    }
+
+    /**
      * 测试属性区的读写
      * @return void
      */

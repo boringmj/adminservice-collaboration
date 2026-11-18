@@ -126,6 +126,23 @@ class RouterTest extends TestCase {
     }
 
     /**
+     * 测试根级通配与可选路由的反向生成返回根路径
+     *
+     * - 根级路由省略参数时不得生成空串(空串在模板里指向当前页)
+     *
+     * @return void
+     */
+    public function testRootRouteBuildsRootUri(): void {
+        $router=new Router();
+        $router->any('/*',array('C','wild'))->name('root_wild');
+        $router->get('/{page?}',array('C','page'))->name('root_optional');
+        $this->assertSame('/',$router->url('root_wild'));
+        $this->assertSame('/',$router->url('root_optional'));
+        $this->assertSame('/x',$router->url('root_wild',array('any'=>'x')));
+        $this->assertSame('/x?extra=1',$router->url('root_wild',array('any'=>'x','extra'=>1)));
+    }
+
+    /**
      * 测试多段参数提取
      * @return void
      */

@@ -558,13 +558,17 @@ final class Db {
      * 提交手动开启的事务
      *
      * - 手动作用域可能嵌套开启多层, 提交时关闭全部未闭合层
+     * - 无活动事务会话时抛出(与底层执行器一致), 不静默 no-op
      *
      * @access public
      * @return void
+     * @throws TransactionException 无活动事务
      * @throws Throwable
      */
     public function commit(): void {
         $session=$this->currentSession();
+        if($session===null)
+            throw new TransactionException('Transaction has not been started.',100604);
         if($session!==null) {
             try {
                 $tx=$session->getTransactionExecutor();
@@ -583,13 +587,17 @@ final class Db {
      * 回滚手动开启的事务
      *
      * - 手动作用域可能嵌套开启多层, 回滚时关闭全部未闭合层
+     * - 无活动事务会话时抛出(与底层执行器一致), 不静默 no-op
      *
      * @access public
      * @return void
+     * @throws TransactionException 无活动事务
      * @throws Throwable
      */
     public function rollBack(): void {
         $session=$this->currentSession();
+        if($session===null)
+            throw new TransactionException('Transaction has not been started.',100604);
         if($session!==null) {
             try {
                 $tx=$session->getTransactionExecutor();

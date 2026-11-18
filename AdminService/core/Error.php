@@ -111,6 +111,7 @@ final class Error extends BaseError {
      * @var array<string,array<int,array{
      *     errors:array<int,array<string,mixed>>,
      *     handled:bool,
+     *     logged:int,
      *     container:ContainerContract|null,
      *     context:RequestContext|null
      * }>>
@@ -137,12 +138,13 @@ final class Error extends BaseError {
      * 新的空请求状态
      *
      * @access private
-     * @return array{errors:array<int,array<string,mixed>>,handled:bool,container:ContainerContract|null,context:RequestContext|null}
+     * @return array{errors:array<int,array<string,mixed>>,handled:bool,logged:int,container:ContainerContract|null,context:RequestContext|null}
      */
     private static function freshState(): array {
         return array(
             'errors'=>array(),
             'handled'=>false,
+            'logged'=>0,
             'container'=>null,
             'context'=>null
         );
@@ -152,7 +154,7 @@ final class Error extends BaseError {
      * 当前执行流的栈顶状态
      *
      * @access private
-     * @return array{errors:array<int,array<string,mixed>>,handled:bool,container:ContainerContract|null,context:RequestContext|null}
+     * @return array{errors:array<int,array<string,mixed>>,handled:bool,logged:int,container:ContainerContract|null,context:RequestContext|null}
      */
     private static function &state(): array {
         $key=self::executionKey();
@@ -285,6 +287,7 @@ final class Error extends BaseError {
         self::$states[$key][]=array(
             'errors'=>array(),
             'handled'=>false,
+            'logged'=>0,
             'container'=>$container,
             'context'=>$context
         );
@@ -294,7 +297,10 @@ final class Error extends BaseError {
      * 请求结束
      *
      * - 释放指定请求(默认栈顶)的容器 / 上下文与已收集错误引用
+     * - 带上下文时按对象同一性**跨执行流**查找并清理: 请求可能在其它执行流内运行,
+     *   只查当前执行流会让状态条目在常驻进程里永久残留
      * - 栈回到基础状态时删除该执行流的条目, 避免常驻进程按执行流累积
+     * - 丢弃的状态条目里未写日志的错误先补写日志, 不静默丢弃
      * - 错误出口已经渲染时也可安全调用; 不重置 `$handled`, 避免同一 shutdown 重复渲染
      *
      * @access public
@@ -302,28 +308,84 @@ final class Error extends BaseError {
      * @return void
      */
     public static function endRequest(?RequestContext $context=null): void {
-        $key=self::executionKey();
-        if(!isset(self::$states[$key])||self::$states[$key]===array())
-            return;
-        if($context!==null) {
-            $found=false;
-            for($index=count(self::$states[$key])-1;$index>0;$index--) {
-                if(self::$states[$key][$index]['context']!==$context)
-                    continue;
-                array_splice(self::$states[$key],$index,1);
-                $found=true;
-                break;
-            }
-            if(!$found)
+        if($context===null) {
+            $key=self::executionKey();
+            if(!isset(self::$states[$key])||self::$states[$key]===array())
                 return;
-        } elseif(count(self::$states[$key])>1)
-            array_pop(self::$states[$key]);
-        else {
-            unset(self::$states[$key]);
+            if(count(self::$states[$key])>1)
+                self::discardStateEntry($key,count(self::$states[$key])-1);
+            else
+                self::discardStateEntry($key,0);
+            if(isset(self::$states[$key])&&count(self::$states[$key])===1)
+                unset(self::$states[$key]);
             return;
         }
-        if(count(self::$states[$key])===1)
+        foreach(self::$states as $key=>$stack) {
+            for($index=count($stack)-1;$index>0;$index--) {
+                if($stack[$index]['context']!==$context)
+                    continue;
+                self::discardStateEntry($key,$index);
+                if(isset(self::$states[$key])&&count(self::$states[$key])===1)
+                    unset(self::$states[$key]);
+                return;
+            }
+        }
+    }
+
+    /**
+     * 丢弃一个状态条目
+     *
+     * - 条目里未写日志的已收集错误先补写日志
+     * - `$index` 为 0 时整条执行流条目移除
+     *
+     * @access private
+     * @param string $key 执行流键
+     * @param int $index 条目下标
+     * @return void
+     */
+    private static function discardStateEntry(string $key,int $index): void {
+        $entry=self::$states[$key][$index]??null;
+        if($entry===null)
+            return;
+        $logged=$entry['logged']??0;
+        if(count($entry['errors'])>$logged)
+            self::logDiscardedErrors(array_slice($entry['errors'],$logged),$entry['container']??null);
+        if($index===0)
             unset(self::$states[$key]);
+        else
+            array_splice(self::$states[$key],$index,1);
+    }
+
+    /**
+     * 补写被丢弃的错误日志
+     *
+     * - 引导完成且条目带容器时走应用的 Log 服务, 否则直写 PHP 错误日志
+     *
+     * @access private
+     * @param array<int,array<string,mixed>> $errors 错误列表
+     * @param ContainerContract|null $container 状态条目里的请求容器
+     * @return void
+     */
+    private static function logDiscardedErrors(array $errors,?ContainerContract $container): void {
+        foreach($errors as $error) {
+            $type=self::$errorTypes[$error['type']??0]??'Unknown';
+            $message='[Request] {type}: {message} in {file} on line {line}';
+            $context=array(
+                'type'=>$type,
+                'message'=>(string)($error['message']??''),
+                'file'=>(string)($error['file']??''),
+                'line'=>(string)($error['line']??'')
+            );
+            if(self::$initialized&&$container!==null) {
+                try {
+                    $container->exec_class_function(Log::class,'write',array($message,$context));
+                    continue;
+                } catch(\Throwable) {
+                    // 写入失败回落 PHP 错误日志
+                }
+            }
+            self::writeFallbackLog($message,$context);
+        }
     }
 
     /**
@@ -504,6 +566,7 @@ final class Error extends BaseError {
         $state['handled']=true;
         $errorPage=self::renderErrors($container);
         $logFailure=self::writeErrorLogs($container);
+        $state['logged']=count($state['errors']);
         if($logFailure!==null) {
             self::writeOutletFailureLog('log',$logFailure);
             $errorPage.='<br>日志记录失败，请检查日志配置。';
@@ -550,40 +613,18 @@ final class Error extends BaseError {
 
     /**
      * Shutdown函数(处理致命错误)
-     * 
+     *
      * @access public
      * @return void
      */
     public static function handleShutdown(): void {
         $state=&self::state();
-        // 如果已经处理过错误,则直接退出
-        if($state['handled']) {
-            return;
-        }
         // 捕获致命错误
-        $lastError=error_get_last();
-        if($lastError&&in_array($lastError['type'],array(E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR))) {
-            // 分离致命错误消息和堆栈跟踪
-            $message=self::cleanErrorMessage($lastError['message']);
-            $stackTrace='';
-            if(strpos($lastError['message'],'Stack trace:')!==false) {
-                list(,$stackTrace)=explode('Stack trace:',$lastError['message'],2);
-                $stackTrace='Stack trace:'.$stackTrace;
-            } else {
-                // 获取当前堆栈(保留参数)
-                $stackTrace=debug_backtrace();
-                // 移除shutdown函数调用
-                array_shift($stackTrace);
-            }
-            $state['errors'][]=array(
-                'type'=>$lastError['type'],
-                'message'=>trim($message),
-                'file'=>$lastError['file'],
-                'line'=>$lastError['line'],
-                'is_fatal'=>true,
-                'stack_trace'=>$stackTrace,
-                'is_exception'=>false
-            );
+        self::collectShutdownFatal($state);
+        // 已渲染过错误出口: 之后新发生的错误不重复渲染, 只补写日志
+        if($state['handled']) {
+            self::logNewErrors($state);
+            return;
         }
         // 如果没有错误则正常退出
         if(empty($state['errors'])) {
@@ -597,6 +638,63 @@ final class Error extends BaseError {
         $state['handled']=true;
         // 渲染并退出
         self::renderAndExit();
+    }
+
+    /**
+     * 收集 shutdown 阶段的致命错误(error_get_last)
+     *
+     * - 已收集过的同一错误(类型/消息/文件/行号一致)不重复收集
+     *
+     * @access private
+     * @param array{errors:array<int,array<string,mixed>>,handled:bool,logged:int,container:ContainerContract|null,context:RequestContext|null} $state 状态条目(引用)
+     * @return void
+     */
+    private static function collectShutdownFatal(array &$state): void {
+        $lastError=error_get_last();
+        if(!$lastError||!in_array($lastError['type'],array(E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR),true))
+            return;
+        $message=trim(self::cleanErrorMessage($lastError['message']));
+        foreach($state['errors'] as $error)
+            if(($error['type']??null)===$lastError['type']
+                &&($error['message']??null)===$message
+                &&($error['file']??null)===$lastError['file']
+                &&($error['line']??null)===$lastError['line'])
+                return;
+        // 分离致命错误消息和堆栈跟踪
+        $stackTrace='';
+        if(strpos($lastError['message'],'Stack trace:')!==false) {
+            list(,$stackTrace)=explode('Stack trace:',$lastError['message'],2);
+            $stackTrace='Stack trace:'.$stackTrace;
+        } else {
+            // 获取当前堆栈(保留参数)
+            $stackTrace=debug_backtrace();
+            // 移除shutdown函数调用
+            array_shift($stackTrace);
+        }
+        $state['errors'][]=array(
+            'type'=>$lastError['type'],
+            'message'=>$message,
+            'file'=>$lastError['file'],
+            'line'=>$lastError['line'],
+            'is_fatal'=>true,
+            'stack_trace'=>$stackTrace,
+            'is_exception'=>false
+        );
+    }
+
+    /**
+     * 补写已渲染之后新收集的错误日志
+     *
+     * @access private
+     * @param array{errors:array<int,array<string,mixed>>,handled:bool,logged:int,container:ContainerContract|null,context:RequestContext|null} $state 状态条目(引用)
+     * @return void
+     */
+    private static function logNewErrors(array &$state): void {
+        $from=$state['logged']??0;
+        if(count($state['errors'])<=$from)
+            return;
+        self::writeErrorLogs(null,$from);
+        $state['logged']=count($state['errors']);
     }
 
     /**
@@ -628,7 +726,7 @@ final class Error extends BaseError {
         while(ob_get_level()>0) {
             ob_end_clean();
         }
-        $state=self::state();
+        $state=&self::state();
         $status=self::errorStatus($state['errors']);
         // 准备错误信息(优先当前请求的响应实例)
         $container=self::responseContainer();
@@ -647,6 +745,7 @@ final class Error extends BaseError {
         $errorPage=self::renderErrors();
         // 记录所有错误到日志(先于正文输出: 客户端断开后仍应留下日志)
         $logFailure=self::writeErrorLogs();
+        $state['logged']=count($state['errors']);
         $headerFailure=null;
         // 发送正文前兜底: 响应对象取不到或 sendHeaders() 提前失败时也不能让客户端看到 200
         if(!headers_sent())
@@ -679,12 +778,13 @@ final class Error extends BaseError {
      *
      * @access private
      * @param ContainerContract|null $provided 指定请求容器(null = 按现有回落)
+     * @param int $from 起始错误下标(补写已渲染之后新增的错误时使用)
      * @return \Throwable|null 写入失败时的异常
      */
-    private static function writeErrorLogs(?ContainerContract $provided=null): ?\Throwable {
+    private static function writeErrorLogs(?ContainerContract $provided=null,int $from=0): ?\Throwable {
         try {
             $state=self::state();
-            foreach($state['errors'] as $error) {
+            foreach(array_slice($state['errors'],$from) as $error) {
                 $errorType=self::$errorTypes[$error['type']]??'Unknown';
                 $logMessage="[{$errorType}] {message} in {file} on line {line}";
                 if(!empty($error['stack_trace'])) {

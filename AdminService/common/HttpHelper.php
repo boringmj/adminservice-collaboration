@@ -15,10 +15,13 @@ use function curl_setopt;
 use function is_array;
 use function is_numeric;
 use function json_encode;
+use function strcasecmp;
 use function strlen;
+use function strpos;
 use function strstr;
 use function strtolower;
 use function strtoupper;
+use function substr;
 use function trim;
 
 /**
@@ -165,7 +168,7 @@ class HttpHelper {
 
     /**
      * 执行请求
-     * 
+     *
      * @access public
      * @return self
      */
@@ -184,6 +187,12 @@ class HttpHelper {
             curl_setopt($ch,CURLOPT_POSTFIELDS,$this->request['body']??'');
         curl_setopt($ch,CURLOPT_RETURNTRANSFER,true);
         curl_setopt($ch,CURLOPT_TIMEOUT,$this->request['timeout']??30);
+        // 收集响应头行(与响应体分开, 不混入正文)
+        $raw_headers=array();
+        curl_setopt($ch,CURLOPT_HEADERFUNCTION,function($ch,string $line) use (&$raw_headers): int {
+            $raw_headers[]=$line;
+            return strlen($line);
+        });
         // 判断是否为流式请求
         if($this->response['stream']['open']??false) {
             $callback=$this->response['stream']['callback'];
@@ -197,10 +206,34 @@ class HttpHelper {
         if($response===false)
             $this->response['error']=curl_error($ch);
         $this->response['status_code']=curl_getinfo($ch,CURLINFO_HTTP_CODE);
-        $this->response['headers']=curl_getinfo($ch);
+        $this->response['headers']=self::parseRawHeaders($raw_headers);
+        $this->response['info']=curl_getinfo($ch);
         $this->response['body']=$response;
         curl_close($ch);
         return $this;
+    }
+
+    /**
+     * 解析响应头行
+     *
+     * - 状态行与空行跳过, 同名头后者覆盖前者
+     *
+     * @access private
+     * @param array<string> $lines 响应头行
+     * @return array<string,string> 头名 => 头值
+     */
+    private static function parseRawHeaders(array $lines): array {
+        $headers=array();
+        foreach($lines as $line) {
+            $colon=strpos($line,':');
+            if($colon===false)
+                continue;
+            $name=trim(substr($line,0,$colon));
+            if($name==='')
+                continue;
+            $headers[$name]=trim(substr($line,$colon+1));
+        }
+        return $headers;
     }
 
     /**
@@ -250,10 +283,10 @@ class HttpHelper {
     }
 
     /**
-     * 获取响应头
-     * 
+     * 获取响应头(头名 => 头值)
+     *
      * @access public
-     * @return array
+     * @return array<string,string>
      */
     public function getHeaders(): array {
         return $this->response['headers'];
@@ -261,13 +294,18 @@ class HttpHelper {
 
     /**
      * 获取响应头中的某个值
-     * 
+     *
+     * - 头名大小写不敏感; 未执行请求或无该头时返回空串
+     *
      * @access public
-     * @param string $key 响应头key
+     * @param string $key 响应头名
      * @return string
      */
     public function getHeader(string $key): string {
-        return $this->response['headers'][$key]??'';
+        foreach($this->response['headers'] as $name=>$value)
+            if(strcasecmp($name,$key)===0)
+                return $value;
+        return '';
     }
 
     /**

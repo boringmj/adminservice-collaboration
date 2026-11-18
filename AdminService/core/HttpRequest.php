@@ -562,10 +562,12 @@ final class HttpRequest extends Request {
      * 通过键名获取请求参数
      *
      * - 属性(如路由参数)优先于任一输入区: 路径结构优先于查询串
+     * - `$type` 支持按位组合(如 `GET_PARAM|POST_PARAM`), 命中的输入区按
+     *   `request.default.param.order` 顺序检索
      *
      * @access public
      * @param string $name 参数名
-     * @param int $type 参数类型
+     * @param int $type 参数类型(类型常量的按位组合)
      * @param mixed $default 默认值
      * @return mixed
      */
@@ -574,60 +576,59 @@ final class HttpRequest extends Request {
         int $type=self::ALL_PARAM,
         mixed $default=null
     ): mixed {
-        // 如果是 ALL_PARAM，就按顺序找
-        if($type===self::ALL_PARAM) {
-            if($this->attributes->has($name))
-                return $this->attributes->get($name);
-            foreach(str_split(strtoupper($this->order)) as $ch) {
-                switch($ch) {
-                    case 'G':
-                        if($this->query->has($name))
-                            return $this->query->get($name);
-                        break;
-                    case 'P':
-                        if($this->post->has($name))
-                            return $this->post->get($name);
-                        break;
-                    case 'C':
-                        if($this->cookie->has($name))
-                            return $this->cookie->get($name);
-                        break;
-                }
+        // ALL_PARAM 按顺序查全部输入区, 属性(如路由参数)优先
+        if($type===self::ALL_PARAM&&$this->attributes->has($name))
+            return $this->attributes->get($name);
+        $mask=$type===self::ALL_PARAM
+            ?self::GET_PARAM|self::POST_PARAM|self::COOKIE_PARAM
+            :$type;
+        foreach(str_split(strtoupper($this->order)) as $ch) {
+            switch($ch) {
+                case 'G':
+                    if(($mask&self::GET_PARAM)&&$this->query->has($name))
+                        return $this->query->get($name);
+                    break;
+                case 'P':
+                    if(($mask&self::POST_PARAM)&&$this->post->has($name))
+                        return $this->post->get($name);
+                    break;
+                case 'C':
+                    if(($mask&self::COOKIE_PARAM)&&$this->cookie->has($name))
+                        return $this->cookie->get($name);
+                    break;
             }
-            return $default;
         }
-        // 仅查询单一来源
-        return match($type) {
-            self::GET_PARAM=>$this->query->get($name,$default),
-            self::POST_PARAM=>$this->post->get($name,$default),
-            self::COOKIE_PARAM=>$this->cookie->get($name,$default),
-            default=>$default,
-        };
+        return $default;
     }
 
     /**
      * 获取请求参数键名
      *
+     * - `$type` 支持按位组合, 返回命中输入区的键名并集
+     *
      * @access public
-     * @param int $type 参数类型
+     * @param int $type 参数类型(类型常量的按位组合)
      * @return array
      */
     public function paramKeys(int $type=self::ALL_PARAM): array {
         // 属性(如路由参数)优先
         $keys=$type===self::ALL_PARAM?$this->attributes->keys():array();
+        $mask=$type===self::ALL_PARAM
+            ?self::GET_PARAM|self::POST_PARAM|self::COOKIE_PARAM
+            :$type;
         // 按顺序追加键名
         foreach(str_split(strtoupper($this->order)) as $ch) {
             switch($ch) {
                 case 'G':
-                    if($type===self::ALL_PARAM||$type===self::GET_PARAM)
+                    if($mask&self::GET_PARAM)
                         $keys=array_merge($keys,$this->query->keys());
                     break;
                 case 'P':
-                    if($type===self::ALL_PARAM||$type===self::POST_PARAM)
+                    if($mask&self::POST_PARAM)
                         $keys=array_merge($keys,$this->post->keys());
                     break;
                 case 'C':
-                    if($type===self::ALL_PARAM||$type===self::COOKIE_PARAM)
+                    if($mask&self::COOKIE_PARAM)
                         $keys=array_merge($keys,$this->cookie->keys());
                     break;
             }
@@ -639,10 +640,12 @@ final class HttpRequest extends Request {
     /**
      * 通过键名设置请求参数
      *
+     * - `$type` 支持按位组合, 值写入命中的全部输入区
+     *
      * @access public
      * @param string|array $params 参数名或参数组
      * @param mixed $value 值($params 参数为数组时此参数无效)
-     * @param int $type 参数类型
+     * @param int $type 参数类型(类型常量的按位组合)
      * @return void
      */
     public function setParam(
@@ -656,20 +659,25 @@ final class HttpRequest extends Request {
                 $target->set($k,$v);
             }
         };
-        if($type===self::ALL_PARAM||$type===self::GET_PARAM)
+        $mask=$type===self::ALL_PARAM
+            ?self::GET_PARAM|self::POST_PARAM|self::COOKIE_PARAM
+            :$type;
+        if($mask&self::GET_PARAM)
             $apply($this->query);
-        if($type===self::ALL_PARAM||$type===self::POST_PARAM)
+        if($mask&self::POST_PARAM)
             $apply($this->post);
-        if($type===self::ALL_PARAM||$type===self::COOKIE_PARAM)
+        if($mask&self::COOKIE_PARAM)
             $apply($this->cookie);
     }
 
     /**
      * 通过键名删除请求参数
      *
+     * - `$type` 支持按位组合, 从命中的全部输入区删除
+     *
      * @access public
      * @param string|array $params 参数名或参数组
-     * @param int $type 参数类型
+     * @param int $type 参数类型(类型常量的按位组合)
      * @return void
      */
     public function removeParam(
@@ -682,11 +690,14 @@ final class HttpRequest extends Request {
                 $target->delete($k);
             }
         };
-        if($type===self::ALL_PARAM||$type===self::GET_PARAM)
+        $mask=$type===self::ALL_PARAM
+            ?self::GET_PARAM|self::POST_PARAM|self::COOKIE_PARAM
+            :$type;
+        if($mask&self::GET_PARAM)
             $remove($this->query);
-        if($type===self::ALL_PARAM||$type===self::POST_PARAM)
+        if($mask&self::POST_PARAM)
             $remove($this->post);
-        if($type===self::ALL_PARAM||$type===self::COOKIE_PARAM)
+        if($mask&self::COOKIE_PARAM)
             $remove($this->cookie);
     }
 

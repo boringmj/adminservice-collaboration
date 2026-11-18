@@ -4,10 +4,16 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
+use AdminService\ArraySession;
 use AdminService\Config;
 use AdminService\Container;
 use AdminService\Error;
+use AdminService\HttpRequest;
+use AdminService\RequestContext;
+use AdminService\Response;
+use base\ConfigInterface;
 use ReflectionMethod;
+use ReflectionProperty;
 
 use function error_reporting;
 use function fclose;
@@ -132,6 +138,103 @@ class ErrorTest extends TestCase {
         } finally {
             Error::endRequest();
             error_reporting($previous);
+        }
+    }
+
+    /**
+     * 带上下文的 endRequest 按对象同一性跨执行流清理
+     *
+     * - 请求状态可能登记在其它执行流的栈上; 只查当前执行流会让条目永久残留
+     *
+     * @return void
+     */
+    public function testEndRequestWithContextCleansAcrossFlows(): void {
+        $states=new ReflectionProperty(Error::class,'states');
+        $config=new class implements ConfigInterface {
+            public function get(string $key,mixed $default=null): mixed {
+                return $default;
+            }
+            public function has(string $key): bool {
+                return false;
+            }
+            public function all(): array {
+                return array();
+            }
+        };
+        $context=new RequestContext(
+            new Container(),
+            new HttpRequest(array()),
+            new Response(),
+            new ArraySession(),
+            $config
+        );
+        // 伪造另一执行流的状态栈(context 只按对象同一性比较)
+        $states->setValue(null,array('other:flow'=>array(
+            array('errors'=>array(),'handled'=>false,'logged'=>0,'container'=>null,'context'=>null),
+            array('errors'=>array(),'handled'=>false,'logged'=>0,'container'=>null,'context'=>$context),
+        )));
+        Error::endRequest($context);
+        $this->assertArrayNotHasKey('other:flow',$states->getValue(null),'跨执行流的请求状态应被清理');
+    }
+
+    /**
+     * 渲染出口之后新发生的错误在 shutdown 时补写日志
+     *
+     * - 已渲染(handled)后新收集的错误不能被静默吞掉
+     *
+     * @return void
+     */
+    public function testHandleShutdownLogsNewErrorsAfterHandled(): void {
+        Error::reset();
+        $previous=error_reporting(E_ALL);
+        $log=tempnam(sys_get_temp_dir(),'error_handled_');
+        $old_log=ini_set('error_log',$log);
+        try {
+            Error::handleError(E_USER_WARNING,'first warning',__FILE__,1);
+            Error::renderRequestPage();
+            Error::handleError(E_USER_WARNING,'second warning after handled',__FILE__,2);
+            Error::handleShutdown();
+            $this->assertStringContainsString(
+                'second warning after handled',
+                (string)file_get_contents($log),
+                '已渲染后新发生的错误应补写日志'
+            );
+        } finally {
+            error_reporting($previous);
+            if($old_log!==false)
+                ini_set('error_log',$old_log);
+            if(is_file($log))
+                unlink($log);
+        }
+    }
+
+    /**
+     * endRequest 丢弃的未记录错误写入日志
+     *
+     * - 请求结束时状态条目里未写日志的错误不能被静默丢弃
+     *
+     * @return void
+     */
+    public function testEndRequestLogsDiscardedUnloggedErrors(): void {
+        Error::reset();
+        $previous=error_reporting(E_ALL);
+        $log=tempnam(sys_get_temp_dir(),'error_discard_');
+        $old_log=ini_set('error_log',$log);
+        try {
+            Error::beginRequest();
+            Error::handleError(E_USER_WARNING,'discarded warning',__FILE__,1);
+            Error::endRequest();
+            $this->assertStringContainsString(
+                'discarded warning',
+                (string)file_get_contents($log),
+                '被丢弃的未记录错误应写入日志'
+            );
+        } finally {
+            error_reporting($previous);
+            if($old_log!==false)
+                ini_set('error_log',$old_log);
+            if(is_file($log))
+                unlink($log);
         }
     }
 

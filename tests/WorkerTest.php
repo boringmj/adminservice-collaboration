@@ -36,6 +36,8 @@ use Tests\Fixtures\RenderScopeProcessor;
 use Tests\Fixtures\StreamProbeController;
 use Tests\Fixtures\ThrowingSession;
 
+use function AdminService\env_reset;
+use function dirname;
 use function file_get_contents;
 use function file_put_contents;
 use function is_dir;
@@ -47,10 +49,40 @@ use function tempnam;
 use function uniqid;
 use function unlink;
 
+use const PHP_EOL;
+
 /**
  * 常驻 worker 核心测试
  */
 class WorkerTest extends TestCase {
+
+    /**
+     * 测试: worker 配置的 env 布尔语义与请求包上限默认值
+     *
+     * - 引号 `"false"` 是字符串, 必须按布尔假值处理, 不能当成真值开启压缩
+     * - `package_max_length` 默认值与请求上传上限(100 MiB)对齐
+     *
+     * @return void
+     */
+    public function testWorkerConfigEnvSemantics(): void {
+        $env_file=tempnam(sys_get_temp_dir(),'worker_env_');
+        file_put_contents($env_file,'WORKER_COMPRESSION="false"'.PHP_EOL);
+        $old_env=getenv('ADMINSERVICE_TEST_ENV_FILE');
+        putenv('ADMINSERVICE_TEST_ENV_FILE='.$env_file);
+        try {
+            env_reset();
+            $config=require dirname(__DIR__).'/AdminService/config/worker.php';
+            $this->assertFalse($config['compression'],'引号 false 应按布尔假值处理');
+            $this->assertSame(104857600,$config['package_max_length'],'默认包上限应与请求上传上限对齐');
+        } finally {
+            putenv('ADMINSERVICE_TEST_ENV_FILE');
+            if($old_env!==false)
+                putenv('ADMINSERVICE_TEST_ENV_FILE='.$old_env);
+            env_reset();
+            if(is_file($env_file))
+                unlink($env_file);
+        }
+    }
 
     /**
      * 测试: 连续请求复用同一应用, 请求结束后不保留上下文

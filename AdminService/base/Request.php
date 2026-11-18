@@ -229,10 +229,11 @@ abstract class Request {
      * 通过键名获取请求参数
      *
      * - 属性(如路由参数)优先, 其余按 `request.default.param.order` 的顺序检索
+     * - `$type` 支持类型常量的按位组合(如 `GET_PARAM|POST_PARAM`)
      *
      * @access public
      * @param string $name 参数名
-     * @param int $type 参数类型
+     * @param int $type 参数类型(类型常量的按位组合)
      * @param mixed $default 默认值
      * @return mixed
      */
@@ -245,8 +246,10 @@ abstract class Request {
     /**
      * 获取请求参数键名
      *
+     * - `$type` 支持类型常量的按位组合, 返回命中输入区的键名并集
+     *
      * @access public
-     * @param int $type 参数类型
+     * @param int $type 参数类型(类型常量的按位组合)
      * @return array
      */
     abstract public function paramKeys(int $type=self::ALL_PARAM): array;
@@ -254,10 +257,12 @@ abstract class Request {
     /**
      * 通过键名设置请求参数
      *
+     * - `$type` 支持类型常量的按位组合, 值写入命中的全部输入区
+     *
      * @access public
      * @param string|array $params 参数名或参数组
      * @param mixed $value 值($params 参数为数组时此参数无效)
-     * @param int $type 参数类型
+     * @param int $type 参数类型(类型常量的按位组合)
      * @return void
      */
     abstract public function setParam(
@@ -269,9 +274,11 @@ abstract class Request {
     /**
      * 通过键名删除请求参数
      *
+     * - `$type` 支持类型常量的按位组合, 从命中的全部输入区删除
+     *
      * @access public
      * @param string|array $params 参数名或参数组
-     * @param int $type 参数类型
+     * @param int $type 参数类型(类型常量的按位组合)
      * @return void
      */
     abstract public function removeParam(

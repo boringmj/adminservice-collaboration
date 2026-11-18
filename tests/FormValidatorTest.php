@@ -33,6 +33,52 @@ class FormValidatorTest extends TestCase {
     }
 
     /**
+     * min/max/min_length/max_length 缺区间参数时报区间参数无效
+     * @return void
+     */
+    public function testRangeRulesWithoutParamReportInvalidRange(): void {
+        foreach(array('min','max','min_length','max_length') as $rule) {
+            $validator=new FormValidator(
+                array('field'=>10),
+                array('field'=>$rule)
+            );
+            $this->assertFalse($validator->validate(),$rule.' 缺区间参数应报错');
+            $errors=$validator->getErrors();
+            $this->assertArrayHasKey('field',$errors,$rule);
+            $this->assertSame('field 的区间参数无效',$errors['field'][0],$rule);
+        }
+    }
+
+    /**
+     * 可选字段的 null 值对所有格式规则一致通过
+     * @return void
+     */
+    public function testNullValuePassesAllFormatRulesConsistently(): void {
+        $rules=array('email','url','numeric','integer','date','in:a,b','not_in:a,b','phone','ip','json');
+        foreach($rules as $rule) {
+            $validator=new FormValidator(
+                array('field'=>null),
+                array('field'=>$rule)
+            );
+            $this->assertTrue($validator->validate(),$rule.' 对可选字段的 null 值应通过');
+            $this->assertSame(array(),$validator->getErrors(),$rule);
+        }
+    }
+
+    /**
+     * required 对 null 值仍然失败(不因 null 语义统一而放宽)
+     * @return void
+     */
+    public function testRequiredStillFailsOnNull(): void {
+        $validator=new FormValidator(
+            array('field'=>null),
+            array('field'=>'required|email')
+        );
+        $this->assertFalse($validator->validate());
+        $this->assertArrayHasKey('field',$validator->getErrors());
+    }
+
+    /**
      * 标量规则名大小写不敏感, 混合大小写也不能绕过数组保护
      * @return void
      */

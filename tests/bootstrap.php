@@ -24,8 +24,84 @@ function load_framework_config(): void {
     Runtime::path();
     $loader=new Loader(dirname(__DIR__).'/AdminService/config');
     $config=new Repository($loader->load(),\AdminService\env_snapshot());
+    // 默认 Runtime 指向项目 runtime 时, 编译缓存隔离到临时目录, 避免用例写入项目缓存
+    if(test_is_inside_project(Runtime::path(),dirname(__DIR__)))
+        $config->put('cache.path',test_cache_root());
     date_default_timezone_set((string)$config->get('app.timezone','Asia/Shanghai'));
     Config::setRepository($config);
+}
+
+/**
+ * 判断路径是否位于项目目录内
+ *
+ * - 相对路径按当前工作目录解析; Windows 下按小写比较
+ *
+ * @param string $path 路径
+ * @param string $project 项目根目录
+ * @return bool
+ */
+function test_is_inside_project(string $path,string $project): bool {
+    $path=test_absolute_path($path);
+    $project=test_absolute_path($project);
+    if(DIRECTORY_SEPARATOR==='\\') {
+        $path=strtolower($path);
+        $project=strtolower($project);
+    }
+    return $path===$project||str_starts_with($path.'/',$project.'/');
+}
+
+/**
+ * 解析为规范化的绝对路径
+ *
+ * @param string $path 路径
+ * @return string
+ */
+function test_absolute_path(string $path): string {
+    $real=realpath($path);
+    $path=str_replace('\\','/',$real!==false?$real:$path);
+    if(preg_match('#^(?:[A-Za-z]:/|/)#',$path)!==1)
+        $path=str_replace('\\','/',(string)getcwd()).'/'.$path;
+    return rtrim($path,'/');
+}
+
+/**
+ * 测试进程的编译缓存根目录
+ *
+ * - 首次调用时生成唯一临时目录, 进程退出时递归删除
+ *
+ * @return string
+ */
+function test_cache_root(): string {
+    static $root=null;
+    if($root!==null)
+        return $root;
+    $base=str_replace('\\','/',sys_get_temp_dir()).'/adminservice_test_cache_'.getmypid().'_'.uniqid('',true);
+    register_shutdown_function(static function() use($base): void {
+        test_remove_path($base);
+    });
+    return $root=$base.'/cache';
+}
+
+/**
+ * 递归删除文件或目录
+ *
+ * @param string $path 路径
+ * @return void
+ */
+function test_remove_path(string $path): void {
+    if(is_file($path)||is_link($path)) {
+        @unlink($path);
+        return;
+    }
+    if(!is_dir($path))
+        return;
+    $entries=scandir($path);
+    if($entries!==false) {
+        foreach($entries as $entry)
+            if($entry!=='.'&&$entry!=='..')
+                test_remove_path($path.'/'.$entry);
+    }
+    @rmdir($path);
 }
 
 /**

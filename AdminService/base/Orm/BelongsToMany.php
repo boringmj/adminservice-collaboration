@@ -6,6 +6,7 @@ use base\Database\Db;
 use base\Database\Query\Query;
 use base\Orm\Exception\OrmException;
 
+use function array_filter;
 use function array_keys;
 use function array_merge;
 use function array_unique;
@@ -356,6 +357,8 @@ class BelongsToMany extends Relation {
     /**
      * 归一化 $ids 为中间表行(统一含父键与关联键)
      *
+     * - 值全为标量才按纯主键列表处理; 值含数组时按[主键=>附加字段]映射处理, 主键恰为 0..n-1 不误判
+     *
      * @access private
      * @param mixed $parentKey 父模型主键值
      * @param mixed $ids 主键 / 主键数组 / [主键=>附加字段] 映射
@@ -364,7 +367,8 @@ class BelongsToMany extends Relation {
     private function buildPivotRows(mixed $parentKey,mixed $ids): array {
         $map=array();
         if(is_array($ids)) {
-            $isList=(array_keys($ids)===range(0,count($ids)-1));
+            $isList=(array_keys($ids)===range(0,count($ids)-1))
+                &&count(array_filter($ids,'is_array'))===0;
             if($isList) {
                 foreach($ids as $id)
                     $map[$id]=array();

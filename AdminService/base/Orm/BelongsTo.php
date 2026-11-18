@@ -39,10 +39,19 @@ class BelongsTo extends Relation {
     /**
      * 获取关联结果(单个模型)
      *
+     * - 外键为 null 时抛异常, 不发 `IS NULL` 查询(与 hasMany / hasOne 的显式报错一致)
+     *
      * @access public
      * @return Model|null
+     * @throws OrmException 外键为 null
      */
     public function getResults(): ?Model {
+        $foreign=$this->parent->getAttribute($this->foreignKey);
+        if($foreign===null)
+            throw new OrmException('Cannot query belongsTo relation: foreign key is null.',100720,array(
+                'foreign_key'=>$this->foreignKey,
+                'model'=>$this->parent::class
+            ));
         return $this->first();
     }
 

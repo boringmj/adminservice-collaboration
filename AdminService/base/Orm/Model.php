@@ -805,6 +805,8 @@ abstract class Model {
                     unset($this->attributes[$field]);
                 return false;
             }
+            // 同步快照, 后续无脏字段的 save() 不再以新时间戳重写 deleted_at
+            $this->syncOriginal();
             return true;
         }
         return $this->forceDelete();
@@ -891,11 +893,13 @@ abstract class Model {
             $this->attributes[$updatedField]=static::freshTimestamp();
             $dirty[$updatedField]=$this->attributes[$updatedField];
         }
-        $result=static::db()->query(
-            Query::update($dirty)
-                ->from(static::tableName())
-                ->where(static::$primaryKey,$this->getKey())
-        );
+        $query=Query::update($dirty)
+            ->from(static::tableName())
+            ->where(static::$primaryKey,$this->getKey());
+        // 已软删记录不再被 save() 改写, 与 delete()/restore() 的守卫一致
+        if(static::usesSoftDelete())
+            $query->whereNull(static::deletedAtField());
+        $result=static::db()->query($query);
         // 0 行受影响(记录已不存在或并发下状态已变化)返回 false 并回滚内存刷新, 与 delete()/restore() 一致
         if(!$result->isSuccess()||$result->getAffectedRows()<1) {
             if($updatedField!==null) {

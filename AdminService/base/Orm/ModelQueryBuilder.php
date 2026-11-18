@@ -592,10 +592,14 @@ class ModelQueryBuilder {
     /**
      * 为主表设置模型对应表名
      *
+     * - 用户显式 `from()` 指定的主表优先, 不被模型默认表覆盖
+     *
      * @access private
      * @return void
      */
     private function prepareTable(): void {
+        if($this->query->getTable()!==null)
+            return;
         $this->query->from(($this->modelClass)::tableName(),$this->alias);
     }
 

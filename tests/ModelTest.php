@@ -632,6 +632,52 @@ class ModelTest extends TestCase {
     }
 
     /**
+     * 测试软删成功后无脏字段的 save 不再重写 deleted_at
+     * @return void
+     */
+    public function testSoftDeleteThenCleanSaveIssuesNoQuery(): void {
+        $this->pdo->selectRows=[['id'=>1,'title'=>'标题','deleted_at'=>null]];
+        $post=Post::find(1);
+        $this->pdo->affectedRows=1;
+        $this->assertTrue($post->delete());
+        $this->assertTrue($post->save());
+        $this->assertCount(2,$this->pdo->executed,'软删后的干净 save 不应发查询');
+    }
+
+    /**
+     * 测试已软删记录的 save 受 deleted_at 守卫保护
+     * @return void
+     */
+    public function testSaveOnSoftDeletedRecordFails(): void {
+        $this->pdo->selectRows=[['id'=>1,'title'=>'标题','deleted_at'=>null]];
+        $post=Post::find(1);
+        $this->pdo->affectedRows=1;
+        $this->assertTrue($post->delete());
+        $post->setAttribute('title','新标题');
+        $this->pdo->affectedRows=0;
+        $this->assertFalse($post->save(),'已软删记录的 save 应失败');
+        $this->assertSame(
+            'UPDATE `posts` SET `title` = ?, `updated_at` = ? WHERE `id` = ? AND `deleted_at` IS NULL',
+            $this->pdo->executed[2],
+            '更新已软删记录的 WHERE 应带 deleted_at 守卫'
+        );
+    }
+
+    /**
+     * 测试构建器显式 from() 不被模型默认表覆盖
+     * @return void
+     */
+    public function testBuilderExplicitFromIsPreserved(): void {
+        $this->pdo->selectRows=[['__count'=>7]];
+        $count=Post::query()->from('legacy_posts')->count();
+        $this->assertSame(7,$count);
+        $this->assertSame(
+            'SELECT COUNT(*) AS `__count` FROM `legacy_posts` WHERE `deleted_at` IS NULL',
+            $this->pdo->executed[0]
+        );
+    }
+
+    /**
      * 测试构建器批量删除为软删除
      * @return void
      */

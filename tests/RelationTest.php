@@ -123,6 +123,21 @@ class RelationTest extends TestCase {
     }
 
     /**
+     * 测试 belongsTo 外键为 null 时显式报错, 不发 IS NULL 查询
+     * @return void
+     */
+    public function testBelongsToNullForeignKeyThrows(): void {
+        $post=Post::newFromRow(['id'=>10,'user_id'=>null,'title'=>'t','deleted_at'=>null]);
+        try {
+            $post->user;
+            $this->fail('外键为 null 的 belongsTo 访问应抛异常');
+        } catch(OrmException $e) {
+            $this->assertSame(100720,$e->getCode());
+        }
+        $this->assertSame(array(),$this->pdo->executed,'不应发出 IS NULL 查询');
+    }
+
+    /**
      * 测试 hasMany 预加载(避免 N+1)
      * @return void
      */
@@ -521,6 +536,22 @@ class RelationTest extends TestCase {
             $this->pdo->executed[0]
         );
         $this->assertSame(array(1=>1,2=>1,3=>'owner'),$this->pdo->bound);
+    }
+
+    /**
+     * 测试主键恰为 0、1 的带属性映射不被误判成纯主键列表
+     * @return void
+     */
+    public function testBelongsToManyAttachWithZeroAndOneKeyedAttributes(): void {
+        $this->pdo->affectedRows=1;
+        $user=User::newFromRow(array('id'=>1,'name'=>'张三'));
+        $user->roles()->attach(array(0=>array('level'=>'a'),1=>array('level'=>'b')));
+        $this->assertSame(
+            'INSERT INTO `role_user` (`user_id`, `role_id`, `level`) VALUES (?, ?, ?), (?, ?, ?)',
+            $this->pdo->executed[0],
+            '键 0 与 1 应按主键识别, 附加字段不应丢失'
+        );
+        $this->assertSame(array(1=>1,2=>0,3=>'a',4=>1,5=>1,6=>'b'),$this->pdo->bound);
     }
 
     /**

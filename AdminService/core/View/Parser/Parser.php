@@ -20,7 +20,6 @@ use function preg_match;
 use function stripcslashes;
 use function strlen;
 use function str_starts_with;
-use function strtolower;
 use function substr;
 use function trim;
 
@@ -93,7 +92,7 @@ final class Parser {
                 continue;
             }
             if(preg_match('/^if\s+(.+)$/s',$content,$matches)===1) {
-                $frames[]=new Frame('if',$this->parseExpression($matches[1],$label,$line));
+                $frames[]=new Frame('if',$this->parseExpression($matches[1],$label,$line),line:$line);
                 continue;
             }
             if(preg_match('/^foreach\s+(\S+)\s+as\s+(\S+?)(?:\s*=>\s*(\S+))?$/s',$content,$matches)===1) {
@@ -108,7 +107,8 @@ final class Parser {
                     null,
                     $this->parsePath($matches[1],$label,$line),
                     $key===null?null:$this->parsePath($key,$label,$line),
-                    $this->parsePath($item,$label,$line)
+                    $this->parsePath($item,$label,$line),
+                    $line
                 );
                 continue;
             }
@@ -118,7 +118,7 @@ final class Parser {
         }
         if($frames!==array()) {
             $frame=$frames[count($frames)-1];
-            $this->fail('unclosed '.$frame->type,$label,0);
+            $this->fail('unclosed '.$frame->type,$label,$frame->line);
         }
         return $root;
     }
@@ -363,9 +363,9 @@ final class Parser {
                 continue;
             }
             if(preg_match('/^\$?[A-Za-z_][A-Za-z0-9_]*(?:(?:\.[A-Za-z0-9_]+)|(?:\[\s*(?:"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'|[A-Za-z0-9_]+)\s*\]))*/A',$rest,$matches)===1) {
-                $literal=strtolower($matches[0]);
-                if(in_array($literal,array('true','false','null'),true)) {
-                    $value=$literal==='true'?true:($literal==='false'?false:null);
+                // 字面量只认小写拼写, 其余拼写按变量路径处理(数据键 True / NULL / False 不被吞)
+                if(in_array($matches[0],array('true','false','null'),true)) {
+                    $value=$matches[0]==='true'?true:($matches[0]==='false'?false:null);
                     $tokens[]=array('type'=>'literal','value'=>$value);
                 } else {
                     $tokens[]=array('type'=>'path','value'=>$this->parsePath($matches[0],$label,$line));

@@ -21,11 +21,11 @@ use function str_starts_with;
  * 模板允许根目录
  *
  * - 来源为 `app.path`、错误模板所在目录与 `view.allowed_paths`
- * - 相对路径按项目根目录解析; 无法解析的目录会被忽略
+ * - 相对路径按项目根目录解析; 无法解析的目录与含上级目录段的条目会被忽略
  *
  * @access public
  * @package AdminService\View
- * @version 1.0.0
+ * @version 1.1.0
  */
 final class AllowedRoots {
 
@@ -51,7 +51,8 @@ final class AllowedRoots {
         $allowed_paths=$config->get('view.allowed_paths',array());
         if(is_array($allowed_paths))
             foreach($allowed_paths as $path)
-                if(is_string($path)&&$path!=='')
+                // 含上级目录段的相对路径会把项目外目录放进允许列表, 与错误模板目录的防护一致忽略
+                if(is_string($path)&&$path!==''&&!self::containsParentSegment($path))
                     $roots[]=self::resolve($path);
         $roots=array_filter($roots,static fn(?string $root): bool => $root!==null&&$root!=='');
         return array_values(array_unique($roots));

@@ -2,6 +2,8 @@
 
 namespace AdminService\View;
 
+use AdminService\Exception;
+
 use function array_key_exists;
 use function count;
 use function htmlspecialchars;
@@ -10,6 +12,7 @@ use function is_numeric;
 use function is_object;
 use function is_scalar;
 use function json_encode;
+use function json_last_error_msg;
 
 /**
  * 模板运行时助手
@@ -87,11 +90,13 @@ final class Runtime {
      * 把值转为模板文本
      *
      * - 标量直接转字符串; 数组/对象先 JSON 编码
+     * - 无法 JSON 编码的值抛异常, 不静默输出空串
      *
      * @access private
      * @param mixed $value 值
      * @param bool $escape 是否转义 HTML
      * @return string
+     * @throws Exception 值无法 JSON 编码
      */
     private static function render(mixed $value,bool $escape): string {
         if(is_scalar($value)) {
@@ -102,7 +107,7 @@ final class Runtime {
             return '';
         $json=json_encode($value,JSON_UNESCAPED_UNICODE);
         if($json===false)
-            return '';
+            throw new Exception('Template value cannot be encoded as JSON: '.json_last_error_msg(),100305);
         return $escape?htmlspecialchars($json,ENT_QUOTES,'UTF-8'):$json;
     }
 

@@ -80,15 +80,34 @@ final class View extends BaseView {
     /**
      * 渲染模板
      *
+     * - 未初始化时按构造器或 `setTemplatePath()` 记录的路径加载, 校验与 `init()` 一致
+     *
      * @access public
      * @return string
-     * @throws Exception 未初始化
+     * @throws Exception 未初始化、文件不存在、不可读或路径越界
      */
     public function render(): string {
-        if($this->source===null)
-            throw new Exception('View not initialized.',100303);
+        if($this->source===null) {
+            if(!isset($this->template_path)||$this->template_path==='')
+                throw new Exception('View not initialized.',100303);
+            $this->init($this->template_path,$this->data);
+        }
         $this->engine??=new Engine();
         return $this->engine->render($this->source,$this->data);
+    }
+
+    /**
+     * 设置模板文件路径
+     *
+     * - 使已初始化的来源失效, 下一次渲染按新路径加载
+     *
+     * @access public
+     * @param string $template_path 模板文件路径
+     * @return void
+     */
+    public function setTemplatePath(string $template_path): void {
+        parent::setTemplatePath($template_path);
+        $this->source=null;
     }
 
     /**

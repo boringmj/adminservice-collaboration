@@ -4,9 +4,13 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
+use AdminService\Config\Repository;
 use AdminService\Exception;
 use AdminService\View;
+use AdminService\View\AllowedRoots;
 
+use function basename;
+use function dirname;
 use function file_put_contents;
 use function mkdir;
 use function rmdir;
@@ -226,6 +230,105 @@ class ViewTemplateTest extends TestCase {
     public function testUnclosedTagThrows(): void {
         $this->expectException(Exception::class);
         $this->render('{{if $value}}x',array('value'=>1));
+    }
+
+    /**
+     * 测试未闭合标签报错携带开标签所在行号
+     *
+     * @return void
+     */
+    public function testUnclosedTagReportsOpeningLine(): void {
+        try {
+            $this->render("A\nB\n{{if \$ok}}\nx",array('ok'=>true));
+            $this->fail('未闭合标签应抛异常');
+        } catch(Exception $e) {
+            $this->assertStringContainsString('line 3',$e->getMessage());
+        }
+    }
+
+    /**
+     * 测试行号按原始源文本统计, 独立行控制标签不造成偏移
+     *
+     * @return void
+     */
+    public function testUnclosedLineCountsOriginalSource(): void {
+        $template="A\n{{if \$ok}}\nB\n{{/if}}\n{{foreach \$xs as \$x}}\n{{/foreach}}\n{{if \$nope}}\nz";
+        try {
+            $this->render($template,array('ok'=>true,'xs'=>array()));
+            $this->fail('未闭合标签应抛异常');
+        } catch(Exception $e) {
+            $this->assertStringContainsString('line 7',$e->getMessage());
+        }
+    }
+
+    /**
+     * 测试构造器传入的模板路径在渲染时生效
+     *
+     * @return void
+     */
+    public function testConstructorPathRenders(): void {
+        $view=new View(dirname(__DIR__).'/AdminService/app/demo/view/Index/view_demo.html',array(
+            'name'=>'构造',
+            'msg'=>'hello',
+            'list1'=>array('a'),
+            'list2'=>array(),
+            'condition1'=>true,
+            'condition2'=>3,
+            'count'=>array('value'=>1,'condition'=>5),
+            'demo'=>array('list'=>array(1,2))
+        ));
+        $this->assertStringContainsString('Hi 构造',$view->render());
+    }
+
+    /**
+     * 测试 setTemplatePath 使旧来源失效, 下一次渲染按新路径加载
+     *
+     * @return void
+     */
+    public function testSetTemplatePathTakesEffect(): void {
+        $view=new View();
+        $view->initWithContent('{{name}}',array('name'=>'a'));
+        $view->setTemplatePath(dirname(__DIR__).'/AdminService/app/demo/view/Index/view_demo.html');
+        $this->assertStringContainsString('Hi a',$view->render());
+    }
+
+    /**
+     * 测试 view.allowed_paths 含上级目录段的条目不进入允许根
+     *
+     * @return void
+     */
+    public function testAllowedPathsRejectsParentSegment(): void {
+        $config=new Repository(array(
+            'app'=>array('path'=>sys_get_temp_dir().'/as_view_roots_'.uniqid('',true)),
+            'view'=>array('allowed_paths'=>array('../'.basename(dirname(__DIR__))))
+        ));
+        $roots=AllowedRoots::fromConfig($config);
+        $this->assertNotContains(dirname(__DIR__),$roots,'含 .. 段的相对路径不应进入允许根');
+    }
+
+    /**
+     * 测试数据键名为 True / False / NULL 时按变量路径处理, 不被当作字面量
+     *
+     * @return void
+     */
+    public function testConditionDataKeysNamedTrueFalseNull(): void {
+        $this->assertSame('n',$this->render('{{if True}}y{{else}}n{{/if}}',array('True'=>false)));
+        $this->assertSame('y',$this->render('{{if False}}y{{else}}n{{/if}}',array('False'=>true)));
+        $this->assertSame('y',$this->render('{{if NULL}}y{{else}}n{{/if}}',array('NULL'=>'x')));
+        $this->assertSame('n',$this->render('{{if $True}}y{{else}}n{{/if}}',array('True'=>false)));
+        $this->assertSame('y',$this->render('{{if true}}y{{else}}n{{/if}}',array()));
+        $this->assertSame('n',$this->render('{{if null}}y{{else}}n{{/if}}',array()));
+    }
+
+    /**
+     * 测试无法 JSON 编码的值抛出异常, 不静默输出空串
+     *
+     * @return void
+     */
+    public function testUnencodableValueThrows(): void {
+        $this->expectException(Exception::class);
+        $this->expectExceptionCode(100305);
+        $this->render('{{$val}}',array('val'=>array(\INF)));
     }
 
     /**

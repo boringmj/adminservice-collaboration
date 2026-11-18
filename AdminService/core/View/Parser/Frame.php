@@ -40,13 +40,15 @@ final class Frame {
      * @param array<int,int|string>|null $source 集合路径
      * @param array<int,int|string>|null $key 键变量路径
      * @param array<int,int|string>|null $item 值变量路径
+     * @param int $line 开标签行号(未闭合报错用)
      */
     public function __construct(
         public string $type,
         public ?ExpressionInterface $condition=null,
         public ?array $source=null,
         public ?array $key=null,
-        public ?array $item=null
+        public ?array $item=null,
+        public int $line=0
     ) {
     }
 

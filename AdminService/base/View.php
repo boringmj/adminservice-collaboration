@@ -46,8 +46,9 @@ abstract class View {
 
     /**
      * 设置模板文件路径
-     * 一旦初始化完成后修改模板路径将不会生效,除非重新初始化,但这会造成数据丢失和性能损耗
-     * 
+     *
+     * - 实现应在后续渲染时使用该路径(已初始化来源的实现可使其失效)
+     *
      * @access public
      * @param string $template_path 模板文件路径
      * @return void
@@ -58,6 +59,8 @@ abstract class View {
 
     /**
      * 构造方法
+     *
+     * - 传入路径时经 `setTemplatePath()` 记录, 由实现决定加载时机
      *
      * @access public
      * @param string|null $template_path 模板文件路径

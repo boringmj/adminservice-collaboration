@@ -12,6 +12,7 @@ use base\Database\Type\OrderDirection;
 use base\Database\Type\StatementType;
 
 use function ceil;
+use function count;
 use function max;
 
 /**
@@ -316,6 +317,9 @@ class QueryBuilder {
         $query=clone $this->query;
         $query->type(StatementType::COUNT);
         $rows=$this->run($query)->getResults()->toArray();
+        // 分组统计每组一行, 总数为分组数
+        if(!empty($query->getGroup()))
+            return count($rows);
         return (int)($rows[0]['__count']??0);
     }
 
@@ -363,7 +367,10 @@ class QueryBuilder {
         $countQuery=clone $this->query;
         $countQuery->type(StatementType::COUNT);
         $countRows=$this->run($countQuery)->getResults()->toArray();
-        $total=(int)($countRows[0]['__count']??0);
+        // 分组统计每组一行, 总数为分组数
+        $total=!empty($countQuery->getGroup())
+            ?count($countRows)
+            :(int)($countRows[0]['__count']??0);
         $page=max(1,$page);
         $items=$this->limit($perPage)->offset(($page-1)*$perPage)->get();
         return array(

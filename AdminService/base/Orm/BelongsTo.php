@@ -19,7 +19,7 @@ class BelongsTo extends Relation {
      * @return void
      */
     protected function applyConstraint(): void {
-        $this->where($this->ownerKey,$this->parent->getAttribute($this->foreignKey));
+        $this->constrainKey($this->ownerKey,$this->parent->getAttribute($this->foreignKey));
     }
 
     /**
@@ -60,8 +60,7 @@ class BelongsTo extends Relation {
         $keys=$this->parentKeyValues($parents,$this->foreignKey);
         if(empty($keys))
             return;
-        $builder=new ModelQueryBuilder($this->db,$this->modelClass);
-        $builder->whereIn($this->ownerKey,$keys);
+        $builder=$this->newEagerBuilder($name,$this->ownerKey,$keys);
         $grouped=array();
         foreach($builder->get() as $model)
             $grouped[$model->getAttribute($this->ownerKey)][]=$model;

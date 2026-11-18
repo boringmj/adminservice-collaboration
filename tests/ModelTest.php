@@ -128,6 +128,19 @@ class ModelTest extends TestCase {
     }
 
     /**
+     * 测试分组统计返回分组数(每组一行, 不取首组行数)
+     * @return void
+     */
+    public function testCountWithGroupBy(): void {
+        $this->pdo->selectRows=[['__count'=>5,'status'=>1],['__count'=>7,'status'=>2]];
+        $this->assertSame(2,User::query()->group('status')->count());
+        $this->assertSame(
+            'SELECT COUNT(*) AS `__count`, `status` FROM `users` GROUP BY `status`',
+            $this->pdo->executed[0]
+        );
+    }
+
+    /**
      * 测试创建记录
      * @return void
      */
@@ -233,6 +246,25 @@ class ModelTest extends TestCase {
         $this->assertTrue($user->save());
         // 只有一次 find 查询, 无 UPDATE
         $this->assertCount(1,$this->pdo->executed);
+    }
+
+    /**
+     * 测试实例更新 0 行受影响时返回 false 并回滚内存刷新
+     * @return void
+     */
+    public function testSaveUpdateZeroAffectedReturnsFalse(): void {
+        $this->pdo->selectRows=[['id'=>1,'name'=>'张三','age'=>20,'status'=>1]];
+        $user=User::find(1);
+        $this->pdo->affectedRows=0;
+        $user->name='李四';
+        $this->assertFalse($user->save());
+        // updated_at 刷新回滚, 用户脏改保留(可重试)
+        $this->assertNull($user->getAttribute('updated_at'));
+        $this->assertSame('李四',$user->getAttribute('name'));
+        // 脏字段未清, 再次保存仍会发出 UPDATE
+        $this->pdo->affectedRows=1;
+        $this->assertTrue($user->save());
+        $this->assertCount(3,$this->pdo->executed);
     }
 
     /**
@@ -783,6 +815,21 @@ class ModelTest extends TestCase {
     }
 
     /**
+     * 测试分组分页的总数按分组数计(每组一行)
+     * @return void
+     */
+    public function testPaginateWithGroupBy(): void {
+        $this->pdo->selectRowsQueue=[
+            [['__count'=>5,'status'=>1],['__count'=>7,'status'=>2]],  // 分组统计
+            [['id'=>1,'name'=>'a','status'=>1],['id'=>2,'name'=>'b','status'=>2]],  // 当前页
+        ];
+        $result=User::query()->group('status')->paginate(15,1);
+        $this->assertSame(2,$result->total());
+        $this->assertSame(2,$result->items()->count());
+        $this->assertSame(1,$result->lastPage());
+    }
+
+    /**
      * 测试空结果分页
      * @return void
      */
@@ -837,6 +884,24 @@ class ModelTest extends TestCase {
         $result=$user->refresh();
         $this->assertNull($result);
         $this->assertSame('张三',$user->name); // 实例保持原状
+    }
+
+    /**
+     * 测试 refresh 后清空已加载关系(再访问触发重载, 不返回旧行)
+     * @return void
+     */
+    public function testRefreshClearsLoadedRelations(): void {
+        $this->pdo->selectRowsQueue=[
+            [['id'=>1,'title'=>'p1','user_id'=>1,'deleted_at'=>null]],   // posts 惰性加载
+            [['id'=>1,'name'=>'新名字','age'=>20,'status'=>1]],          // refresh
+            [['id'=>2,'title'=>'p2','user_id'=>1,'deleted_at'=>null]],   // posts 重载
+        ];
+        $user=User::newFromRow(['id'=>1,'name'=>'旧名字']);
+        $this->assertSame('p1',$user->posts->first()->title);
+        $this->assertNotNull($user->refresh());
+        $this->assertSame('新名字',$user->name);
+        $this->assertSame('p2',$user->posts->first()->title);
+        $this->assertCount(3,$this->pdo->executed);
     }
 
     /**

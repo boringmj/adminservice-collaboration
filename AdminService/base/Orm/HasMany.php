@@ -22,7 +22,7 @@ class HasMany extends Relation {
         $parentKey=$this->parent->getAttribute($this->ownerKey);
         if($parentKey===null)
             throw new OrmException('Cannot query relation: parent is not persisted.',100720);
-        $this->where($this->foreignKey,$parentKey);
+        $this->constrainKey($this->foreignKey,$parentKey);
     }
 
     /**
@@ -71,8 +71,7 @@ class HasMany extends Relation {
         $keys=$this->parentKeyValues($parents,$this->ownerKey);
         if(empty($keys))
             return;
-        $builder=new ModelQueryBuilder($this->db,$this->modelClass);
-        $builder->whereIn($this->foreignKey,$keys);
+        $builder=$this->newEagerBuilder($name,$this->foreignKey,$keys);
         $grouped=array();
         foreach($builder->get() as $model)
             $grouped[$model->getAttribute($this->foreignKey)][]=$model;

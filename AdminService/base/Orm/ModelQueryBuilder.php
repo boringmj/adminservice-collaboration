@@ -434,6 +434,9 @@ class ModelQueryBuilder {
         $this->applySoftDeleteFilter();
         $result=$this->run();
         $rows=$result->getResults()->toArray();
+        // 分组统计每组一行, 总数为分组数
+        if(!empty($this->query->getGroup()))
+            return count($rows);
         return (int)($rows[0]['__count']??0);
     }
 
@@ -486,7 +489,10 @@ class ModelQueryBuilder {
         $countQuery->type(StatementType::COUNT);
         $this->applySoftDeleteFilter($countQuery);
         $countRows=$this->run($countQuery)->getResults()->toArray();
-        $total=(int)($countRows[0]['__count']??0);
+        // 分组统计每组一行, 总数为分组数
+        $total=!empty($countQuery->getGroup())
+            ?count($countRows)
+            :(int)($countRows[0]['__count']??0);
         // 当前页数据
         $items=$this->limit($perPage)->offset(($page-1)*$perPage)->get();
         return new Paginator($items,$total,$perPage,$page);

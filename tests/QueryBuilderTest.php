@@ -73,6 +73,38 @@ class QueryBuilderTest extends TestCase {
     }
 
     /**
+     * 测试分组 count 返回分组数(每组一行, 不取首组行数)
+     * @return void
+     */
+    public function testCountWithGroupBy(): void {
+        $pdo=new FakePdo();
+        $pdo->selectRows=[['__count'=>5,'status'=>1],['__count'=>7,'status'=>2]];
+        $builder=new QueryBuilder($this->createDb($pdo),'users');
+        $this->assertSame(2,$builder->group('status')->count());
+        $this->assertSame(
+            'SELECT COUNT(*) AS `__count`, `status` FROM `users` GROUP BY `status`',
+            $pdo->executed[0]
+        );
+    }
+
+    /**
+     * 测试分组分页的总数按分组数计(每组一行)
+     * @return void
+     */
+    public function testPaginateWithGroupBy(): void {
+        $pdo=new FakePdo();
+        $pdo->selectRowsQueue=[
+            [['__count'=>5,'status'=>1],['__count'=>7,'status'=>2]],  // 分组统计
+            [['id'=>1,'name'=>'a','status'=>1],['id'=>2,'name'=>'b','status'=>2]],  // 当前页
+        ];
+        $builder=new QueryBuilder($this->createDb($pdo),'users');
+        $result=$builder->group('status')->paginate(15,1);
+        $this->assertSame(2,$result['total']);
+        $this->assertCount(2,$result['items']);
+        $this->assertSame(1,$result['last_page']);
+    }
+
+    /**
      * 测试 value/pluck
      * @return void
      */

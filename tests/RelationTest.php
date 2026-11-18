@@ -241,6 +241,57 @@ class RelationTest extends TestCase {
     }
 
     /**
+     * 测试 hasMany 预加载保留关系方法链上的条件与排序
+     * @return void
+     */
+    public function testEagerLoadAppliesRelationConditions(): void {
+        $this->pdo->selectRowsQueue=[
+            [['id'=>1,'name'=>'a','age'=>1,'status'=>1],['id'=>2,'name'=>'b','age'=>2,'status'=>1]],
+            [['id'=>5,'title'=>'p5','user_id'=>1,'status'=>1,'deleted_at'=>null]],
+        ];
+        $users=User::query()->with('publishedPosts')->get();
+        $this->assertSame(
+            'SELECT * FROM `posts` WHERE `status` = ? AND `user_id` IN (?, ?) AND `deleted_at` IS NULL ORDER BY `id` DESC',
+            $this->pdo->executed[1]
+        );
+        $this->assertSame([1=>1,2=>1,3=>2],$this->pdo->bound);
+        $this->assertSame('p5',$users->first()->publishedPosts->first()->title);
+        $this->assertCount(0,$users->last()->publishedPosts);
+    }
+
+    /**
+     * 测试 belongsToMany 预加载保留关系方法链上的条件
+     * @return void
+     */
+    public function testEagerLoadAppliesBelongsToManyRelationConditions(): void {
+        $this->pdo->selectRowsQueue=[
+            [['id'=>1,'name'=>'a','age'=>1,'status'=>1]],
+            [['user_id'=>1,'role_id'=>1],['user_id'=>1,'role_id'=>2]],
+            [['id'=>1,'name'=>'admin','status'=>1]],
+        ];
+        $users=User::query()->with('activeRoles')->get();
+        $this->assertSame(
+            'SELECT * FROM `roles` WHERE `status` = ? AND `id` IN (?, ?)',
+            $this->pdo->executed[2]
+        );
+        $this->assertCount(1,$users->first()->activeRoles);
+        $this->assertSame('admin',$users->first()->activeRoles->first()->name);
+    }
+
+    /**
+     * 测试预加载拒绝带数量限制的关系(批量查询无法表达按父模型取前 N 条)
+     * @return void
+     */
+    public function testEagerLoadRejectsLimitOnRelation(): void {
+        $this->pdo->selectRowsQueue=[
+            [['id'=>1,'name'=>'a','age'=>1,'status'=>1]],
+        ];
+        $this->expectException(OrmException::class);
+        $this->expectExceptionCode(100741);
+        User::query()->with('latestPosts')->get();
+    }
+
+    /**
      * 测试 hasMany 关系写入(自动设置外键)
      * @return void
      */

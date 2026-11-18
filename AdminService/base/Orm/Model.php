@@ -352,6 +352,7 @@ abstract class Model {
      * 从数据库重新加载当前记录(原地刷新)
      *
      * - 覆盖本实例属性为库中最新的值, 并同步脏检查快照
+     * - 已加载的关系一并清空: 旧关系可能指向已被替换的行, 再访问时按需重载
      * - 记录已删除(或被软删)时返回 null, 本实例保持原状
      *
      * @access public
@@ -372,6 +373,7 @@ abstract class Model {
             return null;
         $this->attributes=$rows[0];
         $this->syncOriginal();
+        $this->relations=array();
         return $this;
     }
 
@@ -882,18 +884,30 @@ abstract class Model {
         unset($dirty[static::$primaryKey]);
         if(empty($dirty))
             return true;
-        if(static::usesTimestamps()) {
-            $this->attributes[static::updatedAtField()]=static::freshTimestamp();
-            $dirty[static::updatedAtField()]=$this->attributes[static::updatedAtField()];
+        $updatedField=static::usesTimestamps()?static::updatedAtField():null;
+        $hadUpdated=$updatedField!==null&&array_key_exists($updatedField,$this->attributes);
+        $previousUpdated=$hadUpdated?$this->attributes[$updatedField]:null;
+        if($updatedField!==null) {
+            $this->attributes[$updatedField]=static::freshTimestamp();
+            $dirty[$updatedField]=$this->attributes[$updatedField];
         }
         $result=static::db()->query(
             Query::update($dirty)
                 ->from(static::tableName())
                 ->where(static::$primaryKey,$this->getKey())
         );
-        if($result->isSuccess())
-            $this->syncOriginal();
-        return $result->isSuccess();
+        // 0 行受影响(记录已不存在或并发下状态已变化)返回 false 并回滚内存刷新, 与 delete()/restore() 一致
+        if(!$result->isSuccess()||$result->getAffectedRows()<1) {
+            if($updatedField!==null) {
+                if($hadUpdated)
+                    $this->attributes[$updatedField]=$previousUpdated;
+                else
+                    unset($this->attributes[$updatedField]);
+            }
+            return false;
+        }
+        $this->syncOriginal();
+        return true;
     }
 
     /**

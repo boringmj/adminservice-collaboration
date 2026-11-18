@@ -436,8 +436,7 @@ class BelongsToMany extends Relation {
             $flattened=array_merge($flattened,$keys);
         $allKeys=array_values(array_unique($flattened));
         // 第二步: 查相关模型
-        $builder=new ModelQueryBuilder($this->db,$this->modelClass);
-        $builder->whereIn($this->relatedKey,$allKeys);
+        $builder=$this->newEagerBuilder($name,$this->relatedKey,$allKeys);
         $grouped=array();
         foreach($builder->get() as $model)
             $grouped[$model->getAttribute($this->relatedKey)][]=$model;

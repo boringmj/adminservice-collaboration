@@ -53,4 +53,34 @@ class User extends Model {
         return $this->belongsToMany(Role::class);
     }
 
+    /**
+     * 一对多关系(用户的已发布文章, 带链式条件与排序)
+     *
+     * @access public
+     * @return \base\Orm\HasMany
+     */
+    public function publishedPosts(): \base\Orm\HasMany {
+        return $this->hasMany(Post::class)->where('status',1)->orderBy('id','DESC');
+    }
+
+    /**
+     * 多对多关系(用户的启用角色, 带链式条件)
+     *
+     * @access public
+     * @return \base\Orm\BelongsToMany
+     */
+    public function activeRoles(): \base\Orm\BelongsToMany {
+        return $this->belongsToMany(Role::class)->where('status',1);
+    }
+
+    /**
+     * 一对多关系(用户的最新文章, 带数量限制)
+     *
+     * @access public
+     * @return \base\Orm\HasMany
+     */
+    public function latestPosts(): \base\Orm\HasMany {
+        return $this->hasMany(Post::class)->limit(3);
+    }
+
 }

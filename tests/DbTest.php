@@ -12,7 +12,10 @@ use base\Database\Exception\TransactionException;
 use base\Database\Query\Query;
 use base\Database\Sql\Dialect\MysqlDialect;
 use Fiber;
+use ReflectionProperty;
 use Tests\Fixtures\FakePdo;
+
+use function gc_collect_cycles;
 
 /**
  * 数据库入口测试
@@ -462,6 +465,36 @@ class DbTest extends TestCase {
         $fiber_a->resume();
         $fiber_b->resume();
         $this->assertNull($db->getTransactionContext());
+    }
+
+    /**
+     * 测试: 被放弃的 Fiber 残留会话与作用域在下一次写入时回收
+     *
+     * @return void
+     */
+    public function testAbandonedFiberStateIsPrunedOnNextWrite(): void {
+        $pdo=new FakePdo();
+        $db=$this->createDb($pdo);
+        $fiber=new Fiber(function() use ($db): void {
+            $db->beginTransaction();
+            Db::setRequestScope('abandoned');
+        });
+        $fiber->start();
+        unset($fiber);
+        gc_collect_cycles();
+
+        // 主流程新开事务触发清理: 残留会话应回滚, 残留作用域应删除
+        $db->beginTransaction();
+        $db->commit();
+        $this->assertSame(
+            array('begin','rollback','begin','commit'),
+            $pdo->transactionCalls,
+            '被放弃执行流的未完成事务应被回滚'
+        );
+
+        $scopes=new ReflectionProperty(Db::class,'scopes');
+        $scopes->setAccessible(true);
+        $this->assertSame(array(),$scopes->getValue(),'被放弃执行流的作用域应被回收');
     }
 
     /**

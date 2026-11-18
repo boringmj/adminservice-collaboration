@@ -25,6 +25,7 @@ use base\Database\Type\QueryType;
 use base\ExecutionFlow;
 
 use function array_merge;
+use function explode;
 use function get_class;
 use function get_debug_type;
 use function implode;
@@ -139,6 +140,7 @@ final class Db {
      * @return string|null 上一层作用域(未设置时为 null)
      */
     public static function setRequestScope(?string $scope): ?string {
+        self::pruneDeadFlowState();
         $key=self::contextKey();
         $previous=self::$scopes[$key]??null;
         if($scope===null)
@@ -159,23 +161,10 @@ final class Db {
     }
 
     /**
-     * 释放所有已缓存数据库入口上的事务会话
+     * 释放本实例在全部执行流上绑定的事务会话
      *
-     * - 供请求边界清理: 未手动 commit/rollBack 的会话在此回滚并归还连接
-     * - 不清理实例缓存本身
-     *
-     * @access public
-     * @return void
-     */
-    public static function releaseSessions(): void {
-        foreach(self::$instances as $instance)
-            $instance->releaseSession();
-    }
-
-    /**
-     * 释放当前实例绑定的事务会话
-     *
-     * - 有活动事务时由会话/连接池负责回滚与归还
+     * - 供配置替换、测试复位或常驻 worker 重启时清理; 有活动事务时由会话/连接池负责回滚与归还
+     * - 请求边界只应释放当前执行流, 使用 `releaseCurrentSessions()`
      *
      * @access public
      * @return void
@@ -236,11 +225,35 @@ final class Db {
      * @return void
      */
     private function setCurrentSession(?ConnectionSessionInterface $session): void {
+        self::pruneDeadFlowState();
         $key=$this->sessionKey();
         if($session===null)
             unset(self::$sessions[$key]);
         else
             self::$sessions[$key]=$session;
+    }
+
+    /**
+     * 清理已消亡执行流残留的会话与请求作用域
+     *
+     * - Fiber 被放弃后其未完成事务在此回滚并归还连接; Swoole 协程按存在性检查, 无法判定时保留
+     * - 在登记或清除会话键与请求作用域键时触发
+     *
+     * @access private
+     * @return void
+     */
+    private static function pruneDeadFlowState(): void {
+        foreach(self::$scopes as $flow=>$scope)
+            if(!ExecutionFlow::alive($flow))
+                unset(self::$scopes[$flow]);
+        foreach(self::$sessions as $key=>$session) {
+            // 键结构: 实例哈希|执行流|请求作用域
+            $flow=explode('|',$key,3)[1]??'';
+            if($flow!==''&&!ExecutionFlow::alive($flow)) {
+                $session->release();
+                unset(self::$sessions[$key]);
+            }
+        }
     }
 
     /**

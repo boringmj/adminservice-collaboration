@@ -8,6 +8,9 @@ use AdminService\Coroutine;
 use base\ExecutionFlow;
 use Fiber;
 
+use function gc_collect_cycles;
+use function substr;
+
 /**
  * 执行流标识测试
  */
@@ -60,6 +63,53 @@ class ExecutionFlowTest extends TestCase {
             $this->assertStringStartsWith('fiber:',ExecutionFlow::key());
         });
         $fiber->start();
+    }
+
+    /**
+     * 测试: 执行流判活
+     *
+     * - main 恒存活; Fiber 随对象存活; 协程驱动不可用时无法判定按存活处理
+     *
+     * @return void
+     */
+    public function testAliveDetectsAbandonedFiber(): void {
+        $this->assertTrue(ExecutionFlow::alive('main'));
+        $this->assertTrue(ExecutionFlow::alive('swoole:999'),'驱动不可用时无法判定, 应按存活处理');
+
+        $key=null;
+        $fiber=new Fiber(function() use (&$key): void {
+            $key=ExecutionFlow::key();
+        });
+        $fiber->start();
+        $this->assertTrue(ExecutionFlow::alive($key));
+
+        unset($fiber);
+        gc_collect_cycles();
+        $this->assertFalse(ExecutionFlow::alive($key),'Fiber 对象销毁后应判定为已消亡');
+    }
+
+    /**
+     * 测试: Fiber 标识单调递增, 已消亡 Fiber 的标识不被复用
+     *
+     * @return void
+     */
+    public function testFiberKeysAreMonotonicAndNotReused(): void {
+        $first=null;
+        $fiber=new Fiber(function() use (&$first): void {
+            $first=ExecutionFlow::key();
+        });
+        $fiber->start();
+        unset($fiber);
+        gc_collect_cycles();
+
+        $second=null;
+        $fiber=new Fiber(function() use (&$second): void {
+            $second=ExecutionFlow::key();
+        });
+        $fiber->start();
+
+        $this->assertNotSame($first,$second);
+        $this->assertGreaterThan((int)substr((string)$first,6),(int)substr((string)$second,6));
     }
 
 }

@@ -164,6 +164,7 @@ final class CacheStatusCommand extends AbstractCommand {
         return match($status) {
             'valid' => '有效(valid)',
             'stale' => '过期(stale)',
+            'orphaned' => '源文件缺失(orphaned)',
             'missing' => '缺失(missing)',
             'corrupted' => '损坏(corrupted)',
             'disabled' => '禁用(disabled)',

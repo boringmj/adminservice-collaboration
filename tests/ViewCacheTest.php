@@ -12,12 +12,14 @@ use AdminService\View\Source\FileSource;
 use function var_export;
 
 use function count;
+use function file_get_contents;
 use function file_put_contents;
 use function is_dir;
 use function is_file;
 use function mkdir;
 use function rmdir;
 use function scandir;
+use function str_replace;
 use function sys_get_temp_dir;
 use function time;
 use function touch;
@@ -190,6 +192,48 @@ class ViewCacheTest extends TestCase {
             file_put_contents($this->cache_dir.'/'.$file,'<?php return array("bad"=>true);');
         }
         $this->assertSame('first A',$cache->load(new FileSource($this->template),$compiler)->render(array('name'=>'A')));
+    }
+
+    /**
+     * 测试源模板删除后产物标记为孤儿
+     *
+     * @return void
+     */
+    public function testInspectReportsOrphanedSource(): void {
+        $cache=new FileCache($this->config('always'));
+        $this->assertTrue($cache->build(new FileSource($this->template),new PhpCompiler()));
+        unlink($this->template);
+        $inspect=$cache->inspect();
+        $this->assertSame('orphaned',$inspect['status']);
+        $this->assertSame(1,$inspect['orphaned']);
+        $this->assertStringContainsString('不可访问或已删除',$inspect['reason']);
+    }
+
+    /**
+     * 测试清理会删除编译器版本不符的产物
+     *
+     * @return void
+     */
+    public function testPruneRemovesVersionMismatchedArtifact(): void {
+        $cache=new FileCache($this->config('always'));
+        $this->assertTrue($cache->build(new FileSource($this->template),new PhpCompiler()));
+        $files=scandir($this->cache_dir);
+        $this->assertIsArray($files);
+        foreach($files as $file) {
+            if($file==='.'||$file==='..')
+                continue;
+            $path=$this->cache_dir.'/'.$file;
+            $content=file_get_contents($path);
+            $this->assertIsString($content);
+            file_put_contents($path,str_replace(
+                "'version'=>'".PhpCompiler::VERSION."'",
+                "'version'=>'0'",
+                $content
+            ));
+        }
+        $result=$cache->pruneMissingSources();
+        $this->assertSame(1,$result['removed']);
+        $this->assertSame('missing',$cache->inspect()['status']);
     }
 
     /**

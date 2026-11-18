@@ -486,6 +486,24 @@ class CacheCommandTest extends TestCase {
     }
 
     /**
+     * 测试视图缓存状态能识别源模板已删除
+     *
+     * @return void
+     */
+    public function testViewStatusDetectsOrphanedCache(): void {
+        $template=$this->dir.'/view-orphan.html';
+        file_put_contents($template,'{{$name}}');
+        $cache=new FileCache($this->config);
+        $this->assertTrue($cache->build(new FileSource($template),new PhpCompiler()));
+        unlink($template);
+
+        $status=new CacheStatusCommand($this->config);
+        $output=Output::buffer();
+        $this->assertSame(0,$status->execute(new Input(array('view')),$output));
+        $this->assertStringContainsString('源文件缺失(orphaned)',$output->stdout());
+    }
+
+    /**
      * 测试视图缓存结构损坏可被识别
      *
      * @return void

@@ -266,6 +266,8 @@ class ConsoleStatusCacheTest extends TestCase {
         $this->assertIsArray($data);
         $failed=array_filter($data['checks'],static fn(array $check): bool => $check['name']==='配置加载'&&$check['status']==='fail');
         $this->assertCount(1,$failed);
+        $functions=array_filter($data['checks'],static fn(array $check): bool => $check['name']==='函数文件'&&$check['status']==='skip');
+        $this->assertCount(1,$functions,'配置不可用时函数文件检查应跳过');
 
         // 降级路径也要支持空格形式的 --format
         $output=Output::buffer();

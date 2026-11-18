@@ -12,6 +12,9 @@ use AdminService\Console\Command\SystemCheckCommand;
 use AdminService\Console\Input;
 use AdminService\Console\Output;
 use AdminService\Runtime;
+use AdminService\View\Cache\FileCache;
+use AdminService\View\Compiler\PhpCompiler;
+use AdminService\View\Source\FileSource;
 
 use function AdminService\env_reset;
 use function array_column;
@@ -210,6 +213,62 @@ class SystemCheckCommandTest extends TestCase {
     }
 
     /**
+     * 测试: 函数文件齐全时不报警
+     *
+     * @return void
+     */
+    public function testFunctionFilesPassWhenPresent(): void {
+        [$command]=$this->command();
+        $output=Output::buffer();
+        $command->execute(new Input(array('--no-db','--json')),$output);
+        $data=json_decode($output->stdout(),true);
+        $this->assertIsArray($data);
+        $check=$this->checkNamed($data['checks'],'函数文件');
+        $this->assertSame('ok',$check['status'],$check['detail']);
+        $this->assertSame('1 个文件',$check['detail']);
+    }
+
+    /**
+     * 测试: 缺失函数文件报告失败
+     *
+     * @return void
+     */
+    public function testMissingFunctionFileIsReported(): void {
+        [$command]=$this->command(array(),array('helper','missing_helper'));
+        $output=Output::buffer();
+        $code=$command->execute(new Input(array('--no-db','--json')),$output);
+        $this->assertSame(1,$code,$output->stderr());
+        $data=json_decode($output->stdout(),true);
+        $this->assertIsArray($data);
+        $check=$this->checkNamed($data['checks'],'函数文件');
+        $this->assertSame('fail',$check['status']);
+        $this->assertSame('缺失或不可读: missing_helper',$check['detail']);
+        $this->assertStringContainsString('function.loader',$check['suggestion']);
+    }
+
+    /**
+     * 测试: 视图缓存源文件删除时报告警告
+     *
+     * @return void
+     */
+    public function testOrphanedViewCacheIsReported(): void {
+        [$command,,,$config]=$this->command();
+        $template=$this->dir.'/orphan.html';
+        file_put_contents($template,'x');
+        $cache=new FileCache($config);
+        $this->assertTrue($cache->build(new FileSource($template),new PhpCompiler()));
+        unlink($template);
+
+        $output=Output::buffer();
+        $command->execute(new Input(array('--no-db','--json')),$output);
+        $data=json_decode($output->stdout(),true);
+        $this->assertIsArray($data);
+        $check=$this->checkNamed($data['checks'],'视图缓存');
+        $this->assertSame('warn',$check['status']);
+        $this->assertStringContainsString('不可访问或已删除',$check['detail']);
+    }
+
+    /**
      * 测试: 非法超时返回 2
      *
      * @return void
@@ -225,9 +284,9 @@ class SystemCheckCommandTest extends TestCase {
      * 构造命令与配置
      *
      * @param array<string,array<string,mixed>> $connections 数据库连接
-     * @return array{0:SystemCheckCommand,1:Bootstrapper,2:Env}
+     * @return array{0:SystemCheckCommand,1:Bootstrapper,2:Env,3:Repository}
      */
-    private function command(array $connections=array()): array {
+    private function command(array $connections=array(),array $function_loader=array('helper')): array {
         $app=$this->dir.'/app';
         $view=$this->dir.'/view';
         if(!is_dir($app))
@@ -235,12 +294,20 @@ class SystemCheckCommandTest extends TestCase {
         if(!is_dir($view))
             mkdir($view,0755,true);
         file_put_contents($view.'/error.html','error');
+        $common=$this->dir.'/common';
+        if(!is_dir($common))
+            mkdir($common,0755,true);
+        file_put_contents($common.'/helper.php','<?php');
         $config_dir=$this->dir.'/config';
         if(!is_dir($config_dir))
             mkdir($config_dir,0755,true);
         file_put_contents($config_dir.'/app.php',"<?php\n\nreturn array('debug'=>false);\n");
 
         $config=new Repository(array(
+            'function'=>array(
+                'path'=>$common,
+                'loader'=>$function_loader
+            ),
             'app'=>array(
                 'debug'=>false,
                 'path'=>$app,
@@ -267,7 +334,21 @@ class SystemCheckCommandTest extends TestCase {
         $env=Env::fromFile($this->envFile());
         $this->assertTrue(EnvCache::write($this->envFile(),$env),'环境快照应写入成功');
         env_reset();
-        return array(new SystemCheckCommand($config,$bootstrapper),$bootstrapper,$env);
+        return array(new SystemCheckCommand($config,$bootstrapper),$bootstrapper,$env,$config);
+    }
+
+    /**
+     * 查找指定检查项
+     *
+     * @param array<int,array{name:string,status:string,detail:string,suggestion:string}> $checks 检查结果
+     * @param string $name 检查名
+     * @return array{name:string,status:string,detail:string,suggestion:string}
+     */
+    private function checkNamed(array $checks,string $name): array {
+        foreach($checks as $check)
+            if($check['name']===$name)
+                return $check;
+        $this->fail('缺少检查项: '.$name);
     }
 
     /**

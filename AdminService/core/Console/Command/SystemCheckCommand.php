@@ -24,6 +24,7 @@ use Throwable;
 use function array_filter;
 use function array_key_exists;
 use function array_values;
+use function count;
 use function ctype_digit;
 use function dirname;
 use function extension_loaded;
@@ -37,6 +38,7 @@ use function is_dir;
 use function is_file;
 use function is_int;
 use function is_numeric;
+use function is_readable;
 use function is_string;
 use function is_writable;
 use function json_encode;
@@ -120,7 +122,7 @@ final class SystemCheckCommand extends AbstractCommand {
      * @return string
      */
     public function description(): string {
-        return '检查环境、配置、编译缓存、路径与数据库可用性';
+        return '检查环境、配置、函数文件、编译缓存、路径与数据库可用性';
     }
 
     /**
@@ -193,6 +195,7 @@ final class SystemCheckCommand extends AbstractCommand {
         $this->checkOpcache($checks);
         $this->checkEnv($checks);
         $this->checkConfig($checks);
+        $this->checkFunctions($checks);
         $this->checkCaches($checks);
         $this->checkPaths($checks);
         $this->checkDatabase($checks,$input->hasOption('no-db'),$timeout);
@@ -436,6 +439,61 @@ final class SystemCheckCommand extends AbstractCommand {
     }
 
     /**
+     * 检查函数库文件
+     *
+     * - 引导期直接 `include_once`, 不逐项探测; 缺失文件由此处报告
+     *
+     * @access private
+     * @param array<int,array{name:string,status:string,detail:string,suggestion:string}> $checks 检查结果(引用)
+     * @return void
+     */
+    private function checkFunctions(array &$checks): void {
+        $loader=$this->config->get('function.loader');
+        if($loader===null) {
+            $checks[]=$this->check(
+                '函数文件',
+                $this->boot_error!==null?self::STATUS_SKIP:self::STATUS_OK,
+                $this->boot_error!==null?'配置不可用':'未配置 function.loader',
+                ''
+            );
+            return;
+        }
+        if(!is_array($loader)) {
+            $checks[]=$this->check('函数文件',self::STATUS_FAIL,'function.loader 不是数组','配置文件名数组(不含扩展名)');
+            return;
+        }
+        if($loader===array()) {
+            $checks[]=$this->check('函数文件',self::STATUS_OK,'未配置 function.loader','');
+            return;
+        }
+        $path=$this->config->get('function.path');
+        if(!is_string($path)||$path==='') {
+            $checks[]=$this->check('函数文件',self::STATUS_FAIL,'function.path 为空','配置函数库目录');
+            return;
+        }
+        $missing=array();
+        foreach($loader as $file) {
+            if(!is_string($file)||$file==='') {
+                $missing[]='(非法条目)';
+                continue;
+            }
+            $target=$path.'/'.$file.'.php';
+            if(!is_file($target)||!is_readable($target))
+                $missing[]=$file;
+        }
+        if($missing===array()) {
+            $checks[]=$this->check('函数文件',self::STATUS_OK,count($loader).' 个文件','');
+            return;
+        }
+        $checks[]=$this->check(
+            '函数文件',
+            self::STATUS_FAIL,
+            '缺失或不可读: '.implode(', ',$missing),
+            '补齐文件或检查 function.loader / function.path 与读权限'
+        );
+    }
+
+    /**
      * 检查各编译缓存
      *
      * @access private
@@ -482,6 +540,7 @@ final class SystemCheckCommand extends AbstractCommand {
             'valid' => self::STATUS_OK,
             'disabled' => self::STATUS_WARN,
             'missing' => self::STATUS_WARN,
+            'orphaned' => self::STATUS_WARN,
             'stale' => self::STATUS_WARN,
             default => self::STATUS_FAIL
         };
@@ -506,6 +565,7 @@ final class SystemCheckCommand extends AbstractCommand {
             'valid' => '有效(valid)',
             'disabled' => '禁用(disabled)',
             'missing' => '缺失(missing)',
+            'orphaned' => '源文件缺失(orphaned)',
             'stale' => '过期(stale)',
             'corrupted' => '损坏(corrupted)',
             default => $state

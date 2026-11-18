@@ -127,9 +127,10 @@ final class FileCache implements TemplateCacheInterface {
      * 只读检查模板缓存状态
      *
      * - 不删除、不重建文件
+     * - 源模板已删除计为 orphaned, 内容变化计为 stale
      *
      * @access public
-     * @return array{path:string,status:string,size:int,created_at:int|null,reason:string}
+     * @return array{path:string,status:string,size:int,created_at:int|null,orphaned:int,reason:string}
      */
     public function inspect(): array {
         $dir=$this->directory();
@@ -156,6 +157,7 @@ final class FileCache implements TemplateCacheInterface {
         $valid=0;
         $stale=0;
         $corrupted=0;
+        $orphaned=0;
         foreach($files as $file) {
             try {
                 $payload=@include $file;
@@ -173,8 +175,11 @@ final class FileCache implements TemplateCacheInterface {
                 continue;
             }
             $source_stat=@stat($payload['source']);
-            if($source_stat===false
-                ||sha1($source_stat['mtime'].':'.$source_stat['size'])!==$payload['fingerprint']) {
+            if($source_stat===false) {
+                $orphaned++;
+                continue;
+            }
+            if(sha1($source_stat['mtime'].':'.$source_stat['size'])!==$payload['fingerprint']) {
                 $stale++;
                 continue;
             }
@@ -186,6 +191,8 @@ final class FileCache implements TemplateCacheInterface {
             $status='missing';
         elseif($corrupted>0)
             $status='corrupted';
+        elseif($orphaned>0)
+            $status='orphaned';
         elseif($stale>0)
             $status='stale';
         else
@@ -194,6 +201,7 @@ final class FileCache implements TemplateCacheInterface {
             'disabled' => '配置中已禁用模板缓存',
             'missing' => '尚未生成',
             'corrupted' => $corrupted.' 个缓存结构无效',
+            'orphaned' => $orphaned.' 个模板源文件不可访问或已删除'.($stale>0?'，'.$stale.' 个模板已变化':''),
             'stale' => $stale.' 个模板已变化',
             default => $valid.' 个模板'
         };
@@ -202,12 +210,13 @@ final class FileCache implements TemplateCacheInterface {
             'status'=>$status,
             'size'=>$size,
             'created_at'=>$mtime,
+            'orphaned'=>$orphaned,
             'reason'=>$reason
         );
     }
 
     /**
-     * 清理源模板已不存在的缓存产物
+     * 清理源模板已不存在或编译器版本不符的缓存产物
      *
      * - 只删除当前目录顶层的 `.php` 产物, 不跟随子目录
      * - 结构无效的产物一并删除
@@ -230,7 +239,7 @@ final class FileCache implements TemplateCacheInterface {
             if(!is_file($file))
                 continue;
             $payload=$this->read($file);
-            if($payload!==null&&is_file($payload['source']))
+            if($payload!==null&&$payload['version']===PhpCompiler::VERSION&&is_file($payload['source']))
                 continue;
             if(@unlink($file))
                 $result['removed']++;

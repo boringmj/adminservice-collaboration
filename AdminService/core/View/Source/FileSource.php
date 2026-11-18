@@ -10,7 +10,6 @@ use function is_file;
 use function is_readable;
 use function realpath;
 use function sha1;
-use function stat;
 
 /**
  * 文件模板来源
@@ -89,14 +88,16 @@ final class FileSource implements TemplateSourceInterface {
     /**
      * 源指纹
      *
+     * - 按文件内容计算, 同秒同长度修改可见; 读取失败回落路径哈希
+     *
      * @access public
      * @return string
      */
     public function fingerprint(): string {
-        $stat=@stat($this->path);
-        if($stat===false)
+        $content=@file_get_contents($this->path);
+        if($content===false)
             return sha1($this->path);
-        return sha1($stat['mtime'].':'.$stat['size']);
+        return sha1($content);
     }
 
 }

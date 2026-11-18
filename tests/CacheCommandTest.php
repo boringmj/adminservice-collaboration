@@ -369,16 +369,16 @@ class CacheCommandTest extends TestCase {
 
         $file=(new \ReflectionClass(RouteCacheController::class))->getFileName();
         $this->assertIsString($file);
-        $mtime=filemtime($file);
-        $this->assertIsInt($mtime);
+        $original=file_get_contents($file);
+        $this->assertIsString($original);
         try {
-            touch($file,time()+5);
+            file_put_contents($file,$original."\n// status probe\n");
             $status=new CacheStatusCommand($this->config);
             $output=Output::buffer();
             $this->assertSame(0,$status->execute(new Input(array('container')),$output));
             $this->assertStringContainsString('stale',$output->stdout());
         } finally {
-            touch($file,$mtime);
+            file_put_contents($file,$original);
         }
     }
 
@@ -479,7 +479,7 @@ class CacheCommandTest extends TestCase {
         $this->assertSame(0,$status->execute(new Input(array('view')),$output));
         $this->assertStringContainsString('有效(valid)',$output->stdout());
 
-        touch($template,time()+3);
+        file_put_contents($template,'{{$name}}!!');
         $output=Output::buffer();
         $this->assertSame(0,$status->execute(new Input(array('view')),$output));
         $this->assertStringContainsString('过期(stale)',$output->stdout());

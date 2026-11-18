@@ -28,14 +28,14 @@ use function is_object;
 use function is_resource;
 use function is_string;
 use function ltrim;
-use function stat;
+use function sha1_file;
 use function str_replace;
 
 /**
  * 容器反射元数据缓存
  *
  * - 缓存类的自动装配成员名与方法参数描述符
- * - debug / always 按自身、父类与 trait 源文件 stat 校验; 生产 auto 直接信任已加载元数据
+ * - debug / always 按自身、父类与 trait 源文件内容指纹校验; 生产 auto 直接信任已加载元数据
  * - 无注解类只记录空列表, 装配时不再扫描全部属性/方法
  * - 元数据先在内存累积, 由容器根构建结束后批量落盘
  *
@@ -96,7 +96,7 @@ final class ContainerMetadata {
      * 已加载的类元数据
      *
      * @var array<string,array{
-     *     files:array<string,array{mtime:int,size:int}>,
+     *     files:array<string,string>,
      *     properties:array<array{name:string,declaring:string}>,
      *     setters:array<string>,
      *     methods:array<string>,
@@ -237,17 +237,15 @@ final class ContainerMetadata {
      * 校验条目记录的类源文件指纹
      *
      * @access private
-     * @param array<string,array{mtime:int,size:int}> $files 文件指纹
+     * @param array<string,string> $files 文件指纹
      * @return bool
      */
     private function entryFilesMatch(array $files): bool {
         foreach($files as $file=>$expected) {
-            if(!is_string($file)||!is_array($expected))
+            if(!is_string($file)||!is_string($expected))
                 return false;
-            $stat=@stat($file);
-            if($stat===false
-                ||($expected['mtime']??null)!==(int)$stat['mtime']
-                ||($expected['size']??null)!==(int)$stat['size'])
+            $hash=@sha1_file($file);
+            if($hash===false||$hash!==$expected)
                 return false;
         }
         return true;
@@ -313,7 +311,7 @@ final class ContainerMetadata {
      * @access private
      * @param class-string $class 类名
      * @return array{
-     *     files:array<string,array{mtime:int,size:int}>,
+     *     files:array<string,string>,
      *     properties:array<array{name:string,declaring:string}>,
      *     setters:array<string>,
      *     methods:array<string>,
@@ -326,7 +324,7 @@ final class ContainerMetadata {
         $name=$reflection->getName();
         $files=null;
         if(isset($this->classes[$name])&&$this->validEntry($this->classes[$name])) {
-            // 非校验模式直接信任已加载元数据, 不 stat 源文件
+            // 非校验模式直接信任已加载元数据, 不读取源文件内容
             if(!$this->shouldValidate())
                 return $this->classes[$name];
             $files=$this->classFiles($reflection);
@@ -402,9 +400,9 @@ final class ContainerMetadata {
      *
      * @access private
      * @param ReflectionClass<object> $reflection 类反射
-     * @param array<string,array{mtime:int,size:int}> $files 类及父类/ trait 文件指纹
+     * @param array<string,string> $files 类及父类/ trait 文件指纹
      * @return array{
-     *     files:array<string,array{mtime:int,size:int}>,
+     *     files:array<string,string>,
      *     properties:array<array{name:string,declaring:string}>,
      *     setters:array<string>,
      *     methods:array<string>,
@@ -585,7 +583,7 @@ final class ContainerMetadata {
      *
      * @access private
      * @param ReflectionClass<object> $reflection 类反射
-     * @return array<string,array{mtime:int,size:int}>
+     * @return array<string,string>
      */
     private function classFiles(ReflectionClass $reflection): array {
         $files=array();
@@ -599,8 +597,10 @@ final class ContainerMetadata {
     /**
      * 加入类自身文件
      *
+     * - 按文件内容计算指纹, 同秒同长度修改可见
+     *
      * @access private
-     * @param array<string,array{mtime:int,size:int}> $files 文件指纹表
+     * @param array<string,string> $files 文件指纹表
      * @param ReflectionClass<object> $reflection 类反射
      * @return void
      */
@@ -608,19 +608,16 @@ final class ContainerMetadata {
         $file=$reflection->getFileName();
         if(!is_string($file)||$file===''||isset($files[$file]))
             return;
-        $stat=@stat($file);
-        if($stat!==false)
-            $files[$file]=array(
-                'mtime'=>(int)$stat['mtime'],
-                'size'=>(int)$stat['size']
-            );
+        $hash=@sha1_file($file);
+        if($hash!==false)
+            $files[$file]=$hash;
     }
 
     /**
      * 递归加入 trait 文件
      *
      * @access private
-     * @param array<string,array{mtime:int,size:int}> $files 文件指纹表
+     * @param array<string,string> $files 文件指纹表
      * @param ReflectionClass<object> $reflection 类反射
      * @return void
      */

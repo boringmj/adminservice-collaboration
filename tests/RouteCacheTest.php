@@ -15,6 +15,7 @@ use function clearstatcache;
 use function dirname;
 use function file_get_contents;
 use function file_put_contents;
+use function filemtime;
 use function is_dir;
 use function is_file;
 use function is_link;
@@ -23,6 +24,7 @@ use function rmdir;
 use function scandir;
 use function str_replace;
 use function sys_get_temp_dir;
+use function touch;
 use function uniqid;
 use function unlink;
 use function var_export;
@@ -263,6 +265,28 @@ class RouteCacheTest extends TestCase {
         $second=(new RouterFactory())->get($config);
         $this->assertSame(2,$GLOBALS['route_cache_builds'],'源文件变化后应重建');
         $this->assertNotNull($second->find('GET','/extra'));
+    }
+
+    /**
+     * 测试: 同秒同长度的路由文件修改仍使缓存失效
+     *
+     * @return void
+     */
+    public function testSameSecondSameSizeRouteFileChangeRebuilds(): void {
+        $this->writeRoutes();
+        $config=$this->config(true,'always');
+        $first=(new RouterFactory())->get($config);
+        $this->assertSame(1,$GLOBALS['route_cache_builds']);
+        $this->assertNotNull($first->find('GET','/cached'));
+
+        $mtime=filemtime($this->route_file);
+        $this->writeRoutes(str_replace('"/cached"','"/health"',$this->defaultBody()));
+        touch($this->route_file,$mtime);
+        clearstatcache(true,$this->route_file);
+
+        $second=(new RouterFactory())->get($config);
+        $this->assertSame(2,$GLOBALS['route_cache_builds'],'同秒同长度修改应重建');
+        $this->assertNotNull($second->find('GET','/health'));
     }
 
     /**

@@ -13,7 +13,10 @@ use Tests\Fixtures\UserInfo;
 use Tests\Fixtures\UserProfile;
 
 use function array_column;
+use function clearstatcache;
+use function file_get_contents;
 use function file_put_contents;
+use function filemtime;
 use function is_dir;
 use function is_file;
 use function is_link;
@@ -21,6 +24,7 @@ use function mkdir;
 use function rmdir;
 use function scandir;
 use function sys_get_temp_dir;
+use function touch;
 use function uniqid;
 use function unlink;
 use function var_export;
@@ -278,6 +282,55 @@ class ContainerCacheTest extends TestCase {
         $this->assertSame(
             array(array('name'=>'dependency','declaring'=>$class)),
             $second->getClass($class)['properties']
+        );
+    }
+
+    /**
+     * 测试: 同秒同长度的源文件修改仍使元数据失效
+     *
+     * @return void
+     */
+    public function testValidationRebuildsOnSameSecondSameSizeChange(): void {
+        $short='ContainerCacheSameSize'.uniqid();
+        $class='Tests\\CacheTemp\\'.$short;
+        $source=$this->dir.'/'.$short.'.php';
+        file_put_contents(
+            $source,
+            "<?php\nnamespace Tests\\CacheTemp;\n\nuse base\\Attribute\\AutowireProperty;\n\nclass {$short} {\n    #[AutowireProperty(\\stdClass::class)]\n    public mixed \$dependency=null;\n}\n"
+        );
+        require $source;
+
+        $config=new Repository(array(
+            'app'=>array('debug'=>false),
+            'cache'=>array(
+                'path'=>$this->dir.'/cache-samesize',
+                'compile'=>array(
+                    'enabled'=>true,
+                    'mode'=>'always',
+                    'container'=>true
+                )
+            )
+        ));
+        $first=new ContainerMetadata(new ReflectionCache(),$config);
+        $first->getClass($class);
+        $first->flush();
+
+        $cache_file=$this->dir.'/cache-samesize/compile/container.cache.php';
+        $cached=include $cache_file;
+        $cached['payload']['classes'][$class]['properties']=array(array('name'=>'sentinel','declaring'=>$class));
+        file_put_contents($cache_file,"<?php\n\nreturn ".var_export($cached,true).";\n");
+
+        // 同长度改名属性并强制回写原 mtime, 类已加载, 重建仍从反射读到原属性名
+        $mtime=filemtime($source);
+        file_put_contents($source,str_replace('$dependency','$dependencz',file_get_contents($source)));
+        touch($source,$mtime);
+        clearstatcache(true,$source);
+
+        $second=new ContainerMetadata(new ReflectionCache(),$config);
+        $this->assertSame(
+            array(array('name'=>'dependency','declaring'=>$class)),
+            $second->getClass($class)['properties'],
+            '同秒同长度修改应重建元数据'
         );
     }
 

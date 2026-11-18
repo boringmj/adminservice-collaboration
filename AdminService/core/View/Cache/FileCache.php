@@ -15,6 +15,7 @@ use Closure;
 use Throwable;
 
 use function dirname;
+use function file_get_contents;
 use function file_put_contents;
 use function filemtime;
 use function filesize;
@@ -31,7 +32,6 @@ use function rename;
 use function rmdir;
 use function scandir;
 use function sha1;
-use function stat;
 use function str_ends_with;
 use function strlen;
 use function uniqid;
@@ -174,12 +174,12 @@ final class FileCache implements TemplateCacheInterface {
                 $corrupted++;
                 continue;
             }
-            $source_stat=@stat($payload['source']);
-            if($source_stat===false) {
+            $source_content=@file_get_contents($payload['source']);
+            if($source_content===false) {
                 $orphaned++;
                 continue;
             }
-            if(sha1($source_stat['mtime'].':'.$source_stat['size'])!==$payload['fingerprint']) {
+            if(sha1($source_content)!==$payload['fingerprint']) {
                 $stale++;
                 continue;
             }

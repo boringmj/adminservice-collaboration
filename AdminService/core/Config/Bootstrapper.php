@@ -21,8 +21,8 @@ use function is_array;
 use function is_file;
 use function realpath;
 use function scandir;
+use function sha1_file;
 use function sort;
-use function stat;
 use function str_ends_with;
 use function trim;
 use function AdminService\env_snapshot;
@@ -293,7 +293,7 @@ final class Bootstrapper {
     public function configFingerprint(CompileStore $store,Env $env,?string $config_dir=null): string {
         $stats=array();
         foreach($this->listPhpFiles($config_dir??$this->config_dir) as $file)
-            $stats['file:'.$file]=$this->statFile($file);
+            $stats['file:'.$file]=$this->fileFingerprint($file);
         return $store->hash(array('env'=>$env->all(),'files'=>$stats));
     }
 
@@ -550,18 +550,15 @@ final class Bootstrapper {
     /**
      * 文件指纹
      *
+     * - 按文件内容计算, 同秒同长度修改可见
+     *
      * @access private
      * @param string $file 文件
-     * @return array{mtime:int,size:int}|null
+     * @return string|null
      */
-    private function statFile(string $file): ?array {
-        $stat=@stat($file);
-        if($stat===false)
-            return null;
-        return array(
-            'mtime'=>(int)$stat['mtime'],
-            'size'=>(int)$stat['size']
-        );
+    private function fileFingerprint(string $file): ?string {
+        $hash=@sha1_file($file);
+        return $hash===false?null:$hash;
     }
 
     /**

@@ -5,8 +5,8 @@ namespace AdminService\Cache;
 use AdminService\Config\Env;
 
 use function chmod;
-use function clearstatcache;
 use function dirname;
+use function file_get_contents;
 use function file_put_contents;
 use function filemtime;
 use function filesize;
@@ -23,7 +23,7 @@ use function mkdir;
 use function opcache_invalidate;
 use function preg_match;
 use function rename;
-use function stat;
+use function sha1;
 use function str_replace;
 use function strlen;
 use function time;
@@ -190,9 +190,9 @@ final class EnvCache {
      * @return bool
      */
     public static function write(string $env_file,Env $env): bool {
-        clearstatcache(true,$env_file);
-        $stat=@stat($env_file);
-        if($stat===false)
+        // 按内容计算来源指纹, 同秒同长度修改仍可被 status 检出
+        $content=@file_get_contents($env_file);
+        if($content===false)
             return false;
         $path=self::path();
         $dir=dirname($path);
@@ -204,8 +204,7 @@ final class EnvCache {
             'created_at'=>time(),
             'source'=>array(
                 'path'=>$env_file,
-                'mtime'=>(int)$stat['mtime'],
-                'size'=>(int)$stat['size']
+                'hash'=>sha1($content)
             ),
             'values'=>$env->all()
         );
@@ -323,8 +322,7 @@ final class EnvCache {
         $values=$data['values']??null;
         if(!is_array($source)||!is_array($values)
             ||!is_string($source['path']??null)
-            ||!is_int($source['mtime']??null)
-            ||!is_int($source['size']??null))
+            ||!is_string($source['hash']??null))
             return null;
         foreach($values as $value)
             if($value!==null&&!is_scalar($value))
@@ -345,13 +343,11 @@ final class EnvCache {
      * @return bool
      */
     private static function sourceMatches(array $source,string $env_file): bool {
-        // 常驻进程跨请求保留 stat 缓存, 变化检测前先清掉
-        clearstatcache(true,$env_file);
-        $stat=@stat($env_file);
-        if($stat===false)
+        // 按内容比对, 不经过 stat 缓存, 常驻进程也能检出其它进程的修改
+        $content=@file_get_contents($env_file);
+        if($content===false)
             return false;
-        return (int)($source['mtime']??-1)===(int)$stat['mtime']
-            &&(int)($source['size']??-1)===(int)$stat['size'];
+        return ($source['hash']??null)===sha1($content);
     }
 
 }

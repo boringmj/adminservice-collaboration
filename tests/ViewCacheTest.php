@@ -11,8 +11,10 @@ use AdminService\View\Source\FileSource;
 
 use function var_export;
 
+use function clearstatcache;
 use function count;
 use function file_get_contents;
+use function filemtime;
 use function file_put_contents;
 use function is_dir;
 use function is_file;
@@ -88,6 +90,24 @@ class ViewCacheTest extends TestCase {
         file_put_contents($this->template,'second {{$name}}');
         touch($this->template,time()+3);
         $this->assertSame('second B',$cache->load(new FileSource($this->template),$compiler)->render(array('name'=>'B')));
+    }
+
+    /**
+     * 测试同秒同长度的源文件修改仍触发重建
+     *
+     * @return void
+     */
+    public function testSameSecondSameSizeChangeRebuilds(): void {
+        $cache=new FileCache($this->config('always'));
+        $compiler=new PhpCompiler();
+        $this->assertSame('first A',$cache->load(new FileSource($this->template),$compiler)->render(array('name'=>'A')));
+
+        $mtime=filemtime($this->template);
+        file_put_contents($this->template,'third {{$name}}');
+        touch($this->template,$mtime);
+        clearstatcache(true,$this->template);
+
+        $this->assertSame('third C',$cache->load(new FileSource($this->template),$compiler)->render(array('name'=>'C')));
     }
 
     /**

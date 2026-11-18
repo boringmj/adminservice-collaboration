@@ -13,6 +13,7 @@ use function AdminService\env_reset;
 use function AdminService\env_snapshot;
 use function clearstatcache;
 use function file_put_contents;
+use function filemtime;
 use function fileperms;
 use function getenv;
 use function is_dir;
@@ -22,6 +23,7 @@ use function rmdir;
 use function str_replace;
 use function sys_get_temp_dir;
 use function tempnam;
+use function touch;
 use function uniqid;
 use function unlink;
 
@@ -134,6 +136,50 @@ class EnvSnapshotTest extends TestCase {
             file_put_contents($cache_file,'<?php return array("bad" => true);');
             env_reset();
             $this->assertSame('two-longer',env('KEY'),'损坏快照应回落实时读取');
+        } finally {
+            if($previous_env===false)
+                putenv('ADMINSERVICE_TEST_ENV_FILE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_FILE='.$previous_env);
+            if($previous_cache===false)
+                putenv('ADMINSERVICE_TEST_ENV_CACHE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_CACHE='.$previous_cache);
+            env_reset();
+            Runtime::reset();
+            if(is_file($cache_file))
+                unlink($cache_file);
+            if(is_file($env_file))
+                unlink($env_file);
+        }
+    }
+
+    /**
+     * 测试: 同秒同长度的来源文件修改仍使快照状态判为 stale
+     *
+     * @return void
+     */
+    public function testSameSizeSameMtimeChangeIsStale(): void {
+        $env_file=tempnam(sys_get_temp_dir(),'env_snapshot_src_');
+        $cache_file=sys_get_temp_dir().'/env_snapshot_cache_'.uniqid('',true).'.php';
+        $previous_env=getenv('ADMINSERVICE_TEST_ENV_FILE');
+        $previous_cache=getenv('ADMINSERVICE_TEST_ENV_CACHE');
+        try {
+            file_put_contents($env_file,"KEY=one\n");
+            putenv('ADMINSERVICE_TEST_ENV_FILE='.$env_file);
+            putenv('ADMINSERVICE_TEST_ENV_CACHE='.$cache_file);
+            env_reset();
+
+            $result=(new Bootstrapper())->buildEnvCache();
+            $this->assertSame('built',$result['status']);
+
+            $mtime=filemtime($env_file);
+            file_put_contents($env_file,"KEY=two\n");
+            touch($env_file,$mtime);
+            clearstatcache(true,$env_file);
+
+            $status=EnvCache::status($env_file);
+            $this->assertSame('stale',$status['status'],'同秒同长度修改应判为已变化');
         } finally {
             if($previous_env===false)
                 putenv('ADMINSERVICE_TEST_ENV_FILE');

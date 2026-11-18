@@ -19,6 +19,7 @@ use function md5;
 use function print_r;
 use function rtrim;
 use function scandir;
+use function sha1_file;
 use function serialize;
 use function sort;
 use function spl_object_hash;
@@ -414,7 +415,7 @@ final class RouterFactory {
      *
      * @access private
      * @param array<\AdminService\Router\RouteItem> $routes 路由列表
-     * @return array<string,array{mtime:int,size:int}|null>
+     * @return array<string,string|null>
      */
     private function handlerSources(array $routes): array {
         $stats=array();
@@ -454,7 +455,7 @@ final class RouterFactory {
      *
      * @access private
      * @param Router $router 已装配的路由表
-     * @return array<string,array{mtime:int,size:int}|null>
+     * @return array<string,string|null>
      */
     private function loadedFileStats(Router $router): array {
         $stats=array();
@@ -470,7 +471,7 @@ final class RouterFactory {
      * @access private
      * @param ReflectionClass<object> $reflection 处理器类反射
      * @param string|null $method 处理器方法名
-     * @param array<string,array{mtime:int,size?:int}|null> $stats 指纹表(引用)
+     * @param array<string,string|null> $stats 指纹表(引用)
      * @return void
      */
     private function collectHandlerSource(ReflectionClass $reflection,?string $method,array &$stats): void {
@@ -487,24 +488,22 @@ final class RouterFactory {
     }
 
     /**
-     * 校验缓存里的处理器类文件清单
+     * 校验缓存记录的文件指纹
      *
      * @access private
-     * @param mixed $sources 缓存源文件清单
+     * @param mixed $sources 缓存记录的文件指纹表
      * @return bool
      */
     private function sourcesMatch(mixed $sources): bool {
         if(!is_array($sources))
             return false;
         foreach($sources as $file=>$expected) {
-            if(!is_string($file)||!is_array($expected))
+            if(!is_string($file)||!is_string($expected))
                 return false;
             if(str_starts_with($file,'file:'))
                 $file=substr($file,5);
-            $stat=@stat($file);
-            if($stat===false
-                ||(int)$stat['mtime']!==(int)($expected['mtime']??-1)
-                ||(int)$stat['size']!==(int)($expected['size']??-1))
+            $hash=@sha1_file($file);
+            if($hash===false||$hash!==$expected)
                 return false;
         }
         return true;
@@ -515,7 +514,7 @@ final class RouterFactory {
      *
      * @access private
      * @param string $path 路由文件或目录
-     * @param array<string,array{mtime:int,size?:int}|null> $stats 指纹表(引用)
+     * @param array<string,string|null> $stats 指纹表(引用)
      * @return void
      */
     private function collectPathStats(string $path,array &$stats): void {
@@ -532,7 +531,7 @@ final class RouterFactory {
      *
      * @access private
      * @param string $app_path 应用根目录
-     * @param array<string,array{mtime:int,size?:int}|null> $stats 指纹表(引用)
+     * @param array<string,string|null> $stats 指纹表(引用)
      * @return void
      */
     private function collectControllerStats(string $app_path,array &$stats): void {
@@ -559,17 +558,16 @@ final class RouterFactory {
     /**
      * 收集文件指纹
      *
+     * - 按文件内容计算, 同秒同长度修改可见
+     *
      * @access private
      * @param string $file 文件
-     * @param array<string,array{mtime:int,size?:int}|null> $stats 指纹表(引用)
+     * @param array<string,string|null> $stats 指纹表(引用)
      * @return void
      */
     private function collectFileStats(string $file,array &$stats): void {
-        $stat=@stat($file);
-        $stats['file:'.$file]=$stat===false?null:array(
-            'mtime'=>(int)$stat['mtime'],
-            'size'=>(int)$stat['size']
-        );
+        $hash=@sha1_file($file);
+        $stats['file:'.$file]=$hash===false?null:$hash;
     }
 
     /**

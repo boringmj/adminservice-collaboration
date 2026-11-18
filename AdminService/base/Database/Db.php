@@ -10,6 +10,7 @@ use base\Database\Connection\ConnectionSessionInterface;
 use base\Database\Connection\PdoConnectionManager;
 use base\Database\Coordinator\QueryCoordinator;
 use base\Database\Exception\ConfigException;
+use base\Database\Exception\TransactionException;
 use base\Database\Middleware\QueryMiddlewareInterface;
 use base\Database\Query\Query;
 use base\Database\Query\QueryContext;
@@ -498,11 +499,20 @@ final class Db {
         try {
             $tx=$session->getTransactionExecutor();
             $context=$session->getTransactionContext();
+            $entry_level=$context->getLevel();
             $tx->begin();
             try {
                 $result=$callback($this);
                 // 回调内可能已手动提交/回滚, 仅在仍活跃时收尾
                 if($context->isActive()) {
+                    // 回调遗留未闭合的手动事务层: 静默提交只提交一层、剩余层随会话释放被回滚, 必须整体失败
+                    if($context->getLevel()>$entry_level+1)
+                        throw new TransactionException(
+                            'Transaction callback left '.($context->getLevel()-$entry_level-1).
+                            ' unclosed transaction layer(s); the scope has been rolled back.',
+                            100607,
+                            array('entry_level'=>$entry_level,'current_level'=>$context->getLevel())
+                        );
                     // 直接返回失败 Result 视为事务失败, 避免部分写入被提交
                     if($result instanceof ResultInterface&&!$result->isSuccess())
                         $tx->rollback();
@@ -511,9 +521,11 @@ final class Db {
                 }
                 return $result;
             } catch(Throwable $e) {
-                if($context->isActive()) {
+                if($context->isActive()&&$context->getLevel()>$entry_level) {
                     try {
-                        $tx->rollback();
+                        // 回滚到进入时的级别: 嵌套加入外层事务时不破坏外层
+                        while($context->getLevel()>$entry_level)
+                            $tx->rollback();
                     } catch(Throwable) {
                         // 回滚失败后事务状态未知, 标记污染: 归还连接池时丢弃, 不复用
                         $session->markDirty();
@@ -545,6 +557,8 @@ final class Db {
     /**
      * 提交手动开启的事务
      *
+     * - 手动作用域可能嵌套开启多层, 提交时关闭全部未闭合层
+     *
      * @access public
      * @return void
      * @throws Throwable
@@ -553,7 +567,10 @@ final class Db {
         $session=$this->currentSession();
         if($session!==null) {
             try {
-                $session->getTransactionExecutor()->commit();
+                $tx=$session->getTransactionExecutor();
+                $context=$session->getTransactionContext();
+                while($context->isActive())
+                    $tx->commit();
             } catch(Throwable $e) {
                 $this->failManualTransaction($session,$e);
             }
@@ -565,6 +582,8 @@ final class Db {
     /**
      * 回滚手动开启的事务
      *
+     * - 手动作用域可能嵌套开启多层, 回滚时关闭全部未闭合层
+     *
      * @access public
      * @return void
      * @throws Throwable
@@ -573,7 +592,10 @@ final class Db {
         $session=$this->currentSession();
         if($session!==null) {
             try {
-                $session->getTransactionExecutor()->rollback();
+                $tx=$session->getTransactionExecutor();
+                $context=$session->getTransactionContext();
+                while($context->isActive())
+                    $tx->rollback();
             } catch(Throwable $e) {
                 $this->failManualTransaction($session,$e);
             }

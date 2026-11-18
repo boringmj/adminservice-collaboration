@@ -9,7 +9,10 @@ use Tests\Fixtures\CircularB;
 use AdminService\App;
 use AdminService\Container;
 use AdminService\Exception;
+use AdminService\exception\CircularDependencyException;
 use base\Attribute\AutowireLifecycle;
+use base\Attribute\AutowireProperty;
+use base\Attribute\AutowireSetter;
 
 /**
  * 装配器循环依赖用例
@@ -93,6 +96,41 @@ class AutowireCycleTest extends TestCase {
     }
 
     /**
+     * 测试可选构造参数在循环依赖穿过属性注入帧时回落默认值
+     * @return void
+     */
+    public function testOptionalParameterFallsBackWhenCycleCrossesPropertyFrame(): void {
+        $holder=App::make(NestedCyclePropertyHolder::class);
+        $this->assertInstanceOf(NestedCyclePlainDependency::class,$holder->plain);
+        $this->assertNull($holder->dep);
+    }
+
+    /**
+     * 测试可选构造参数在循环依赖穿过 Setter 注入帧时回落默认值
+     * @return void
+     */
+    public function testOptionalParameterFallsBackWhenCycleCrossesSetterFrame(): void {
+        $holder=App::make(NestedCycleSetterHolder::class);
+        $this->assertInstanceOf(NestedCyclePlainDependency::class,$holder->plain);
+        $this->assertNull($holder->dep);
+    }
+
+    /**
+     * 测试循环依赖异常穿过注入帧后保持原异常类型
+     * @return void
+     */
+    public function testCircularDependencyExceptionKeepsTypeAcrossFrames(): void {
+        $caught=null;
+        try {
+            App::make(NestedCycleRequiredHolder::class);
+            $this->fail('预期抛出循环依赖异常');
+        } catch(CircularDependencyException $e) {
+            $caught=$e;
+        }
+        $this->assertNotNull($caught);
+    }
+
+    /**
      * 测试生命周期方法显式调用公共 API 时沿用当前构建栈
      * @return void
      */
@@ -169,5 +207,78 @@ final class ExplicitLifecycleB {
     #[AutowireLifecycle]
     public function boot(): void {
         App::fresh(ExplicitLifecycleB::class);
+    }
+}
+
+/**
+ * 嵌套循环回环持有者的必填依赖(使裸实例兜底不可用)
+ */
+final class NestedCyclePlainDependency {
+}
+
+/**
+ * 嵌套循环持有者: 属性注入帧回环, 构造参数可选
+ */
+final class NestedCyclePropertyHolder {
+
+    public function __construct(
+        public NestedCyclePlainDependency $plain,
+        public ?NestedCycleViaProperty $dep=null
+    ) {
+    }
+}
+
+/**
+ * 属性注入帧回环的另一侧(可选持有者)
+ */
+final class NestedCycleViaProperty {
+
+    #[AutowireProperty(NestedCyclePropertyHolder::class)]
+    public NestedCyclePropertyHolder $holder;
+}
+
+/**
+ * 嵌套循环持有者: 属性注入帧回环, 构造参数必填
+ */
+final class NestedCycleRequiredHolder {
+
+    public function __construct(
+        public NestedCyclePlainDependency $plain,
+        public NestedCycleViaRequiredProperty $dep
+    ) {
+    }
+}
+
+/**
+ * 属性注入帧回环的另一侧(必填持有者)
+ */
+final class NestedCycleViaRequiredProperty {
+
+    #[AutowireProperty(NestedCycleRequiredHolder::class)]
+    public NestedCycleRequiredHolder $holder;
+}
+
+/**
+ * 嵌套循环持有者: Setter 注入帧回环, 构造参数可选
+ */
+final class NestedCycleSetterHolder {
+
+    public function __construct(
+        public NestedCyclePlainDependency $plain,
+        public ?NestedCycleViaSetter $dep=null
+    ) {
+    }
+}
+
+/**
+ * Setter 注入帧回环的另一侧
+ */
+final class NestedCycleViaSetter {
+
+    public NestedCycleSetterHolder $holder;
+
+    #[AutowireSetter(NestedCycleSetterHolder::class)]
+    public function setHolder(NestedCycleSetterHolder $holder): void {
+        $this->holder=$holder;
     }
 }

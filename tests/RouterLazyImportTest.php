@@ -178,6 +178,24 @@ class RouterLazyImportTest extends TestCase {
     }
 
     /**
+     * 测试懒加载下动态参数按命中的候选解码一次后返回
+     *
+     * @return void
+     */
+    public function testLazyDynamicParamsAreDecodedOnceByMatchedCandidate(): void {
+        $router=new Router();
+        $router->get('/hello world/{name}',array(ConcreteService::class,'execute'));
+        $router->get('/raw/{name}',array(ConcreteService::class,'execute'));
+        $lazy=new Router();
+        $lazy->import($router->export(),true);
+
+        $decoded=$lazy->find('GET','/hello%20world/a%2520b');
+        $this->assertSame(array('name'=>'a%20b'),$decoded[1]);
+        $raw=$lazy->find('GET','/raw/a%2520b');
+        $this->assertSame(array('name'=>'a%20b'),$raw[1]);
+    }
+
+    /**
      * 测试: 懒加载下自定义约束的反向生成结果可被自身路由命中
      *
      * @return void

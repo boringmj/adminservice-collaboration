@@ -758,9 +758,12 @@ final class Router implements RoutingInterface {
             if(!$route->matchesMethod($method))
                 continue;
             $params=$route->matchUri($uri);
+            if($params!==null)
+                $params=self::decodeParams($params);
             if($params===null) {
                 $decoded=self::decodedUriCandidate($uri);
                 if($decoded!==null)
+                    // 解码候选命中的参数已是解码后的值, 不再二次解码
                     $params=$route->matchUri($decoded);
             }
             if($params===null)
@@ -810,9 +813,12 @@ final class Router implements RoutingInterface {
             if(!RouteItem::matchesMethodData($data['methods']??array(),$method))
                 continue;
             $params=RouteItem::matchUriData((string)($data['pattern']??''),$data['params']??array(),$uri);
+            if($params!==null)
+                $params=self::decodeParams($params);
             if($params===null) {
                 $decoded=self::decodedUriCandidate($uri);
                 if($decoded!==null)
+                    // 解码候选命中的参数已是解码后的值, 不再二次解码
                     $params=RouteItem::matchUriData((string)($data['pattern']??''),$data['params']??array(),$decoded);
             }
             if($params===null)
@@ -1441,6 +1447,19 @@ final class Router implements RoutingInterface {
         if($decoded===$uri||substr_count($decoded,'/')!==substr_count($uri,'/'))
             return null;
         return $decoded;
+    }
+
+    /**
+     * 解码路径参数(原始候选命中的参数仍是百分号编码)
+     *
+     * @access private
+     * @param array<string,string> $params 路径参数
+     * @return array<string,string>
+     */
+    private static function decodeParams(array $params): array {
+        foreach($params as $k=>$v)
+            $params[$k]=rawurldecode((string)$v);
+        return $params;
     }
 
 }

@@ -194,7 +194,6 @@ final class Route extends BaseRoute {
      */
     private function runRoute(RouteItem $route,array $params): void {
         $handler=$route->getHandler();
-        $params=self::decodeParams($params);
         // 路径参数写入属性区(不并入GET): 参数检索时属性优先, 同名查询参数仍按查询参数读取
         foreach($params as $name=>$value)
             $this->request->setAttribute($name,$value);
@@ -353,19 +352,6 @@ final class Route extends BaseRoute {
             $mapped[$target]=$value;
         }
         return $mapped;
-    }
-
-    /**
-     * 解码路径参数
-     *
-     * @access private
-     * @param array<string,string> $params 路径参数
-     * @return array<string,string>
-     */
-    private static function decodeParams(array $params): array {
-        foreach($params as $k=>$v)
-            $params[$k]=rawurldecode((string)$v);
-        return $params;
     }
 
 }

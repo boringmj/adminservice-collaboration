@@ -210,6 +210,26 @@ class RouteCoordinatorTest extends TestCase {
     }
 
     /**
+     * 测试解码候选命中时路径参数只解码一次
+     *
+     * @return void
+     */
+    public function testDecodedCandidateParamIsDecodedOnce(): void {
+        $this->useRoutes("\$router->get('/t/space word/{name}',function(string \$name): string { return \$name; });");
+        $this->assertSame('a%20b',$this->dispatch('/t/space%20word/a%2520b'));
+    }
+
+    /**
+     * 测试原始候选命中时路径参数也只解码一次
+     *
+     * @return void
+     */
+    public function testRawCandidateParamIsDecodedOnce(): void {
+        $this->useRoutes("\$router->get('/t/raw/{name}',function(string \$name): string { return \$name; });");
+        $this->assertSame('a%20b',$this->dispatch('/t/raw/a%2520b'));
+    }
+
+    /**
      * 测试路由参数显式名称绑定
      *
      * - 支持参数级与路由配置级绑定

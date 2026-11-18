@@ -3,6 +3,7 @@
 namespace base\Orm;
 
 use base\Database\Db;
+use base\Database\Exception\QueryException;
 use base\Database\Query\Query;
 use ReflectionMethod;
 use ReflectionNamedType;
@@ -363,7 +364,10 @@ abstract class Model {
             ->limit(1);
         if(static::usesSoftDelete())
             $query->whereNull(static::deletedAtField());
-        $rows=static::db()->query($query)->getResults()->toArray();
+        $result=static::db()->query($query);
+        if(!$result->isSuccess())
+            throw new QueryException($result->getError(),100712);
+        $rows=$result->getResults()->toArray();
         if(empty($rows))
             return null;
         $this->attributes=$rows[0];
@@ -447,11 +451,11 @@ abstract class Model {
     /**
      * 判断方法是否为关系声明(返回类型是 Relation 或其子类)
      *
-     * @access private
+     * @access public
      * @param string $name 方法名
      * @return bool
      */
-    private function isRelationMethod(string $name): bool {
+    public function isRelationMethod(string $name): bool {
         try {
             $type=(new ReflectionMethod($this,$name))->getReturnType();
             return $type instanceof ReflectionNamedType

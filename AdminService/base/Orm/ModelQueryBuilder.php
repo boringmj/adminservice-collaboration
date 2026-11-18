@@ -22,7 +22,6 @@ use function array_values;
 use function get_class;
 use function is_string;
 use function max;
-use function method_exists;
 use function strpos;
 use function substr;
 
@@ -637,10 +636,13 @@ class ModelQueryBuilder {
      * @access private
      * @param Query|null $query 目标查询对象(默认当前查询)
      * @return ResultInterface
+     * @throws QueryException 执行失败
      */
     private function run(?Query $query=null): ResultInterface {
         $result=$this->db->query($query??$this->query);
         $this->lastResult=$result;
+        if(!$result->isSuccess())
+            throw new QueryException($result->getError(),100712);
         return $result;
     }
 
@@ -702,11 +704,16 @@ class ModelQueryBuilder {
         if($parents->isEmpty())
             return;
         $first=$parents->first();
-        if(method_exists($first,$name)) {
-            $relation=$first->{$name}();
-            if($relation instanceof Relation)
-                $relation->eagerLoad($name,$parents);
-        }
+        // 必须先确认是关系方法再调用: 非关系方法可能有副作用(如 delete)
+        if(!$first->isRelationMethod($name))
+            throw new OrmException(
+                'Invalid eager load relation "'.$name.'" on model "'.get_class($first).
+                '": the method does not declare a Relation return type.',
+                100727,
+                array('relation'=>$name,'model'=>get_class($first))
+            );
+        $relation=$first->{$name}();
+        $relation->eagerLoad($name,$parents);
     }
 
     /**

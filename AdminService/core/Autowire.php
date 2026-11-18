@@ -627,6 +627,9 @@ final class Autowire implements AutowireInterface {
                 'No injectable type found for parameter "'.$parameter->getName().'" of class "'.
                 $ref->getName().'".',
             );
+        } catch(CircularDependencyException $e) {
+            // 循环依赖按异常类型驱动可选参数回落, 包裹成 AutowireException 会使回落失效
+            throw $e;
         } catch(Exception $e) {
             $data=$e instanceof AutowireException?$e->getData():array();
             $data['property']=$parameter->getName();
@@ -922,6 +925,9 @@ final class Autowire implements AutowireInterface {
                 // 注入对象
                 $method->invoke($instance, $make_object);
             }
+        } catch(CircularDependencyException $e) {
+            // 循环依赖按异常类型驱动可选参数回落, 包裹成 AutowireException 会使回落失效
+            throw $e;
         } catch(Exception $e) {
             $data=$e instanceof AutowireException?$e->getData():array();
             $data['property']=$method?->getName();
@@ -1025,6 +1031,9 @@ final class Autowire implements AutowireInterface {
                 // 调用方法
                 $method->invokeArgs($instance,$args);
             }
+        } catch(CircularDependencyException $e) {
+            // 循环依赖按异常类型驱动可选参数回落, 包裹成 AutowireException 会使回落失效
+            throw $e;
         } catch(Exception $e) {
             $data=$e instanceof AutowireException?$e->getData():array();
             $data['method']=$method?->getName();

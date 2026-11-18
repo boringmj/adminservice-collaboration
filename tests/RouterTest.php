@@ -137,6 +137,23 @@ class RouterTest extends TestCase {
     }
 
     /**
+     * 测试动态参数按命中的候选解码一次后返回
+     *
+     * - 原始候选与解码候选命中都只解码一次
+     *
+     * @return void
+     */
+    public function testDynamicParamsAreDecodedOnceByMatchedCandidate(): void {
+        $router=new Router();
+        $router->get('/hello world/{name}',array('C','space'));
+        $router->get('/raw/{name}',array('C','raw'));
+        $decoded=$router->find('GET','/hello%20world/a%2520b');
+        $this->assertSame(array('name'=>'a%20b'),$decoded[1]);
+        $raw=$router->find('GET','/raw/a%2520b');
+        $this->assertSame(array('name'=>'a%20b'),$raw[1]);
+    }
+
+    /**
      * 测试正则约束中的花括号量词
      *
      * @return void

@@ -840,6 +840,83 @@ class ModelTest extends TestCase {
     }
 
     /**
+     * 测试 with() 传入非关系方法名时抛出受控异常
+     * @return void
+     */
+    public function testWithRejectsNonRelationMethod(): void {
+        $this->pdo->selectRows=[['id'=>1,'name'=>'张三','age'=>20,'status'=>1]];
+        $this->expectException(OrmException::class);
+        $this->expectExceptionMessage('delete');
+        User::query()->with('delete')->get();
+    }
+
+    /**
+     * 测试 with() 嵌套段传入非关系方法名时抛出受控异常
+     * @return void
+     */
+    public function testWithRejectsNonRelationNestedSegment(): void {
+        $this->pdo->selectRowsQueue=[
+            [['id'=>1,'name'=>'张三','age'=>20,'status'=>1]],
+            [['id'=>2,'user_id'=>1,'title'=>'a']],
+        ];
+        $this->expectException(OrmException::class);
+        $this->expectExceptionMessage('delete');
+        User::query()->with('posts.delete')->get();
+    }
+
+    /**
+     * 测试读路径执行失败抛出受控异常而非静默空结果
+     * @return void
+     */
+    public function testReadFailureThrowsInsteadOfEmptyResult(): void {
+        $reads=array(
+            'get'=>static fn(): mixed => User::query()->get(),
+            'first'=>static fn(): mixed => User::query()->first(),
+            'count'=>static fn(): mixed => User::query()->count(),
+            'value'=>static fn(): mixed => User::query()->value('name'),
+        );
+        $thrown=array();
+        foreach($reads as $name=>$call) {
+            $this->pdo->error='Simulated failure.';
+            try {
+                $call();
+            } catch(QueryException) {
+                $thrown[]=$name;
+            }
+        }
+        $this->assertSame(array('get','first','count','value'),$thrown);
+    }
+
+    /**
+     * 测试预加载查询失败抛出受控异常而非静默空关系
+     * @return void
+     */
+    public function testEagerLoadFailureThrows(): void {
+        $this->pdo->selectRows=[['id'=>1,'name'=>'张三','age'=>20,'status'=>1]];
+        $this->pdo->errorOnExecution=2;
+        $this->expectException(QueryException::class);
+        User::query()->with('posts')->get();
+    }
+
+    /**
+     * 测试 refresh 查询失败抛出受控异常且实例保持原状
+     * @return void
+     */
+    public function testRefreshFailureThrows(): void {
+        $this->pdo->selectRowsQueue=[
+            [['id'=>1,'name'=>'张三','age'=>20,'status'=>1]],
+        ];
+        $user=User::find(1);
+        $this->pdo->error='Simulated failure.';
+        try {
+            $user->refresh();
+            $this->fail('refresh 执行失败应抛出受控异常');
+        } catch(QueryException) {
+        }
+        $this->assertSame('张三',$user->name);
+    }
+
+    /**
      * 测试 fresh 返回新的当前库状态实例(不修改本实例)
      * @return void
      */

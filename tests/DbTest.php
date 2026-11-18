@@ -333,6 +333,56 @@ class DbTest extends TestCase {
     }
 
     /**
+     * 测试事务回调遗留未闭合的手动事务层时全部回滚并抛出受控异常
+     * @return void
+     */
+    public function testTransactionRejectsUnclosedManualLevels(): void {
+        $pdo=new FakePdo();
+        $db=$this->createDb($pdo);
+        try {
+            $db->transaction(static function($db): void {
+                $db->beginTransaction();
+            });
+            $this->fail('预期抛出异常');
+        } catch(TransactionException $e) {
+            $this->assertSame(100607,$e->getCode());
+        }
+        $this->assertNull($db->getTransactionContext());
+        $this->assertSame(array('begin','rollback'),$pdo->transactionCalls);
+        $this->assertSame(array('SAVEPOINT sp_1','ROLLBACK TO SAVEPOINT sp_1'),$pdo->execCalls);
+    }
+
+    /**
+     * 测试手动 commit 关闭全部未闭合层(保存点逐层释放后提交)
+     * @return void
+     */
+    public function testManualCommitClosesAllOpenLevels(): void {
+        $pdo=new FakePdo();
+        $db=$this->createDb($pdo);
+        $db->beginTransaction();
+        $db->beginTransaction();
+        $db->commit();
+        $this->assertNull($db->getTransactionContext());
+        $this->assertSame(array('begin','commit'),$pdo->transactionCalls);
+        $this->assertSame(array('SAVEPOINT sp_1','RELEASE SAVEPOINT sp_1'),$pdo->execCalls);
+    }
+
+    /**
+     * 测试手动 rollBack 关闭全部未闭合层(保存点逐层回滚后回滚)
+     * @return void
+     */
+    public function testManualRollbackClosesAllOpenLevels(): void {
+        $pdo=new FakePdo();
+        $db=$this->createDb($pdo);
+        $db->beginTransaction();
+        $db->beginTransaction();
+        $db->rollBack();
+        $this->assertNull($db->getTransactionContext());
+        $this->assertSame(array('begin','rollback'),$pdo->transactionCalls);
+        $this->assertSame(array('SAVEPOINT sp_1','ROLLBACK TO SAVEPOINT sp_1'),$pdo->execCalls);
+    }
+
+    /**
      * 测试: 嵌套请求作用域的事务会话互不共享
      *
      * @return void

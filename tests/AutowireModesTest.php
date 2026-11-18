@@ -97,6 +97,20 @@ class AutowireModesTest extends TestCase {
     }
 
     /**
+     * exec 路径(无根构建帧)同样刷新延迟注入任务, 不残留队列
+     * @return void
+     */
+    public function testExecPathFlushesDeferredTasks(): void {
+        $container=new Container();
+        $consumer=$container->exec_class_function(ExecDeferredHost::class,'act');
+        $this->assertTrue(isset($consumer->dependency),'exec_class_function 应在调用后刷新延迟注入任务');
+
+        $container=new Container();
+        $consumer=$container->exec_function(array(ExecDeferredHost::class,'act'));
+        $this->assertTrue(isset($consumer->dependency),'exec_function 应在调用后刷新延迟注入任务');
+    }
+
+    /**
      * 属性 / Setter 的 self、parent 相对类型按声明类解析
      *
      * @return void
@@ -417,6 +431,23 @@ final class DeferredPropertyConsumer {
 
     #[AutowireProperty(DeferredPropertyDependency::class,mode:AutowireMode::Deferred)]
     public DeferredPropertyDependency $dependency;
+
+}
+
+/**
+ * exec 路径宿主(形参经参数解析器解析, 不经根构建帧)
+ */
+final class ExecDeferredHost {
+
+    /**
+     * 返回注入的消费者
+     *
+     * @param DeferredPropertyConsumer $consumer 消费者
+     * @return DeferredPropertyConsumer
+     */
+    public function act(DeferredPropertyConsumer $consumer): DeferredPropertyConsumer {
+        return $consumer;
+    }
 
 }
 

@@ -1352,6 +1352,8 @@ final class Container implements \base\Container {
     /**
      * 执行类或对象的方法
      *
+     * - 当前执行流没有进行中的根构建时, 成功后刷新延迟注入任务, 失败时丢弃
+     *
      * @access public
      * @param object|string $object 对象或者类名
      * @param string $method 方法名
@@ -1360,6 +1362,8 @@ final class Container implements \base\Container {
      * @throws Exception|ReflectionException
      */
     public function exec_class_function(object|string $object,string $method,array $args=array()): mixed {
+        // 根构建外的装配没有统一收尾点, 成功后刷新 / 失败时丢弃延迟注入任务
+        $in_root=array_key_exists(ExecutionFlow::key(),$this->build_stacks);
         try {
             // 判断是否为类名
             if(is_string($object)) {
@@ -1367,7 +1371,14 @@ final class Container implements \base\Container {
                 $object=$this->make($object);
             }
             // 参数合并与调用交给参数解析器
-            return $this->arguments->call($object,$method,$args);
+            $result=$this->arguments->call($object,$method,$args);
+            if(!$in_root)
+                $this->autowire->flushDeferred();
+            return $result;
+        } catch(\Throwable $e) {
+            if(!$in_root)
+                $this->autowire->clearDeferred();
+            throw $e;
         } finally {
             $this->flushMetadataIfRoot();
         }
@@ -1376,6 +1387,8 @@ final class Container implements \base\Container {
     /**
      * 执行函数
      *
+     * - 当前执行流没有进行中的根构建时, 成功后刷新延迟注入任务, 失败时丢弃
+     *
      * @access public
      * @param string|array|callable $function 函数名(支持数组形式的类方法调用和闭包)
      * @param array<mixed> $args 函数参数(如果为关系型数组,则会将key作为参数名,value作为参数值,如果索引数组,则会逐一赋值,没有赋值的参数会使用默认值)
@@ -1383,6 +1396,8 @@ final class Container implements \base\Container {
      * @throws Exception|ReflectionException
      */
     public function exec_function(string|array|callable $function,array $args=array()): mixed {
+        // 根构建外的装配没有统一收尾点, 成功后刷新 / 失败时丢弃延迟注入任务
+        $in_root=array_key_exists(ExecutionFlow::key(),$this->build_stacks);
         try {
             if(is_array($function)) {
                 // 类方法调用
@@ -1390,7 +1405,14 @@ final class Container implements \base\Container {
                 return $this->exec_class_function($classOrObj,$method,$args);
             }
             // 参数合并与调用交给参数解析器
-            return $this->arguments->callFunction($function,$args);
+            $result=$this->arguments->callFunction($function,$args);
+            if(!$in_root)
+                $this->autowire->flushDeferred();
+            return $result;
+        } catch(\Throwable $e) {
+            if(!$in_root)
+                $this->autowire->clearDeferred();
+            throw $e;
         } finally {
             $this->flushMetadataIfRoot();
         }

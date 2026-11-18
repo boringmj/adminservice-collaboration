@@ -352,6 +352,42 @@ class ContainerCacheTest extends TestCase {
     }
 
     /**
+     * 测试: 构造参数对象默认值(枚举 case)不阻断元数据落盘
+     *
+     * @return void
+     */
+    public function testObjectParameterDefaultDoesNotBlockFlush(): void {
+        $metadata=new ContainerMetadata(new ReflectionCache(),$this->config);
+        $method=new \ReflectionMethod(ContainerObjectDefaultService::class,'__construct');
+        $metadata->methodParams($method);
+
+        $this->assertTrue($metadata->flush(),'对象默认值应可落盘');
+        $cache_file=$this->dir.'/cache/compile/container.cache.php';
+        $this->assertFileExists($cache_file);
+        $cached=include $cache_file;
+        $param=$cached['payload']['classes'][ContainerObjectDefaultService::class]['params']['__construct'][0];
+        $this->assertTrue($param['default_object']);
+        $this->assertNull($param['default']);
+    }
+
+    /**
+     * 测试: 从缓存恢复后对象默认值经反射注入
+     *
+     * @return void
+     */
+    public function testObjectParameterDefaultRestoredFromCache(): void {
+        $first=new ContainerMetadata(new ReflectionCache(),$this->config);
+        $method=new \ReflectionMethod(ContainerObjectDefaultService::class,'__construct');
+        $first->methodParams($method);
+        $this->assertTrue($first->flush());
+
+        $second=new ContainerMetadata(new ReflectionCache(),$this->config);
+        $arguments=new \AdminService\ArgumentResolver(new ReflectionCache(),$second);
+        $args=$arguments->merge($method->getParameters(),array(),false,$method);
+        $this->assertSame(ContainerCacheSuit::Hearts,$args[0]);
+    }
+
+    /**
      * 递归删除临时目录
      *
      * @param string $path 文件或目录
@@ -373,6 +409,18 @@ class ContainerCacheTest extends TestCase {
             }
         }
         @rmdir($path);
+    }
+
+}
+
+enum ContainerCacheSuit {
+    case Hearts;
+    case Spades;
+}
+
+final class ContainerObjectDefaultService {
+
+    public function __construct(public ContainerCacheSuit $suit=ContainerCacheSuit::Hearts) {
     }
 
 }

@@ -5,6 +5,7 @@ namespace Tests;
 use PHPUnit\Framework\TestCase;
 
 use AdminService\Autowire;
+use AdminService\Container;
 use AdminService\ReflectionCache;
 use AdminService\exception\AutowireException;
 use base\Attribute\AutowireLifecycle;
@@ -13,7 +14,7 @@ use base\Attribute\AutowireProperty;
 /**
  * 自动装配诊断测试
  *
- * - 联合类型分支只吞"无法构造", 其它异常保留
+ * - 联合类型分支只吞"无法构造", 其它异常保留(含容器接线路径)
  * - 生命周期方法缺少 ArgumentResolver 时抛出清晰异常
  */
 class AutowireDiagnosticsTest extends TestCase {
@@ -104,6 +105,29 @@ class AutowireDiagnosticsTest extends TestCase {
     }
 
     /**
+     * 测试容器接线路径下联合类型回退到可构造分支
+     *
+     * @return void
+     */
+    public function testUnionFallsBackThroughContainerWiring(): void {
+        $container=new Container();
+        $target=$container->make(ContainerUnionTarget::class);
+        $this->assertInstanceOf(ContainerUnionBranchB::class,$target->dep);
+    }
+
+    /**
+     * 测试容器接线路径下分支的真实异常不被吞掉
+     *
+     * @return void
+     */
+    public function testUnionRealFailurePropagatesThroughContainerWiring(): void {
+        $container=new Container();
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('boom');
+        $container->make(ContainerUnionThrowingTarget::class);
+    }
+
+    /**
      * 测试无参生命周期方法不需要参数解析器
      *
      * @return void
@@ -153,6 +177,38 @@ final class RequiredCtorUnionTarget {
 
     #[AutowireProperty]
     public RequiredCtorBranch|UnionBranchB $dep;
+
+}
+
+final class ContainerUnionUnresolvableBranch {
+
+    public function __construct(\No\Such\UnionDependency $dep) {
+    }
+
+}
+
+final class ContainerUnionBranchB {
+}
+
+final class ContainerUnionTarget {
+
+    #[AutowireProperty]
+    public ContainerUnionUnresolvableBranch|ContainerUnionBranchB $dep;
+
+}
+
+final class ContainerUnionThrowingBranch {
+
+    public function __construct() {
+        throw new \RuntimeException('boom');
+    }
+
+}
+
+final class ContainerUnionThrowingTarget {
+
+    #[AutowireProperty]
+    public ContainerUnionThrowingBranch|ContainerUnionBranchB $dep;
 
 }
 

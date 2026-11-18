@@ -10,6 +10,7 @@ use base\Attribute\AutowireProperty;
 use base\Attribute\AutowireSetter;
 use base\Attribute\Config as ConfigAttribute;
 use base\ConfigInterface;
+use Closure;
 use ReflectionClass;
 use ReflectionFunctionAbstract;
 use ReflectionMethod;
@@ -23,6 +24,8 @@ use function class_exists;
 use function explode;
 use function interface_exists;
 use function is_array;
+use function is_object;
+use function is_resource;
 use function is_string;
 use function ltrim;
 use function stat;
@@ -472,13 +475,25 @@ final class ContainerMetadata {
         },$types);
         if($parameter->allowsNull())
             $types[]='NULL';
+        $has_default=$parameter->isDefaultValueAvailable();
+        $default=null;
+        $default_object=false;
+        if($has_default) {
+            $default=$parameter->getDefaultValue();
+            // 对象默认值(枚举 case / new 表达式)不可导出: 不缓存值, 读取方从反射实时取
+            if(!$this->isExportableValue($default)) {
+                $default_object=true;
+                $default=null;
+            }
+        }
         return array(
             'name'=>$parameter->getName(),
             'types'=>array_values(array_unique($types)),
             'allows_null'=>$parameter->allowsNull(),
             'is_variadic'=>$parameter->isVariadic(),
-            'has_default'=>$parameter->isDefaultValueAvailable(),
-            'default'=>$parameter->isDefaultValueAvailable()?$parameter->getDefaultValue():null,
+            'has_default'=>$has_default,
+            'default'=>$default,
+            'default_object'=>$default_object,
             'config'=>$this->configMeta($parameter)
         );
     }
@@ -488,18 +503,51 @@ final class ContainerMetadata {
      *
      * @access private
      * @param ReflectionProperty|ReflectionMethod|ReflectionParameter $target 目标
-     * @return array{key:string,has_default:bool,default:mixed}|null
+     * @return array{key:string,has_default:bool,default:mixed,default_object?:true}|null
      */
     private function configMeta(ReflectionProperty|ReflectionMethod|ReflectionParameter $target): ?array {
         $attributes=$target->getAttributes(ConfigAttribute::class);
         if($attributes===array())
             return null;
         $config=$attributes[0]->newInstance();
+        $has_default=$config->hasDefault();
+        $default=$config->getDefault();
+        // 对象默认值(枚举 case / new 表达式)不可导出: 不缓存值, 读取方从反射注解重建
+        if($has_default&&!$this->isExportableValue($default)) {
+            $default=null;
+            return array(
+                'key'=>$config->getKey(),
+                'has_default'=>true,
+                'default'=>null,
+                'default_object'=>true
+            );
+        }
         return array(
             'key'=>$config->getKey(),
-            'has_default'=>$config->hasDefault(),
-            'default'=>$config->getDefault()
+            'has_default'=>$has_default,
+            'default'=>$default
         );
+    }
+
+    /**
+     * 判断默认值是否可由 var_export 导出
+     *
+     * @access private
+     * @param mixed $value 值
+     * @param int $depth 当前深度
+     * @return bool
+     */
+    private function isExportableValue(mixed $value,int $depth=0): bool {
+        if(is_object($value)||is_resource($value)||$value instanceof Closure)
+            return false;
+        if(!is_array($value))
+            return true;
+        if($depth>=64)
+            return false;
+        foreach($value as $item)
+            if(!$this->isExportableValue($item,$depth+1))
+                return false;
+        return true;
     }
 
     /**

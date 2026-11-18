@@ -7,7 +7,9 @@ use PHPUnit\Framework\TestCase;
 use AdminService\App;
 use AdminService\Container;
 use AdminService\DynamicProxy;
+use AdminService\Exception;
 use AdminService\exception\AutowireException;
+use Fiber;
 use base\Attribute\Config as ConfigAttribute;
 use base\Attribute\AutowireLifecycle;
 use base\Attribute\AutowireMethod;
@@ -178,6 +180,32 @@ class AutowireModesTest extends TestCase {
 
         $this->assertSame($previous,$container->get(DeferredFailureRoot::class));
         $this->assertFalse($container->hasInstance(DeferredFailureDependency::class));
+    }
+
+    /**
+     * 根构建失败只回滚本执行流的登记, 不抹掉并发执行流登记的实例
+     * @return void
+     */
+    public function testRootBuildFailureRollsBackOnlyOwnFlow(): void {
+        $container=new Container();
+        $container->bind(FlowFailRoot::class,function(Container $c): object {
+            // 切到另一执行流显式登记并完成一次根构建, 随后本流构建失败
+            $fiber=new Fiber(function() use ($c): void {
+                $c->instance(FlowBMarker::class,new FlowBMarker());
+                $c->get(FlowBService::class);
+            });
+            $fiber->start();
+            throw new Exception('flow a boom');
+        });
+        try {
+            $container->get(FlowFailRoot::class);
+            $this->fail('根构建失败时应抛出异常');
+        } catch(Exception $e) {
+            $this->assertSame('flow a boom',$e->getMessage());
+        }
+        $this->assertTrue($container->hasInstance(FlowBMarker::class),'另一执行流的显式登记不应被回滚');
+        $this->assertTrue($container->hasInstance(FlowBService::class),'另一执行流的根构建登记不应被回滚');
+        $this->assertFalse($container->hasInstance(FlowFailRoot::class),'本执行流失败构建的登记应被回滚');
     }
 
     /**
@@ -525,6 +553,24 @@ final class DeferredFailureRoot {
     #[AutowireProperty('No\\Such\\DeferredTarget',mode:AutowireMode::Deferred)]
     public ?object $value=null;
 
+}
+
+/**
+ * 回滚隔离用: 构建必然失败的根对象
+ */
+final class FlowFailRoot {
+}
+
+/**
+ * 回滚隔离用: 另一执行流显式登记的标记对象
+ */
+final class FlowBMarker {
+}
+
+/**
+ * 回滚隔离用: 另一执行流根构建的服务
+ */
+final class FlowBService {
 }
 
 /**

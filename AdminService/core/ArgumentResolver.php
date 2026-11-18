@@ -179,7 +179,10 @@ final class ArgumentResolver implements ArgumentResolverInterface {
                 $is_variadic=$meta['is_variadic'];
                 $allows_null=$meta['allows_null'];
                 $has_default=$meta['has_default'];
-                $default=$meta['default'];
+                // 对象默认值(枚举 case / new 表达式)不缓存, 从反射实时读取
+                $default=!empty($meta['default_object'])
+                    ?($has_default?$param->getDefaultValue():null)
+                    :$meta['default'];
             } else {
                 $type=(string)$param->getType();
                 // 将类型分割为数组
@@ -256,7 +259,7 @@ final class ArgumentResolver implements ArgumentResolverInterface {
             }
             // 配置项注入(仅显式标注 #[Config] 的形参; 具名/顺位实参已在上方优先消费)
             if($allow_config) {
-                $config=$meta!==null?$this->configFromMeta($meta['config']):$this->configAttribute($param);
+                $config=$meta!==null?$this->configFromMeta($meta['config'],$param):$this->configAttribute($param);
                 if($config!==null) {
                     $params_temp[]=$this->configValue($config,$types,$has_default?$default:null);
                     continue;
@@ -552,12 +555,16 @@ final class ArgumentResolver implements ArgumentResolverInterface {
      * 从编译元数据恢复 `#[Config]` 注解
      *
      * @access private
-     * @param array{key:string,has_default:bool,default:mixed}|null $meta 配置元数据
+     * @param array{key:string,has_default:bool,default:mixed,default_object?:true}|null $meta 配置元数据
+     * @param ReflectionParameter|null $param 当前形参(对象默认值未缓存时从反射注解重建)
      * @return Config|null
      */
-    private function configFromMeta(?array $meta): ?Config {
+    private function configFromMeta(?array $meta,?ReflectionParameter $param=null): ?Config {
         if($meta===null)
             return null;
+        // 对象默认值(枚举 case / new 表达式)不缓存, 从反射注解重建
+        if(!empty($meta['default_object'])&&$param!==null)
+            return $this->configAttribute($param);
         return $meta['has_default']?new Config($meta['key'],$meta['default']):new Config($meta['key']);
     }
 

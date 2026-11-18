@@ -58,6 +58,17 @@ final class Container implements \base\Container {
     private array $build_stacks=array();
 
     /**
+     * 各执行流的根构建回滚日志
+     *
+     * - 键为 `base\ExecutionFlow::key()`, 值是该执行流本轮根构建触碰过的键及其旧状态(每键只记一次)
+     * - 根构建失败时只回滚日志内的键; 并发执行流各自登记的实例互不受回滚影响
+     * - 表名与实例属性一一对应: container / resolved_container / factory_singleton_class
+     *
+     * @var array<string,array<string,array<string,array{exists:bool,value:mixed}>>>
+     */
+    private array $build_journals=array();
+
+    /**
      * 对象实例容器
      * @var array<string,object>
      */
@@ -206,36 +217,64 @@ final class Container implements \base\Container {
         $this->autowire->setInstanceResolver(function(string $class,bool $is_force=false,array &$flags=array()): object {
             return $this->makeInternal($class,$is_force,$flags);
         });
-        // 属性/Setter 与构造参数共用“已登记实例优先、再选可实例化分支”的规则
+        // 属性/Setter 与构造参数共用“已登记实例优先、再逐分支尝试可实例化类型”的规则
+        // 分支失败(装配异常 / 循环依赖 / 类不可用 / 反射 / 参数不足)时尝试下一分支;
+        // 全部分支失败时原样抛出首个失败原因(保持 CircularDependencyException 的异常类型)
         $this->autowire->setTypeResolver(function(array $types,array &$flags): ?object {
             $bound=$this->getBoundInstance($types);
             if($bound!==null)
                 return $bound;
-            $real_class=$this->classes->getFirstInstantiableClass($types);
-            if($real_class===null)
-                return null;
-            return $this->makeInternal($real_class,false,$flags);
+            $first_failure=null;
+            foreach($types as $type) {
+                if($type===''||$type==='NULL'||$type==='mixed')
+                    continue;
+                try {
+                    $real_class=$this->classes->getFirstInstantiableClass(array($type));
+                    if($real_class===null)
+                        continue;
+                    return $this->makeInternal($real_class,false,$flags);
+                } catch(Exception|ReflectionException|\ArgumentCountError $e) {
+                    $first_failure??=$e;
+                    continue;
+                }
+            }
+            if($first_failure!==null)
+                throw $first_failure;
+            return null;
         });
         // 类查找器: 别名与绑定解析
         $this->classes->setClassResolver(function(string $class): string {
             return $this->resolve($class);
         });
-        // 参数解析器: 按类型解析出实例(先看容器里已有的实例, 再找可实例化的类交给容器装配)
+        // 参数解析器: 按类型解析出实例(先看容器里已有的实例, 再逐分支尝试可实例化的类交给容器装配)
         // 构造参数与生命周期方法参数沿用当前执行流的构建栈
         $this->arguments->setInstanceResolver(function(array $types,?ReflectionParameter $param=null): ?object {
             $bound=$this->getBoundInstance($types);
             if($bound!==null)
                 return $bound;
-            $real_class=$this->classes->getFirstInstantiableClass($types);
-            if($real_class===null)
-                return null;
-            $stack=&$this->currentBuildStack();
-            // 可选的自引用参数交给参数解析器取默认值 / null, 不生成裸实例
-            if(in_array($real_class,$stack,true)
-                &&$param!==null
-                &&($param->isDefaultValueAvailable()||$param->allowsNull()))
-                return null;
-            return $this->makeInternal($real_class,false,$stack);
+            $first_failure=null;
+            foreach($types as $type) {
+                if($type===''||$type==='NULL'||$type==='mixed')
+                    continue;
+                try {
+                    $real_class=$this->classes->getFirstInstantiableClass(array($type));
+                    if($real_class===null)
+                        continue;
+                    $stack=&$this->currentBuildStack();
+                    // 可选的自引用参数交给参数解析器取默认值 / null, 不生成裸实例
+                    if(in_array($real_class,$stack,true)
+                        &&$param!==null
+                        &&($param->isDefaultValueAvailable()||$param->allowsNull()))
+                        return null;
+                    return $this->makeInternal($real_class,false,$stack);
+                } catch(Exception|ReflectionException|\ArgumentCountError $e) {
+                    $first_failure??=$e;
+                    continue;
+                }
+            }
+            if($first_failure!==null)
+                throw $first_failure;
+            return null;
         });
         // 容器自身登记: 按契约 `base\Container` 或按实现类名都能取到"当前容器"
         // (控制器/路由基类按契约依赖它)
@@ -335,8 +374,7 @@ final class Container implements \base\Container {
     private function refreshAbstractRegistration(string $name,object $object,?object $bound,bool $is_force): void {
         if(!$is_force||$bound===null)
             return;
-        $this->container[$name]=$object;
-        $this->resolved_container[$name]=true;
+        $this->buildSet($name,$object);
         $this->refreshSelfRegistration($name,$object,$is_force);
     }
 
@@ -357,6 +395,8 @@ final class Container implements \base\Container {
             return;
         if($name!==static::class&&$name!==\base\Container::class)
             return;
+        $this->journalOld('container',\base\Container::class);
+        $this->journalOld('container',static::class);
         $this->container[\base\Container::class]=$object;
         $this->container[static::class]=$object;
     }
@@ -548,8 +588,7 @@ final class Container implements \base\Container {
             );
         }
         $instance=$ref->newInstance();
-        $this->container[$name]=$instance;
-        $this->resolved_container[$name]=true;
+        $this->buildSet($name,$instance);
         $this->registerSingletons($name,$instance);
         return $instance;
     }
@@ -607,30 +646,6 @@ final class Container implements \base\Container {
         $this->container[\base\Container::class]=$this;
         $this->container[static::class]=$this;
         // 丢弃未执行的延迟任务, 避免它们引用已被清空的实例
-        $this->autowire->clearDeferred();
-    }
-
-    /**
-     * 回滚根构建失败时新增的实例登记
-     *
-     * - `get()` / `make()` / `fresh()` / `build()` 在最外层构建前保存实例表与自动缓存标记快照
-     * - 构建或延迟刷新失败时恢复快照, 避免半装配对象留在容器里被后续调用复用
-     * - 只回滚实例表与自动缓存标记; 绑定 / 别名表, 以及生命周期方法产生的外部副作用不在此范围
-     *
-     * @access private
-     * @param array|null $snapshot 根构建前的实例表快照; 嵌套构建传 null
-     * @param array|null $resolved_snapshot 根构建前的自动实例标记快照
-     * @param array|null $singleton_snapshot 根构建前的单例闭包实现类快照
-     * @return void
-     */
-    private function rollbackRootContainer(?array $snapshot,?array $resolved_snapshot=null,?array $singleton_snapshot=null): void {
-        if($snapshot===null)
-            return;
-        $this->container=$snapshot;
-        if($resolved_snapshot!==null)
-            $this->resolved_container=$resolved_snapshot;
-        if($singleton_snapshot!==null)
-            $this->factory_singleton_class=$singleton_snapshot;
         $this->autowire->clearDeferred();
     }
 
@@ -738,6 +753,8 @@ final class Container implements \base\Container {
      */
     private function registerInstance(string $name,object $object): void {
         $real=$this->resolve($name);
+        $this->journalOld('container',$real);
+        $this->journalOld('resolved_container',$real);
         $this->container[$real]=$object;
         unset($this->resolved_container[$real]);
     }
@@ -933,10 +950,8 @@ final class Container implements \base\Container {
      */
     private function registerSingletons(string $real_class,object $instance): void {
         foreach($this->singleton_container as $abstract=>$concrete) {
-            if($concrete===$real_class) {
-                $this->container[$abstract]=$instance;
-                $this->resolved_container[$abstract]=true;
-            }
+            if($concrete===$real_class)
+                $this->buildSet($abstract,$instance);
         }
     }
 
@@ -994,7 +1009,7 @@ final class Container implements \base\Container {
     /**
      * 执行一次根构建
      *
-     * - 根构建维护回滚快照、延迟任务刷新与元数据落盘; 嵌套构建不重复执行
+     * - 根构建维护按执行流隔离的回滚日志、延迟任务刷新与元数据落盘; 嵌套构建不重复执行
      * - `$build` 接收构建栈引用, 返回值原样返回
      *
      * @access private
@@ -1006,23 +1021,96 @@ final class Container implements \base\Container {
         $key=ExecutionFlow::key();
         $flags=&$this->currentBuildStack();
         $is_root=$flags===array();
-        $snapshot=$is_root?$this->container:null;
-        $resolved_snapshot=$is_root?$this->resolved_container:null;
-        $singleton_snapshot=$is_root?$this->factory_singleton_class:null;
+        if($is_root)
+            $this->build_journals[$key]=array(
+                'container'=>array(),
+                'resolved_container'=>array(),
+                'factory_singleton_class'=>array()
+            );
         try {
             $object=$build($flags);
             if($is_root)
                 $this->autowire->flushDeferred();
             return $object;
         } catch(\Throwable $e) {
-            $this->rollbackRootContainer($snapshot,$resolved_snapshot,$singleton_snapshot);
+            $this->rollbackRootBuild();
             throw $e;
         } finally {
-            if($is_root)
+            if($is_root) {
                 unset($this->build_stacks[$key]);
+                unset($this->build_journals[$key]);
+            }
             if($is_root)
                 $this->flushMetadataIfRoot();
         }
+    }
+
+    /**
+     * 记录构建路径写入口的旧状态(回滚日志)
+     *
+     * - 仅当前执行流存在根构建日志时记录; 每键只记第一次触碰时的状态
+     *
+     * @access private
+     * @param string $table 表名(container / resolved_container / factory_singleton_class)
+     * @param string $key 实例登记键
+     * @return void
+     */
+    private function journalOld(string $table,string $key): void {
+        $flow=ExecutionFlow::key();
+        if(!isset($this->build_journals[$flow]))
+            return;
+        $journal=&$this->build_journals[$flow];
+        if(array_key_exists($key,$journal[$table]))
+            return;
+        $current=match($table) {
+            'container'=>$this->container,
+            'resolved_container'=>$this->resolved_container,
+            'factory_singleton_class'=>$this->factory_singleton_class
+        };
+        $journal[$table][$key]=array(
+            'exists'=>array_key_exists($key,$current),
+            'value'=>$current[$key]??null
+        );
+    }
+
+    /**
+     * 构建路径写入实例登记(先记录回滚日志)
+     *
+     * @access private
+     * @param string $name 名称
+     * @param object $object 实例
+     * @return void
+     */
+    private function buildSet(string $name,object $object): void {
+        $this->journalOld('container',$name);
+        $this->journalOld('resolved_container',$name);
+        $this->container[$name]=$object;
+        $this->resolved_container[$name]=true;
+    }
+
+    /**
+     * 回滚当前执行流根构建触碰过的实例登记
+     *
+     * - 只恢复回滚日志内的键; 未触碰的登记(含并发执行流登记的实例)保持原样
+     * - 同时清空本执行流的延迟注入任务
+     *
+     * @access private
+     * @return void
+     */
+    private function rollbackRootBuild(): void {
+        $flow=ExecutionFlow::key();
+        $journal=$this->build_journals[$flow]??null;
+        if($journal!==null) {
+            foreach(array('container','resolved_container','factory_singleton_class') as $table) {
+                foreach($journal[$table] as $key=>$old) {
+                    if($old['exists'])
+                        $this->{$table}[$key]=$old['value'];
+                    else
+                        unset($this->{$table}[$key]);
+                }
+            }
+        }
+        $this->autowire->clearDeferred();
     }
 
     /**
@@ -1082,14 +1170,13 @@ final class Container implements \base\Container {
                 array_pop($flags);
         }
         if($cached) {
-            $this->container[$name]=$object;
-            $this->resolved_container[$name]=true;
+            $this->buildSet($name,$object);
             // bind/singleton 闭包同样要让已配置的“抽象名 → 实现类”单例映射指向该实例
             $this->registerSingletons($object::class,$object);
             if($singleton) {
                 // 单例闭包：抽象名与返回对象的实际实现类名指向同一实例
-                $this->container[$object::class]=$object;
-                $this->resolved_container[$object::class]=true;
+                $this->buildSet($object::class,$object);
+                $this->journalOld('factory_singleton_class',$name);
                 $this->factory_singleton_class[$name]=$object::class;
             }
         }
@@ -1176,8 +1263,7 @@ final class Container implements \base\Container {
             // 自动注入属性
             $this->autowire->autowire($object,$flags);
             // 将对象添加到容器中(并处理单例绑定的抽象名)
-            $this->container[$name]=$object;
-            $this->resolved_container[$name]=true;
+            $this->buildSet($name,$object);
             $this->registerSingletons($name,$object);
             $this->refreshSelfRegistration($name,$object,$is_force);
             return $object;

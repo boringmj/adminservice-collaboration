@@ -7,6 +7,7 @@ use base\Attribute\Method;
 use base\Attribute\Resource;
 use base\Attribute\Route;
 use base\Attribute\RouteGroup;
+use base\ExecutionFlow;
 use base\RoutingInterface;
 use AdminService\ContextStorage;
 use AdminService\Exception;
@@ -15,7 +16,6 @@ use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionMethod;
-use Fiber;
 
 use function array_intersect;
 use function array_merge;
@@ -129,7 +129,7 @@ final class Router implements RoutingInterface {
     /**
      * 各执行流最近命中的路由
      *
-     * - 键为请求上下文 / Fiber / 主流程标识
+     * - 有请求上下文时按上下文区分, 否则使用 `base\ExecutionFlow::key()`
      * - 共享 Router 只保留只读路由表，请求态不串流
      * @var array<string,RouteItem>
      */
@@ -950,9 +950,7 @@ final class Router implements RoutingInterface {
         $context=ContextStorage::current();
         if($context!==null)
             return 'context:'.spl_object_id($context);
-        if(($fiber=Fiber::getCurrent())!==null)
-            return 'fiber:'.spl_object_id($fiber);
-        return 'main';
+        return ExecutionFlow::key();
     }
 
     /**

@@ -135,6 +135,24 @@ final class ArchitectureGuardTest extends TestCase {
     }
 
     /**
+     * 检查错误状态与路由命中态共用执行流标识
+     *
+     * @access public
+     * @return void
+     */
+    public function testExecutionFlowKeyIsShared(): void {
+        foreach(array('core/Error.php','core/Router/Router.php') as $file) {
+            $code=$this->code($file);
+            $this->assertStringContainsString('ExecutionFlow::key()',$code,$file.' 应使用统一执行流标识');
+            $this->assertSame(
+                0,
+                preg_match('/Fiber::getCurrent\s*\(/',$code),
+                $file.' 不应自行拼装执行流键'
+            );
+        }
+    }
+
+    /**
      * 检查请求对象不写入应用级容器
      *
      * @access public

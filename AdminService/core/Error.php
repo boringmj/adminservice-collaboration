@@ -5,10 +5,10 @@ use base\ConfigInterface;
 
 use base\Error as BaseError;
 use base\Container as ContainerContract;
+use base\ExecutionFlow;
 use base\HttpStatusExceptionInterface;
 use base\Response;
 use base\View;
-use Fiber;
 
 use function array_pop;
 use function array_shift;
@@ -41,7 +41,6 @@ use function preg_match;
 use function register_shutdown_function;
 use function set_error_handler;
 use function set_exception_handler;
-use function spl_object_id;
 use function sprintf;
 use function str_replace;
 use function strlen;
@@ -107,7 +106,7 @@ final class Error extends BaseError {
      *
      * - 每个执行流一个栈: 首项为基础状态, 每次 `beginRequest()` 压入请求状态, `endRequest()` 弹出
      * - 避免常驻 worker 的协程并发请求共享错误记录与请求容器
-     * - 键为 Fiber / Swoole 协程 / 顺序主流程标识
+     * - 键为 `base\ExecutionFlow::key()`
      *
      * @var array<string,array<int,array{
      *     errors:array<int,array<string,mixed>>,
@@ -131,9 +130,7 @@ final class Error extends BaseError {
      * @return string
      */
     private static function executionKey(): string {
-        if(($fiber=Fiber::getCurrent())!==null)
-            return 'fiber:'.spl_object_id($fiber);
-        return Coroutine::key()??'main';
+        return ExecutionFlow::key();
     }
 
     /**

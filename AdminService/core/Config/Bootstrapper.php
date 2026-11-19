@@ -417,6 +417,8 @@ final class Bootstrapper {
     /**
      * 配置缓存状态
      *
+     * - 供诊断命令使用, 源指纹比对不受 `shouldValidate()` 门控: 零探测模式下过期也报 `stale`
+     *
      * @access public
      * @param Env $env `.env` 快照
      * @param bool $force 是否按构建模式检查(忽略 debug 跳过名单)
@@ -447,8 +449,7 @@ final class Bootstrapper {
         } elseif($inspect['context']!==$this->configContext($store,$env)) {
             $status='stale';
             $reason='配置缓存上下文已变化';
-        } elseif($store->shouldValidate()
-            &&$inspect['fingerprint']!==$this->configFingerprint($store,$env)) {
+        } elseif($inspect['fingerprint']!==$this->configFingerprint($store,$env)) {
             $status='stale';
             $reason='配置源文件已变化';
         }

@@ -181,6 +181,8 @@ final class ContainerMetadata {
     /**
      * 只读检查容器元数据缓存状态
      *
+     * - 供诊断命令使用, 类源文件比对不受 `shouldValidate()` 门控: 零探测模式下过期也报 `stale`
+     *
      * @access public
      * @return array<string,mixed>
      * @throws Exception
@@ -220,7 +222,7 @@ final class ContainerMetadata {
                         $reason='容器缓存条目无效';
                         break;
                     }
-                    if($this->store->shouldValidate()&&!$this->entryFilesMatch($entry['files'])) {
+                    if(!$this->entryFilesMatch($entry['files'])) {
                         $status='stale';
                         $reason='容器类源文件已变化';
                         break;

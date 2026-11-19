@@ -177,6 +177,8 @@ final class RouterFactory {
     /**
      * 只读检查路由缓存状态
      *
+     * - 供诊断命令使用, 源指纹比对不受 `shouldValidate()` 门控: 零探测模式下过期也报 `stale`
+     *
      * @access public
      * @param ConfigInterface $config 当前配置
      * @return array<string,mixed>
@@ -208,16 +210,13 @@ final class RouterFactory {
             } elseif($inspect['context']!==$this->context($store,$config)) {
                 $status='stale';
                 $reason='路由缓存上下文已变化';
-            } elseif($store->shouldValidate()
-                &&$inspect['fingerprint']!==$this->fingerprint($store,$config)) {
+            } elseif($inspect['fingerprint']!==$this->fingerprint($store,$config)) {
                 $status='stale';
                 $reason='路由源文件已变化';
-            } elseif($store->shouldValidate()
-                &&!$this->sourcesMatch($payload['sources']??null)) {
+            } elseif(!$this->sourcesMatch($payload['sources']??null)) {
                 $status='stale';
                 $reason='路由处理器源文件已变化';
-            } elseif($store->shouldValidate()
-                &&!$this->sourcesMatch($payload['route_sources']??null)) {
+            } elseif(!$this->sourcesMatch($payload['route_sources']??null)) {
                 $status='stale';
                 $reason='路由文件已变化';
             }

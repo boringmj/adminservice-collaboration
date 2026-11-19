@@ -243,6 +243,50 @@ class ContainerCacheTest extends TestCase {
     }
 
     /**
+     * 测试: 零探测模式下诊断仍比对类源文件指纹并报告过期
+     *
+     * - 读取路径零探测不变(另行用例钉住); `inspect()` 无条件比对源文件
+     *
+     * @return void
+     */
+    public function testInspectDetectsSourceChangeInZeroProbeMode(): void {
+        $short='ContainerCacheZeroProbe'.uniqid();
+        $class='Tests\\CacheTemp\\'.$short;
+        $source=$this->dir.'/'.$short.'.php';
+        file_put_contents(
+            $source,
+            "<?php\nnamespace Tests\\CacheTemp;\n\nclass {$short} {\n    public mixed \$dependency=null;\n}\n"
+        );
+        require $source;
+
+        $config=new Repository(array(
+            'app'=>array('debug'=>false),
+            'cache'=>array(
+                'path'=>$this->dir.'/cache-zeroprobe',
+                'compile'=>array(
+                    'enabled'=>true,
+                    'mode'=>'auto',
+                    'container'=>true
+                )
+            )
+        ));
+        $first=new ContainerMetadata(new ReflectionCache(),$config);
+        $first->getClass($class);
+        $first->flush();
+        $this->assertSame('valid',$first->inspect()['status']);
+
+        file_put_contents(
+            $source,
+            "<?php\nnamespace Tests\\CacheTemp;\n\nclass {$short} {\n    public mixed \$dependencz=null;\n}\n"
+        );
+        clearstatcache(true,$source);
+
+        $status=$first->inspect();
+        $this->assertSame('stale',$status['status'],'零探测模式下诊断仍应比对类源文件指纹');
+        $this->assertSame('容器类源文件已变化',$status['reason']);
+    }
+
+    /**
      * 测试: 校验模式在源文件变化后重建元数据
      *
      * @return void

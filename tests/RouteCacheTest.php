@@ -376,6 +376,35 @@ class RouteCacheTest extends TestCase {
     }
 
     /**
+     * 测试: 零探测模式下诊断仍比对源指纹并报告过期
+     *
+     * - 读取路径零探测不变(命中旧缓存、不重建); `inspect()` 无条件比对源指纹
+     *
+     * @return void
+     */
+    public function testInspectDetectsSourceChangeInZeroProbeMode(): void {
+        $this->writeRoutes();
+        $config=$this->config(false,'auto');
+        (new RouterFactory())->get($config);
+        $this->assertSame('valid',(new RouterFactory())->inspect($config)['status']);
+
+        // 同秒同长度修改: 内容指纹仍不同
+        $mtime=filemtime($this->route_file);
+        $this->writeRoutes(str_replace('"/cached"','"/health"',$this->defaultBody()));
+        touch($this->route_file,$mtime);
+        clearstatcache(true,$this->route_file);
+
+        $status=(new RouterFactory())->inspect($config);
+        $this->assertSame('stale',$status['status'],'零探测模式下诊断仍应比对路由源指纹');
+        $this->assertSame('路由源文件已变化',$status['reason']);
+
+        // 读取路径行为不变: 零探测命中旧缓存
+        $router=(new RouterFactory())->get($config);
+        $this->assertSame(1,$GLOBALS['route_cache_builds'],'零探测读取不重建');
+        $this->assertNotNull($router->find('GET','/cached'));
+    }
+
+    /**
      * 测试: 路由缓存命中后保留 produces 声明
      *
      * @return void

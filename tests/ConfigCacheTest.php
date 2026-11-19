@@ -508,6 +508,45 @@ class ConfigCacheTest extends TestCase {
     }
 
     /**
+     * 测试: 零探测模式下诊断仍比对源指纹并报告过期
+     *
+     * - 读取路径零探测不变(命中旧值、不重建); `configCacheStatus()` 无条件比对源指纹
+     *
+     * @return void
+     */
+    public function testConfigCacheStatusDetectsSourceChangeInZeroProbeMode(): void {
+        $old_runtime=Runtime::path();
+        $base=$this->tempDir();
+        $config_dir=$base.'/config';
+        mkdir($config_dir,0755,true);
+        $file=$config_dir.'/app.php';
+        file_put_contents($file,"<?php return array('name'=>'A','debug'=>false);\n");
+        try {
+            Runtime::setPath($base.'/runtime');
+            $env=new Env('APP_DEBUG=false');
+            $bootstrapper=new Bootstrapper($config_dir);
+            $first=$bootstrapper->loadConfig($env,false,true);
+            $this->assertSame('A',$first->get('app.name'));
+            $this->assertSame('valid',$bootstrapper->configCacheStatus($env)['status']);
+
+            file_put_contents($file,"<?php return array('name'=>'B','debug'=>false);\n");
+            clearstatcache(true,$file);
+
+            // 零探测读取路径不校验源指纹, 仍命中旧值(读取行为不变)
+            $second=$bootstrapper->loadConfig($env,false,true);
+            $this->assertSame('A',$second->get('app.name'),'零探测读取路径不比对源指纹');
+
+            // 诊断命令一次性执行, 应无条件比对源指纹
+            $status=$bootstrapper->configCacheStatus($env);
+            $this->assertSame('stale',$status['status'],'零探测模式下诊断仍应比对配置源指纹');
+            $this->assertSame('配置源文件已变化',$status['reason']);
+        } finally {
+            Runtime::setPath($old_runtime);
+            $this->removePath($base);
+        }
+    }
+
+    /**
      * 测试: Bootstrapper 与 CompileStore 对字符串 false 的解析一致
      *
      * @return void

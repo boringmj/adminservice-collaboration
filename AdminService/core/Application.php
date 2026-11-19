@@ -493,6 +493,7 @@ final class Application {
      * 结束当前请求并释放请求级引用
      *
      * - 供常驻 worker 在响应发送后显式调用; FPM 进程结束时可省略
+     * - 补落盘 `defer_metadata` 延迟的容器元数据, 落盘失败记录日志
      * - 不清空应用级容器
      *
      * @access public
@@ -527,6 +528,9 @@ final class Application {
         // 无当前请求时不弹错误状态, 保持 Application 与 Error 两侧一致
         if($context!==null)
             Error::endRequest($context);
+        // 补落盘延迟的容器元数据, `defer_metadata` 的调用方义务在请求边界闭环
+        if(!$this->flushRequestMetadata($context!==null?$context->container():null))
+            error_log('Container metadata flush failed at request end.');
     }
 
     /**

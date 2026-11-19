@@ -171,6 +171,24 @@ final class ArchitectureGuardTest extends TestCase {
     }
 
     /**
+     * 检查契约层 Error 不保留死静态错误表
+     *
+     * - `getErrors()` 由实现类提供状态, 契约只声明 API
+     *
+     * @access public
+     * @return void
+     */
+    public function testBaseErrorHasNoDeadStaticErrors(): void {
+        $source=(string)file_get_contents($this->core.'/base/Error.php');
+        $this->assertSame(
+            0,
+            preg_match('/static\s+\$errors/',$source),
+            'base\\Error 不应保留死静态 $errors'
+        );
+        $this->assertStringContainsString('abstract public static function getErrors',$source);
+    }
+
+    /**
      * 检查请求对象不写入应用级容器
      *
      * @access public

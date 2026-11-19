@@ -5,6 +5,7 @@ namespace AdminService;
 use base\Exception as BaseException;
 use ReflectionException;
 
+use function error_log;
 use function get_called_class;
 use function json_encode;
 
@@ -46,8 +47,9 @@ class Exception extends BaseException {
                     'trace'=>$this->getTraceAsString()
                 )
             );
-        } catch(\Throwable) {
-            echo 'Log write failed: "'.$message.'"';
+        } catch(\Throwable $e) {
+            // 日志写入失败走系统错误日志; 不向输出流回显, 避免破坏未发送的响应头与消息暴露
+            error_log('Exception log write failed: '.get_class($e).': '.$e->getMessage());
         }
     }
 

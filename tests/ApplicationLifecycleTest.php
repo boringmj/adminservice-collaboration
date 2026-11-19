@@ -562,6 +562,24 @@ class ApplicationLifecycleTest extends TestCase {
     }
 
     /**
+     * 测试: `endRequest()` 补落盘 `defer_metadata` 延迟的容器元数据
+     *
+     * - 请求边界闭环 `defer_metadata` 的调用方义务, 不再依赖调用方自行 flush
+     *
+     * @return void
+     */
+    public function testEndRequestFlushesDeferredMetadata(): void {
+        $application=new Application();
+        $application->handle(function(): void {},true);
+        $container=$application->container();
+        $flag=new ReflectionProperty(Container::class,'defer_metadata_flush');
+        $flag->setAccessible(true);
+        $this->assertTrue($flag->getValue($container),'延迟模式下应用级容器只标脏不落盘');
+        $application->endRequest();
+        $this->assertFalse($flag->getValue($container),'请求边界应补落盘延迟元数据');
+    }
+
+    /**
      * 创建返回指定 name 的假数据库入口
      *
      * @access private

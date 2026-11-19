@@ -81,7 +81,8 @@ final class Bootstrapper {
     /**
      * 执行完整引导
      *
-     * - 传入 env 时, 配置文件里的 `env()` 与路径键覆盖都使用该快照; 加载结束恢复进程快照
+     * - 传入 env 时, 配置文件里的 `env()` 与路径键覆盖都使用该快照;
+     *   引导完成后进程快照与 `Runtime` 路径同步为该快照, 两类进程级状态同源
      *
      * @access public
      * @param Env|null $env `.env` 快照(null = 进程级快照)
@@ -96,6 +97,8 @@ final class Bootstrapper {
         $this->env=$env;
         // 先解析 runtime 根目录: 配置文件默认路径与后续缓存都依赖它
         Runtime::setPath(Runtime::path($env));
+        // 进程 env 快照同步为本次引导的 env, 与 Runtime 路径同源
+        EnvSnapshot::replace($env);
         $config=$this->loadConfig($env,false,$use_config_cache);
         date_default_timezone_set((string)$config->get('app.timezone','Asia/Shanghai'));
         ConfigFacade::setRepository($config);

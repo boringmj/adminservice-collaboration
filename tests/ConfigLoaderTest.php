@@ -4,13 +4,17 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
+use AdminService\App;
 use AdminService\Config\Bootstrapper;
 use AdminService\Config\Env;
 use AdminService\Config\EnvSnapshot;
 use AdminService\Config\Loader;
 use AdminService\Config\Repository;
+use AdminService\Database\DatabaseConfig;
+use AdminService\Runtime;
 use AdminService\exception\ConfigException;
 use base\ConfigInterface;
+use base\Database\Db as BaseDb;
 
 use function AdminService\env;
 use function AdminService\env_snapshot;
@@ -233,6 +237,32 @@ class ConfigLoaderTest extends TestCase {
         } finally {
             EnvSnapshot::replace($old);
             $this->removeDir($dir);
+        }
+    }
+
+    /**
+     * 测试: `boot()` 以传入 env 引导后进程快照与 Runtime 路径同源
+     *
+     * - 引导完成后 `env_snapshot()` 与 `Runtime::path()` 不得指向不同来源
+     *
+     * @return void
+     */
+    public function testBootSyncsProcessEnvSnapshotWithRuntimePath(): void {
+        $old=env_snapshot();
+        $previous_runtime=Runtime::path();
+        $previous_app=App::hasInstance()?App::getInstance():null;
+        $boot_env=Env::fromArray(array('RUNTIME_PATH'=>sys_get_temp_dir().'/runtime-boot-'.uniqid('',true)));
+        try {
+            (new Bootstrapper())->boot($boot_env,false);
+            $this->assertSame(Runtime::path($boot_env),Runtime::path(),'引导后 Runtime 进程路径应指向引导 env');
+            $this->assertSame($boot_env,env_snapshot(),'引导后进程 env 快照应与 Runtime 路径同源');
+        } finally {
+            EnvSnapshot::replace($old);
+            Runtime::setPath($previous_runtime);
+            if($previous_app!==null)
+                App::setInstance($previous_app);
+            BaseDb::setConfig(new DatabaseConfig());
+            load_framework_config();
         }
     }
 

@@ -25,6 +25,7 @@ use function preg_match;
 use function preg_replace;
 use function str_replace;
 use function time;
+use function trim;
 
 class Log {
 
@@ -59,26 +60,35 @@ class Log {
      *
      * @access public
      * @param string|null $log_name 日志文件名称(不含文件扩展名,不含目录名)
+     * @param ConfigInterface|null $config 配置契约实例(未注入时回落门面当前那份)
      * @throws Exception
-          * @param ConfigInterface|null $config 配置契约实例(未注入时回落门面当前那份)
-*/
+     */
     public function __construct(?string $log_name=null,?ConfigInterface $config=null) {
         $this->config=$config;
-        // 获取用于存储日志的目录
-        $log_path=$this->config()->get('log.path');
-        // 如果目录不存在,则创建目录
-        if(!is_dir($log_path))
-            mkdir($log_path,$this->config()->get('log.dir_mode'),true);
+        // 获取用于存储日志的目录; 缺失时回落框架默认 runtime 目录
+        $log_path=$this->config()->get('log.path',Runtime::path().'/log');
+        if(!is_string($log_path)||trim($log_path)==='')
+            $log_path=Runtime::path().'/log';
+        // 目录不存在则创建; 失败复检后抛异常, 不再静默继续
+        $dir_mode=(int)$this->config()->get('log.dir_mode',0755);
+        if($dir_mode<=0)
+            $dir_mode=0755;
+        if(!is_dir($log_path)&&!@mkdir($log_path,$dir_mode,true)&&!is_dir($log_path))
+            throw new Exception('日志目录创建失败: '.$log_path);
         // 如果日志名称为空,则使用默认日志名称
-        if(empty($log_name))
-            $log_name=$this->bind($this->config()->get('log.default_file'),array(
+        if(empty($log_name)) {
+            $default_file=$this->config()->get('log.default_file','{date}');
+            $log_name=$this->bind(is_string($default_file)?$default_file:'{date}',array(
                 'date'=>date('Y-m-d',time())
             ));
+        }
         // 判断日志名称是否合法
-        if(!preg_match($this->config()->get('log.rule.file'),$log_name))
+        $rule=$this->config()->get('log.rule.file','/^[a-zA-Z0-9_\-]+$/');
+        if(!is_string($rule)||!preg_match($rule,$log_name))
             throw new Exception('日志名称不合法'.$log_name);
         // 拼接上日志文件路径
-        $log_path.='/'.$log_name.$this->config()->get('log.ext_name');
+        $ext_name=$this->config()->get('log.ext_name','.log');
+        $log_path.='/'.$log_name.(is_string($ext_name)?$ext_name:'.log');
         $this->log_path=$log_path;
         $this->check();
     }
@@ -93,13 +103,15 @@ class Log {
      * @throws Exception
      */
     public function write(string $content,array $vars=array()):void {
-        // 获取日志格式
-        $format=$this->config()->get('log.row');
+        // 获取日志格式; 缺失时回落框架默认行格式
+        $format=$this->config()->get('log.row','[{date}-{time}] {msg}');
+        if(!is_string($format))
+            $format='[{date}-{time}] {msg}';
         // 检查日志文件是否存在,可写和大小是否超过最大值
         $this->check();
         // 如果日志格式为空,则直接写入日志
-        if(empty($format)) {
-            file_put_contents($this->log_path,$this->bind($content,$vars).PHP_EOL,FILE_APPEND);
+        if(trim($format)==='') {
+            $this->put($this->bind($content,$vars).PHP_EOL);
             return;
         }
         // 如果日志格式不为空,则进行变量绑定
@@ -111,7 +123,21 @@ class Log {
         // 过滤日志内容
         $content=$this->filter($content);
         // 写入日志
-        file_put_contents($this->log_path,$content.PHP_EOL,FILE_APPEND);
+        $this->put($content.PHP_EOL);
+    }
+
+    /**
+     * 追加写入日志内容, 失败抛异常
+     *
+     * @access private
+     * @param string $content 日志内容(含换行符)
+     * @return void
+     * @throws Exception
+     */
+    private function put(string $content):void {
+        // 磁盘满等写入失败不静默丢日志
+        if(@file_put_contents($this->log_path,$content,FILE_APPEND)===false)
+            throw new Exception('日志写入失败: '.$this->log_path);
     }
 
     /**
@@ -124,7 +150,7 @@ class Log {
     protected function check(): void {
         // 判断日志文件是否存在,如果不存在,则创建日志文件
         if(!is_file($this->log_path))
-            file_put_contents($this->log_path,'');
+            $this->put('');
         // 判断日志文件大小是否超过最大值
         if(filesize($this->log_path)>$this->config()->get('log.max_size',104857600)) {
             $log_path_info=pathinfo($this->log_path);
@@ -148,7 +174,7 @@ class Log {
                 throw new Exception('日志文件数量超过最大值');
             // 文件不存在,则创建文件
             if(!is_file($this->log_path))
-                file_put_contents($this->log_path,'');
+                $this->put('');
         }
         // 判断日志文件是否可写
         if(!is_writable($this->log_path))

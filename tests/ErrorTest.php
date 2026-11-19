@@ -6,9 +6,12 @@ use PHPUnit\Framework\TestCase;
 
 use AdminService\ArraySession;
 use AdminService\Config;
+use AdminService\Config\Repository;
 use AdminService\Container;
 use AdminService\Error;
+use AdminService\Exception;
 use AdminService\HttpRequest;
+use AdminService\Log;
 use AdminService\RequestContext;
 use AdminService\Response;
 use base\ConfigInterface;
@@ -63,6 +66,33 @@ class ErrorTest extends TestCase {
     protected function tearDown(): void {
         Error::reset();
         Error::setContainer(null);
+    }
+
+    /**
+     * 测试: 调试模式异常写日志失败时不再向输出流回显消息
+     *
+     * - 日志后端抛错时走 `error_log`, 不破坏未发送的响应头, 消息不直接暴露
+     *
+     * @return void
+     */
+    public function testExceptionLogFailureDoesNotEcho(): void {
+        $container=new Container();
+        $container->instance(ConfigInterface::class,new Repository(array('app'=>array('debug'=>true))));
+        $container->instance(Log::class,new class {
+
+            /**
+             * 写入日志时抛错(测试桩)
+             * @param string $content 内容
+             * @param array<string,mixed> $vars 变量
+             * @return void
+             */
+            public function write(string $content,array $vars=array()): void {
+                throw new \RuntimeException('log backend broken');
+            }
+        });
+        Error::setContainer($container);
+        $this->expectOutputString('');
+        new Exception('敏感信息不应回显');
     }
 
     /**

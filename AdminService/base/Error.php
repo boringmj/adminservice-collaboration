@@ -10,14 +10,8 @@ namespace base;
 abstract class Error {
 
     /**
-     * 存储收集到的错误
-     * @var array
-     */
-    protected static $errors=array();
-
-    /**
      * 注册错误处理器
-     * 
+     *
      * @access public
      * @param callable $normalExitCallback 正常退出时的回调函数
      * @param bool $initialized 标记框架是否初始化完成
@@ -40,12 +34,13 @@ abstract class Error {
 
     /**
      * 获取收集到的错误
-     * 
+     *
+     * - 错误状态由实现类按执行流维护, 契约只声明 API
+     *
      * @access public
      * @return array
+     * @abstract
      */
-    public static function getErrors(): array {
-        return self::$errors;
-    }
+    abstract public static function getErrors(): array;
 
 }

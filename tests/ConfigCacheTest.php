@@ -132,6 +132,34 @@ class ConfigCacheTest extends TestCase {
     }
 
     /**
+     * 测试: 配置未显式给出 cache.path 时编译缓存拒绝读写默认 runtime
+     *
+     * - 裸 `Repository`(无 cache 键)与未装配置的子进程由此不再把夹具类写进项目缓存
+     * - 对照组: 显式 `cache.path` 时读写正常
+     *
+     * @return void
+     */
+    public function testStoreWithoutCachePathRefusesCompileAccess(): void {
+        $old_runtime=Runtime::path();
+        $dir=$this->tempDir();
+        Runtime::setPath($dir);
+        try {
+            $store=new CompileStore(new Repository(array()));
+            $this->assertFalse($store->enabled('container'),'未配置 cache.path 时编译缓存应视为不可用');
+            $this->assertFalse($store->save('container','fp',array('a'=>1),null),'未配置 cache.path 时不得写默认 runtime');
+            $this->assertFileDoesNotExist($dir.'/cache/compile/container.cache.php');
+
+            $configured=new CompileStore(new Repository(array('cache'=>array('path'=>$dir.'/cache'))));
+            $this->assertTrue($configured->enabled('container'),'显式 cache.path 不受影响');
+            $this->assertTrue($configured->save('container','fp',array('a'=>1),null));
+            $this->assertFileExists($dir.'/cache/compile/container.cache.php');
+        } finally {
+            Runtime::setPath($old_runtime);
+            $this->removePath($dir);
+        }
+    }
+
+    /**
      * 测试: debug + auto 默认跳过配置缓存, 但保留路由缓存
      *
      * @return void

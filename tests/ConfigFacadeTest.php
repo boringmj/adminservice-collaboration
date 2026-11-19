@@ -15,6 +15,15 @@ use Tests\Fixtures\ConcreteService;
 
 use ReflectionProperty;
 
+use function is_dir;
+use function is_file;
+use function is_link;
+use function rmdir;
+use function scandir;
+use function sys_get_temp_dir;
+use function uniqid;
+use function unlink;
+
 /**
  * 配置门面用例(`AdminService\Config`)
  *
@@ -59,6 +68,30 @@ class ConfigFacadeTest extends TestCase {
         $property=new ReflectionProperty(Config::class,'repository');
         $property->setAccessible(true);
         $property->setValue(null,$repository);
+    }
+
+    /**
+     * 递归删除临时目录
+     *
+     * @param string $path 文件或目录
+     * @return void
+     */
+    private function removePath(string $path): void {
+        if(is_link($path)||is_file($path)) {
+            @unlink($path);
+            return;
+        }
+        if(!is_dir($path))
+            return;
+        $entries=scandir($path);
+        if($entries!==false) {
+            foreach($entries as $entry) {
+                if($entry==='.'||$entry==='..')
+                    continue;
+                $this->removePath($path.'/'.$entry);
+            }
+        }
+        rmdir($path);
     }
 
     /**
@@ -297,6 +330,38 @@ class ConfigFacadeTest extends TestCase {
             ))));
             (new \AdminService\Application($container,$injected))->init();
             $this->assertInstanceOf(ConcreteService::class,$container->get('service.alias'));
+        });
+    }
+
+    /**
+     * 测试: 裸配置引导的根构建不写默认 runtime 的容器元数据
+     *
+     * - 别名链解析本身不受影响; 未显式配置 `cache.path` 的进程不落盘
+     *
+     * @return void
+     */
+    public function testAliasChainBootDoesNotWriteRuntimeMetadataCache(): void {
+        $this->withRestoredGlobals(function(): void {
+            $old_runtime=\AdminService\Runtime::path();
+            $dir=sys_get_temp_dir().'/adminservice_facade_meta_'.uniqid('',true);
+            \AdminService\Runtime::setPath($dir);
+            try {
+                $container=new Container();
+                App::setInstance($container);
+                $injected=new Repository(array('app'=>array('alias'=>array(
+                    'service.alias'=>'service.impl',
+                    'service.impl'=>ConcreteService::class,
+                ))));
+                (new \AdminService\Application($container,$injected))->init();
+                $this->assertInstanceOf(ConcreteService::class,$container->get('service.alias'));
+                $this->assertFileDoesNotExist(
+                    $dir.'/cache/compile/container.cache.php',
+                    '裸配置根构建不得写默认 runtime 的容器元数据'
+                );
+            } finally {
+                \AdminService\Runtime::setPath($old_runtime);
+                $this->removePath($dir);
+            }
         });
     }
 

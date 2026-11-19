@@ -178,10 +178,7 @@ final class CompileStore {
     public function load(string $name,callable $fingerprint,callable $builder,?string $context=null): mixed {
         $name=$this->assertName($name);
         $this->write_failed=false;
-        $mode=$this->mode();
-        if($mode==='off'||!$this->enabledFor($name))
-            return $builder();
-        if($mode==='auto'&&!$this->force&&$this->skipOnDebug($name))
+        if(!$this->enabled($name))
             return $builder();
         $file=$this->path($name);
         $validate=$this->shouldValidate();
@@ -289,6 +286,9 @@ final class CompileStore {
     /**
      * 指定缓存当前是否可用
      *
+     * - 配置未显式给出 `cache.path` 时视为不可用: 读写都不落默认 runtime,
+     *   避免裸配置进程(测试 / 未装配置的子进程)把无关类写进项目缓存
+     *
      * @access public
      * @param string $name 缓存名
      * @return bool
@@ -296,6 +296,9 @@ final class CompileStore {
      */
     public function enabled(string $name): bool {
         $name=$this->assertName($name);
+        $path=$this->config()->get('cache.path');
+        if(!is_string($path)||trim($path)==='')
+            return false;
         $mode=$this->mode();
         return $mode!=='off'&&$this->enabledFor($name)
             &&!($mode==='auto'&&!$this->force&&$this->skipOnDebug($name));

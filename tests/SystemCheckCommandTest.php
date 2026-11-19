@@ -138,6 +138,61 @@ class SystemCheckCommandTest extends TestCase {
     }
 
     /**
+     * 测试: 多余位置参数报错返回 2
+     *
+     * @return void
+     */
+    public function testSystemCheckRejectsPositionalArguments(): void {
+        [$command]=$this->command();
+        $output=Output::buffer();
+        $code=$command->execute(new Input(array('foo','--no-db')),$output);
+
+        $this->assertSame(2,$code);
+        $this->assertStringContainsString('多余位置参数',$output->stderr());
+        $this->assertStringContainsString('foo',$output->stderr());
+    }
+
+    /**
+     * 测试: 降级模式区分"配置不可用"与"未配置数据库"
+     *
+     * @return void
+     */
+    public function testDegradedModeReportsUnavailableConfigForDatabase(): void {
+        [$command]=$this->command(array(),array('helper'),'配置文件语法错误');
+        $output=Output::buffer();
+        $code=$command->execute(new Input(array('--json')),$output);
+
+        $this->assertSame(1,$code,$output->stderr());
+        $data=json_decode($output->stdout(),true);
+        $this->assertIsArray($data);
+        $database=$this->checkNamed($data['checks'],'数据库');
+        $this->assertSame('skip',$database['status']);
+        $this->assertSame('配置不可用',$database['detail']);
+    }
+
+    /**
+     * 测试: JSON 编码失败报错而不是输出空对象
+     *
+     * - `log.path` 指向含非法 UTF-8 字节的路径, 检查详情无法编码
+     *
+     * @return void
+     */
+    public function testJsonEncodeFailureReportsErrorInsteadOfEmptyObject(): void {
+        [$command]=$this->command(
+            array(),
+            array('helper'),
+            null,
+            array('log'=>array('path'=>"\xB1\x31"))
+        );
+        $output=Output::buffer();
+        $code=$command->execute(new Input(array('--no-db','--json')),$output);
+
+        $this->assertSame(1,$code);
+        $this->assertStringContainsString('JSON',$output->stderr());
+        $this->assertSame('',$output->stdout(),'编码失败不应输出空对象');
+    }
+
+    /**
      * 测试: 按配置的连接数量逐个检查
      *
      * @return void
@@ -284,9 +339,17 @@ class SystemCheckCommandTest extends TestCase {
      * 构造命令与配置
      *
      * @param array<string,array<string,mixed>> $connections 数据库连接
+     * @param array<int,string> $function_loader 函数文件
+     * @param string|null $boot_error 引导失败原因(null = 正常启动)
+     * @param array<string,mixed> $overrides 顶层配置覆盖
      * @return array{0:SystemCheckCommand,1:Bootstrapper,2:Env,3:Repository}
      */
-    private function command(array $connections=array(),array $function_loader=array('helper')): array {
+    private function command(
+        array $connections=array(),
+        array $function_loader=array('helper'),
+        ?string $boot_error=null,
+        array $overrides=array()
+    ): array {
         $app=$this->dir.'/app';
         $view=$this->dir.'/view';
         if(!is_dir($app))
@@ -303,7 +366,7 @@ class SystemCheckCommandTest extends TestCase {
             mkdir($config_dir,0755,true);
         file_put_contents($config_dir.'/app.php',"<?php\n\nreturn array('debug'=>false);\n");
 
-        $config=new Repository(array(
+        $config=new Repository(array_merge(array(
             'function'=>array(
                 'path'=>$common,
                 'loader'=>$function_loader
@@ -329,12 +392,12 @@ class SystemCheckCommandTest extends TestCase {
             'log'=>array('path'=>$this->dir.'/log'),
             'database'=>array('connections'=>$connections),
             'view'=>array('allowed_paths'=>array())
-        ));
+        ),$overrides));
         $bootstrapper=new Bootstrapper($config_dir);
         $env=Env::fromFile($this->envFile());
         $this->assertTrue(EnvCache::write($this->envFile(),$env),'环境快照应写入成功');
         env_reset();
-        return array(new SystemCheckCommand($config,$bootstrapper),$bootstrapper,$env,$config);
+        return array(new SystemCheckCommand($config,$bootstrapper,$boot_error),$bootstrapper,$env,$config);
     }
 
     /**

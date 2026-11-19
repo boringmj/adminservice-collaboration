@@ -510,11 +510,16 @@ final class Application {
             } catch(\Throwable $e) {
                 error_log('Session close failed: '.$e->getMessage());
             }
-            $container=$context->container();
-            if($container->hasInstance(Router::class)) {
-                $router=$container->get(Router::class);
-                if($router instanceof Router)
-                    $router->resetCurrent();
+            // 路由复位失败同样只记录日志, 后续会话释放与错误状态清理必须执行
+            try {
+                $container=$context->container();
+                if($container->hasInstance(Router::class)) {
+                    $router=$container->get(Router::class);
+                    if($router instanceof Router)
+                        $router->resetCurrent();
+                }
+            } catch(\Throwable $e) {
+                error_log('Router reset failed: '.get_class($e).': '.$e->getMessage());
             }
         }
         BaseDb::releaseCurrentSessions();

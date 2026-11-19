@@ -85,6 +85,55 @@ class WorkerTest extends TestCase {
     }
 
     /**
+     * 测试: TLS 终结代理回源时按 X-Forwarded-Proto 判定 HTTPS
+     *
+     * @return void
+     */
+    public function testNormalizeServerUsesForwardedProtoForTlsTermination(): void {
+        $server=RequestFactory::normalizeServer(
+            array('server_port'=>8443,'request_method'=>'GET'),
+            array('x-forwarded-proto'=>'https')
+        );
+        $this->assertSame('on',$server['HTTPS']);
+        $this->assertSame('https',$server['REQUEST_SCHEME']);
+    }
+
+    /**
+     * 测试: X-Forwarded-Proto 的边界处理
+     *
+     * - 多级代理逗号列表取第一段
+     * - 显式 `HTTPS` 键优先, 不被代理头覆盖
+     * - 无头且非 443 端口时维持 http
+     *
+     * @return void
+     */
+    public function testNormalizeServerHandlesForwardedProtoEdgeCases(): void {
+        $server=RequestFactory::normalizeServer(
+            array('server_port'=>8080),
+            array('X-Forwarded-Proto'=>'HTTPS, http')
+        );
+        $this->assertSame('on',$server['HTTPS'],'多级代理取第一段');
+        $this->assertSame('https',$server['REQUEST_SCHEME']);
+
+        $server=RequestFactory::normalizeServer(
+            array('server_port'=>8080),
+            array('x-forwarded-proto'=>'http')
+        );
+        $this->assertArrayNotHasKey('HTTPS',$server);
+        $this->assertSame('http',$server['REQUEST_SCHEME']);
+
+        $server=RequestFactory::normalizeServer(
+            array('HTTPS'=>'off'),
+            array('x-forwarded-proto'=>'https')
+        );
+        $this->assertSame('off',$server['HTTPS'],'显式 HTTPS 键优先');
+        $this->assertSame('http',$server['REQUEST_SCHEME']);
+
+        $server=RequestFactory::normalizeServer(array('server_port'=>443),array());
+        $this->assertSame('on',$server['HTTPS'],'443 端口无头仍判 https');
+    }
+
+    /**
      * 测试: 连续请求复用同一应用, 请求结束后不保留上下文
      *
      * @return void

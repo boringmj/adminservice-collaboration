@@ -305,8 +305,10 @@ final class Console {
         if($result['type']==='command'&&$result['command']!==null) {
             $command=$result['command'];
             $input=new Input($result['remaining'],$command->valueOptions());
-            // 全局 --help 会保留原命令选项, 只对这种注入的 help 调用跳过选项校验
-            if(!($command instanceof HelpCommand&&$this->help_option))
+            // 注入的 help 调用按目标命令的选项表校验, 直接调用按命令自身校验
+            if($command instanceof HelpCommand&&$this->help_option)
+                $this->validateHelpOptions($result['remaining']);
+            else
                 $this->validateOptions($command,$input);
             return $command->execute($input,$this->output);
         }
@@ -347,6 +349,32 @@ final class Console {
         foreach($input->options() as $name=>$value)
             if(!isset($allowed[$name]))
                 throw new InvalidArgumentException('未知选项(Unknown option): --'.$name);
+    }
+
+    /**
+     * 校验全局 `--help` 注入调用的目标选项
+     *
+     * - 注入调用的 `Input` 按帮助命令解析, 校验需按目标命令重新解析
+     * - 目标为分组时与直接调用分组一致, 拒绝任何选项
+     *
+     * @access private
+     * @param array<int,string> $tokens 目标 token(不含 `help`)
+     * @return void
+     * @throws InvalidArgumentException 未知选项
+     */
+    private function validateHelpOptions(array $tokens): void {
+        $result=$this->registry->resolve($tokens);
+        if($result['type']==='command'&&$result['command']!==null) {
+            $command=$result['command'];
+            $input=new Input($result['remaining'],$command->valueOptions());
+            $this->validateOptions($command,$input);
+            return;
+        }
+        if($result['type']==='group') {
+            $input=new Input($result['remaining'],array());
+            foreach($input->options() as $name=>$value)
+                throw new InvalidArgumentException('未知选项(Unknown option): --'.$name);
+        }
     }
 
     /**

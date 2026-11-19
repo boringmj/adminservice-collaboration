@@ -171,6 +171,26 @@ final class ArchitectureGuardTest extends TestCase {
     }
 
     /**
+     * 检查 Swoole 驱动兜底正文与已写出的编码头一致
+     *
+     * - 无 Swoole 扩展无法运行驱动, 以源码钉住兜底与调用点
+     *
+     * @access public
+     * @return void
+     */
+    public function testSwooleDriverFallbackBodyMatchesWrittenEncoding(): void {
+        $source=(string)file_get_contents($this->core.'/core/Worker/SwooleDriver.php');
+        // 兜底 500 在 content-encoding 头已写出时正文同样 gzip
+        $this->assertStringContainsString("if(\$lower==='content-encoding')",$source);
+        $this->assertStringContainsString("gzencode('Internal Server Error')",$source);
+        // 请求头参与 HTTPS 判定, 传给 normalizeServer
+        $this->assertStringContainsString(
+            'normalizeServer($request->server??array(),$request->header??array())',
+            $source
+        );
+    }
+
+    /**
      * 检查契约层 Error 不保留死静态错误表
      *
      * - `getErrors()` 由实现类提供状态, 契约只声明 API

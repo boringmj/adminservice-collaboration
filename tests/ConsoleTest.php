@@ -307,6 +307,33 @@ class ConsoleTest extends TestCase {
     }
 
     /**
+     * 测试: 全局 --help 注入按目标命令或分组校验选项
+     *
+     * - 未知选项与直接调用一致返回 2
+     * - 目标的合法选项仍输出帮助
+     *
+     * @return void
+     */
+    public function testGlobalHelpValidatesTargetOptions(): void {
+        $app=$this->application();
+        $output=Output::buffer();
+        $console=new Console($app,$output);
+        $this->assertSame(2,$console->run(array('console','--help','cache','build','--bogus')));
+        $this->assertStringContainsString('Unknown option',$output->stderr());
+
+        $output=Output::buffer();
+        $console=new Console($app,$output);
+        $this->assertSame(0,$console->run(array('console','--help','cache','build','--force')));
+        $this->assertStringContainsString('cache build',$output->stdout());
+        $this->assertSame('',$output->stderr());
+
+        $output=Output::buffer();
+        $console=new Console($app,$output);
+        $this->assertSame(2,$console->run(array('console','--help','cache','--bogus')));
+        $this->assertStringContainsString('Unknown option',$output->stderr());
+    }
+
+    /**
      * 测试: 显式 help 命令仍校验选项
      *
      * @return void
@@ -317,6 +344,30 @@ class ConsoleTest extends TestCase {
         $console=new Console($app,$output);
         $this->assertSame(2,$console->run(array('console','help','cache','build','--froce')));
         $this->assertStringContainsString('Unknown option',$output->stderr());
+    }
+
+    /**
+     * 测试: 多余位置参数统一报错并返回 2
+     *
+     * - 不接收位置参数的命令与只接收一个位置参数的命令同报
+     *
+     * @return void
+     */
+    public function testCommandsRejectUnexpectedPositionalArguments(): void {
+        $app=$this->application();
+        $cases=array(
+            array('console','server','start','foo','--dry-run'),
+            array('console','worker','start','foo','--dry-run'),
+            array('console','list','cache','foo'),
+            array('console','cache','status','config','foo')
+        );
+        foreach($cases as $argv) {
+            $output=Output::buffer();
+            $console=new Console($app,$output);
+            $this->assertSame(2,$console->run($argv),'多余位置参数应返回 2: '.implode(' ',$argv));
+            $this->assertStringContainsString('多余位置参数',$output->stderr(),implode(' ',$argv));
+            $this->assertStringContainsString('foo',$output->stderr(),implode(' ',$argv));
+        }
     }
 
     /**

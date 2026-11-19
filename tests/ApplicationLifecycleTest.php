@@ -15,6 +15,7 @@ use AdminService\Error;
 use AdminService\HttpRequest;
 use AdminService\RequestContext;
 use AdminService\Response;
+use AdminService\Router\Router;
 use AdminService\Runtime;
 use base\AbstractSession;
 use base\Database\Connection\PdoConnectionManager;
@@ -374,6 +375,30 @@ class ApplicationLifecycleTest extends TestCase {
         $this->assertNull($application->requestContext());
         $this->assertSame($application->container(),$application->requestContainer());
         $this->assertNull(Error::requestContext());
+    }
+
+    /**
+     * 测试: 路由复位抛异常不阻断请求收尾清理
+     *
+     * - 实例按字面名登记使 `hasInstance()` 为真, 别名把 `get()` 引到不存在的类
+     * - 收尾仍应执行错误状态清理, 不把复位异常漏给调用方
+     *
+     * @return void
+     */
+    public function testEndRequestRouterResetFailureDoesNotSkipCleanup(): void {
+        $application=new Application();
+        $application->handle(function(): void {},true);
+        $context=$application->requestContext();
+        $this->assertNotNull($context);
+        $this->assertNotNull(Error::requestContext());
+        $container=$context->container();
+        $container->instance(Router::class,new Router());
+        $container->alias(Router::class,'Tests\NoSuchRouterClass');
+
+        $application->endRequest($context);
+
+        $this->assertNull(Error::requestContext(),'复位失败不应跳过错误状态清理');
+        $this->assertNull($application->requestContext());
     }
 
     /**

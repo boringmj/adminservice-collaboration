@@ -42,6 +42,7 @@ use function is_readable;
 use function is_string;
 use function is_writable;
 use function json_encode;
+use function json_last_error_msg;
 use function number_format;
 use function strtolower;
 use function strtoupper;
@@ -180,6 +181,11 @@ final class SystemCheckCommand extends AbstractCommand {
      * @return int
      */
     public function execute(InputInterface $input,OutputInterface $output): int {
+        $arguments=$input->arguments();
+        if($arguments!==array()) {
+            $output->error('[ERROR] 多余位置参数(Unexpected argument): '.$arguments[0]);
+            return self::INVALID;
+        }
         $timeout=$this->timeout($input);
         if($timeout===null) {
             $output->error('[ERROR] 数据库超时必须是正整数(Database timeout must be a positive integer).');
@@ -202,8 +208,14 @@ final class SystemCheckCommand extends AbstractCommand {
         $summary=$this->summary($checks);
         if($input->hasOption('compact'))
             $checks=array_values(array_filter($checks,static fn(array $check): bool => $check['status']!==self::STATUS_OK));
-        if($format==='json')
-            $output->write($this->json($checks,$summary)."\n");
+        if($format==='json') {
+            $json=$this->json($checks,$summary);
+            if($json===null) {
+                $output->error('[ERROR] 检查结果无法编码为 JSON(Check result cannot be encoded as JSON): '.json_last_error_msg().'.');
+                return self::FAILURE;
+            }
+            $output->write($json."\n");
+        }
         elseif($format==='plain')
             $this->renderPlain($output,$checks,$summary);
         else
@@ -629,7 +641,13 @@ final class SystemCheckCommand extends AbstractCommand {
         }
         $connections=$this->config->get('database.connections',array());
         if(!is_array($connections)||$connections===array()) {
-            $checks[]=$this->check('数据库',self::STATUS_SKIP,'未配置数据库连接','');
+            // 降级模式配置快照不可用, 不能断言是否配置了数据库
+            $checks[]=$this->check(
+                '数据库',
+                self::STATUS_SKIP,
+                $this->boot_error!==null?'配置不可用':'未配置数据库连接',
+                ''
+            );
             return;
         }
         // 降级模式没有经过完整引导, 需要安装数据库配置
@@ -719,14 +737,14 @@ final class SystemCheckCommand extends AbstractCommand {
      * @access private
      * @param array<int,array{name:string,status:string,detail:string,suggestion:string}> $checks 检查结果
      * @param array{ok:int,warn:int,fail:int,skip:int} $summary 汇总
-     * @return string
+     * @return string|null null = 编码失败
      */
-    private function json(array $checks,array $summary): string {
+    private function json(array $checks,array $summary): ?string {
         $encoded=json_encode(array(
             'checks'=>$checks,
             'summary'=>$summary
         ),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-        return is_string($encoded)?$encoded:'{}';
+        return is_string($encoded)?$encoded:null;
     }
 
     /**

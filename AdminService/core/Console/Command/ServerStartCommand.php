@@ -126,6 +126,11 @@ final class ServerStartCommand extends AbstractCommand {
      * @return int
      */
     public function execute(InputInterface $input,OutputInterface $output): int {
+        $arguments=$input->arguments();
+        if($arguments!==array()) {
+            $output->error('[ERROR] 多余位置参数(Unexpected argument): '.$arguments[0]);
+            return self::INVALID;
+        }
         $host=(string)$input->option('host','H',$this->config->get('console.serve.host','localhost'));
         $port_raw=$input->option('port','p',$this->config->get('console.serve.port',8000));
         $docroot=(string)$input->option('docroot','t',$this->config->get('console.serve.docroot',__DIR__.'/../../../../public'));

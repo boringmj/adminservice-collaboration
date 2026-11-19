@@ -6,6 +6,7 @@ use base\Console\InputInterface;
 use InvalidArgumentException;
 
 use function array_key_exists;
+use function count;
 use function is_string;
 use function strtolower;
 use function trim;
@@ -46,6 +47,9 @@ final class CacheCommandSupport {
      * @throws InvalidArgumentException 目标非法
      */
     public static function target(InputInterface $input): ?string {
+        $arguments=$input->arguments();
+        if(count($arguments)>1)
+            throw new InvalidArgumentException('多余位置参数(Unexpected argument): '.$arguments[1]);
         if($input->hasOption('target')) {
             $target=$input->option('target');
             if(!is_string($target)||trim($target)==='')

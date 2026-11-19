@@ -122,6 +122,11 @@ final class WorkerStartCommand extends AbstractCommand {
      * @return int
      */
     public function execute(InputInterface $input,OutputInterface $output): int {
+        $arguments=$input->arguments();
+        if($arguments!==array()) {
+            $output->error('[ERROR] 多余位置参数(Unexpected argument): '.$arguments[0]);
+            return self::INVALID;
+        }
         $host=(string)$input->option('host','H',$this->config->get('worker.host','127.0.0.1'));
         $port_raw=$input->option('port','p',$this->config->get('worker.port',9501));
         $workers_raw=$input->option('workers','w',$this->config->get('worker.workers',1));

@@ -8,6 +8,7 @@ use base\CommandInterface;
 use base\Console\InputInterface;
 use base\Console\OutputInterface;
 
+use function count;
 use function dirname;
 use function implode;
 use function is_file;
@@ -77,6 +78,11 @@ final class ListCommand extends AbstractCommand {
      * @return int
      */
     public function execute(InputInterface $input,OutputInterface $output): int {
+        $arguments=$input->arguments();
+        if(count($arguments)>1) {
+            $output->error('[ERROR] 多余位置参数(Unexpected argument): '.$arguments[1]);
+            return self::INVALID;
+        }
         $group=$input->argument(0);
         $registry=$this->console->registry();
         $output->info('AdminService Console');

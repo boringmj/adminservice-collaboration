@@ -8,6 +8,7 @@ use AdminService\exception\ClientDisconnectedException;
 use function class_exists;
 use function error_log;
 use function extension_loaded;
+use function gzencode;
 use function implode;
 use function is_array;
 use function max;
@@ -78,8 +79,9 @@ final class SwooleDriver {
         $worker=$this->worker;
         $server->on('request',function(\Swoole\Http\Request $request,\Swoole\Http\Response $response) use($worker,$compressor): void {
             $written=false;
+            $encoded=false;
             try {
-                $server_data=RequestFactory::normalizeServer($request->server??array());
+                $server_data=RequestFactory::normalizeServer($request->server??array(),$request->header??array());
                 $worker_request=RequestFactory::create(
                     (string)($server_data['request_method']??'GET'),
                     (string)($server_data['request_uri']??'/'),
@@ -94,7 +96,7 @@ final class SwooleDriver {
                     true
                 );
                 // 写出在请求收尾前执行, 流式生成器可读取请求级状态
-                $worker->handle($worker_request,function(WorkerResponse $worker_response) use($response,$request,$compressor,&$written): void {
+                $worker->handle($worker_request,function(WorkerResponse $worker_response) use($response,$request,$compressor,&$written,&$encoded): void {
                     $body=$worker_response->body();
                     $stream=$worker_response->stream();
                     $headers=$worker_response->headers();
@@ -106,6 +108,8 @@ final class SwooleDriver {
                         if($lower==='content-length'||$lower==='connection'||$lower==='set-cookie')
                             continue;
                         $response->header((string)$name,implode(', ',(array)$values));
+                        if($lower==='content-encoding')
+                            $encoded=true;
                     }
                     foreach($worker_response->cookies() as $name=>$item) {
                         if(is_array($item)) {
@@ -154,7 +158,8 @@ final class SwooleDriver {
                 if(!$written) {
                     $response->status(500);
                     $response->header('Content-Type','text/plain; charset=utf-8');
-                    $response->end('Internal Server Error');
+                    // content-encoding 头已写出时兜底正文保持同一编码, 不发声明 gzip 的明文
+                    $response->end($encoded?gzencode('Internal Server Error'):'Internal Server Error');
                 }
             }
         });

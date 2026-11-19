@@ -8,6 +8,7 @@ use base\Database\Connection\PdoConnectionManager;
 use base\Database\Connection\PdoConnectionPool;
 use base\Database\Connection\PdoConnectionSession;
 use base\Database\Coordinator\QueryCoordinator;
+use base\Database\Exception\QueryException;
 use base\Database\Middleware\QueryHandlerInterface;
 use base\Database\Middleware\QueryMiddlewareInterface;
 use base\Database\Query\Query;
@@ -17,6 +18,7 @@ use base\Database\Result\ResultInterface;
 use base\Database\Sql\Builder\QueryStatementBuilder;
 use base\Database\Sql\Compiler\MysqlCompiler;
 use base\Database\Sql\Dialect\MysqlDialect;
+use base\Database\Type\QueryType;
 use Tests\Fixtures\FakePdo;
 
 /**
@@ -155,6 +157,20 @@ class DbalCoordinatorTest extends TestCase {
         $result=$coordinator->query(new QueryStatementBuilder());
         $this->assertTrue($result->isSuccess());
         $this->assertSame(['m1-before','m2-before','m2-after','m1-after'],$trace);
+    }
+
+    /**
+     * 测试无查询对象的上下文走查询构建路径时显式报错
+     * @return void
+     */
+    public function testQueryBuildRejectsContextWithoutQueryObject(): void {
+        $pdo=new FakePdo();
+        $manager=$this->createManager($pdo);
+        $context=new QueryContext(null,QueryType::READ,'SHOW TABLES');
+        $coordinator=new QueryCoordinator($context,$manager,new MysqlCompiler());
+        $this->expectException(QueryException::class);
+        $this->expectExceptionCode(100701);
+        $coordinator->query(new QueryStatementBuilder());
     }
 
 }

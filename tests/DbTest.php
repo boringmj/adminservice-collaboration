@@ -9,8 +9,13 @@ use base\Database\Connection\PdoConnectionPool;
 use base\Database\Connection\PdoConnectionSession;
 use base\Database\Db;
 use base\Database\Exception\TransactionException;
+use base\Database\Middleware\QueryHandlerInterface;
+use base\Database\Middleware\QueryMiddlewareInterface;
 use base\Database\Query\Query;
+use base\Database\Query\QueryContextInterface;
+use base\Database\Result\ResultInterface;
 use base\Database\Sql\Dialect\MysqlDialect;
+use base\Database\Type\QueryType;
 use Fiber;
 use ReflectionProperty;
 use Tests\Fixtures\FakePdo;
@@ -535,6 +540,70 @@ class DbTest extends TestCase {
         $db->raw('SHOW TABLES');
         // SET 修改会话状态 → 该连接被丢弃; 下一条 raw 需新建连接
         $this->assertSame(2,$factoryCalls);
+    }
+
+    /**
+     * 测试前导注释不绕过会话状态判定
+     * @return void
+     */
+    public function testLeadingCommentsDoNotBypassSessionStateDetection(): void {
+        $statements=array(
+            "/* hint */ SET SESSION sql_mode = 'STRICT_ALL_TABLES'",
+            "-- hint\nSET SESSION sql_mode = 'STRICT_ALL_TABLES'",
+            "# hint\nSET SESSION sql_mode = 'STRICT_ALL_TABLES'",
+        );
+        foreach($statements as $sql) {
+            $pdo=new FakePdo();
+            $factoryCalls=0;
+            $factory=function() use ($pdo,&$factoryCalls) {
+                $factoryCalls++;
+                return new PdoConnectionSession($pdo,new MysqlDialect());
+            };
+            $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
+            $db=new Db($manager);
+            $db->raw($sql);
+            $db->raw('SHOW TABLES');
+            // 前导注释后的 SET 仍判定为会话状态修改, 连接被丢弃
+            $this->assertSame(2,$factoryCalls,$sql);
+        }
+    }
+
+    /**
+     * 测试 raw 语句的查询上下文不携带查询对象并暴露原生 SQL
+     * @return void
+     */
+    public function testRawContextCarriesRawSqlWithoutQueryObject(): void {
+        $pdo=new FakePdo();
+        $pdo->selectRows=[['id'=>1]];
+        $seen=array();
+        $middleware=new class($seen) implements QueryMiddlewareInterface {
+            private array $seen;
+            public function __construct(array &$seen) {
+                $this->seen=&$seen;
+            }
+            public function process(QueryContextInterface $context,QueryHandlerInterface $next): ResultInterface {
+                $this->seen[]=array(
+                    'query'=>$context->getQuery(),
+                    'raw_sql'=>$context->getRawSql(),
+                    'query_type'=>$context->getQueryType(),
+                );
+                return $next->handle($context);
+            }
+        };
+        $factory=function() use ($pdo) {
+            return new PdoConnectionSession($pdo,new MysqlDialect());
+        };
+        $manager=new PdoConnectionManager(new PdoConnectionPool($factory),$factory);
+        $db=new Db($manager,null,array($middleware));
+        $db->raw('/* hint */ INSERT INTO users (a) VALUES (1)');
+        $db->query(Query::select()->from('users'));
+        // raw 语句: 无查询对象, 暴露原生 SQL, 前导注释不绕过写语句判定
+        $this->assertNull($seen[0]['query']);
+        $this->assertSame('/* hint */ INSERT INTO users (a) VALUES (1)',$seen[0]['raw_sql']);
+        $this->assertSame(QueryType::WRITE,$seen[0]['query_type']);
+        // 查询语句: 有查询对象, 无原生 SQL
+        $this->assertNotNull($seen[1]['query']);
+        $this->assertNull($seen[1]['raw_sql']);
     }
 
 }

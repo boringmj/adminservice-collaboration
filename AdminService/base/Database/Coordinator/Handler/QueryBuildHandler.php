@@ -3,6 +3,7 @@
 namespace base\Database\Coordinator\Handler;
 
 use base\Database\Connection\ConnectionSessionInterface;
+use base\Database\Exception\QueryException;
 use base\Database\Query\QueryContextInterface;
 use base\Database\Sql\Compiler\CompiledStatementInterface;
 use base\Database\Sql\Compiler\SqlCompilerInterface;
@@ -25,6 +26,7 @@ final class QueryBuildHandler implements QueryBuildHandlerInterface {
      * @param StatementBuilderInterface $builder SQL 语句构建器对象
      * @param SqlCompilerInterface $compiler SQL 编译器对象
      * @return CompiledStatementInterface
+     * @throws QueryException 上下文不携带查询对象(原生 SQL 语句)
      */
     public function execute(
         QueryContextInterface $context,
@@ -32,7 +34,10 @@ final class QueryBuildHandler implements QueryBuildHandlerInterface {
         StatementBuilderInterface $builder,
         SqlCompilerInterface $compiler
     ): CompiledStatementInterface {
-        $definition=$builder->build($context->getQuery());
+        $query=$context->getQuery();
+        if($query===null)
+            throw new QueryException('Query context does not carry a query object.',100701);
+        $definition=$builder->build($query);
         return $compiler->compile($definition,$connection->getCompilerContext());
     }
 

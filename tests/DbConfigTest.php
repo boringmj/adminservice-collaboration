@@ -159,6 +159,28 @@ class DbConfigTest extends TestCase {
     }
 
     /**
+     * 测试编译器类名不存在的负例(受控异常而非原生错误)
+     * @return void
+     */
+    public function testMissingCompilerClassThrowsConfigException(): void {
+        set_config(array('database'=>array('connections'=>array('default'=>array('type'=>'mysql')))));
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionCode(100803);
+        Db::fromConfig('default',array('compiler'=>'Tests\\Fixtures\\MissingCompiler'));
+    }
+
+    /**
+     * 测试方言类名不存在的负例(受控异常而非原生错误)
+     * @return void
+     */
+    public function testMissingDialectClassThrowsConfigException(): void {
+        $config=new ConnectionConfig(dialectClass:'Tests\\Fixtures\\MissingDialect');
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionCode(100803);
+        $config->createDialect();
+    }
+
+    /**
      * 测试类名中间件通过容器解析
      * @return void
      */
@@ -202,6 +224,46 @@ class DbConfigTest extends TestCase {
         $this->expectException(ConfigException::class);
         $this->expectExceptionCode(100804);
         Db::fromConfig('default');
+    }
+
+    /**
+     * 测试端口与连接池上限的非法值负例
+     * @return void
+     */
+    public function testInvalidPortAndPoolOptionsThrow(): void {
+        set_config(array('database'=>array('connections'=>array('default'=>array('type'=>'mysql')))));
+        foreach(array('abc',0,70000,array(3306)) as $port) {
+            try {
+                Db::fromConfig('default',array('port'=>$port));
+                $this->fail('端口 '.var_export($port,true).' 应抛出异常');
+            } catch(ConfigException $e) {
+                $this->assertSame(100806,$e->getCode());
+            }
+        }
+        foreach(array(-1,'abc') as $max_idle) {
+            try {
+                Db::fromConfig('default',array('pool'=>array('max_idle'=>$max_idle)));
+                $this->fail('max_idle '.var_export($max_idle,true).' 应抛出异常');
+            } catch(ConfigException $e) {
+                $this->assertSame(100806,$e->getCode());
+            }
+        }
+        try {
+            Db::fromConfig('default',array('pool'=>'nope'));
+            $this->fail('pool 非数组应抛出异常');
+        } catch(ConfigException $e) {
+            $this->assertSame(100806,$e->getCode());
+        }
+    }
+
+    /**
+     * 测试数字字符串端口与零闲置上限被接受
+     * @return void
+     */
+    public function testNumericStringPortAndZeroMaxIdleAreAccepted(): void {
+        set_config(array('database'=>array('connections'=>array('default'=>array('type'=>'mysql')))));
+        $this->assertInstanceOf(Db::class,Db::fromConfig('default',array('port'=>'3307')));
+        $this->assertInstanceOf(Db::class,Db::fromConfig('default',array('pool'=>array('max_idle'=>0))));
     }
 
     /**

@@ -303,6 +303,11 @@ final class MysqlCompiler implements SqlCompilerInterface {
         array $joins
     ): void {
         foreach($joins as $join) {
+            // MySQL 不支持 FULL JOIN, 在编译期报错
+            if($join->getType()==='full')
+                throw new CompilerException('MySQL does not support FULL JOIN.',100518,array(
+                    'table'=>$join->getTable()->getName()
+                ));
             $writer->append(' '.$join->getKeyword().' '.$this->tableSql($context,$join->getTable()));
             $writer->append(' ON ');
             $conditions=$join->getConditions();

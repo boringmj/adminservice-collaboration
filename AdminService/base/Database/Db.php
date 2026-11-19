@@ -12,7 +12,6 @@ use base\Database\Coordinator\QueryCoordinator;
 use base\Database\Exception\ConfigException;
 use base\Database\Exception\TransactionException;
 use base\Database\Middleware\QueryMiddlewareInterface;
-use base\Database\Query\Query;
 use base\Database\Query\QueryContext;
 use base\Database\Query\QueryInterface;
 use base\Database\Result\ResultInterface;
@@ -24,18 +23,24 @@ use base\Database\Transaction\TransactionContextInterface;
 use base\Database\Type\QueryType;
 use base\ExecutionFlow;
 
+use function array_key_exists;
 use function array_merge;
+use function ctype_digit;
 use function explode;
 use function get_class;
 use function get_debug_type;
 use function implode;
+use function is_a;
 use function is_array;
+use function is_int;
 use function is_object;
+use function is_scalar;
 use function is_string;
 use function preg_match;
 use function serialize;
 use function spl_object_hash;
 use function str_starts_with;
+use function var_export;
 
 /**
  * 数据库入口(门面)
@@ -327,17 +332,18 @@ final class Db {
             if(isset(self::$instances[$cache_key]))
                 return self::$instances[$cache_key];
         }
-        $db_config=self::buildConfig($merged);
+        $db_config=self::buildConfig($merged,$name);
         $factory=$db_config->sessionFactory();
         // 池经工厂创建, 携带配置的闲置上限
         $manager=new PdoConnectionManager($db_config->createPoolFactory()->create(),$factory);
         // 编译器可通过配置手动绑定, 未指定则使用 MySQL
         $compilerClass=$merged['compiler']??MysqlCompiler::class;
-        $compiler=new $compilerClass();
-        if(!$compiler instanceof SqlCompilerInterface)
+        // 类名不存在或未实现编译器接口在实例化前判定
+        if(!is_string($compilerClass)||!is_a($compilerClass,SqlCompilerInterface::class,true))
             throw new ConfigException('Invalid compiler class.',100803,array(
                 'class'=>$compilerClass
             ));
+        $compiler=new $compilerClass();
         $middlewares=self::resolveMiddlewares($middleware_config);
         $instance=new static($manager,$compiler,$middlewares);
         if($cache_key!==null)
@@ -401,13 +407,22 @@ final class Db {
      *
      * @access private
      * @param array<string,mixed> $config 连接配置
+     * @param string $name 连接名称(错误消息用)
      * @return ConnectionConfig
+     * @throws ConfigException port/pool 配置非法
      */
-    private static function buildConfig(array $config): ConnectionConfig {
+    private static function buildConfig(array $config,string $name): ConnectionConfig {
+        $pool=$config['pool']??array();
+        if(!is_array($pool))
+            throw new ConfigException('Database connection "'.$name.'" option "pool" must be an array.',100806,array(
+                'connection'=>$name,
+                'key'=>'pool',
+                'value'=>get_debug_type($pool)
+            ));
         return new ConnectionConfig(
             $config['type']??'mysql',
             $config['host']??'localhost',
-            (int)($config['port']??3306),
+            self::intConfig($config,'port','port',$name,3306,1,65535),
             $config['user']??'',
             $config['password']??'',
             $config['dbname']??'',
@@ -415,8 +430,57 @@ final class Db {
             $config['options']??array(),
             $config['prefix']??'',
             $config['dialect']??null,
-            (int)($config['pool']['max_idle']??20)
+            self::intConfig($pool,'max_idle','pool.max_idle',$name,20,0,null)
         );
+    }
+
+    /**
+     * 读取整型连接配置项
+     *
+     * - 接受 int 与整数字符串; 缺省用默认值
+     * - 类型不符或越界抛受控异常, 消息含连接名、配置键、实际值与期望范围
+     *
+     * @access private
+     * @param array<string,mixed> $config 配置数组
+     * @param string $key 配置键
+     * @param string $label 错误消息中的配置键展示名
+     * @param string $name 连接名称
+     * @param int $default 缺省值
+     * @param int $min 允许最小值(含)
+     * @param int|null $max 允许最大值(含, 无上限时 null)
+     * @return int
+     * @throws ConfigException
+     */
+    private static function intConfig(
+        array $config,
+        string $key,
+        string $label,
+        string $name,
+        int $default,
+        int $min,
+        ?int $max
+    ): int {
+        if(!array_key_exists($key,$config))
+            return $default;
+        $value=$config[$key];
+        if(is_int($value))
+            $int=$value;
+        elseif(is_string($value)&&ctype_digit($value))
+            $int=(int)$value;
+        else
+            $int=null;
+        $range=$max!==null?'between '.$min.' and '.$max:'not less than '.$min;
+        if($int===null||$int<$min||($max!==null&&$int>$max))
+            throw new ConfigException(
+                'Database connection "'.$name.'" option "'.$label.'" must be an integer '.$range.'.',
+                100806,
+                array(
+                    'connection'=>$name,
+                    'key'=>$label,
+                    'value'=>is_scalar($value)?var_export($value,true):get_debug_type($value)
+                )
+            );
+        return $int;
     }
 
     /**
@@ -449,10 +513,28 @@ final class Db {
         // 原生 SQL 无语句类型, 按首关键字判定读写; 会话状态修改型需标记脏
         $queryType=self::isWriteSql($sql)?QueryType::WRITE:QueryType::READ;
         $modifiesSession=self::modifiesSessionState($sql);
-        $context=new QueryContext(Query::select(),$queryType);
+        // 原生 SQL 不携带查询对象, 上下文记录原生 SQL 供中间件读取
+        $context=new QueryContext(null,$queryType,$sql);
         $coordinator=new QueryCoordinator($context,$this->manager,$this->compiler,$this->middlewares);
         // 事务中传入绑定会话(复用不借还池), 否则走连接池, 单一流水线
         return $coordinator->raw($statement,$this->currentSession(),$modifiesSession);
+    }
+
+    /**
+     * 去除 SQL 前导空白与注释
+     *
+     * - 支持 `/*..*\/`、`--` 行注释与 `#` 行注释, 用于首关键字判定
+     *
+     * @access private
+     * @param string $sql SQL
+     * @return string 去除后的 SQL
+     */
+    private static function stripLeadingComments(string $sql): string {
+        return (string)preg_replace(
+            '/^(?:\s|\/\*[\s\S]*?\*\/|--[^\n]*\n|#[^\n]*\n)*/',
+            '',
+            $sql
+        );
     }
 
     /**
@@ -464,8 +546,8 @@ final class Db {
      */
     private static function isWriteSql(string $sql): bool {
         return preg_match(
-            '/^\s*(INSERT|UPDATE|DELETE|REPLACE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|SET|USE|LOCK|UNLOCK)\b/i',
-            $sql
+            '/^(INSERT|UPDATE|DELETE|REPLACE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|SET|USE|LOCK|UNLOCK)\b/i',
+            self::stripLeadingComments($sql)
         )===1;
     }
 
@@ -482,8 +564,8 @@ final class Db {
      */
     private static function modifiesSessionState(string $sql): bool {
         return preg_match(
-            '/^\s*(SET|USE|LOCK|UNLOCK|CREATE\s+TEMPORARY|BEGIN|START\s+TRANSACTION|COMMIT|ROLLBACK|SAVEPOINT|RELEASE\s+SAVEPOINT)\b/i',
-            $sql
+            '/^(SET|USE|LOCK|UNLOCK|CREATE\s+TEMPORARY|BEGIN|START\s+TRANSACTION|COMMIT|ROLLBACK|SAVEPOINT|RELEASE\s+SAVEPOINT)\b/i',
+            self::stripLeadingComments($sql)
         )===1;
     }
 

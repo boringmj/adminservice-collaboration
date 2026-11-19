@@ -211,6 +211,29 @@ class MysqlCompilerTest extends TestCase {
     }
 
     /**
+     * 测试 full 关联在编译期报错(MySQL 不支持 FULL JOIN)
+     * @return void
+     */
+    public function testFullJoinThrowsAtCompileTime(): void {
+        $query=Query::select()->from('users','u')
+            ->join('full','orders o',[
+                ['u.id','=','orders.user_id'],
+            ]);
+        $this->expectException(CompilerException::class);
+        $this->expectExceptionCode(100518);
+        $this->compile($query);
+    }
+
+    /**
+     * 测试等于别名操作符按 = 编译(非 null 值可用)
+     * @return void
+     */
+    public function testWhereEqualsAliasCompilesToEquals(): void {
+        $statement=$this->compile(Query::select()->from('users')->where('age',18,Operator::EQ_ALT));
+        $this->assertSame('SELECT * FROM `users` WHERE `age` = ?',$statement->getSql());
+    }
+
+    /**
      * 测试操作符/排序方向常量与小写字面量规范化
      * @return void
      */

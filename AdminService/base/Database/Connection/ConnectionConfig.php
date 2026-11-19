@@ -9,6 +9,8 @@ use base\Database\Exception\ConnectionException;
 use base\Database\Sql\Dialect\DialectInterface;
 use base\Database\Sql\Dialect\MysqlDialect;
 
+use function is_a;
+
 /**
  * 连接配置
  *
@@ -206,18 +208,18 @@ final class ConnectionConfig {
      * 创建方言
      *
      * - 方言类可通过配置手动绑定, 未指定时使用 MySQL
+     * - 类名不存在或未实现接口在实例化前判定
      *
      * @access public
      * @return DialectInterface
-     * @throws ConfigException 方言类未实现 DialectInterface
+     * @throws ConfigException 方言类不存在或未实现 DialectInterface
      */
     public function createDialect(): DialectInterface {
-        $dialect=$this->dialectClass!==null?new $this->dialectClass():new MysqlDialect();
-        if(!$dialect instanceof DialectInterface)
+        if($this->dialectClass!==null&&!is_a($this->dialectClass,DialectInterface::class,true))
             throw new ConfigException('Invalid dialect class.',100803,array(
                 'class'=>$this->dialectClass
             ));
-        return $dialect;
+        return $this->dialectClass!==null?new $this->dialectClass():new MysqlDialect();
     }
 
     /**

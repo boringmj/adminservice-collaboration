@@ -350,6 +350,17 @@ class ModelTest extends TestCase {
     }
 
     /**
+     * 测试限定名的 value/pluck 按列段取属性
+     * @return void
+     */
+    public function testValueAndPluckWithQualifiedField(): void {
+        $this->pdo->selectRows=[['id'=>1,'name'=>'张三']];
+        $this->assertSame('张三',User::query()->where('id',1)->value('users.name'));
+        $this->pdo->selectRows=[['name'=>'a'],['name'=>'b']];
+        $this->assertSame(['a','b'],User::query()->pluck('users.name'));
+    }
+
+    /**
      * 测试集合遍历/映射/过滤
      * @return void
      */

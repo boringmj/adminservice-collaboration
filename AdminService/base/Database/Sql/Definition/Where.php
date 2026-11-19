@@ -97,6 +97,9 @@ final class Where {
      */
     public static function leaf(Field $field,string $operator,mixed $value): static {
         $operator=strtoupper($operator);
+        // `==` 为 `=` 的兼容别名, 统一按 `=` 处理
+        if($operator===Operator::EQ_ALT)
+            $operator=Operator::EQ;
         if(!in_array($operator,self::OPERATORS,true))
             throw new QueryException('Unsupported where operator.',100508,array(
                 'operator'=>$operator

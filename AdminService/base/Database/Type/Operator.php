@@ -16,7 +16,7 @@ final class Operator {
     public const EQ='=';
 
     /**
-     * 等于(兼容别名, 保留 == 写法)
+     * 等于(`=` 的兼容别名, 条件构建时按 `=` 处理)
      * @var string
      */
     public const EQ_ALT='==';

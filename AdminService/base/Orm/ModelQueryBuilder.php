@@ -23,6 +23,7 @@ use function get_class;
 use function is_string;
 use function max;
 use function strpos;
+use function strrpos;
 use function substr;
 
 /**
@@ -444,25 +445,40 @@ class ModelQueryBuilder {
      * 查询单个字段的值
      *
      * @access public
-     * @param string $field 字段名
+     * @param string $field 字段名(支持 "col" 与 "table.col" 限定名)
      * @return mixed
      */
     public function value(string $field): mixed {
         $model=$this->field($field)->first();
-        return $model?->getAttribute($field);
+        return $model?->getAttribute(self::attributeKey($field));
     }
 
     /**
      * 查询某字段的值列表
      *
      * @access public
-     * @param string $field 字段名
+     * @param string $field 字段名(支持 "col" 与 "table.col" 限定名)
      * @return array
      */
     public function pluck(string $field): array {
-        return array_map(function($model) use ($field) {
-            return $model->getAttribute($field);
+        $key=self::attributeKey($field);
+        return array_map(function($model) use ($key) {
+            return $model->getAttribute($key);
         },$this->get()->all());
+    }
+
+    /**
+     * 字段名对应的模型属性名
+     *
+     * - 限定名(table.col)的属性名为列段
+     *
+     * @access private
+     * @param string $field 字段名
+     * @return string
+     */
+    private static function attributeKey(string $field): string {
+        $pos=strrpos($field,'.');
+        return $pos===false?$field:substr($field,$pos+1);
     }
 
     /**

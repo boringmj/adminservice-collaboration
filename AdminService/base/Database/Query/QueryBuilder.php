@@ -14,6 +14,8 @@ use base\Database\Type\StatementType;
 use function ceil;
 use function count;
 use function max;
+use function strrpos;
+use function substr;
 
 /**
  * 流式查询构建器(裸查询入口)
@@ -327,29 +329,44 @@ class QueryBuilder {
      * 查询单个字段的值
      *
      * @access public
-     * @param string $field 字段名
+     * @param string $field 字段名(支持 "col" 与 "table.col" 限定名)
      * @return mixed
      * @throws QueryException 执行失败
      */
     public function value(string $field): mixed {
         $row=$this->field($field)->first();
-        return $row[$field]??null;
+        return $row[self::resultColumnKey($field)]??null;
     }
 
     /**
      * 查询某字段的值列表
      *
      * @access public
-     * @param string $field 字段名
+     * @param string $field 字段名(支持 "col" 与 "table.col" 限定名)
      * @return array<mixed>
      * @throws QueryException 执行失败
      */
     public function pluck(string $field): array {
+        $key=self::resultColumnKey($field);
         $rows=$this->get();
         $values=array();
         foreach($rows as $row)
-            $values[]=$row[$field]??null;
+            $values[]=$row[$key]??null;
         return $values;
+    }
+
+    /**
+     * 字段名对应的结果行键
+     *
+     * - 限定名(table.col)的行键为列段
+     *
+     * @access private
+     * @param string $field 字段名
+     * @return string
+     */
+    private static function resultColumnKey(string $field): string {
+        $pos=strrpos($field,'.');
+        return $pos===false?$field:substr($field,$pos+1);
     }
 
     /**

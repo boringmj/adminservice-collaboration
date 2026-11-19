@@ -118,6 +118,20 @@ class QueryBuilderTest extends TestCase {
     }
 
     /**
+     * 测试限定名的 value/pluck 按列段取行键
+     * @return void
+     */
+    public function testValueAndPluckWithQualifiedField(): void {
+        $pdo=new FakePdo();
+        $pdo->selectRows=[['name'=>'a']];
+        $builder=new QueryBuilder($this->createDb($pdo),'users','u');
+        $this->assertSame('a',$builder->value('u.name'));
+        $this->assertSame('SELECT `u`.`name` FROM `users` `u` LIMIT 1',$pdo->executed[0]);
+        $pdo->selectRows=[['name'=>'a'],['name'=>'b']];
+        $this->assertSame(['a','b'],(new QueryBuilder($this->createDb($pdo),'users','u'))->pluck('u.name'));
+    }
+
+    /**
      * 测试 insert 返回自增主键
      * @return void
      */

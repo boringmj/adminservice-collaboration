@@ -16,8 +16,14 @@ interface QueryContextInterface {
 
     /**
      * 获取查询对象
-     * @return QueryInterface
+     * @return QueryInterface|null 查询语句为查询对象, 原生 SQL 语句为 null
      */
-    public function getQuery(): QueryInterface;
+    public function getQuery(): ?QueryInterface;
+
+    /**
+     * 获取原生 SQL
+     * @return string|null 原生 SQL 语句为 SQL 文本, 查询语句为 null
+     */
+    public function getRawSql(): ?string;
 
 }

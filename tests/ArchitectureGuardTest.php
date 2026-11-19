@@ -155,6 +155,22 @@ final class ArchitectureGuardTest extends TestCase {
     }
 
     /**
+     * 检查响应头无法发送时有日志出口
+     *
+     * - CLI 测试无法复现 `headers_sent()`, 以源码钉住判定与日志
+     *
+     * @access public
+     * @return void
+     */
+    public function testResponseLogsUnsendableHeaders(): void {
+        $code=$this->code('core/Response.php');
+        $this->assertStringContainsString('canSendHeaders',$code);
+        // 日志消息是字符串字面量, 经 token 清洗后丢失, 改查原始源码
+        $source=(string)file_get_contents($this->core.'/core/Response.php');
+        $this->assertStringContainsString('not sent because output has already started',$source);
+    }
+
+    /**
      * 检查请求对象不写入应用级容器
      *
      * @access public

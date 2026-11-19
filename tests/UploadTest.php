@@ -405,4 +405,39 @@ class UploadTest extends TestCase {
         $this->assertInstanceOf(\AdminService\exception\UploadExceptionInterface::class,$exception);
     }
 
+    /**
+     * 测试: error=OK 但临时文件不是 SAPI 上传文件时抛异常, 不静默丢弃
+     * @return void
+     */
+    public function testNonSapiFileWithOkErrorThrows(): void {
+        $source=tempnam(sys_get_temp_dir(),'upload_nonsapi_');
+        file_put_contents($source,'x');
+        $this->tempFiles[]=$source;
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Uploaded file is not a SAPI upload');
+        new UploadFiles(sys_get_temp_dir(),array(
+            'name'=>'plain.txt',
+            'type'=>'text/plain',
+            'size'=>1,
+            'tmp_name'=>$source,
+            'error'=>UPLOAD_ERR_OK
+        ));
+    }
+
+    /**
+     * 测试: error=OK 但临时文件缺失时抛异常, 不静默丢弃(驱动托管文件同受此校验)
+     * @return void
+     */
+    public function testMissingTempFileWithOkErrorThrows(): void {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Uploaded temporary file is missing');
+        new UploadFiles(sys_get_temp_dir(),array(
+            'name'=>'gone.txt',
+            'type'=>'text/plain',
+            'size'=>1,
+            'tmp_name'=>sys_get_temp_dir().'/upload_missing_file.txt',
+            'error'=>UPLOAD_ERR_OK
+        ),array(),null,true);
+    }
+
 }

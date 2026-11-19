@@ -35,11 +35,12 @@ function view(null|string|array $template=null,array $data=array()): string {
  * 设置输出类型为json
  *
  * @param mixed $data 数据
- * @param int $code 状态码
+ * @param int|null $code 状态码(null = 不改动已设状态码)
  * @return mixed
  */
-function json(mixed $data=null,int $code=200): mixed {
+function json(mixed $data=null,?int $code=null): mixed {
     $response=App::get(Response::class);
-    $response->status($code);
+    if($code!==null)
+        $response->status($code);
     return $response->json($data);
 }

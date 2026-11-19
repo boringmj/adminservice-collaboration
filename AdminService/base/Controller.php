@@ -183,11 +183,12 @@ abstract class Controller {
      *
      * @access protected
      * @param mixed $data 数据
-     * @param int $code 状态码
+     * @param int|null $code 状态码(null = 不改动已设状态码)
      * @return mixed
      */
-    final protected function json(mixed $data,int $code=200): mixed {
-        $this->response->status($code);
+    final protected function json(mixed $data,?int $code=null): mixed {
+        if($code!==null)
+            $this->response->status($code);
         return $this->response->json($data);
     }
 
@@ -214,14 +215,15 @@ abstract class Controller {
 
     /**
      * 设置返回内容为html
-     * 
+     *
      * @access protected
      * @param array|object|string|int|bool|null $html html内容
-     * @param int $code 状态码
+     * @param int|null $code 状态码(null = 不改动已设状态码)
      * @return mixed
      */
-    final protected function html(mixed $html,int $code=200): mixed {
-        $this->response->status($code);
+    final protected function html(mixed $html,?int $code=null): mixed {
+        if($code!==null)
+            $this->response->status($code);
         return $this->response->html($html);
     }
 

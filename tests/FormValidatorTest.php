@@ -290,4 +290,37 @@ class FormValidatorTest extends TestCase {
         $this->assertSame(array(),$validator->getErrors());
     }
 
+    /**
+     * email/url 规则的字符串 "0" 参与校验, 不因假值短路通过
+     * @return void
+     */
+    public function testStringZeroIsCheckedByEmailAndUrlRules(): void {
+        foreach(array('email','url') as $rule) {
+            $validator=new FormValidator(
+                array('field'=>'0'),
+                array('field'=>$rule)
+            );
+            $this->assertFalse($validator->validate(),$rule.' 对字符串 "0" 应产生校验错误');
+            $this->assertArrayHasKey('field',$validator->getErrors(),$rule);
+        }
+        // 空串仍按可选字段通过
+        foreach(array('email','url') as $rule) {
+            $validator=new FormValidator(
+                array('field'=>''),
+                array('field'=>$rule)
+            );
+            $this->assertTrue($validator->validate(),$rule.' 对空串应通过');
+            $this->assertSame(array(),$validator->getErrors(),$rule);
+        }
+        // 合法值通过
+        $this->assertTrue((new FormValidator(
+            array('field'=>'a@b.com'),
+            array('field'=>'email')
+        ))->validate());
+        $this->assertTrue((new FormValidator(
+            array('field'=>'https://example.com'),
+            array('field'=>'url')
+        ))->validate());
+    }
+
 }

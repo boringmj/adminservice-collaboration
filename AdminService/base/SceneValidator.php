@@ -51,7 +51,7 @@ abstract class SceneValidator extends Validator {
      *
      * @param array<string,mixed> $rules 合并后的规则集
      * @return array
-     * @throws InvalidArgumentException 场景不存在
+     * @throws InvalidArgumentException 场景不存在或场景字段缺规则
      */
     protected function getSceneRules(array $rules): array {
         if($this->scene===null)
@@ -61,9 +61,10 @@ abstract class SceneValidator extends Validator {
         $sceneFields=$this->scenes[$this->scene];
         $sceneRules=[];
         foreach($sceneFields as $field) {
-            if(isset($rules[$field])) {
-                $sceneRules[$field]=$rules[$field];
-            }
+            // 场景字段必须对应规则, 缺规则视为场景声明错误, 不静默缩小校验范围
+            if(!array_key_exists($field,$rules))
+                throw new InvalidArgumentException('Scene "'.$this->scene.'" field "'.$field.'" has no validation rule.');
+            $sceneRules[$field]=$rules[$field];
         }
         return $sceneRules;
     }

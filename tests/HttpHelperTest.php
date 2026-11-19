@@ -5,6 +5,7 @@ namespace Tests;
 use PHPUnit\Framework\TestCase;
 
 use AdminService\common\HttpHelper;
+use AdminService\Exception;
 use ReflectionMethod;
 
 /**
@@ -36,6 +37,16 @@ class HttpHelperTest extends TestCase {
             'Content-Type'=>'application/json',
             'X-Dup'=>'b'
         ),$headers);
+    }
+
+    /**
+     * 测试 POST 数组体 JSON 编码失败时抛异常, 不静默发空体
+     * @return void
+     */
+    public function testPostArrayBodyJsonEncodeFailureThrows(): void {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('POST data cannot be encoded as JSON');
+        HttpHelper::post('http://127.0.0.1:1/',array('bad'=>NAN));
     }
 
 }

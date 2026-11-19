@@ -249,4 +249,46 @@ class CookieTest extends TestCase {
         )));
     }
 
+    /**
+     * 测试 expires/expire 只接受整数与整数字符串
+     *
+     * - 非数字过期时间不再静默转 0(会话 Cookie)
+     * - 负数时间戳合法(用于过期删除)
+     *
+     * @return void
+     */
+    public function testExpiresAcceptsOnlyIntegers(): void {
+        foreach(array('expires','expire') as $key) {
+            try {
+                CookieOptions::fromArray(array($key=>'abc'));
+                $this->fail($key.' 非法值应抛异常');
+            } catch(\InvalidArgumentException $e) {
+                $this->assertStringContainsString($key,$e->getMessage());
+            }
+            try {
+                CookieOptions::fromArray(array($key=>'1.5'));
+                $this->fail($key.' 浮点字符串应抛异常');
+            } catch(\InvalidArgumentException $e) {
+                $this->assertStringContainsString($key,$e->getMessage());
+            }
+        }
+        // 整数字符串与负数时间戳合法
+        $this->assertSame(123,CookieOptions::fromArray(array('expires'=>'123'))->expires);
+        $this->assertSame(-100,CookieOptions::fromArray(array('expires'=>-100))->expires);
+        $this->assertGreaterThan(time(),CookieOptions::fromArray(array('expire'=>'60'))->expires);
+    }
+
+    /**
+     * 测试 Cookie 层把非法 expires 包装为受控异常
+     * @return void
+     */
+    public function testBuildAllWrapsInvalidExpires(): void {
+        $this->expectException(Exception::class);
+        $this->expectExceptionCode(100405);
+        $this->createCookie()->buildAll(array('name'=>array(
+            'value'=>'value',
+            'expires'=>'abc'
+        )));
+    }
+
 }

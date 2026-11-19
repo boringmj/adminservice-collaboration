@@ -3,6 +3,7 @@
 namespace AdminService\common;
 
 use AdminService\App;
+use AdminService\Exception;
 
 use function array_values;
 use function call_user_func;
@@ -15,6 +16,7 @@ use function curl_setopt;
 use function is_array;
 use function is_numeric;
 use function json_encode;
+use function json_last_error_msg;
 use function strcasecmp;
 use function strlen;
 use function strpos;
@@ -380,8 +382,11 @@ class HttpHelper {
         ?callable $error_callback=null,
         bool $disable_ssl_verify=false
     ): string {
-        if(is_array($data))
+        if(is_array($data)) {
             $data=json_encode($data);
+            if($data===false)
+                throw new Exception('POST data cannot be encoded as JSON: '.json_last_error_msg().'.');
+        }
         $response=App::new(
             HttpHelper::class,$url,'POST',$headers,$data,$timeout
         )->disableSslVerify($disable_ssl_verify)->execute();

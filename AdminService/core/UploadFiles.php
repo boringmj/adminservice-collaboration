@@ -148,9 +148,15 @@ final class UploadFiles extends AbstractUploadFiles {
             }
             // 安全验证: 驱动托管的文件不经过 SAPI 上传校验
             if(!$this->trusted_files&&!is_uploaded_file($tmp_file))
-                continue;
+                throw new Exception('Uploaded file is not a SAPI upload.',0,array(
+                    'index'=>$i,
+                    'tmp_name'=>$tmp_file
+                ));
             if(!file_exists($tmp_file))
-                continue;
+                throw new Exception('Uploaded temporary file is missing.',0,array(
+                    'index'=>$i,
+                    'tmp_name'=>$tmp_file
+                ));
             // 安全处理扩展名
             $raw_ext=strtolower(pathinfo($file_name,PATHINFO_EXTENSION));
             $safe_ext=preg_replace(

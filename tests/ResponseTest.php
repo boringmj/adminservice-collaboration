@@ -668,4 +668,21 @@ class ResponseTest extends TestCase {
         $this->assertSame('',$second->cookie('only'));
     }
 
+    /**
+     * 测试手动设置的 Content-Type 不被类型登记表或类型属性覆盖
+     *
+     * - 登记表其余 Header 仍照常套用
+     *
+     * @return void
+     */
+    public function testManualContentTypeHeaderSurvivesRender(): void {
+        $response=new Response();
+        $response->body('body');
+        $response->header('Content-Type','application/xml; charset=gbk');
+        $response->prepare($this->request('GET','application/json'));
+        $response->render();
+        $this->assertSame('application/xml; charset=gbk',$response->header('Content-Type'));
+        $this->assertSame('Accept',$response->header('Vary'));
+    }
+
 }

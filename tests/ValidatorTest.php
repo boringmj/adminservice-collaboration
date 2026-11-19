@@ -155,4 +155,36 @@ class ValidatorTest extends TestCase {
         $this->assertTrue($validator->validate());
     }
 
+    /**
+     * 测试场景列出但规则表没有的字段时抛异常, 不静默缩小校验范围
+     * @return void
+     */
+    public function testSceneFieldWithoutRuleThrows(): void {
+        $validator=new class(array('name'=>'admin','email'=>'a@b.com')) extends SceneValidator {
+            protected array $rules=array('name'=>'required');
+
+            protected array $scenes=array('orphan'=>array('email'));
+
+            protected function checkRule(string $field,string $rule,mixed $value,mixed $param=null): bool {
+                if($rule==='required'&&($value===null||$value==='')) {
+                    $this->error($field,['rule'=>$rule,'msg'=>$field.' 不能为空']);
+                    return false;
+                }
+                return true;
+            }
+
+            public function sanitize(array $data): array {
+                return $data;
+            }
+        };
+        try {
+            $validator->scene('orphan')->validate();
+            $this->fail('场景字段缺规则应抛出异常');
+        } catch(\InvalidArgumentException $e) {
+            $this->assertSame('Scene "orphan" field "email" has no validation rule.',$e->getMessage());
+        }
+        // 场景应已复位, 后续验证按全量规则执行
+        $this->assertTrue($validator->validate());
+    }
+
 }

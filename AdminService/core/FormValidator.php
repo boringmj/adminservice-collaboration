@@ -322,7 +322,8 @@ class FormValidator extends SceneValidator {
     }
 
     protected function validateEmail(string $field,mixed $value,mixed $_): bool {
-        if($value&&!filter_var($value,FILTER_VALIDATE_EMAIL)) {
+        // 空串视为未填(可选字段); 其余值(含 "0")一律参与校验
+        if($value!==''&&!filter_var($value,FILTER_VALIDATE_EMAIL)) {
             return $this->addError($field,'email');
         }
         return true;
@@ -379,7 +380,8 @@ class FormValidator extends SceneValidator {
     }
 
     protected function validateUrl(string $field,mixed $value,mixed $_): bool {
-        if($value&&!filter_var($value,FILTER_VALIDATE_URL)) {
+        // 空串视为未填(可选字段); 其余值(含 "0")一律参与校验
+        if($value!==''&&!filter_var($value,FILTER_VALIDATE_URL)) {
             return $this->addError($field,'url');
         }
         return true;

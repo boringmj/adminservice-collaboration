@@ -32,6 +32,7 @@ use function is_string;
 use function ob_flush;
 use function ob_get_level;
 use function str_contains;
+use function strcasecmp;
 use function strtolower;
 use function trim;
 
@@ -429,20 +430,32 @@ final class Response extends BaseResponse {
      * @return void
      */
     public function sendHeaders(): void {
-        // 判断是否还可以返回请求头
-        if(!headers_sent()) {
-            http_response_code($this->status());
-            // 同名多值逐行发送: 首个替换同名头, 其余追加(否则会被 header() 替换掉)
-            foreach($this->headers as $key=>$values) {
-                $replace=true;
-                foreach((array)$values as $value) {
-                    header($key.': '.$value,$replace);
-                    $replace=false;
-                }
-            }
-            if($this->cookies->all()!==array())
-                $this->cookieWriter()->setAll($this->cookies->all());
+        // 头无法补发时记录日志, 不静默丢弃状态码/Header/Cookie
+        if(!$this->canSendHeaders()) {
+            error_log('Response status/headers/cookies not sent because output has already started (status '.$this->status().').');
+            return;
         }
+        http_response_code($this->status());
+        // 同名多值逐行发送: 首个替换同名头, 其余追加(否则会被 header() 替换掉)
+        foreach($this->headers as $key=>$values) {
+            $replace=true;
+            foreach((array)$values as $value) {
+                header($key.': '.$value,$replace);
+                $replace=false;
+            }
+        }
+        if($this->cookies->all()!==array())
+            $this->cookieWriter()->setAll($this->cookies->all());
+    }
+
+    /**
+     * 头是否仍可发送
+     *
+     * @access protected
+     * @return bool
+     */
+    protected function canSendHeaders(): bool {
+        return !headers_sent();
     }
 
     /**
@@ -529,6 +542,7 @@ final class Response extends BaseResponse {
      * 应用内容类型对应的响应头
      *
      * - 显式指定但未登记的类型原样下发 `Content-Type`, 不套用登记表的响应头
+     * - 手动经 `header()`/`headers()` 设置的 `Content-Type` 优先, 登记表其余响应头仍套用
      *
      * @access private
      * @param array<string,mixed> $config 类型登记配置
@@ -536,11 +550,19 @@ final class Response extends BaseResponse {
      */
     private function applyTypeHeaders(array $config): void {
         $raw=strtolower(trim(explode(';',$this->contentType,2)[0]));
+        $has_manual=$this->headers->has('Content-Type');
         if($raw!==''&&$raw!=='*/*'&&!$this->isRegisteredType($raw)) {
-            $this->header('Content-Type',$this->contentType);
+            if(!$has_manual)
+                $this->header('Content-Type',$this->contentType);
             return;
         }
-        $this->headers($config['headers']??[]);
+        $headers=$config['headers']??[];
+        if($has_manual) {
+            foreach($headers as $name=>$value)
+                if(strcasecmp((string)$name,'Content-Type')===0)
+                    unset($headers[$name]);
+        }
+        $this->headers($headers);
     }
 
     /**

@@ -175,6 +175,21 @@ class RouteProducesTest extends TestCase {
     }
 
     /**
+     * 测试: 未知策略值抛出异常
+     *
+     * - 拼写错误不再静默按 strict 处理
+     *
+     * @return void
+     */
+    public function testUnknownPolicyThrows(): void {
+        $this->useRoutes("\$router->get('/p/json',array(\\Tests\\Fixtures\\ProducesController::class,'jsonOnly'));");
+        $this->usePolicy('strick');
+        $this->expectException(\AdminService\Exception::class);
+        $this->expectExceptionCode(-427);
+        $this->dispatch('/p/json','GET',array('Accept'=>'text/html'));
+    }
+
+    /**
      * 测试: off 不读 Accept、不追加 Vary
      *
      * @return void

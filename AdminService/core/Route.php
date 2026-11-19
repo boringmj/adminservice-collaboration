@@ -232,6 +232,12 @@ final class Route extends BaseRoute {
         if($produces===array())
             return true;
         $policy=(string)$this->config()->get('response.default.negotiation','strict');
+        if(!in_array($policy,array('off','fallback','strict'),true))
+            throw new Exception('Response produces negotiation policy must be one of "off", "fallback", "strict".',-427,array(
+                'key'=>'response.default.negotiation',
+                'policy'=>$policy,
+                'allowed'=>array('off','fallback','strict')
+            ));
         // off: 不读 Accept、不追加 Vary、不返回 406
         if($policy==='off') {
             $response->contentType($produces[0]);

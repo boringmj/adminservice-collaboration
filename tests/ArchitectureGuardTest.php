@@ -130,7 +130,9 @@ final class ArchitectureGuardTest extends TestCase {
             preg_match('/private\s+\?RouteItem\s+\$current\s*=/',$code),
             'Router 不应使用共享 current 属性保存命中路由'
         );
-        $this->assertStringContainsString('current_by_context',$code);
+        // 上下文侧为弱引用登记, 上下文销毁自动回收; 无上下文时按执行流键
+        $this->assertStringContainsString('context_routes',$code);
+        $this->assertStringContainsString('WeakMap',$code);
         $this->assertStringContainsString('ContextStorage::current()',$code);
     }
 

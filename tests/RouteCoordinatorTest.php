@@ -500,6 +500,24 @@ class RouteCoordinatorTest extends TestCase {
     }
 
     /**
+     * 测试可调用对象处理器的类级中间件声明生效
+     *
+     * - 对象处理器与数组形式(对象, 方法)同样收集类级与方法级声明
+     *
+     * @return void
+     */
+    public function testInvokableHandlerClassMiddlewareApplies(): void {
+        MiddlewareLog::clear();
+        $this->useRoutes("\$router->get('/t/invokable',new \Tests\Fixtures\InvokableAttributeHandler());"
+            ."\n\$router->get('/t/invokable-array',array(new \Tests\Fixtures\InvokableAttributeHandler(),'__invoke'));");
+        $this->assertSame('invoked',$this->dispatch('/t/invokable'));
+        $this->assertSame(array('invokable-class','invokable-class:after'),MiddlewareLog::$calls);
+        MiddlewareLog::clear();
+        $this->assertSame('invoked',$this->dispatch('/t/invokable-array'));
+        $this->assertSame(array('invokable-class','invokable-class:after'),MiddlewareLog::$calls);
+    }
+
+    /**
      * 测试中间件不调用 $next 时中断后续
      *
      * @return void

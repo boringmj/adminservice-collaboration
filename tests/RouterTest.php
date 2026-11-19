@@ -397,6 +397,40 @@ class RouterTest extends TestCase {
     }
 
     /**
+     * 测试非法中间件条目抛出异常
+     *
+     * - 不再静默返回空集使中间件凭空消失
+     *
+     * @return void
+     */
+    public function testNormalizeRejectsInvalidMiddlewareEntries(): void {
+        foreach(array(42,array(FirstMiddleware::class,42)) as $declaration) {
+            try {
+                Pipeline::normalize($declaration);
+                $this->fail('非法中间件声明应抛出异常');
+            } catch(Exception $e) {
+                $this->assertSame(-428,$e->getCode());
+            }
+        }
+    }
+
+    /**
+     * 测试分组未知键抛出异常
+     *
+     * - 拼错的 `middlewares` 不再被静默忽略
+     *
+     * @return void
+     */
+    public function testGroupUnknownKeyThrows(): void {
+        $router=new Router();
+        $this->expectException(Exception::class);
+        $this->expectExceptionCode(-429);
+        $router->group(array('prefix'=>'/x','middlewares'=>array(FirstMiddleware::class)),static function(Router $router): void {
+            $router->get('/y',array('C','y'));
+        });
+    }
+
+    /**
      * 测试命名路由反向生成
      * @return void
      */

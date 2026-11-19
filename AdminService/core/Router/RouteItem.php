@@ -26,6 +26,7 @@ use function array_values;
 use function class_exists;
 use function count;
 use function explode;
+use function get_debug_type;
 use function http_build_query;
 use function implode;
 use function in_array;
@@ -733,6 +734,7 @@ final class RouteItem {
      * 编译控制器级中间件
      *
      * - 结果同时包含配置项、类属性与方法属性, 已按优先级排序
+     * - 类名字符串处理器要求类已存在; 对象处理器(含可调用对象)按其实例的类收集
      * - 结果缓存在当前路由项上, 供后续请求直接取用
      *
      * @access public
@@ -744,12 +746,27 @@ final class RouteItem {
             return $this->compiled_controller_middlewares;
         $entries=Pipeline::normalize($configured);
         $handler=$this->handler;
-        if(is_array($handler)&&count($handler)===2&&is_string($handler[0])&&class_exists($handler[0])) {
-            $reflection=new ReflectionClass($handler[0]);
+        $class=null;
+        $method=null;
+        if(is_array($handler)&&count($handler)===2) {
+            $target=$handler[0]??null;
+            if(is_string($target)&&class_exists($target))
+                $class=$target;
+            elseif(is_object($target))
+                $class=$target::class;
+            if(isset($handler[1])&&is_string($handler[1]))
+                $method=$handler[1];
+        } elseif(is_object($handler)&&!($handler instanceof Closure)) {
+            // 可调用对象处理器: 类级与 __invoke 上的声明同样生效
+            $class=$handler::class;
+            $method='__invoke';
+        }
+        if($class!==null) {
+            $reflection=new ReflectionClass($class);
             $entries=array_merge($entries,self::middlewareEntries($reflection->getAttributes(Middleware::class)));
-            if($reflection->hasMethod($handler[1]))
+            if($method!==null&&$reflection->hasMethod($method))
                 $entries=array_merge($entries,self::middlewareEntries(
-                    $reflection->getMethod($handler[1])->getAttributes(Middleware::class)
+                    $reflection->getMethod($method)->getAttributes(Middleware::class)
                 ));
         }
         return $this->compiled_controller_middlewares=Pipeline::order($entries);
@@ -875,17 +892,23 @@ final class RouteItem {
      *
      * @access private
      * @return ReflectionFunctionAbstract
-     * @throws Exception 处理器无法反射
-     * @throws ReflectionException 处理器类或方法不存在
+     * @throws Exception 处理器无法反射或类/方法不存在
      */
     private function handlerReflection(): ReflectionFunctionAbstract {
         $handler=$this->handler;
-        if(is_array($handler)&&count($handler)===2&&is_string($handler[1]))
-            return new ReflectionMethod($handler[0],$handler[1]);
-        if($handler instanceof Closure||is_string($handler))
-            return new ReflectionFunction($handler);
-        if(is_object($handler)&&method_exists($handler,'__invoke'))
-            return new ReflectionMethod($handler,'__invoke');
+        try {
+            if(is_array($handler)&&count($handler)===2&&is_string($handler[1]))
+                return new ReflectionMethod($handler[0],$handler[1]);
+            if($handler instanceof Closure||is_string($handler))
+                return new ReflectionFunction($handler);
+            if(is_object($handler)&&method_exists($handler,'__invoke'))
+                return new ReflectionMethod($handler,'__invoke');
+        } catch(ReflectionException $e) {
+            throw new Exception('Route handler cannot be resolved.',-418,array(
+                'path'=>$this->path,
+                'handler'=>is_array($handler)&&is_string($handler[0]??null)?$handler[0]:get_debug_type($handler)
+            ),$e);
+        }
         throw new Exception('Route handler cannot be reflected.',-422,array(
             'path'=>$this->path
         ));

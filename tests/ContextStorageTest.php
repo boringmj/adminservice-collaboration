@@ -18,7 +18,10 @@ use AdminService\SequentialContextStorage;
 use AdminService\Container;
 use base\Container as ContainerContract;
 use Fiber;
+use ReflectionProperty;
 use Tests\Fixtures\ConcreteService;
+
+use function gc_collect_cycles;
 
 /**
  * 请求上下文存储测试
@@ -181,6 +184,27 @@ class ContextStorageTest extends TestCase {
         $fiber_a->resume();
         $fiber_b->resume();
         $this->assertNull($router->current());
+    }
+
+    /**
+     * 测试: 请求上下文销毁后最近命中路由的登记随之回收
+     *
+     * - 直接使用 Router(不经 Application)时不按上下文累积 current 登记
+     *
+     * @return void
+     */
+    public function testRouterCurrentIsReleasedWithRequestContext(): void {
+        $router=new Router();
+        $router->get('/gone',static fn(): string => 'ok');
+        $context=$this->context(new Container());
+        ContextStorage::run($context,static function() use ($router): void {
+            $router->find('GET','/gone');
+        });
+        unset($context);
+        gc_collect_cycles();
+        $map=new ReflectionProperty(Router::class,'context_routes');
+        $map->setAccessible(true);
+        $this->assertCount(0,$map->getValue($router),'上下文销毁后不得残留 current 登记条目');
     }
 
     /**

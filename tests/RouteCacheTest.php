@@ -95,6 +95,9 @@ class RouteCacheTest extends TestCase {
                 'debug'=>$debug,
                 'path'=>$this->app_dir
             ),
+            'feature'=>array(
+                'toggle'=>false
+            ),
             'cache'=>array(
                 'path'=>$this->dir.'/cache',
                 'dir_mode'=>0755,
@@ -603,6 +606,81 @@ class RouteCacheTest extends TestCase {
 
         $this->assertNotSame($first,$second,'路由装配依赖变化后必须重建');
         $this->assertCount(2,$second_route->getCompiledControllerMiddlewares(),'新配置的控制器中间件必须参与编译');
+    }
+
+    /**
+     * 测试: 路由声明错误在装配期抛出
+     *
+     * - 绑定目标不是处理器形参属声明错误, 不再被缓存构建吞掉后静默走实时路由
+     *
+     * @return void
+     */
+    public function testDeclarationErrorFailsAssembly(): void {
+        $this->writeRoutes('$router->get(\'/bad/{id}\',array(\\Tests\\Fixtures\\RouteCacheController::class,\'index\'))->bind(array(\'id\'=>\'not_a_param\'));');
+        $this->expectException(\AdminService\Exception::class);
+        $this->expectExceptionCode(-422);
+        (new RouterFactory())->get($this->config(true,'always'));
+    }
+
+    /**
+     * 测试: 处理器类不可解析在装配期抛出
+     *
+     * - 不再写入 `missing_class:null` 指纹条目导致每请求重建-写回循环
+     *
+     * @return void
+     */
+    public function testMissingHandlerClassFailsAssembly(): void {
+        $this->writeRoutes('$router->get(\'/missing\',array(\'Tests\\Fixtures\\MissingRouteController\',\'index\'));');
+        $this->expectException(\AdminService\Exception::class);
+        $this->expectExceptionCode(-418);
+        (new RouterFactory())->get($this->config(true,'always'));
+    }
+
+    /**
+     * 测试: 配置值变化使路由缓存失效
+     *
+     * - 路由文件可按任意配置键条件注册, 指纹需覆盖全部配置
+     *
+     * @return void
+     */
+    public function testConfigValueChangeInvalidatesRouteCache(): void {
+        $this->writeRoutes();
+        $config=$this->config(true,'always');
+        (new RouterFactory())->get($config);
+        $this->assertSame(1,$GLOBALS['route_cache_builds']);
+
+        // 模拟路由文件按任意配置键条件注册: 键值变化即应失效重建
+        $config->put('feature.toggle',true);
+        $second=(new RouterFactory())->get($config);
+        $this->assertSame(2,$GLOBALS['route_cache_builds'],'配置值变化后应重建');
+        $this->assertNotNull($second->find('GET','/cached'));
+    }
+
+    /**
+     * 测试: 路由文件 require 的辅助文件变化使缓存失效
+     *
+     * - 辅助文件不在 `route.files` 也不经 `$router->load()` 加载, 由装配期新加载文件清单覆盖
+     *
+     * @return void
+     */
+    public function testRequiredHelperFileChangeInvalidatesCache(): void {
+        $helper=$this->dir.'/helper.php';
+        $writeHelper=static function(string $path) use($helper): void {
+            file_put_contents($helper,"<?php\n\nreturn ".var_export($path,true).";\n");
+            clearstatcache(true,$helper);
+        };
+        $this->writeRouteFile($this->route_file,"\$path=require __DIR__.'/helper.php';\n"
+            .'$router->get($path,array(\\Tests\\Fixtures\\RouteCacheController::class,\'index\'))->name(\'helper\');');
+        $writeHelper('/helper-a');
+        $config=$this->config(true,'always');
+        $first=(new RouterFactory())->get($config);
+        $this->assertNotNull($first->find('GET','/helper-a'));
+
+        $writeHelper('/helper-b-long');
+        $second=(new RouterFactory())->get($config);
+        $this->assertNull($second->find('GET','/helper-a'),'辅助文件变化后不得继续使用旧缓存');
+        $this->assertNotNull($second->find('GET','/helper-b-long'));
+        $this->assertSame(2,$GLOBALS['route_cache_builds'],'辅助文件变化后应重新装配');
     }
 
 }

@@ -10,6 +10,8 @@ use ReflectionClass;
 use function array_key_exists;
 use function count;
 use function get_class;
+use function get_included_files;
+use function in_array;
 use function is_array;
 use function is_dir;
 use function is_object;
@@ -198,7 +200,7 @@ final class RouterFactory {
         } else {
             $payload=$inspect['payload'];
             if(!is_array($payload)
-                ||(int)($payload['version']??0)!==3
+                ||(int)($payload['version']??0)!==4
                 ||!isset($payload['routes'])
                 ||!is_array($payload['routes'])) {
                 $status='corrupted';
@@ -260,21 +262,19 @@ final class RouterFactory {
         $context=$this->context($store,$config);
         $built=null;
         $builder=function() use($config,&$built): ?array {
+            $included_before=get_included_files();
             $built=$this->build($config);
-            try {
-                foreach($built->getRoutes() as $route)
-                    $route->compileControllerMiddlewares($config->get('middlewares.controller',array()));
-                return array(
-                    'version'=>3,
-                    'sorted'=>true,
-                    'routes'=>$built->export(),
-                    'sources'=>$this->handlerSources($built->getRoutes()),
-                    'route_sources'=>$this->loadedFileStats($built)
-                );
-            } catch(\Throwable) {
-                // 路由含闭包/对象或绑定无法预解析时保持实时路由, 不写缓存
-                return null;
-            }
+            foreach($built->getRoutes() as $route)
+                $route->compileControllerMiddlewares($config->get('middlewares.controller',array()));
+            $sources=$this->loadedFileStats($built);
+            $this->collectIncludedFileStats($included_before,$sources);
+            return array(
+                'version'=>4,
+                'sorted'=>true,
+                'routes'=>$built->export(),
+                'sources'=>$this->handlerSources($built->getRoutes()),
+                'route_sources'=>$sources
+            );
         };
         $payload=$store->load('routes',function() use($store,$config): string {
             return $this->fingerprint($store,$config);
@@ -283,7 +283,7 @@ final class RouterFactory {
             return $built;
         $validate_sources=$store->shouldValidate();
         if(is_array($payload)
-            &&(int)($payload['version']??0)===3
+            &&(int)($payload['version']??0)===4
             &&isset($payload['routes'])
             &&is_array($payload['routes'])
             &&(!$validate_sources
@@ -389,12 +389,14 @@ final class RouterFactory {
                     continue;
                 try {
                     $reflection=new ReflectionClass($class);
-                    $file=$reflection->getFileName();
-                    if(is_string($file))
-                        $this->collectFileStats($file,$stats);
-                } catch(\Throwable) {
-                    $stats['missing_class:'.$class]=null;
+                } catch(\Throwable $e) {
+                    throw new Exception('Route attribute class not found.',-418,array(
+                        'class'=>$class
+                    ),$e);
                 }
+                $file=$reflection->getFileName();
+                if(is_string($file))
+                    $this->collectFileStats($file,$stats);
             }
         }
         ksort($stats);
@@ -403,6 +405,8 @@ final class RouterFactory {
             'route.attributes'=>$attributes,
             'app.path'=>$config->get('app.path'),
             'middlewares.controller'=>$config->get('middlewares.controller',array()),
+            // 路由文件可按任意配置键条件注册, 指纹覆盖全部配置
+            'config'=>$config->all(),
             'files'=>$stats
         ));
     }
@@ -415,7 +419,8 @@ final class RouterFactory {
      *
      * @access private
      * @param array<\AdminService\Router\RouteItem> $routes 路由列表
-     * @return array<string,string|null>
+     * @return array<string,string>
+     * @throws Exception 处理器类不可解析
      */
     private function handlerSources(array $routes): array {
         $stats=array();
@@ -440,8 +445,10 @@ final class RouterFactory {
                 /** @var ReflectionClass<object> $reflection 处理器类名在运行期解析 */
                 $reflection=new ReflectionClass($class);
                 $this->collectHandlerSource($reflection,$method,$stats);
-            } catch(\Throwable) {
-                $stats['missing_class:'.$class]=null;
+            } catch(\Throwable $e) {
+                throw new Exception('Route handler class cannot be resolved.',-418,array(
+                    'class'=>$class
+                ),$e);
             }
         }
         ksort($stats);
@@ -455,7 +462,7 @@ final class RouterFactory {
      *
      * @access private
      * @param Router $router 已装配的路由表
-     * @return array<string,string|null>
+     * @return array<string,string>
      */
     private function loadedFileStats(Router $router): array {
         $stats=array();
@@ -466,12 +473,33 @@ final class RouterFactory {
     }
 
     /**
+     * 收集装配期间新加载文件的指纹
+     *
+     * - 路由文件 `require` 的辅助文件、装配期自动加载的类文件, 缓存命中时不再执行, 由本清单校验
+     *
+     * @access private
+     * @param array<string> $included_before 装配前已加载文件
+     * @param array<string,string> $stats 指纹表(引用)
+     * @return void
+     */
+    private function collectIncludedFileStats(array $included_before,array &$stats): void {
+        foreach(get_included_files() as $file) {
+            if(in_array($file,$included_before,true))
+                continue;
+            if(array_key_exists('file:'.$file,$stats))
+                continue;
+            $this->collectFileStats($file,$stats);
+        }
+        ksort($stats);
+    }
+
+    /**
      * 收集处理器类及其继承层次的文件指纹
      *
      * @access private
      * @param ReflectionClass<object> $reflection 处理器类反射
      * @param string|null $method 处理器方法名
-     * @param array<string,string|null> $stats 指纹表(引用)
+     * @param array<string,string> $stats 指纹表(引用)
      * @return void
      */
     private function collectHandlerSource(ReflectionClass $reflection,?string $method,array &$stats): void {
@@ -514,7 +542,7 @@ final class RouterFactory {
      *
      * @access private
      * @param string $path 路由文件或目录
-     * @param array<string,string|null> $stats 指纹表(引用)
+     * @param array<string,string> $stats 指纹表(引用)
      * @return void
      */
     private function collectPathStats(string $path,array &$stats): void {
@@ -531,18 +559,17 @@ final class RouterFactory {
      *
      * @access private
      * @param string $app_path 应用根目录
-     * @param array<string,string|null> $stats 指纹表(引用)
+     * @param array<string,string> $stats 指纹表(引用)
      * @return void
+     * @throws Exception 应用根不可读
      */
     private function collectControllerStats(string $app_path,array &$stats): void {
         $root=rtrim($app_path,'/\\');
         if($root==='')
             return;
         $apps=@scandir($root);
-        if($apps===false) {
-            $stats['missing:'.$root]=null;
-            return;
-        }
+        if($apps===false)
+            throw new Exception('Controller directory not readable.',-426,array('path'=>$root));
         foreach($apps as $app) {
             if($app==='.'||$app==='..')
                 continue;
@@ -562,12 +589,15 @@ final class RouterFactory {
      *
      * @access private
      * @param string $file 文件
-     * @param array<string,string|null> $stats 指纹表(引用)
+     * @param array<string,string> $stats 指纹表(引用)
      * @return void
+     * @throws Exception 文件不可读
      */
     private function collectFileStats(string $file,array &$stats): void {
         $hash=@sha1_file($file);
-        $stats['file:'.$file]=$hash===false?null:$hash;
+        if($hash===false)
+            throw new Exception('Route source file not readable.',-426,array('file'=>$file));
+        $stats['file:'.$file]=$hash;
     }
 
     /**

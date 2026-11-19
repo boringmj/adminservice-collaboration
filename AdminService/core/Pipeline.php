@@ -8,10 +8,13 @@ use base\Request;
 use function array_key_exists;
 use function array_merge;
 use function array_reverse;
+use function get_debug_type;
 use function is_array;
 use function is_object;
+use function is_scalar;
 use function is_string;
 use function usort;
+use function var_export;
 
 /**
  * 中间件管道
@@ -69,10 +72,12 @@ final class Pipeline {
      * - 接受 类名 / 实例 / 数组 三种写法, 数组为「条目列表」
      * - 条目写法用于声明层内优先级: `array('middleware'=>类名或实例, 'priority'=>10)`
      * - 含 `middleware` 键的数组视为**单条条目**, 其余数组视为条目列表
+     * - 非类名 / 实例 / 数组的条目抛异常, 不再静默丢弃
      *
      * @access public
      * @param mixed $middleware 中间件声明
      * @return array<array{middleware:string|object,priority:int}> 归一化条目
+     * @throws Exception 条目类型非法
      */
     public static function normalize(mixed $middleware): array {
         if($middleware===null||$middleware===array())
@@ -81,7 +86,10 @@ final class Pipeline {
         if(is_string($middleware)||is_object($middleware))
             return array(array('middleware'=>$middleware,'priority'=>0));
         if(!is_array($middleware))
-            return array();
+            throw new Exception('Invalid middleware declaration: expected class name, instance or array.',-428,array(
+                'type'=>get_debug_type($middleware),
+                'value'=>is_scalar($middleware)?var_export($middleware,true):null
+            ));
         // 单条带优先级的条目: `middleware` 亦可为列表, 共用该条目的优先级
         if(array_key_exists('middleware',$middleware)) {
             $priority=(int)($middleware['priority']??0);

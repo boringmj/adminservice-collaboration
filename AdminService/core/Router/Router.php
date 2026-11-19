@@ -16,6 +16,7 @@ use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionMethod;
+use WeakMap;
 
 use function array_intersect;
 use function array_merge;
@@ -37,7 +38,6 @@ use function rawurldecode;
 use function rtrim;
 use function sort;
 use function substr_count;
-use function spl_object_id;
 use function str_contains;
 use function str_replace;
 use function strtoupper;
@@ -127,13 +127,20 @@ final class Router implements RoutingInterface {
     private ?array $static_index_data=null;
 
     /**
-     * 各执行流最近命中的路由
+     * 各请求上下文最近命中的路由
      *
-     * - 有请求上下文时按上下文区分, 否则使用 `base\ExecutionFlow::key()`
-     * - 共享 Router 只保留只读路由表，请求态不串流
+     * - 弱引用登记: 上下文对象销毁后条目自动回收, 不随请求数累积
+     * @var WeakMap<RequestContext,RouteItem>|null
+     */
+    private ?WeakMap $context_routes=null;
+
+    /**
+     * 无请求上下文的各执行流最近命中的路由
+     *
+     * - 键为 `base\ExecutionFlow::key()`
      * @var array<string,RouteItem>
      */
-    private array $current_by_context=array();
+    private array $flow_routes=array();
 
     /**
      * 分组前缀栈
@@ -325,14 +332,25 @@ final class Router implements RoutingInterface {
      * 注册路由分组
      *
      * - `prefix` 依次拼接, `middleware` 依次追加
+     * - 分组属性只接受 `prefix` 与 `middleware`, 未知键抛异常
      * - 回调抛异常时分组栈同样回退
      *
      * @access public
      * @param array<string,mixed> $attributes 分组属性(prefix / middleware)
      * @param callable $callback 分组回调(接收本实例)
      * @return void
+     * @throws Exception 分组属性含未知键
      */
     public function group(array $attributes,callable $callback): void {
+        $unknown=array();
+        foreach(array_keys($attributes) as $key)
+            if($key!=='prefix'&&$key!=='middleware')
+                $unknown[]=$key;
+        if($unknown!==array())
+            throw new Exception('Unknown route group attribute.',-429,array(
+                'allowed'=>array('prefix','middleware'),
+                'unknown'=>$unknown
+            ));
         $prefix=trim((string)($attributes['prefix']??''),'/');
         $this->prefixStack[]=$prefix===''?'':'/'.$prefix;
         $this->middlewareStack[]=Pipeline::normalize($attributes['middleware']??array());
@@ -919,7 +937,12 @@ final class Router implements RoutingInterface {
      * @return RouteItem|null
      */
     public function current(): ?RouteItem {
-        return $this->current_by_context[$this->currentKey()]??null;
+        $context=ContextStorage::current();
+        if($context!==null) {
+            $map=$this->context_routes;
+            return $map!==null&&isset($map[$context])?$map[$context]:null;
+        }
+        return $this->flow_routes[ExecutionFlow::key()]??null;
     }
 
     /**
@@ -932,7 +955,13 @@ final class Router implements RoutingInterface {
      * @return void
      */
     public function resetCurrent(): void {
-        unset($this->current_by_context[$this->currentKey()]);
+        $context=ContextStorage::current();
+        if($context!==null) {
+            if($this->context_routes!==null)
+                unset($this->context_routes[$context]);
+            return;
+        }
+        unset($this->flow_routes[ExecutionFlow::key()]);
     }
 
     /**
@@ -943,20 +972,13 @@ final class Router implements RoutingInterface {
      * @return void
      */
     private function setCurrent(RouteItem $route): void {
-        $this->current_by_context[$this->currentKey()]=$route;
-    }
-
-    /**
-     * 当前执行流标识
-     *
-     * @access private
-     * @return string
-     */
-    private function currentKey(): string {
         $context=ContextStorage::current();
-        if($context!==null)
-            return 'context:'.spl_object_id($context);
-        return ExecutionFlow::key();
+        if($context!==null) {
+            $map=$this->context_routes??=new WeakMap();
+            $map[$context]=$route;
+            return;
+        }
+        $this->flow_routes[ExecutionFlow::key()]=$route;
     }
 
     /**
@@ -1033,7 +1055,8 @@ final class Router implements RoutingInterface {
         $this->sorted_data=null;
         $this->named=null;
         $this->named_data=null;
-        $this->current_by_context=array();
+        $this->context_routes=null;
+        $this->flow_routes=array();
         $this->prefixStack=array();
         $this->middlewareStack=array();
         $this->sorted_cache=null;

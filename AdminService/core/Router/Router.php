@@ -48,7 +48,8 @@ use function usort;
  * 路由注册与匹配
  *
  * - 负责路由注册(含分组、资源、属性声明)、匹配与 URL 反向生成
- * - 匹配先静态路径后含参路径, 避免动态路由抢先命中
+ * - 匹配先静态路径后含参路径, 避免动态路由抢先命中; 含参路径按首段分桶,
+ *   只遍历命中的桶与首段为参数的通配路由, 顺序与全表具体度排序一致
  * - 匹配与生成均不修改注册表, 同一实例可在多请求间复用
  */
 final class Router implements RoutingInterface {
@@ -125,6 +126,30 @@ final class Router implements RoutingInterface {
      * @var array<string,array<string,int>>|null
      */
     private ?array $static_index_data=null;
+
+    /**
+     * 动态路由首段桶(键为首段字面量, 值为排序条目, 惰性构建, 注册后失效)
+     * @var array<string,array<array<string,mixed>>>|null
+     */
+    private ?array $dynamic_buckets=null;
+
+    /**
+     * 首段含占位符的动态路由(排序条目, 惰性构建, 注册后失效)
+     * @var array<array<string,mixed>>|null
+     */
+    private ?array $dynamic_catchall=null;
+
+    /**
+     * 缓存动态路由的首段桶(条目为路由数据下标)
+     * @var array<string,array<array<string,mixed>>>|null
+     */
+    private ?array $dynamic_buckets_data=null;
+
+    /**
+     * 缓存路由的首段含占位符条目
+     * @var array<array<string,mixed>>|null
+     */
+    private ?array $dynamic_catchall_data=null;
 
     /**
      * 各请求上下文最近命中的路由
@@ -281,6 +306,10 @@ final class Router implements RoutingInterface {
         $this->sorted_cache=null;
         $this->static_index=null;
         $this->static_index_data=null;
+        $this->dynamic_buckets=null;
+        $this->dynamic_catchall=null;
+        $this->dynamic_buckets_data=null;
+        $this->dynamic_catchall_data=null;
         return $route;
     }
 
@@ -761,6 +790,7 @@ final class Router implements RoutingInterface {
     /**
      * 匹配动态路由
      *
+     * - 按请求路径首段定位桶, 只遍历该桶与通配桶; 归并后顺序与全表具体度排序一致
      * - HEAD 先找显式 HEAD / 不限方法路由, 再回落到 GET
      *
      * @access private
@@ -769,21 +799,35 @@ final class Router implements RoutingInterface {
      * @return array{0:RouteItem,1:array<string,string>}|null
      */
     private function findDynamic(string $method,string $uri): ?array {
-        $fallback=null;
-        foreach($this->sortedRoutes() as $route) {
-            if($route->isStatic())
+        $this->buildDynamicIndex();
+        $lists=array();
+        $seen=array();
+        foreach(self::uriCandidates($uri) as $candidate) {
+            $key=self::uriFirstSegment($candidate);
+            if(isset($seen[$key]))
                 continue;
+            $seen[$key]=true;
+            $bucket=$this->dynamic_buckets[$key]??null;
+            if($bucket!==null)
+                $lists[]=$bucket;
+        }
+        if($this->dynamic_catchall!==array())
+            $lists[]=$this->dynamic_catchall;
+        if($lists===array())
+            return null;
+        $merged=count($lists)===1?$lists[0]:self::mergeEntries($lists);
+        $fallback=null;
+        $decoded=self::decodedUriCandidate($uri);
+        foreach($merged as $entry) {
+            $route=$entry['route'];
             if(!$route->matchesMethod($method))
                 continue;
             $params=$route->matchUri($uri);
             if($params!==null)
                 $params=self::decodeParams($params);
-            if($params===null) {
-                $decoded=self::decodedUriCandidate($uri);
-                if($decoded!==null)
-                    // 解码候选命中的参数已是解码后的值, 不再二次解码
-                    $params=$route->matchUri($decoded);
-            }
+            if($params===null&&$decoded!==null)
+                // 解码候选命中的参数已是解码后的值, 不再二次解码
+                $params=$route->matchUri($decoded);
             if($params===null)
                 continue;
             $methods=$route->getMethods();
@@ -802,7 +846,7 @@ final class Router implements RoutingInterface {
     /**
      * 缓存路由匹配
      *
-     * - 静态索引直接定位; 动态路由按排序索引遍历
+     * - 静态索引直接定位; 动态路由按首段桶归并遍历
      * - 只有最终命中的路由才构造 RouteItem
      *
      * @access private
@@ -823,22 +867,35 @@ final class Router implements RoutingInterface {
                 return array($route,array());
             }
         }
-        $fallback=null;
-        foreach($this->sortedRouteIndices() as $index) {
-            $data=$this->route_data[$index];
-            if(RouteItem::isStaticData($data['params']??array()))
+        $this->buildDynamicIndexData();
+        $lists=array();
+        $seen=array();
+        foreach(self::uriCandidates($uri) as $candidate) {
+            $key=self::uriFirstSegment($candidate);
+            if(isset($seen[$key]))
                 continue;
+            $seen[$key]=true;
+            $bucket=$this->dynamic_buckets_data[$key]??null;
+            if($bucket!==null)
+                $lists[]=$bucket;
+        }
+        if($this->dynamic_catchall_data!==array())
+            $lists[]=$this->dynamic_catchall_data;
+        if($lists===array())
+            return null;
+        $merged=count($lists)===1?$lists[0]:self::mergeEntries($lists);
+        $fallback=null;
+        $decoded=self::decodedUriCandidate($uri);
+        foreach($merged as $entry) {
+            $data=$this->route_data[$entry['index']];
             if(!RouteItem::matchesMethodData($data['methods']??array(),$method))
                 continue;
             $params=RouteItem::matchUriData((string)($data['pattern']??''),$data['params']??array(),$uri);
             if($params!==null)
                 $params=self::decodeParams($params);
-            if($params===null) {
-                $decoded=self::decodedUriCandidate($uri);
-                if($decoded!==null)
-                    // 解码候选命中的参数已是解码后的值, 不再二次解码
-                    $params=RouteItem::matchUriData((string)($data['pattern']??''),$data['params']??array(),$decoded);
-            }
+            if($params===null&&$decoded!==null)
+                // 解码候选命中的参数已是解码后的值, 不再二次解码
+                $params=RouteItem::matchUriData((string)($data['pattern']??''),$data['params']??array(),$decoded);
             if($params===null)
                 continue;
             $methods=$data['methods']??array();
@@ -846,10 +903,10 @@ final class Router implements RoutingInterface {
                 &&!in_array('HEAD',$methods,true)
                 &&!in_array('*',$methods,true)) {
                 if($fallback===null)
-                    $fallback=array($index,$params);
+                    $fallback=array($entry['index'],$params);
                 continue;
             }
-            $route=$this->instantiateRoute($index);
+            $route=$this->instantiateRoute($entry['index']);
             $this->setCurrent($route);
             return array($route,$params);
         }
@@ -1062,6 +1119,10 @@ final class Router implements RoutingInterface {
         $this->sorted_cache=null;
         $this->static_index=null;
         $this->static_index_data=null;
+        $this->dynamic_buckets=null;
+        $this->dynamic_catchall=null;
+        $this->dynamic_buckets_data=null;
+        $this->dynamic_catchall_data=null;
         if($lazy) {
             $this->route_data=$route_data;
             $this->lazy=true;
@@ -1204,6 +1265,151 @@ final class Router implements RoutingInterface {
     }
 
     /**
+     * 构建动态路由的首段桶索引
+     *
+     * - 首段为字面量的路由按首段分桶; 首段含占位符的路由进通配桶, 匹配时总参与
+     * - 各桶与通配桶按(字面量长降序, 参数数升序, 注册序)排序; 匹配时按同一序归并,
+     *   遍历顺序与全表具体度排序一致
+     *
+     * @access private
+     * @return void
+     */
+    private function buildDynamicIndex(): void {
+        if($this->dynamic_buckets!==null)
+            return;
+        $buckets=array();
+        $catchall=array();
+        foreach($this->routes as $index=>$route) {
+            if($route->isStatic())
+                continue;
+            $entry=array(
+                'literal'=>$route->getLiteralLength(),
+                'params'=>count($route->getParamNames()),
+                'index'=>$index,
+                'route'=>$route
+            );
+            $key=self::dynamicBucketKey($route->getPath());
+            if($key===null)
+                $catchall[]=$entry;
+            else
+                $buckets[$key][]=$entry;
+        }
+        usort($catchall,self::compareEntries(...));
+        foreach(array_keys($buckets) as $key)
+            usort($buckets[$key],self::compareEntries(...));
+        $this->dynamic_buckets=$buckets;
+        $this->dynamic_catchall=$catchall;
+    }
+
+    /**
+     * 构建缓存动态路由的首段桶索引
+     *
+     * - 条目与 {@see buildDynamicIndex()} 同序, 只携带路由数据下标
+     *
+     * @access private
+     * @return void
+     */
+    private function buildDynamicIndexData(): void {
+        if($this->dynamic_buckets_data!==null)
+            return;
+        $buckets=array();
+        $catchall=array();
+        foreach($this->route_data as $index=>$data) {
+            if(RouteItem::isStaticData($data['params']??array()))
+                continue;
+            $entry=array(
+                'literal'=>(int)($data['literal_length']??0),
+                'params'=>count($data['params']??array()),
+                'index'=>$index
+            );
+            $key=self::dynamicBucketKey((string)($data['path']??''));
+            if($key===null)
+                $catchall[]=$entry;
+            else
+                $buckets[$key][]=$entry;
+        }
+        usort($catchall,self::compareEntries(...));
+        foreach(array_keys($buckets) as $key)
+            usort($buckets[$key],self::compareEntries(...));
+        $this->dynamic_buckets_data=$buckets;
+        $this->dynamic_catchall_data=$catchall;
+    }
+
+    /**
+     * 动态路由的首段桶键
+     *
+     * - 首段含占位符(整段为参数或占位符嵌入段中)返回 null, 归入通配桶
+     *
+     * @access private
+     * @param string $path 已规范化的路由路径
+     * @return string|null
+     */
+    private static function dynamicBucketKey(string $path): ?string {
+        $first=explode('/',substr($path,1),2)[0];
+        return str_contains($first,'{')?null:$first;
+    }
+
+    /**
+     * 请求路径的首段
+     *
+     * @access private
+     * @param string $uri 已规范化的请求路径
+     * @return string
+     */
+    private static function uriFirstSegment(string $uri): string {
+        return explode('/',substr($uri,1),2)[0];
+    }
+
+    /**
+     * 动态桶条目排序: 字面量长降序, 参数数升序, 注册序升序
+     *
+     * @access private
+     * @param array<string,mixed> $a 桶条目
+     * @param array<string,mixed> $b 桶条目
+     * @return int
+     */
+    private static function compareEntries(array $a,array $b): int {
+        if($a['literal']!==$b['literal'])
+            return $b['literal']<=>$a['literal'];
+        if($a['params']!==$b['params'])
+            return $a['params']<=>$b['params'];
+        return $a['index']<=>$b['index'];
+    }
+
+    /**
+     * 归并多个已排序的动态候选列表
+     *
+     * - 各列表互不重复(每条路由只归属一个桶或通配桶), 条目序为全序
+     *
+     * @access private
+     * @param array<array<array<string,mixed>>> $lists 已排序条目列表
+     * @return array<array<string,mixed>>
+     */
+    private static function mergeEntries(array $lists): array {
+        $merged=$lists[0];
+        for($i=1,$count=count($lists);$i<$count;$i++) {
+            $right=$lists[$i];
+            $out=array();
+            $left_index=0;
+            $right_index=0;
+            $left_count=count($merged);
+            $right_count=count($right);
+            while($left_index<$left_count&&$right_index<$right_count) {
+                if(self::compareEntries($merged[$left_index],$right[$right_index])<=0)
+                    $out[]=$merged[$left_index++];
+                else
+                    $out[]=$right[$right_index++];
+            }
+            while($left_index<$left_count)
+                $out[]=$merged[$left_index++];
+            while($right_index<$right_count)
+                $out[]=$right[$right_index++];
+            $merged=$out;
+        }
+        return $merged;
+    }
+
+    /**
      * 缓存路由的排序索引
      *
      * @access private
@@ -1276,6 +1482,10 @@ final class Router implements RoutingInterface {
         $this->named_data=null;
         $this->static_index=null;
         $this->static_index_data=null;
+        $this->dynamic_buckets=null;
+        $this->dynamic_catchall=null;
+        $this->dynamic_buckets_data=null;
+        $this->dynamic_catchall_data=null;
     }
 
     /**

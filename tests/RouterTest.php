@@ -1719,4 +1719,153 @@ class RouterTest extends TestCase {
         $this->assertSame(array($middleware),$route->compileControllerMiddlewares($middleware));
     }
 
+    /**
+     * 测试: 通配(首段为参数)路由与首段桶内路由按全局具体度排序
+     *
+     * - `/{module}/detail/{id}` 字面量更长, 同命中时必须先于 `/user/{any?:.*}`
+     * - 分桶匹配若只按桶分组、丢失跨桶全局序, 此用例失败
+     *
+     * @return void
+     */
+    public function testDynamicCatchallOutranksBucketWhenMoreLiteral(): void {
+        $router=new Router();
+        $router->get('/user/*',array('C','bucket'))->name('bucket');
+        $router->get('/{module}/detail/{id}',array('C','catchall'))->name('catchall');
+
+        $found=$router->find('GET','/user/detail/9');
+        $this->assertSame(array('C','catchall'),$found[0]->getHandler());
+        $this->assertSame(array('module'=>'user','id'=>'9'),$found[1]);
+    }
+
+    /**
+     * 测试: 桶内路由字面量更长时先于通配路由
+     *
+     * @return void
+     */
+    public function testDynamicBucketOutranksCatchallWhenMoreLiteral(): void {
+        $router=new Router();
+        $router->get('/{a}/{b}/{c}',array('C','catchall'))->name('catchall');
+        $router->get('/user/detail/{id}',array('C','bucket'))->name('bucket');
+
+        $found=$router->find('GET','/user/detail/9');
+        $this->assertSame(array('C','bucket'),$found[0]->getHandler());
+        $this->assertSame(array('id'=>'9'),$found[1]);
+    }
+
+    /**
+     * 测试: 字面量与参数数同键时按注册序取舍(通配路由 vs 桶内路由)
+     *
+     * @return void
+     */
+    public function testDynamicTieBreaksByRegistrationOrderAcrossBuckets(): void {
+        $first=new Router();
+        $first->get('/{y}/aa',array('C','catchall_first'));
+        $first->get('/aa/{x}',array('C','bucket_second'));
+        $this->assertSame(
+            array('C','catchall_first'),
+            $first->find('GET','/aa/aa')[0]->getHandler()
+        );
+
+        $second=new Router();
+        $second->get('/aa/{x}',array('C','bucket_first'));
+        $second->get('/{y}/aa',array('C','catchall_second'));
+        $this->assertSame(
+            array('C','bucket_first'),
+            $second->find('GET','/aa/aa')[0]->getHandler()
+        );
+    }
+
+    /**
+     * 测试: 百分号编码的首段经解码候选命中对应桶
+     *
+     * - 路由字面量 `hello world` 落在解码后的桶; 原始候选的桶不存在
+     *
+     * @return void
+     */
+    public function testDynamicBucketResolvedViaDecodedCandidate(): void {
+        $router=new Router();
+        $router->get('/hello world/{id}',array('C','space'))->name('space');
+
+        $found=$router->find('GET','/hello%20world/9');
+        $this->assertSame(array('C','space'),$found[0]->getHandler());
+        $this->assertSame(array('id'=>'9'),$found[1]);
+    }
+
+    /**
+     * 测试: 路由字面量本身含百分号编码时按原始候选命中
+     *
+     * @return void
+     */
+    public function testDynamicBucketWithPercentEncodedLiteralMatchesRawCandidate(): void {
+        $router=new Router();
+        $router->get('/a%20b/{id}',array('C','encoded'))->name('encoded');
+
+        $found=$router->find('GET','/a%20b/5');
+        $this->assertSame(array('C','encoded'),$found[0]->getHandler());
+        $this->assertSame(array('id'=>'5'),$found[1]);
+    }
+
+    /**
+     * 测试: 占位符嵌入段中的路由归入通配桶仍可命中
+     *
+     * - 首段 `pre{name}` 无法用首段字面量定位桶, 不得因分桶而漏匹配
+     *
+     * @return void
+     */
+    public function testDynamicRouteWithParamInsideFirstSegmentStillMatches(): void {
+        $router=new Router();
+        $router->get('/pre{name}/x',array('C','partial'))->name('partial');
+
+        $found=$router->find('GET','/prefix/x');
+        $this->assertSame(array('C','partial'),$found[0]->getHandler());
+        $this->assertSame(array('name'=>'fix'),$found[1]);
+    }
+
+    /**
+     * 测试: 通配糖路由按首段字面量分桶, 匹配自身与任意深度子路径
+     *
+     * @return void
+     */
+    public function testDynamicWildcardSugarMatchesViaFirstSegmentBucket(): void {
+        $router=new Router();
+        $router->get('/files/*',array('C','files'))->name('files');
+
+        $this->assertSame(array(),$router->find('GET','/files')[1]);
+        $this->assertSame(array('any'=>'a/b/c'),$router->find('GET','/files/a/b/c')[1]);
+        $this->assertNull($router->find('GET','/file/x'));
+    }
+
+    /**
+     * 测试: 多桶下命中各自的路由, 未注册桶只剩通配路由兜底
+     *
+     * @return void
+     */
+    public function testDynamicBucketsRouteToTheirOwnHandlers(): void {
+        $router=new Router();
+        for($i=0;$i<12;$i++)
+            $router->get('/mod'.$i.'/{id}',array('C','mod'.$i));
+        $router->get('/{a}/{b}',array('C','fallback'));
+
+        foreach(array(0,4,11) as $i) {
+            $found=$router->find('GET','/mod'.$i.'/77');
+            $this->assertSame(array('C','mod'.$i),$found[0]->getHandler());
+            $this->assertSame(array('id'=>'77'),$found[1]);
+        }
+        $fallback=$router->find('GET','/unknown/thing');
+        $this->assertSame(array('C','fallback'),$fallback[0]->getHandler());
+        $this->assertSame(array('a'=>'unknown','b'=>'thing'),$fallback[1]);
+    }
+
+    /**
+     * 测试: 根路径不会被动态路由命中
+     *
+     * @return void
+     */
+    public function testDynamicRoutesNeverMatchRootUri(): void {
+        $router=new Router();
+        $router->get('/{a}/{b}',array('C','two'));
+
+        $this->assertNull($router->find('GET','/'));
+    }
+
 }

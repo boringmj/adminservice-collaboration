@@ -37,9 +37,10 @@ use function is_resource;
 use function is_string;
 use function ltrim;
 use function mkdir;
+use function mt_getrandmax;
+use function mt_rand;
 use function opcache_invalidate;
 use function preg_match;
-use function random_int;
 use function realpath;
 use function rename;
 use function rmdir;
@@ -1245,7 +1246,8 @@ final class Cache implements CacheInterface {
     /**
      * 按配置概率触发自动 GC
      *
-     * - 任何 GC 失败都不影响本次写入
+     * - 抽签只影响本轮要不要清理, 无安全语义, 用普通随机数
+     * - gc() 内部已尽力而为, 失败不影响本次写入
      *
      * @access private
      * @return void
@@ -1257,12 +1259,11 @@ final class Cache implements CacheInterface {
             return;
         if($probability>$divisor)
             $probability=$divisor;
-        try {
-            if(random_int(1,$divisor)<=$probability)
-                $this->gc();
-        } catch(\Throwable) {
-            // GC 是尽力而为, 不影响正常写入
-        }
+        // mt_rand 上限之外的分母按上限抽, 避免荒谬配置抛错
+        if($divisor>mt_getrandmax())
+            $divisor=mt_getrandmax();
+        if(mt_rand(1,$divisor)<=$probability)
+            $this->gc();
     }
 
     /**

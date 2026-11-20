@@ -479,4 +479,75 @@ class RouterLazyImportTest extends TestCase {
             }
         }
     }
+
+    /**
+     * 测试: 懒加载下首段桶匹配保持全局具体度排序
+     *
+     * - `/{module}/detail/{id}` 字面量长于 `/user/{any?:.*}`, 同命中时取通配路由
+     * - `/user/detail/{id}` 字面量长于 `/{a}/{b}/{c}`, 同命中时取桶内路由
+     *
+     * @return void
+     */
+    public function testLazyBucketsKeepGlobalSpecificityOrder(): void {
+        $first_source=new Router();
+        $first_source->get('/user/*',array(ConcreteService::class,'execute'))->name('wildcard_bucket');
+        $first_source->get('/{module}/detail/{id}',array(ConcreteService::class,'execute'))->name('catchall');
+        $first=new Router();
+        $first->import($first_source->export(),true,true);
+        $this->assertSame('catchall',$first->find('GET','/user/detail/9')[0]->getName());
+
+        $second_source=new Router();
+        $second_source->get('/{a}/{b}/{c}',array(ConcreteService::class,'execute'))->name('three_params');
+        $second_source->get('/user/detail/{id}',array(ConcreteService::class,'execute'))->name('deep_bucket');
+        $second=new Router();
+        $second->import($second_source->export(),true,true);
+        $this->assertSame('deep_bucket',$second->find('GET','/user/detail/8')[0]->getName());
+    }
+
+    /**
+     * 测试: 懒加载下通配路由与桶内路由同键时按注册序取舍
+     *
+     * @return void
+     */
+    public function testLazyBucketTieBreaksByRegistrationOrder(): void {
+        $source=new Router();
+        $source->get('/{y}/aa',array(ConcreteService::class,'execute'))->name('catchall_first');
+        $source->get('/aa/{x}',array(ConcreteService::class,'execute'))->name('bucket_second');
+
+        $router=new Router();
+        $router->import($source->export(),true,true);
+        $this->assertSame('catchall_first',$router->find('GET','/aa/aa')[0]->getName());
+    }
+
+    /**
+     * 测试: 懒加载下占位符嵌入段中的路由仍可命中
+     *
+     * @return void
+     */
+    public function testLazyRouteWithParamInsideFirstSegmentStillMatches(): void {
+        $source=new Router();
+        $source->get('/pre{name}/x',array(ConcreteService::class,'execute'))->name('partial');
+
+        $router=new Router();
+        $router->import($source->export(),true,true);
+        $found=$router->find('GET','/prefix/x');
+        $this->assertSame('partial',$found[0]->getName());
+        $this->assertSame(array('name'=>'fix'),$found[1]);
+    }
+
+    /**
+     * 测试: 懒加载下经解码候选命中首段含空格的桶
+     *
+     * @return void
+     */
+    public function testLazyBucketResolvedViaDecodedCandidate(): void {
+        $source=new Router();
+        $source->get('/hello world/{id}',array(ConcreteService::class,'execute'))->name('space');
+
+        $router=new Router();
+        $router->import($source->export(),true,true);
+        $found=$router->find('GET','/hello%20world/9');
+        $this->assertSame('space',$found[0]->getName());
+        $this->assertSame(array('id'=>'9'),$found[1]);
+    }
 }

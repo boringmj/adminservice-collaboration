@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 
 use AdminService\Cache\EnvCache;
 use AdminService\Config\Bootstrapper;
+use AdminService\Config\Env;
 use AdminService\Runtime;
 
 use function AdminService\env;
@@ -151,6 +152,52 @@ class EnvSnapshotTest extends TestCase {
                 unlink($cache_file);
             if(is_file($env_file))
                 unlink($env_file);
+        }
+    }
+
+    /**
+     * 测试: 快照来源路径不符时重建快照, 本次进程按快照读取
+     *
+     * - 来源路径变化(例如快照由其它环境写入)视为不可用, 实时解析后覆盖
+     * - 覆盖成功后当前进程按快照读取, 与后续进程一致
+     *
+     * @return void
+     */
+    public function testForeignSnapshotIsRebuiltAndUsedByCurrentProcess(): void {
+        $env_file=tempnam(sys_get_temp_dir(),'env_snapshot_foreign_src_');
+        $cache_file=sys_get_temp_dir().'/env_snapshot_cache_'.uniqid('',true).'.php';
+        $other_file=tempnam(sys_get_temp_dir(),'env_snapshot_foreign_other_');
+        $previous_env=getenv('ADMINSERVICE_TEST_ENV_FILE');
+        $previous_cache=getenv('ADMINSERVICE_TEST_ENV_CACHE');
+        try {
+            file_put_contents($env_file,"KEY=one\n");
+            file_put_contents($other_file,"KEY=foreign\n");
+            putenv('ADMINSERVICE_TEST_ENV_FILE='.$env_file);
+            putenv('ADMINSERVICE_TEST_ENV_CACHE='.$cache_file);
+            $this->assertTrue(EnvCache::write($other_file,Env::fromFile($other_file)));
+            $this->assertSame('stale',EnvCache::status($env_file)['status'],'来源路径不符应判为不可用');
+
+            env_reset();
+            $this->assertSame('one',env('KEY'));
+            $this->assertTrue(env_snapshot()->compiled(),'覆盖重建后本次进程应按快照读取');
+            $this->assertSame('valid',EnvCache::status($env_file)['status']);
+        } finally {
+            if($previous_env===false)
+                putenv('ADMINSERVICE_TEST_ENV_FILE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_FILE='.$previous_env);
+            if($previous_cache===false)
+                putenv('ADMINSERVICE_TEST_ENV_CACHE');
+            else
+                putenv('ADMINSERVICE_TEST_ENV_CACHE='.$previous_cache);
+            env_reset();
+            Runtime::reset();
+            if(is_file($cache_file))
+                unlink($cache_file);
+            if(is_file($env_file))
+                unlink($env_file);
+            if(is_file($other_file))
+                unlink($other_file);
         }
     }
 

@@ -17,6 +17,7 @@ use AdminService\View\Compiler\PhpCompiler;
 use AdminService\View\Source\FileSource;
 
 use function AdminService\env_reset;
+use function AdminService\env_snapshot;
 use function array_column;
 use function count;
 use function file_put_contents;
@@ -116,6 +117,31 @@ class SystemCheckCommandTest extends TestCase {
         foreach($data['summary'] as $count)
             $total+=$count;
         $this->assertSame(count($data['checks']),$total);
+    }
+
+    /**
+     * 测试: 外来快照(来源路径不符)下环境快照与配置缓存显示一致
+     *
+     * - 快照来源路径变化时按 .env 重建, 配置缓存继续可用
+     *
+     * @return void
+     */
+    public function testForeignSnapshotKeepsEnvAndConfigCacheConsistent(): void {
+        [$command]=$this->command();
+        $other=$this->dir.'/foreign_env';
+        file_put_contents($other,"RUNTIME_PATH=".$this->dir."/runtime\n");
+        $this->assertTrue(EnvCache::write($other,Env::fromFile($other)));
+        env_reset();
+        // 与引导期一致: 先解析 env, 再执行检查
+        env_snapshot();
+
+        $output=Output::buffer();
+        $command->execute(new Input(array('--no-db','--json')),$output);
+        $data=json_decode($output->stdout(),true);
+        $this->assertIsArray($data);
+        $this->assertSame('ok',$this->checkNamed($data['checks'],'环境快照')['status']);
+        $config=$this->checkNamed($data['checks'],'配置缓存');
+        $this->assertSame('缓存文件不存在',$config['detail'],'外来快照重建后配置缓存应进入未构建分支');
     }
 
     /**

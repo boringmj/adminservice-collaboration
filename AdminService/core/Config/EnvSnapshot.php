@@ -80,9 +80,13 @@ final class EnvSnapshot {
                 EnvCache::clear();
                 return self::$snapshot=new Env();
             }
-            // 快照损坏: 实时解析后覆盖
+            // 快照损坏: 实时解析后覆盖, 覆盖成功后按快照读取
             $env=Env::fromFile($file);
-            EnvCache::write($file,$env);
+            if(EnvCache::write($file,$env)) {
+                $cached=EnvCache::load($file,false);
+                if($cached!==null)
+                    return self::$snapshot=$cached;
+            }
             return self::$snapshot=$env;
         }
         return self::$snapshot=is_file($file)?Env::fromFile($file):new Env();

@@ -8,7 +8,9 @@ use AdminService\Coroutine;
 use base\ExecutionFlow;
 use Fiber;
 
+use function class_exists;
 use function gc_collect_cycles;
+use function method_exists;
 use function substr;
 
 /**
@@ -68,24 +70,42 @@ class ExecutionFlowTest extends TestCase {
     /**
      * 测试: 执行流判活
      *
-     * - main 恒存活; Fiber 随对象存活; 协程驱动不可用时无法判定按存活处理
+     * - main 恒存活; Fiber 随对象存活
      *
      * @return void
      */
     public function testAliveDetectsAbandonedFiber(): void {
         $this->assertTrue(ExecutionFlow::alive('main'));
-        $this->assertTrue(ExecutionFlow::alive('swoole:999'),'驱动不可用时无法判定, 应按存活处理');
 
-        $key=null;
+        $key='';
         $fiber=new Fiber(function() use (&$key): void {
             $key=ExecutionFlow::key();
         });
         $fiber->start();
+        $this->assertStringStartsWith('fiber:',$key);
         $this->assertTrue(ExecutionFlow::alive($key));
 
         unset($fiber);
         gc_collect_cycles();
         $this->assertFalse(ExecutionFlow::alive($key),'Fiber 对象销毁后应判定为已消亡');
+    }
+
+    /**
+     * 测试: 协程标识的判活按驱动可用性分支
+     *
+     * - 驱动未加载或检查方法不可用时无法判定, 按存活处理
+     * - 驱动可用时按协程存在性判定, 不存在的协程 ID 判定为已消亡
+     *
+     * @return void
+     */
+    public function testAliveCoroutineKeyFollowsDriverAvailability(): void {
+        foreach(array('swoole','openswoole') as $driver) {
+            $class=$driver==='swoole'?'\\Swoole\\Coroutine':'\\OpenSwoole\\Coroutine';
+            $checkable=class_exists($class,false)
+                &&(method_exists($class,'isExist')||method_exists($class,'exists'));
+            $this->assertSame(!$checkable,ExecutionFlow::alive($driver.':999'),
+                $checkable?'驱动可用时判定不存在的协程为已消亡':'驱动不可用时无法判定, 应按存活处理');
+        }
     }
 
     /**

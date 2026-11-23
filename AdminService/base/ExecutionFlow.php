@@ -36,6 +36,18 @@ final class ExecutionFlow {
     private static int $fiber_seq=0;
 
     /**
+     * Swoole 扩展是否已加载(null = 尚未检查)
+     * @var bool|null
+     */
+    private static ?bool $swoole_loaded=null;
+
+    /**
+     * OpenSwoole 扩展是否已加载(null = 尚未检查)
+     * @var bool|null
+     */
+    private static ?bool $openswoole_loaded=null;
+
+    /**
      * 构造函数(禁止实例化)
      *
      * @access private
@@ -61,6 +73,9 @@ final class ExecutionFlow {
             }
             return $id;
         }
+        // 驱动未加载时直接归入 main, 不再构造协程查询
+        if(!self::driverLoaded('swoole')&&!self::driverLoaded('openswoole'))
+            return 'main';
         list($driver,$cid)=self::coroutine();
         return $driver===null?'main':$driver.':'.$cid;
     }
@@ -93,7 +108,7 @@ final class ExecutionFlow {
         if($parts[0]!=='swoole'&&$parts[0]!=='openswoole')
             return true;
         $class=$parts[0]==='swoole'?'\\Swoole\\Coroutine':'\\OpenSwoole\\Coroutine';
-        if(!class_exists($class,false))
+        if(!self::driverLoaded($parts[0]))
             return true;
         if(method_exists($class,'isExist'))
             return (bool)$class::isExist((int)$parts[1]);
@@ -111,11 +126,26 @@ final class ExecutionFlow {
      * @return array{0:string|null,1:int} 驱动名与协程 ID
      */
     public static function coroutine(): array {
-        if(class_exists(\Swoole\Coroutine::class,false)&&($cid=\Swoole\Coroutine::getCid())>0)
+        if(self::driverLoaded('swoole')&&($cid=\Swoole\Coroutine::getCid())>0)
             return array('swoole',(int)$cid);
-        if(class_exists(\OpenSwoole\Coroutine::class,false)&&($cid=\OpenSwoole\Coroutine::getCid())>0)
+        if(self::driverLoaded('openswoole')&&($cid=\OpenSwoole\Coroutine::getCid())>0)
             return array('openswoole',(int)$cid);
         return array(null,0);
+    }
+
+    /**
+     * 协程驱动扩展是否已加载
+     *
+     * - 扩展不能在运行期内加载或卸载, 结果按进程缓存
+     *
+     * @access private
+     * @param string $driver `swoole` / `openswoole`
+     * @return bool
+     */
+    private static function driverLoaded(string $driver): bool {
+        if($driver==='swoole')
+            return self::$swoole_loaded??(self::$swoole_loaded=class_exists(\Swoole\Coroutine::class,false));
+        return self::$openswoole_loaded??(self::$openswoole_loaded=class_exists(\OpenSwoole\Coroutine::class,false));
     }
 
 }

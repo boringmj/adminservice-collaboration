@@ -28,6 +28,25 @@ class ExecutionFlowTest extends TestCase {
     }
 
     /**
+     * 测试: 主流程标识重复读取保持稳定
+     *
+     * @return void
+     */
+    public function testKeyStaysMainForRepeatedCalls(): void {
+        for($i=0;$i<100;$i++)
+            $this->assertSame('main',ExecutionFlow::key());
+    }
+
+    /**
+     * 测试: 不在协程内时 coroutine() 返回空驱动
+     *
+     * @return void
+     */
+    public function testCoroutineReturnsNullOutsideCoroutine(): void {
+        $this->assertSame(array(null,0),ExecutionFlow::coroutine());
+    }
+
+    /**
      * 测试: Fiber 按对象身份区分, 同一 Fiber 内保持不变
      *
      * @return void

@@ -16,7 +16,6 @@ use function file_put_contents;
 use function filemtime;
 use function filesize;
 use function function_exists;
-use function getcwd;
 use function in_array;
 use function is_array;
 use function is_dir;
@@ -28,7 +27,6 @@ use function is_string;
 use function mkdir;
 use function opcache_invalidate;
 use function preg_match;
-use function realpath;
 use function rename;
 use function rmdir;
 use function rtrim;
@@ -596,32 +594,7 @@ final class CompileStore {
         $path=rtrim(str_replace('\\','/',trim($path)),'/');
         if($path==='')
             $path=Runtime::path().'/cache';
-        // 只拒绝解析后落在当前目录或文件系统根的路径; 相对路径中的 `.` / `..` 正常折叠
-        $normalized=array();
-        foreach(explode('/',$path) as $segment) {
-            if($segment===''||$segment==='.')
-                continue;
-            if($segment==='..') {
-                $last=count($normalized)-1;
-                if($last>=0&&$normalized[$last]!=='..')
-                    array_pop($normalized);
-                else
-                    $normalized[]='..';
-                continue;
-            }
-            $normalized[]=$segment;
-        }
-        $probe=implode('/',$normalized);
-        if($probe===''||$probe==='.'||$probe==='..'||preg_match('#^(?:[a-zA-Z]:)?/*$#',$probe)===1)
-            throw new Exception('Cache path is invalid.',100211,array('path'=>$path));
-        // 符号链接解析后同样不能落在文件系统根或当前目录
-        $real=realpath($path);
-        if($real!==false) {
-            $real=rtrim(str_replace('\\','/',$real),'/');
-            $current=getcwd()===false?'':rtrim(str_replace('\\','/',getcwd()),'/');
-            if($real===''||$real===$current||preg_match('#^(?:[a-zA-Z]:)?/*$#',$real)===1)
-                throw new Exception('Cache path is invalid.',100211,array('path'=>$path));
-        }
+        PathGuard::assertSafe($path);
         return $path;
     }
 

@@ -880,6 +880,39 @@ class CacheTest extends TestCase {
     }
 
     /**
+     * 测试: 缓存根校验重复调用结果一致
+     *
+     * - 合法路径多次解析返回同一值; 非法路径每次调用都抛异常
+     *
+     * @return void
+     */
+    public function testCacheRootValidationIsRepeatable(): void {
+        $method=new ReflectionMethod(Cache::class,'cacheRoot');
+        $method->setAccessible(true);
+        $cache=new Cache($this->makeConfig(array('path'=>$this->dir.'/cache')));
+        $first=$method->invoke($cache);
+        for($i=0;$i<3;$i++)
+            $this->assertSame($first,$method->invoke($cache));
+
+        $store=new CompileStore($this->makeConfig(array('path'=>$this->dir.'/cache')));
+        $path=$store->path('routes');
+        for($i=0;$i<3;$i++)
+            $this->assertSame($path,$store->path('routes'));
+
+        foreach(array('.','..','foo/..') as $bad) {
+            for($i=0;$i<2;$i++) {
+                $invalid=new Cache($this->makeConfig(array('path'=>$bad)));
+                try {
+                    $invalid->clearAll();
+                    $this->fail('缓存路径 '.$bad.' 应被拒绝');
+                } catch(Exception $e) {
+                    $this->assertSame(100211,$e->getCode());
+                }
+            }
+        }
+    }
+
+    /**
      * 测试: `.env` 的字符串 `0` 与布尔 false 一样关闭编译缓存
      *
      * @return void

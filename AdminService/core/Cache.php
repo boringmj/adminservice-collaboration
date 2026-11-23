@@ -2,6 +2,7 @@
 
 namespace AdminService;
 
+use AdminService\Cache\DirectoryCleaner;
 use AdminService\Cache\EnvCache;
 use AdminService\Cache\PathGuard;
 use AdminService\Config\EnvSnapshot;
@@ -453,14 +454,8 @@ final class Cache implements CacheInterface {
                 EnvSnapshot::reset();
             return $ok;
         }
-        if($target==='view') {
-            $dir=$root.'/view';
-            if(is_link($dir))
-                return false;
-            if(!is_dir($dir))
-                return true;
-            return $this->removeDirectoryContents($dir)&&@rmdir($dir);
-        }
+        if($target==='view')
+            return DirectoryCleaner::clear($root.'/view');
         if(!array_key_exists($target,self::COMPILE_FILES))
             throw new Exception('Cache compile target is invalid.',self::ERROR_INVALID_CLEAR_TARGET,array(
                 'target'=>$target

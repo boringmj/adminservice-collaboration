@@ -30,6 +30,7 @@ use function filemtime;
 use function getenv;
 use function is_dir;
 use function is_file;
+use function is_link;
 use function mkdir;
 use function putenv;
 use function realpath;
@@ -37,6 +38,7 @@ use function rmdir;
 use function scandir;
 use function sha1;
 use function str_ends_with;
+use function symlink;
 use function sys_get_temp_dir;
 use function time;
 use function touch;
@@ -402,6 +404,26 @@ class CacheCommandTest extends TestCase {
         $output=Output::buffer();
         $this->assertSame(0,$clear->execute(new Input(array('view')),$output));
         $this->assertFileDoesNotExist($this->dir.'/cache/compile/view');
+    }
+
+    /**
+     * 测试强制构建遇到符号链接视图缓存目录时清理失败并终止
+     *
+     * @return void
+     */
+    public function testViewBuildFailsWhenForceClearHitsSymlink(): void {
+        $view_dir=$this->dir.'/cache/compile/view';
+        $target=$this->dir.'/view-target';
+        mkdir($target,0755,true);
+        if(!is_dir(dirname($view_dir)))
+            mkdir(dirname($view_dir),0755,true);
+        if(!@symlink($target,$view_dir))
+            $this->markTestSkipped('当前系统无法创建目录符号链接');
+        $this->assertTrue(is_link($view_dir));
+        $command=new CacheBuildCommand(new Bootstrapper(),$this->config);
+        $output=Output::buffer();
+        $this->assertSame(CacheBuildCommand::FAILURE,$command->execute(new Input(array('view','--force')),$output));
+        $this->assertStringContainsString('模板缓存清理失败',$output->stdout());
     }
 
     /**

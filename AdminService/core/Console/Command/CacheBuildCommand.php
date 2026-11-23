@@ -332,8 +332,13 @@ final class CacheBuildCommand extends AbstractCommand {
             );
         }
         $cache=new FileCache($this->config,$force);
-        if($force)
-            $cache->clear();
+        if($force&&!$cache->clear()) {
+            return array(
+                'status'=>'failed',
+                'reason'=>'模板缓存清理失败',
+                'failure'=>true
+            );
+        }
         $compiler=new PhpCompiler();
         $count=0;
         $failed=0;

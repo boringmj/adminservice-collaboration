@@ -4,24 +4,31 @@ namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 
+use AdminService\Cache;
 use AdminService\Config\Repository;
 use AdminService\View\Cache\FileCache;
 use AdminService\View\Compiler\PhpCompiler;
 use AdminService\View\Source\FileSource;
+use base\View\CodeTemplateCompilerInterface;
+use base\View\CompiledTemplateInterface;
+use base\View\TemplateSourceInterface;
 
 use function var_export;
 
 use function clearstatcache;
 use function count;
+use function dirname;
 use function file_get_contents;
 use function filemtime;
 use function file_put_contents;
 use function is_dir;
 use function is_file;
+use function is_link;
 use function mkdir;
 use function rmdir;
 use function scandir;
 use function str_replace;
+use function symlink;
 use function sys_get_temp_dir;
 use function time;
 use function touch;
@@ -90,6 +97,56 @@ class ViewCacheTest extends TestCase {
         file_put_contents($this->template,'second {{$name}}');
         touch($this->template,time()+3);
         $this->assertSame('second B',$cache->load(new FileSource($this->template),$compiler)->render(array('name'=>'B')));
+    }
+
+    /**
+     * 测试自定义编译器不会复用默认编译器或其他自定义编译器的产物
+     *
+     * @return void
+     */
+    public function testCompilersDoNotShareCachedArtifacts(): void {
+        $cache=new FileCache($this->config('always'));
+        $default=new PhpCompiler();
+        $first=new ViewCacheFixedCompiler('one');
+        $second=new ViewCacheOtherCompiler('two');
+        $this->assertSame('first A',$cache->load(new FileSource($this->template),$default)->render(array('name'=>'A')));
+        $this->assertSame('one',$cache->load(new FileSource($this->template),$first)->render(array()));
+        $this->assertSame('first A',$cache->load(new FileSource($this->template),$default)->render(array('name'=>'A')));
+        $this->assertSame('two',$cache->load(new FileSource($this->template),$second)->render(array()));
+        $this->assertSame('one',$cache->load(new FileSource($this->template),$first)->render(array()));
+    }
+
+    /**
+     * 测试顶层视图缓存目录为符号链接时清理返回失败且不跟随
+     *
+     * @return void
+     */
+    public function testClearRejectsSymlinkedViewCacheDirectory(): void {
+        $target=$this->dir.'/target_view';
+        mkdir($target,0755,true);
+        file_put_contents($target.'/stale.php','<?php return array();');
+        if(!@symlink($target,$this->cache_dir)) {
+            mkdir(dirname($this->cache_dir),0755,true);
+            if(!@symlink($target,$this->cache_dir))
+                $this->markTestSkipped('当前系统无法创建目录符号链接');
+        }
+        $cache=new FileCache($this->config('always'));
+        $this->assertFalse($cache->clear(),'符号链接目录应返回失败');
+        $this->assertTrue(is_file($target.'/stale.php'),'符号链接目标不得被清理');
+        $this->assertTrue(is_link($this->cache_dir),'符号链接本身应保留');
+        $this->assertFalse((new Cache($this->config('always')))->clearCompile('view'));
+        $this->assertTrue(is_file($target.'/stale.php'));
+    }
+
+    /**
+     * 测试视图缓存目录不存在时清理成功
+     *
+     * @return void
+     */
+    public function testClearMissingViewCacheDirectorySucceeds(): void {
+        $cache=new FileCache($this->config('always'));
+        $this->assertTrue($cache->clear());
+        $this->assertTrue((new Cache($this->config('always')))->clearCompile('view'));
     }
 
     /**
@@ -300,4 +357,53 @@ class ViewCacheTest extends TestCase {
         @rmdir($path);
     }
 
+}
+
+/**
+ * 固定输出的自定义代码编译器
+ */
+class ViewCacheFixedCompiler implements CodeTemplateCompilerInterface {
+
+    /**
+     * 构造方法
+     *
+     * @param string $value 固定输出
+     */
+    public function __construct(private string $value) {
+    }
+
+    /**
+     * 编译为解释产物
+     *
+     * @param TemplateSourceInterface $source 模板来源
+     * @return CompiledTemplateInterface
+     */
+    public function compile(TemplateSourceInterface $source): CompiledTemplateInterface {
+        $value=$this->value;
+        return new class($value) implements CompiledTemplateInterface {
+            public function __construct(private string $value) {
+            }
+
+            public function render(array $data): string {
+                return $this->value;
+            }
+        };
+    }
+
+    /**
+     * 生成 PHP 闭包代码
+     *
+     * @param TemplateSourceInterface $source 模板来源
+     * @return string
+     */
+    public function code(TemplateSourceInterface $source): string {
+        return 'static function(array $data): string { return '.var_export($this->value,true).'; }';
+    }
+
+}
+
+/**
+ * 另一个固定输出的自定义代码编译器
+ */
+final class ViewCacheOtherCompiler extends ViewCacheFixedCompiler {
 }

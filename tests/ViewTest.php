@@ -286,6 +286,37 @@ class ViewTest extends TestCase {
         new FileSource('unreadableview://template');
     }
 
+    /**
+     * 允许根存在时, 本地缺失模板报文件不存在
+     *
+     * @return void
+     */
+    public function testInitMissingLocalTemplateReportsNotFound(): void {
+        $path=dirname(__DIR__).'/AdminService/app/demo/view/Index/missing_'.uniqid('',true).'.html';
+        $view=new View();
+        $this->expectException(Exception::class);
+        $this->expectExceptionCode(100301);
+        $view->init($path);
+    }
+
+    /**
+     * 已存在但位于允许根之外的文件仍按路径越界拒绝
+     *
+     * @return void
+     */
+    public function testInitExistingFileOutsideRootsIsRejected(): void {
+        $file=tempnam(sys_get_temp_dir(),'as_view_outside_');
+        file_put_contents($file,'x');
+        try {
+            $view=new View();
+            $this->expectException(Exception::class);
+            $this->expectExceptionCode(100304);
+            $view->init($file);
+        } finally {
+            @unlink($file);
+        }
+    }
+
 }
 
 /**

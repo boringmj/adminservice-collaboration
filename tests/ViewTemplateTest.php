@@ -202,6 +202,19 @@ class ViewTemplateTest extends TestCase {
     }
 
     /**
+     * 测试带空格的独立行控制标签同样不产生空行
+     *
+     * @return void
+     */
+    public function testStandaloneControlTagsWithSpaces(): void {
+        $template="A\n{{ if \$ok }}\nB\n{{ else }}\nD\n{{ /if }}\nC";
+        $this->assertSame("A\nB\nC",$this->render($template,array('ok'=>true)));
+        $this->assertSame("A\nD\nC",$this->render($template,array('ok'=>false)));
+        $template="A\n{{ foreach \$items as \$item }}\n{{ \$item }}\n{{ /foreach }}\nC";
+        $this->assertSame("A\n1\n2\nC",$this->render($template,array('items'=>array(1,2))));
+    }
+
+    /**
      * 测试非数组集合不输出循环体
      *
      * @return void

@@ -11,6 +11,7 @@ use base\View\TemplateSourceInterface;
 
 use function realpath;
 use function rtrim;
+use function str_contains;
 use function str_starts_with;
 
 /**
@@ -125,12 +126,12 @@ final class View extends BaseView {
      * 校验模板路径
      *
      * - 只允许 `app.path`、错误模板目录与 `view.allowed_paths` 下的普通文件
-     * - 配置不可用时跳过; 配置存在但无法解析为普通文件时直接拒绝
+     * - 配置不可用时跳过; 允许根不可用、包装器路径与越界路径报 `100304`, 本地文件不存在报 `100301`
      *
      * @access private
      * @param string $path 模板路径
      * @return void
-     * @throws Exception 路径越界或不是普通文件
+     * @throws Exception 文件不存在、路径越界或不是普通文件
      */
     private function assertAllowedPath(string $path): void {
         $config=Config::repository();
@@ -142,10 +143,16 @@ final class View extends BaseView {
                 'template_path'=>$path
             ));
         $real=realpath($path);
-        if($real===false)
-            throw new Exception('Template path must be a regular file under allowed roots.',100304,array(
+        if($real===false) {
+            // 包装器路径无法按本地路径判断存在性, 仍按路径策略拒绝
+            if(str_contains($path,'://'))
+                throw new Exception('Template path must be a regular file under allowed roots.',100304,array(
+                    'template_path'=>$path
+                ));
+            throw new Exception('Template file not found.',100301,array(
                 'template_path'=>$path
             ));
+        }
         foreach($roots as $root) {
             $prefix=rtrim($root,'/\\').DIRECTORY_SEPARATOR;
             if($real===$root||str_starts_with($real,$prefix))

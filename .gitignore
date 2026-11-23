@@ -15,3 +15,5 @@ plans/
 CODE-*.md
 TODO-*.md
 TEMP-*.md
+# 临时文件与中间存储
+/temp/
